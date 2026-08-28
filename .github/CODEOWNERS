@@ -1,9 +1,8 @@
-# 팀원 GitHub 아이디로 실제 값을 채워주세요.
-/api-gateway/           @your-github-id
-/eureka-server/         @your-github-id
-/user-service/          @teammate-user
-/content-service/       @teammate-content
-/judge-service/         @teammate-judge
-/coaching-service/      @teammate-coaching
-/infra/                 @your-github-id
-docker-compose.yml      @your-github-id
+/api-gateway/           @Hwan100
+/eureka-server/         @Hwan100
+/user-service/          @yonghyun0325
+/content-service/       @jjangjun0 @dnjsxo0616
+/judge-service/         @kosy00
+/coaching-service/      @DaengAe
+/infra/                 @Hwan100
+docker-compose.yml      @Hwan100
