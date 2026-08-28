@@ -10,7 +10,7 @@ public record SuccessResponse<T>(boolean success, T data) {
         return new SuccessResponse<>(true, data);
     }
 
-    public static SuccessResponse<Void> success() {
+    public static SuccessResponse<Void> empty() {
         return new SuccessResponse<>(true, null);
     }
 }
