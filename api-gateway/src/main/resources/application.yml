@@ -1,0 +1,57 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**, /api/v1/auth/**
+            - id: content-service
+              uri: lb://content-service
+              predicates:
+                - Path=/api/v1/contents/**, /api/v1/admin/contents/**
+            - id: judge-service
+              uri: lb://judge-service
+              predicates:
+                - Path=/api/v1/submissions/**
+            - id: coaching-service
+              uri: lb://coaching-service
+              predicates:
+                - Path=/api/v1/coaching/**
+            # ⚠️ /internal/v1/** 라우트는 의도적으로 등록하지 않는다 — 외부에서 접근 불가.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY}   # User Service가 발급에 쓰는 Private Key의 짝, PEM 문자열
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true   # /actuator/health/liveness, /actuator/health/readiness 분리
+  tracing:
+    sampling:
+      probability: 1.0

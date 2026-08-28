@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'maesamco-services'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:8080
+          - user-service:9000
+          - content-service:9001
+          - judge-service:9002
+          - coaching-service:9003

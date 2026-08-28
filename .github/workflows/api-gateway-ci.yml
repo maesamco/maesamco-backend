@@ -1,0 +1,54 @@
+name: api-gateway CI
+
+on:
+  pull_request:
+    paths:
+      - 'api-gateway/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+  push:
+    branches: [develop, main]
+    paths:
+      - 'api-gateway/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: gateway
+          POSTGRES_USER: maesamco
+          POSTGRES_PASSWORD: changeme
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build and test
+        run: ./gradlew :api-gateway:build
+        env:
+          DB_USERNAME: maesamco
+          DB_PASSWORD: changeme

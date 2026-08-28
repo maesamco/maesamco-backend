@@ -1,0 +1,10 @@
+.env
+.idea
+.gradle
+build
+*.iml
+application-local.yml
+application-secret.yml
+out/
+.DS_Store
+*.log
