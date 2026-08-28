@@ -78,7 +78,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     /** 로그인 전이라 사용자 식별이 안 되는 구간이 많으므로 IP를 우선 식별자로 쓴다. */
     private String resolveIdentifier(ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst(HttpHeaders.FORWARDED);
+        String forwardedFor = request.getHeaders().getFirst("Forwarded");
         if (forwardedFor != null) {
             return forwardedFor;
         }

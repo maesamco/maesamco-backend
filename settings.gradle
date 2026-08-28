@@ -7,4 +7,3 @@ include 'content-service'
 include 'judge-service'
 include 'coaching-service'
 
-// gradle/libs.versions.toml 이 있으면 Gradle이 자동으로 버전 카탈로그(libs)로 인식합니다.

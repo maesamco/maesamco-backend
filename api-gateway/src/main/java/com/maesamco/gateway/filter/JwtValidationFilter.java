@@ -120,7 +120,7 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
     private ServerWebExchange stripReservedHeaders(ServerWebExchange exchange) {
         return exchange.mutate()
                 .request(request -> request.headers(headers ->
-                        headers.keySet().removeIf(name -> name.startsWith(RESERVED_HEADER_PREFIX))))
+                        headers.headerNames().removeIf(name -> name.startsWith(RESERVED_HEADER_PREFIX))))
                 .build();
     }
 
