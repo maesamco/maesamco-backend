@@ -26,9 +26,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
  *
- * ⚠️ Flyway/Liquibase 등 마이그레이션 도구가 아직 팀 차원에서 결정되지 않아(이슈 #10),
- *    운영 마이그레이션 스크립트 대신 테스트 전용 ddl-auto=create-drop으로 coaching_schema를
- *    직접 생성해서 검증한다. 마이그레이션 도구가 정해지면 그 스크립트 기준으로 교체해야 한다.
+ * ⚠️ 마이그레이션 도구는 Flyway로 확정됐지만(팀 컨벤션 16절, 이슈 #10) 아직 실제 마이그레이션
+ *    스크립트가 도입되기 전이라, 운영 스크립트 대신 테스트 전용 ddl-auto=create-drop으로
+ *    coaching_schema를 직접 생성해서 검증한다. 마이그레이션 스크립트가 도입되면 그 스크립트
+ *    기준으로 교체해야 한다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
