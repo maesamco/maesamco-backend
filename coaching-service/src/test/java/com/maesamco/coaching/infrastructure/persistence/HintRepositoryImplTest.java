@@ -1,6 +1,8 @@
 package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.Hint;
+import com.maesamco.coaching.global.exception.BusinessException;
+import com.maesamco.coaching.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -9,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -117,21 +118,18 @@ class HintRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("같은 세션에 같은 단계의 힌트를 두 번 저장하면 UNIQUE 제약 위반으로 실패한다")
+    @DisplayName("같은 세션에 같은 단계의 힌트를 두 번 저장하면 HINT_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSessionAndStageAlreadyExists() {
-        /*
-         * 예외 변환(DataIntegrityViolationException)은 Spring이 관리하는 프록시 빈을 거쳐야
-         * 적용되므로, new로 직접 만든 hintRepository 대신 @Autowired로 주입받은
-         * springDataHintRepository(Spring Data JPA 빈)의 saveAndFlush로 검증한다.
-         */
         // given
         UUID coachingSessionId = UUID.randomUUID();
-        springDataHintRepository.saveAndFlush(Hint.create(coachingSessionId, 1, "1단계 힌트"));
+        hintRepository.save(Hint.create(coachingSessionId, 1, "1단계 힌트"));
 
         Hint duplicate = Hint.create(coachingSessionId, 1, "같은 단계 재생성");
 
         // when & then
-        assertThatThrownBy(() -> springDataHintRepository.saveAndFlush(duplicate))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> hintRepository.save(duplicate))
+                .isInstanceOfSatisfying(BusinessException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.HINT_ALREADY_EXISTS)
+                );
     }
 }
