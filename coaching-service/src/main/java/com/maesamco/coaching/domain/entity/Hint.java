@@ -31,6 +31,9 @@ import java.util.UUID;
  * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
  * 있어야 Hibernate가 FK를 만든다). CHECK 제약과 마찬가지로 Flyway 마이그레이션 스크립트에
  * coaching_session_id → p_coaching_sessions.id FK 제약을 명시적으로 포함시켜야 한다(이슈 #10).
+ *
+ * TODO(#10): Flyway 마이그레이션 도입 시 p_hints.coaching_session_id에
+ *            REFERENCES p_coaching_sessions(id) FK 제약 추가.
  */
 @Entity
 @Table(
