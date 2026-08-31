@@ -66,15 +66,15 @@ public class CoachingSession {
 
     @Builder
     private CoachingSession(UUID submissionId, UUID userId, UUID problemId) {
-        this.submissionId = requireNonNull(submissionId, "submissionId");
-        this.userId = requireNonNull(userId, "userId");
-        this.problemId = requireNonNull(problemId, "problemId");
+        this.submissionId = requireNonNull(submissionId, "제출 ID");
+        this.userId = requireNonNull(userId, "사용자 ID");
+        this.problemId = requireNonNull(problemId, "문제 ID");
         this.status = CoachingSessionStatus.IN_PROGRESS;
     }
 
-    private static UUID requireNonNull(UUID value, String fieldName) {
+    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
         if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + "는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
         }
         return value;
     }
@@ -87,7 +87,13 @@ public class CoachingSession {
                 .build();
     }
 
-    /** 역질문 답변까지 완료된 시점에 호출 — 스트릭 반영 기준(서비스 기능 요약 [1]-4절). */
+    /**
+     * 역질문 답변까지 완료된 시점에 호출 — 스트릭 반영 기준(서비스 기능 요약 [1]-4절).
+     *
+     * ⚠️ 낙관적 락 없이 상태를 확인 후 변경한다(check-then-act). 같은 세션에 대해 짧은 시간 안에
+     * 두 번 호출되는 경로(예: 클라이언트 재시도)가 생기면 완료 처리가 중복될 수 있다 — 이 메서드를
+     * 호출하는 Service/Facade를 만들 때 멱등 처리 여부를 함께 고려할 것.
+     */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {
             throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);

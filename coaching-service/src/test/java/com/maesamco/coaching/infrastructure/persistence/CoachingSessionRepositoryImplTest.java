@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -20,6 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
@@ -97,5 +99,27 @@ class CoachingSessionRepositoryImplTest {
 
         // then
         assertThat(found).isEmpty();
+    }
+
+    @Test
+    @DisplayName("동일한 submissionId로 두 번 저장하면 UNIQUE 제약 위반으로 실패한다")
+    void save_throwsWhenSubmissionIdAlreadyExists() {
+        /*
+         * 예외 변환(DataIntegrityViolationException)은 Spring이 관리하는 프록시 빈을 거쳐야
+         * 적용된다. coachingSessionRepository는 이 테스트에서 new로 직접 만든 순수 객체라
+         * 프록시를 안 거치므로, 대신 @Autowired로 주입받은 springDataCoachingSessionRepository
+         * (실제 Spring Data JPA 빈)의 saveAndFlush로 검증한다.
+         */
+        // given
+        UUID submissionId = UUID.randomUUID();
+        springDataCoachingSessionRepository.saveAndFlush(
+                CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID())
+        );
+
+        CoachingSession duplicate = CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID());
+
+        // when & then
+        assertThatThrownBy(() -> springDataCoachingSessionRepository.saveAndFlush(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
