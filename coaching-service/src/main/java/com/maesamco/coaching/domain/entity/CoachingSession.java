@@ -93,6 +93,9 @@ public class CoachingSession {
      * ⚠️ 낙관적 락 없이 상태를 확인 후 변경한다(check-then-act). 같은 세션에 대해 짧은 시간 안에
      * 두 번 호출되는 경로(예: 클라이언트 재시도)가 생기면 완료 처리가 중복될 수 있다 — 이 메서드를
      * 호출하는 Service/Facade를 만들 때 멱등 처리 여부를 함께 고려할 것.
+     *
+     * TODO: 역질문 답변 처리 Service/Facade 구현 시 위 동시성 문제(멱등 처리 또는 낙관적 락)
+     *       해결 방안 확정하고 이 TODO 제거.
      */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {
