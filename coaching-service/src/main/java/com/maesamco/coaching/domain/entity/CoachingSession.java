@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -29,7 +30,10 @@ import java.util.UUID;
  * created_by도 별도로 두지 않는다.
  */
 @Entity
-@Table(name = "p_coaching_sessions")
+@Table(
+        name = "p_coaching_sessions",
+        indexes = @Index(name = "idx_coaching_sessions_user", columnList = "user_id")
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
