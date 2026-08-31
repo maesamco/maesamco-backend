@@ -17,6 +17,9 @@ import java.util.UUID;
  *
  * <p>도메인 객체의 생성과 Repository 호출을 조율하고,
  * 동일한 사용자와 개념의 중복 등록을 방지합니다.</p>
+ *
+ * <p>TODO(PR #18 후속): Content Service Feign Client 도입 후
+ * 관심 개념 등록 전에 {@code conceptId}의 존재 여부를 검증해야 합니다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -45,6 +48,7 @@ public class UserInterestConceptService {
             UUID userId,
             UUID conceptId
     ) {
+        // TODO(PR #18 후속): Content Service에서 conceptId의 유효성을 확인합니다.
         validateNotDuplicated(
                 userId,
                 conceptId

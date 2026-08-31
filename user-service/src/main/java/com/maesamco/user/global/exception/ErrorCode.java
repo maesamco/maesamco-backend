@@ -35,7 +35,7 @@ public enum ErrorCode {
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
-    USER_INTEREST_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT,"이미 등록된 관심 개념입니다.");
+    USER_INTEREST_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 관심 개념입니다.");
 
     // ===== judge =====
     // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),

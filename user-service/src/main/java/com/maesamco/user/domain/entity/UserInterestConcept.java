@@ -24,6 +24,11 @@ import java.util.UUID;
  *
  * <p>생성·수정·삭제 감사 정보와 논리 삭제 기능은
  * {@link BaseEntity}에서 관리합니다.</p>
+ *
+ * <p>TODO(#10): Flyway 마이그레이션 도입 시
+ * {@code user_id -> p_users.id} 외래 키와
+ * {@code (user_id, concept_id) WHERE deleted_at IS NULL} 조건의
+ * 부분 UNIQUE 인덱스를 추가해야 합니다.</p>
  */
 @Getter
 @Entity
