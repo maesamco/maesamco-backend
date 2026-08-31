@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -59,10 +59,10 @@ public class CoachingSession {
 
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "completed_at")
-    private LocalDateTime completedAt;
+    private Instant completedAt;
 
     @Builder
     private CoachingSession(UUID submissionId, UUID userId, UUID problemId) {
@@ -93,7 +93,7 @@ public class CoachingSession {
             throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
         }
         this.status = CoachingSessionStatus.COMPLETED;
-        this.completedAt = LocalDateTime.now();
+        this.completedAt = Instant.now();
     }
 
     public boolean isCompleted() {
