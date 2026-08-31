@@ -27,6 +27,10 @@ import java.util.UUID;
  * 물려받아 생성 후 수정·삭제되지 않는다. coachingSessionId는 같은 서비스 내부 물리 FK지만,
  * 조회 위주로만 쓰여서 @ManyToOne 없이 raw UUID 컬럼으로 유지한다(이슈 #16 결정 — 지연 로딩·N+1
  * 관리 부담 없이 필요할 때만 CoachingSessionRepository로 명시적으로 조회).
+ *
+ * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
+ * 있어야 Hibernate가 FK를 만든다). CHECK 제약과 마찬가지로 Flyway 마이그레이션 스크립트에
+ * coaching_session_id → p_coaching_sessions.id FK 제약을 명시적으로 포함시켜야 한다(이슈 #10).
  */
 @Entity
 @Table(
