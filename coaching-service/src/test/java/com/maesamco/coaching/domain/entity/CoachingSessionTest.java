@@ -48,6 +48,16 @@ class CoachingSessionTest {
     }
 
     @Test
+    @DisplayName("필수 식별자가 null이면 생성할 수 없다")
+    void create_throwsWhenRequiredIdIsNull() {
+        // when & then
+        assertThatThrownBy(() -> CoachingSession.create(null, UUID.randomUUID(), UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
     @DisplayName("이미 완료된 세션을 다시 complete()하면 예외가 발생한다")
     void complete_throwsWhenAlreadyCompleted() {
         // given

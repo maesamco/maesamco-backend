@@ -2,6 +2,7 @@ package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.CoachingSessionStatus;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,10 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
  *
- * ⚠️ Flyway/Liquibase 등 마이그레이션 도구가 아직 팀 차원에서 결정되지 않아(관련 논의 메시지 참고),
- *    이 테스트는 운영 스키마(coaching_schema)가 아니라 ddl-auto=create-drop으로 임시 생성한
- *    public 스키마 위에서 매핑만 검증한다. 마이그레이션 도구가 정해지면 실제 마이그레이션 스크립트
- *    기준으로 스키마를 맞추도록 교체해야 한다.
+ * ⚠️ Flyway/Liquibase 등 마이그레이션 도구가 아직 팀 차원에서 결정되지 않아(이슈 #10),
+ *    운영 마이그레이션 스크립트 대신 테스트 전용 ddl-auto=create-drop으로 coaching_schema를
+ *    직접 생성해서 검증한다. 마이그레이션 도구가 정해지면 그 스크립트 기준으로 교체해야 한다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -39,6 +39,9 @@ class CoachingSessionRepositoryImplTest {
 
     @Autowired
     private SpringDataCoachingSessionRepository springDataCoachingSessionRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CoachingSessionRepositoryImpl coachingSessionRepository;
 
@@ -68,6 +71,14 @@ class CoachingSessionRepositoryImplTest {
         // given
         UUID submissionId = UUID.randomUUID();
         coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID()));
+
+        /*
+         * flush로 INSERT를 실제로 반영하고, clear로 영속성 컨텍스트(1차 캐시)를 비운다.
+         * 비우지 않으면 아래 조회가 방금 저장한 Java 객체를 그대로 돌려줄 수 있어서,
+         * 컬럼 매핑이 실제로 잘못돼 있어도 테스트가 못 잡아낼 수 있다.
+         */
+        entityManager.flush();
+        entityManager.clear();
 
         // when
         Optional<CoachingSession> found = coachingSessionRepository.findBySubmissionId(submissionId);

@@ -4,4 +4,6 @@ spring:
       ddl-auto: create-drop
     properties:
       hibernate:
-        default_schema: public
+        default_schema: coaching_schema
+        hbm2ddl:
+          create_namespaces: true

@@ -66,10 +66,17 @@ public class CoachingSession {
 
     @Builder
     private CoachingSession(UUID submissionId, UUID userId, UUID problemId) {
-        this.submissionId = submissionId;
-        this.userId = userId;
-        this.problemId = problemId;
+        this.submissionId = requireNonNull(submissionId, "submissionId");
+        this.userId = requireNonNull(userId, "userId");
+        this.problemId = requireNonNull(problemId, "problemId");
         this.status = CoachingSessionStatus.IN_PROGRESS;
+    }
+
+    private static UUID requireNonNull(UUID value, String fieldName) {
+        if (value == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + "는 필수입니다.");
+        }
+        return value;
     }
 
     public static CoachingSession create(UUID submissionId, UUID userId, UUID problemId) {
