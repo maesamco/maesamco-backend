@@ -10,7 +10,7 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update # 마이그레이션 도구 도입 전까지 임시 — 도입되면 validate로 전환(이슈 #10)
     properties:
       hibernate:
         default_schema: coaching_schema
