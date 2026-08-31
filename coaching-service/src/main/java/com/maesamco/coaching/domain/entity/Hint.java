@@ -74,6 +74,13 @@ public class Hint {
     @Column(name = "content", updatable = false, nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /*
+     * TODO: created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
+     * 없다(BaseEntity처럼 information_schema.columns.data_type을 직접 확인하는 테스트,
+     * PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는 BaseEntity를
+     * 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로 되돌려도
+     * 지금은 CI가 못 잡아낸다. Repository 통합 테스트에 추가할 것.
+     */
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
@@ -93,6 +100,10 @@ public class Hint {
                 .build();
     }
 
+    // TODO: CoachingSession.java에도 거의 동일한 requireNonNull이 따로 구현돼 있다(User
+    //       Service의 User/UserInterestConcept와 같은 중복 패턴). 지금은 엔티티가 2개뿐이라
+    //       문제 없지만, coaching-service에 3번째 엔티티가 추가되면 global/util 공통 Validate
+    //       유틸로 추출을 고려할 것.
     private static UUID requireNonNull(UUID value, String fieldNameKorean) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
