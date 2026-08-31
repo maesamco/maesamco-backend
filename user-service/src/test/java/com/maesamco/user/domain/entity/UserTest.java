@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 
 /**
  * User 도메인의 생성 규칙과 상태 변경을 검증하는 단위 테스트입니다.
@@ -70,8 +72,17 @@ class UserTest {
                 3,
                 LearningLevel.BEGINNER
         ))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이메일 조회 해시는 64자여야 합니다.");
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                            assertThat(exception.getMessage())
+                                    .isEqualTo(
+                                            "이메일 조회 해시는 64자여야 합니다."
+                                    );
+                        }
+                );
     }
 
     @Test
@@ -86,9 +97,16 @@ class UserTest {
                 -1,
                 LearningLevel.BEGINNER
         ))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage(
-                        "Java 학습 개월 수는 0 이상이어야 합니다."
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                            assertThat(exception.getMessage())
+                                    .isEqualTo(
+                                            "Java 학습 개월 수는 0 이상이어야 합니다."
+                                    );
+                        }
                 );
     }
 
@@ -162,5 +180,32 @@ class UserTest {
                 3,
                 LearningLevel.BEGINNER
         );
+    }
+
+    @Test
+    @DisplayName("학습 수준이 null이면 사용자를 생성할 수 없다")
+    void rejectNullLearningLevel() {
+        // when & then
+        assertThatThrownBy(() -> User.create(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                PASSWORD_HASH,
+                "매삼코",
+                3,
+                null
+        ))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(
+                                            ErrorCode.INVALID_INPUT_VALUE
+                                    );
+                            assertThat(exception.getMessage())
+                                    .isEqualTo(
+                                            "학습 수준은 필수입니다."
+                                    );
+                        }
+                );
     }
 }

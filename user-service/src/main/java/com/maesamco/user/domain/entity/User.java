@@ -1,24 +1,20 @@
 package com.maesamco.user.domain.entity;
 
 import com.maesamco.user.global.common.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.Objects;
 import java.util.UUID;
 
 /**
  * 사용자 정보를 관리하는 User 도메인의 Aggregate Root입니다.
  *
  * <p>이메일 원문은 암호화하여 저장하고, 이메일 중복 확인과 로그인 조회에는
- * 별도로 생성한 SHA-256 조회 해시를 사용합니다.</p>
+ * 별도로 생성한 HMAC-SHA256 조회 해시를 사용합니다.</p>
  *
  * <p>생성·수정·삭제 감사 정보와 논리 삭제 기능은 {@link BaseEntity}에서 관리합니다.</p>
  */
@@ -29,7 +25,7 @@ import java.util.UUID;
 public class User extends BaseEntity {
 
     /**
-     * SHA-256 해시를 16진수 문자열로 표현했을 때의 길이입니다.
+     * HMAC-SHA256 해시를 16진수 문자열로 표현했을 때의 길이입니다.
      */
     private static final int EMAIL_LOOKUP_HASH_LENGTH = 64;
 
@@ -49,7 +45,7 @@ public class User extends BaseEntity {
     private String encryptedEmail;
 
     /**
-     * 이메일 검색과 중복 확인에 사용하는 SHA-256 해시입니다.
+     * 이메일 검색과 중복 확인에 사용하는 HMAC-SHA256 해시입니다.
      */
     @Column(
             name = "email_lookup_hash",
@@ -111,17 +107,17 @@ public class User extends BaseEntity {
             int javaExperienceMonths,
             LearningLevel learningLevel
     ) {
-        this.id = Objects.requireNonNull(id, "사용자 ID는 필수입니다.");
+        this.id = requireNonNull(id, "사용자 ID는 필수입니다.");
         this.encryptedEmail = requireText(encryptedEmail, "암호화 이메일은 필수입니다.");
         this.emailLookupHash = validateEmailLookupHash(emailLookupHash);
         this.passwordHash = requireText(passwordHash, "비밀번호 해시는 필수입니다.");
         this.nickname = requireText(nickname, "닉네임은 필수입니다.");
-        this.role = Objects.requireNonNull(role, "사용자 권한은 필수입니다.");
-        this.status = Objects.requireNonNull(status, "사용자 상태는 필수입니다.");
+        this.role = requireNonNull(role, "사용자 권한은 필수입니다.");
+        this.status = requireNonNull(status, "사용자 상태는 필수입니다.");
         this.javaExperienceMonths =
                 validateJavaExperienceMonths(javaExperienceMonths);
         this.learningLevel =
-                Objects.requireNonNull(learningLevel, "학습 수준은 필수입니다.");
+                requireNonNull(learningLevel, "학습 수준은 필수입니다.");
     }
 
     /**
@@ -131,7 +127,7 @@ public class User extends BaseEntity {
      * 기본 상태는 {@link UserStatus#ACTIVE}입니다.</p>
      *
      * @param encryptedEmail 암호화된 이메일
-     * @param emailLookupHash 이메일 조회용 SHA-256 해시
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
      * @param passwordHash 단방향 해시 처리된 비밀번호
      * @param nickname 사용자 닉네임
      * @param javaExperienceMonths Java 경험 개월 수
@@ -175,7 +171,7 @@ public class User extends BaseEntity {
         this.javaExperienceMonths =
                 validateJavaExperienceMonths(javaExperienceMonths);
         this.learningLevel =
-                Objects.requireNonNull(learningLevel, "학습 수준은 필수입니다.");
+                requireNonNull(learningLevel, "학습 수준은 필수입니다.");
     }
 
     /**
@@ -203,14 +199,15 @@ public class User extends BaseEntity {
     }
 
     /**
-     * 이메일 조회 해시가 SHA-256 문자열 길이와 일치하는지 검증합니다.
+     * 이메일 조회 해시가 HMAC-SHA256 문자열 길이와 일치하는지 검증합니다.
      */
     private static String validateEmailLookupHash(String emailLookupHash) {
         String value =
                 requireText(emailLookupHash, "이메일 조회 해시는 필수입니다.");
 
         if (value.length() != EMAIL_LOOKUP_HASH_LENGTH) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
                     "이메일 조회 해시는 64자여야 합니다."
             );
         }
@@ -225,7 +222,8 @@ public class User extends BaseEntity {
             int javaExperienceMonths
     ) {
         if (javaExperienceMonths < 0) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
                     "Java 학습 개월 수는 0 이상이어야 합니다."
             );
         }
@@ -234,11 +232,33 @@ public class User extends BaseEntity {
     }
 
     /**
+     * 필수 객체가 null인지 검증합니다.
+     *
+     * @param value 검증할 객체
+     * @param message null인 경우 사용할 오류 메시지
+     * @return 검증이 완료된 객체
+     * @param <T> 객체 타입
+     */
+    private static <T> T requireNonNull(T value, String message) {
+        if (value == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    message
+            );
+        }
+
+        return value;
+    }
+
+    /**
      * 필수 문자열이 null 또는 공백인지 검증합니다.
      */
     private static String requireText(String value, String message) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    message
+            );
         }
 
         return value;

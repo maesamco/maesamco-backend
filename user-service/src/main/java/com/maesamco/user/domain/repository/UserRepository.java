@@ -35,7 +35,7 @@ public interface UserRepository {
      * <p>암호화된 이메일은 동일한 평문이라도 암호문이 달라질 수 있으므로
      * 로그인 조회에는 별도의 조회용 해시를 사용합니다.</p>
      *
-     * @param emailLookupHash 이메일 조회용 SHA-256 해시
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
      * @return 조회된 사용자, 존재하지 않으면 빈 Optional
      */
     Optional<User> findByEmailLookupHash(String emailLookupHash);
@@ -43,7 +43,7 @@ public interface UserRepository {
     /**
      * 동일한 이메일 조회용 해시를 사용하는 사용자가 존재하는지 확인합니다.
      *
-     * @param emailLookupHash 이메일 조회용 SHA-256 해시
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
      * @return 존재하면 true
      */
     boolean existsByEmailLookupHash(String emailLookupHash);

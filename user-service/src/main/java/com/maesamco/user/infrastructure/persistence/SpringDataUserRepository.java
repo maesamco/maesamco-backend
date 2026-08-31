@@ -18,7 +18,7 @@ public interface SpringDataUserRepository
     /**
      * 이메일 조회용 해시로 사용자를 조회합니다.
      *
-     * @param emailLookupHash 이메일 조회용 SHA-256 해시
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
      * @return 조회된 사용자, 존재하지 않으면 빈 Optional
      */
     Optional<User> findByEmailLookupHash(String emailLookupHash);
@@ -26,7 +26,7 @@ public interface SpringDataUserRepository
     /**
      * 동일한 이메일 조회용 해시를 사용하는 사용자가 존재하는지 확인합니다.
      *
-     * @param emailLookupHash 이메일 조회용 SHA-256 해시
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
      * @return 존재하면 true
      */
     boolean existsByEmailLookupHash(String emailLookupHash);
