@@ -31,6 +31,15 @@ class HintTest {
         assertThat(hint.getContent()).isEqualTo(content);
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 4})
+    @DisplayName("1~4 범위의 모든 단계로 생성할 수 있다")
+    void create_succeedsForEveryValidStage(int stage) {
+        Hint hint = Hint.create(UUID.randomUUID(), stage, "내용");
+
+        assertThat(hint.getStage()).isEqualTo(stage);
+    }
+
     @Test
     @DisplayName("코칭 세션 ID가 null이면 생성할 수 없다")
     void create_throwsWhenCoachingSessionIdIsNull() {
@@ -54,6 +63,15 @@ class HintTest {
     @DisplayName("본문이 비어있으면 생성할 수 없다")
     void create_throwsWhenContentIsBlank() {
         assertThatThrownBy(() -> Hint.create(UUID.randomUUID(), 1, "   "))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("본문이 null이면 생성할 수 없다")
+    void create_throwsWhenContentIsNull() {
+        assertThatThrownBy(() -> Hint.create(UUID.randomUUID(), 1, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);

@@ -32,10 +32,17 @@ import java.util.UUID;
  * 있어야 Hibernate가 FK를 만든다). CHECK 제약과 마찬가지로 Flyway 마이그레이션 스크립트에
  * coaching_session_id → p_coaching_sessions.id FK 제약을 명시적으로 포함시켜야 한다(이슈 #10).
  *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_hints에 아래 두 제약 추가.
+ * ⚠️ UNIQUE(coaching_session_id, stage)는 지금 @Table(uniqueConstraints=...)로 JPA
+ * 레벨에는 있지만, 운영 환경은 ddl-auto=validate라 이 애노테이션이 아니라 Flyway 마이그레이션
+ * 스크립트가 유일한 스키마 소스가 된다. 테스트만 create-drop으로 이 제약을 항상 갖고 있어서
+ * 놓쳐도 테스트가 못 잡아낸다 — 마이그레이션 스크립트에 반드시 명시적으로 포함시켜야 한다.
+ *
+ * TODO(#10): Flyway 마이그레이션 도입 시 p_hints에 아래 세 제약 추가.
  *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
  *            2) stage에 CHECK (stage BETWEEN 1 AND 4) — 생성자 검증(requireValidStage)을
  *               우회하는 직접 SQL 입력도 DB 레벨에서 차단.
+ *            3) UNIQUE(coaching_session_id, stage) — 지금 JPA 애노테이션에만 있는 제약을
+ *               마이그레이션 스크립트에도 명시적으로 포함.
  */
 @Entity
 @Table(
