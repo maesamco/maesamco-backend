@@ -22,7 +22,7 @@ public class HintRepositoryImpl implements HintRepository {
 
     @Override
     public List<Hint> findByCoachingSessionId(UUID coachingSessionId) {
-        return springDataHintRepository.findByCoachingSessionId(coachingSessionId);
+        return springDataHintRepository.findByCoachingSessionIdOrderByStageAsc(coachingSessionId);
     }
 
     @Override

@@ -32,8 +32,10 @@ import java.util.UUID;
  * 있어야 Hibernate가 FK를 만든다). CHECK 제약과 마찬가지로 Flyway 마이그레이션 스크립트에
  * coaching_session_id → p_coaching_sessions.id FK 제약을 명시적으로 포함시켜야 한다(이슈 #10).
  *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_hints.coaching_session_id에
- *            REFERENCES p_coaching_sessions(id) FK 제약 추가.
+ * TODO(#10): Flyway 마이그레이션 도입 시 p_hints에 아래 두 제약 추가.
+ *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
+ *            2) stage에 CHECK (stage BETWEEN 1 AND 4) — 생성자 검증(requireValidStage)을
+ *               우회하는 직접 SQL 입력도 DB 레벨에서 차단.
  */
 @Entity
 @Table(

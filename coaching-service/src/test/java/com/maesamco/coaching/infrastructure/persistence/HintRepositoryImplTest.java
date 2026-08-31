@@ -68,12 +68,12 @@ class HintRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("코칭 세션 ID로 힌트 전체를 조회할 수 있다")
-    void findByCoachingSessionId_returnsAllHints() {
-        // given
+    @DisplayName("코칭 세션 ID로 힌트 전체를 단계 오름차순으로 조회할 수 있다")
+    void findByCoachingSessionId_returnsAllHintsOrderedByStage() {
+        // given — 단계 역순으로 저장해도 조회 결과는 오름차순이어야 한다
         UUID coachingSessionId = UUID.randomUUID();
-        hintRepository.save(Hint.create(coachingSessionId, 1, "1단계 힌트"));
         hintRepository.save(Hint.create(coachingSessionId, 2, "2단계 힌트"));
+        hintRepository.save(Hint.create(coachingSessionId, 1, "1단계 힌트"));
         hintRepository.save(Hint.create(UUID.randomUUID(), 1, "다른 세션 힌트"));
 
         entityManager.flush();
@@ -83,9 +83,9 @@ class HintRepositoryImplTest {
         List<Hint> found = hintRepository.findByCoachingSessionId(coachingSessionId);
 
         // then
-        assertThat(found).hasSize(2)
+        assertThat(found)
                 .extracting(Hint::getStage)
-                .containsExactlyInAnyOrder(1, 2);
+                .containsExactly(1, 2);
     }
 
     @Test

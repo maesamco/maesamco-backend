@@ -9,7 +9,7 @@ import java.util.UUID;
 
 interface SpringDataHintRepository extends JpaRepository<Hint, UUID> {
 
-    List<Hint> findByCoachingSessionId(UUID coachingSessionId);
+    List<Hint> findByCoachingSessionIdOrderByStageAsc(UUID coachingSessionId);
 
     Optional<Hint> findByCoachingSessionIdAndStage(UUID coachingSessionId, int stage);
 }
