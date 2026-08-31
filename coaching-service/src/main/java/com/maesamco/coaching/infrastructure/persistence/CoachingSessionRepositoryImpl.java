@@ -2,7 +2,10 @@ package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
+import com.maesamco.coaching.global.exception.BusinessException;
+import com.maesamco.coaching.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -14,9 +17,19 @@ public class CoachingSessionRepositoryImpl implements CoachingSessionRepository 
 
     private final SpringDataCoachingSessionRepository springDataCoachingSessionRepository;
 
+    /**
+     * saveAndFlush로 즉시 flush해서 UNIQUE(submission_id) 위반을 이 메서드 안에서
+     * 바로 잡아낸다 — save()만 쓰면 실제 INSERT가 트랜잭션 커밋/다음 flush 시점까지
+     * 지연될 수 있어 여기서 예외를 못 잡는다. GlobalExceptionHandler의 범용
+     * DataIntegrityViolationException(400) 대신 이 케이스만 전용 409로 응답하기 위한 변환이다.
+     */
     @Override
     public CoachingSession save(CoachingSession coachingSession) {
-        return springDataCoachingSessionRepository.save(coachingSession);
+        try {
+            return springDataCoachingSessionRepository.saveAndFlush(coachingSession);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_EXISTS);
+        }
     }
 
     @Override
