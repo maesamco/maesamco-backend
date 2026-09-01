@@ -28,6 +28,11 @@ spring:
       group-id: user-service
       auto-offset-reset: earliest
 
+security:
+  email:
+    encryption-key: ${EMAIL_ENCRYPTION_KEY}
+    lookup-hmac-key: ${EMAIL_LOOKUP_HMAC_KEY}
+
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
 
