@@ -80,6 +80,32 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     @Test
+    @DisplayName("complete() 후 다시 저장하면 COMPLETED 상태·completedAt이 실제 DB에도 반영된다")
+    void complete_persistsCompletedStatusAndTimestamp() {
+        // given — 지금까지는 complete()가 도메인 단위 테스트로만 검증돼서, save()가 변경된
+        // 상태를 실제로 갱신 저장하는지는 회귀 방지가 안 되고 있었다(WeakConcept.markImproved()
+        // 리뷰와 같은 성격의 갭, PR #34 리뷰에서 발견).
+        CoachingSession saved = coachingSessionRepository.save(
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        CoachingSession found = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+
+        // when
+        found.complete();
+        coachingSessionRepository.save(found);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        CoachingSession reloaded = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+        assertThat(reloaded.getCompletedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("동일한 submissionId로 두 번 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSubmissionIdAlreadyExists() {
         /*
