@@ -35,6 +35,7 @@ public enum ErrorCode {
 
     // ===== coaching =====
     COACHING_SESSION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 코칭 세션입니다."),
+    COACHING_SESSION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 제출에 대한 코칭 세션이 존재합니다."),
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)

@@ -57,6 +57,13 @@ public class CoachingSession {
     @Column(name = "status", nullable = false, length = 20)
     private CoachingSessionStatus status;
 
+    /*
+     * TODO: created_at/completed_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는
+     * 회귀 테스트가 없다(BaseEntity처럼 information_schema.columns.data_type을 직접
+     * 확인하는 테스트, PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는
+     * BaseEntity를 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로
+     * 되돌려도 지금은 CI가 못 잡아낸다. Repository 통합 테스트에 추가할 것.
+     */
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
@@ -72,6 +79,10 @@ public class CoachingSession {
         this.status = CoachingSessionStatus.IN_PROGRESS;
     }
 
+    // TODO: Hint.java에도 거의 동일한 requireNonNull이 따로 구현돼 있다(User Service의
+    //       User/UserInterestConcept와 같은 중복 패턴). 지금은 엔티티가 2개뿐이라 문제
+    //       없지만, coaching-service에 3번째 엔티티가 추가되면 global/util 공통 Validate
+    //       유틸로 추출을 고려할 것.
     private static UUID requireNonNull(UUID value, String fieldNameKorean) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
@@ -93,6 +104,9 @@ public class CoachingSession {
      * ⚠️ 낙관적 락 없이 상태를 확인 후 변경한다(check-then-act). 같은 세션에 대해 짧은 시간 안에
      * 두 번 호출되는 경로(예: 클라이언트 재시도)가 생기면 완료 처리가 중복될 수 있다 — 이 메서드를
      * 호출하는 Service/Facade를 만들 때 멱등 처리 여부를 함께 고려할 것.
+     *
+     * TODO: 역질문 답변 처리 Service/Facade 구현 시 위 동시성 문제(멱등 처리 또는 낙관적 락)
+     *       해결 방안 확정하고 이 TODO 제거.
      */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {

@@ -2,6 +2,8 @@ package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.CoachingSessionStatus;
+import com.maesamco.coaching.global.exception.BusinessException;
+import com.maesamco.coaching.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -26,9 +27,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
  *
- * ⚠️ Flyway/Liquibase 등 마이그레이션 도구가 아직 팀 차원에서 결정되지 않아(이슈 #10),
- *    운영 마이그레이션 스크립트 대신 테스트 전용 ddl-auto=create-drop으로 coaching_schema를
- *    직접 생성해서 검증한다. 마이그레이션 도구가 정해지면 그 스크립트 기준으로 교체해야 한다.
+ * ⚠️ 마이그레이션 도구는 Flyway로 확정됐지만(팀 컨벤션 16절, 이슈 #10) 아직 실제 마이그레이션
+ *    스크립트가 도입되기 전이라, 운영 스크립트 대신 테스트 전용 ddl-auto=create-drop으로
+ *    coaching_schema를 직접 생성해서 검증한다. 마이그레이션 스크립트가 도입되면 그 스크립트
+ *    기준으로 교체해야 한다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -102,24 +104,24 @@ class CoachingSessionRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("동일한 submissionId로 두 번 저장하면 UNIQUE 제약 위반으로 실패한다")
+    @DisplayName("동일한 submissionId로 두 번 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSubmissionIdAlreadyExists() {
         /*
-         * 예외 변환(DataIntegrityViolationException)은 Spring이 관리하는 프록시 빈을 거쳐야
-         * 적용된다. coachingSessionRepository는 이 테스트에서 new로 직접 만든 순수 객체라
-         * 프록시를 안 거치므로, 대신 @Autowired로 주입받은 springDataCoachingSessionRepository
-         * (실제 Spring Data JPA 빈)의 saveAndFlush로 검증한다.
+         * CoachingSessionRepositoryImpl.save()가 saveAndFlush + try-catch로 UNIQUE 위반을
+         * 직접 잡아 BusinessException으로 변환하므로(Spring 프록시가 아니라 메서드 내부의
+         * 명시적 예외 처리), 이 테스트에서 new로 직접 만든 순수 객체(coachingSessionRepository)를
+         * 그대로 호출해도 변환된 예외를 검증할 수 있다.
          */
         // given
         UUID submissionId = UUID.randomUUID();
-        springDataCoachingSessionRepository.saveAndFlush(
-                CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID())
-        );
+        coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID()));
 
         CoachingSession duplicate = CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID());
 
         // when & then
-        assertThatThrownBy(() -> springDataCoachingSessionRepository.saveAndFlush(duplicate))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> coachingSessionRepository.save(duplicate))
+                .isInstanceOfSatisfying(BusinessException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_EXISTS)
+                );
     }
 }
