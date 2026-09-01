@@ -10,7 +10,7 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${DDL_AUTO:validate} # 마이그레이션 도구 도입 전까지 로컬은 .env의 DDL_AUTO=update로 오버라이드(이슈 #10), 그 외 환경은 기본값 validate
     properties:
       hibernate:
         default_schema: coaching_schema
