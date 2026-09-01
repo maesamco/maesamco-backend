@@ -1,9 +1,10 @@
-package com.maesamco.content.dailyquiz.domain;
+package com.maesamco.content.dailyquiz.domain.entity;
 
 /**
  * 사용자별 일일 퀴즈 세트의 진행 상태입니다.
  *
- * <p>정상 상태 전이는 READY} → IN_PROGRESS → COMPLETED} 순서입니다.
+ * <p>정상 상태 전이는 {@code READY} → {@code IN_PROGRESS} → {@code COMPLETED}
+ * 순서입니다.</p>
  */
 public enum DailyQuizAttemptStatus {
 

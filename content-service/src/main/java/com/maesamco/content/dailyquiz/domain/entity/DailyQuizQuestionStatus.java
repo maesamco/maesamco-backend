@@ -1,4 +1,4 @@
-package com.maesamco.content.dailyquiz.domain;
+package com.maesamco.content.dailyquiz.domain.entity;
 
 /**
  * 일일 퀴즈 문제 버전의 사용 상태입니다.

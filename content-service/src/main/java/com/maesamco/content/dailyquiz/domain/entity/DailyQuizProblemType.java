@@ -1,4 +1,4 @@
-package com.maesamco.content.dailyquiz.domain;
+package com.maesamco.content.dailyquiz.domain.entity;
 
 /**
  * 일일 퀴즈에서 제공하는 문항 유형입니다.
