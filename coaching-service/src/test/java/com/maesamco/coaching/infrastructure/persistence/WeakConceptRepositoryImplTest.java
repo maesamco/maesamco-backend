@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -33,17 +32,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * WeakConcept은 @CreatedDate/@LastModifiedDate 같은 JPA 감사(Auditing)를 쓰지 않으므로
  * (lastDetectedAt은 도메인 메서드로 직접 관리) @EnableJpaAuditing이 필요 없다.
  *
- * ⚠️ create_namespaces=true가 필요하다 — Hibernate 7의 hbm2ddl.create_namespaces 기본값은
- * false라, default_schema로만 지정된 coaching_schema는 create-drop이어도 자동으로 만들어주지
- * 않는다(CREATE SCHEMA 없이 CREATE TABLE coaching_schema.xxx만 시도하다가
- * "schema coaching_schema does not exist"로 실패). 다른 Coaching Repository 테스트들이 이
- * 옵션 없이도 통과하는 건 같은 EntityManagerFactory 안에 이미 다른 엔티티(CoachingSession 등)가
- * 함께 등록돼 있어서인 것으로 보인다 — WeakConcept은 develop에서 바로 분기해 이 서비스의
- * 유일한 엔티티라 그 우연한 경로를 못 타서 명시적으로 켜야 한다.
+ * ddl-auto=create-drop과 hbm2ddl.create_namespaces=true는 src/test/resources/application.yml에
+ * 있다 — coaching_schema가 default_schema로만 지정돼 있어서(Hibernate 7의
+ * create_namespaces 기본값이 false) 이 옵션 없이는 CREATE SCHEMA 없이 CREATE TABLE만 시도하다가
+ * "schema coaching_schema does not exist"로 실패한다. 이 파일은 PR #8(feature/7) 작업 중에
+ * 추가된 건데 아직 develop에 병합되지 않아서, develop에서 바로 분기한 이 PR에 별도로 옮겨왔다
+ * — PR #8이 머지되면 중복이 되므로 그때 정리할 것.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.hbm2ddl.create_namespaces=true")
 @Testcontainers
 class WeakConceptRepositoryImplTest {
 
