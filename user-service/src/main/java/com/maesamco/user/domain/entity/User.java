@@ -30,11 +30,6 @@ public class User extends BaseEntity {
     private static final int EMAIL_LOOKUP_HASH_LENGTH = 64;
 
     /**
-     * 데이터베이스 명세에서 허용하는 닉네임의 최대 길이입니다.
-     */
-    private static final int NICKNAME_MAX_LENGTH = 50;
-
-    /**
      * 사용자 식별자입니다.
      */
     @Id
@@ -172,11 +167,16 @@ public class User extends BaseEntity {
             int javaExperienceMonths,
             LearningLevel learningLevel
     ) {
-        this.nickname = validateNickname(nickname);
-        this.javaExperienceMonths =
+        String validatedNickname =
+                validateNickname(nickname);
+        int validatedJavaExperienceMonths =
                 validateJavaExperienceMonths(javaExperienceMonths);
-        this.learningLevel =
+        LearningLevel validatedLearningLevel =
                 requireNonNull(learningLevel, "학습 수준은 필수입니다.");
+
+        this.nickname = validatedNickname;
+        this.javaExperienceMonths = validatedJavaExperienceMonths;
+        this.learningLevel = validatedLearningLevel;
     }
 
     /**
@@ -209,7 +209,7 @@ public class User extends BaseEntity {
     private static String validateNickname(String nickname) {
         String value = requireText(nickname, "닉네임은 필수입니다.");
 
-        if (value.length() > NICKNAME_MAX_LENGTH) {
+        if (value.length() > 50) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
                     "닉네임은 50자 이하여야 합니다."
