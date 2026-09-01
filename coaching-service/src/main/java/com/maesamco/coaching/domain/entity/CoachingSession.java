@@ -13,6 +13,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,6 +34,10 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "p_coaching_sessions",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_coaching_sessions_submission",
+                columnNames = {"submission_id"}
+        ),
         indexes = @Index(name = "idx_coaching_sessions_user", columnList = "user_id")
 )
 @Getter
@@ -45,7 +50,7 @@ public class CoachingSession {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "submission_id", updatable = false, nullable = false, unique = true)
+    @Column(name = "submission_id", updatable = false, nullable = false)
     private UUID submissionId;
 
     @Column(name = "user_id", updatable = false, nullable = false)
