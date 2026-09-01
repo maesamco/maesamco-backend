@@ -11,7 +11,6 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -28,9 +27,9 @@ import java.util.UUID;
  *
  * <p>집계·상태형 테이블이므로 소프트 삭제와 행위자 감사 컬럼을 사용하지 않습니다.</p>
  *
- * <p>TODO(#10): Flyway 마이그레이션 도입 시
+ * <p>TODO(#29): Flyway 베이스라인에
  * {@code user_id -> p_users.id} 외래 키와 XP·레벨·스트릭의
- * 음수 방지 CHECK 제약을 추가해야 합니다.</p>
+ * 음수 방지 CHECK 제약이 반영됐는지 검증해야 합니다.</p>
  */
 @Getter
 @Entity
@@ -89,17 +88,6 @@ public class UserGamificationState {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
-
-    /**
-     * 사용자 가입 시 게이미피케이션 상태가 생성된 시각입니다.
-     */
-    @CreatedDate
-    @Column(
-            name = "created_at",
-            nullable = false,
-            updatable = false
-    )
-    private Instant createdAt;
 
     /**
      * 게이미피케이션 상태가 마지막으로 갱신된 시각입니다.

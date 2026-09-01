@@ -2,6 +2,8 @@ package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.UserGamificationState;
 import com.maesamco.user.domain.repository.UserGamificationStateRepository;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,12 +23,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * UserGamificationStateRepository 구현체의 PostgreSQL 통합 테스트입니다.
  *
- * <p>Flyway는 도입이 확정됐지만 실제 마이그레이션 스크립트가 아직 없으므로,
- * 테스트 전용 {@code ddl-auto=create-drop}으로 스키마와 테이블을 생성합니다.</p>
+ * <p>Flyway 베이스라인은 운영 스키마 검증에 사용하고, 이 테스트는 격리된
+ * 컨테이너에서 {@code ddl-auto=create-drop}으로 테이블을 생성합니다.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(
@@ -79,7 +82,6 @@ class UserGamificationStateRepositoryImplTest {
         assertThat(foundState.getUserId()).isEqualTo(userId);
         assertThat(foundState.getTotalXp()).isZero();
         assertThat(foundState.getLevel()).isEqualTo(1);
-        assertThat(foundState.getCreatedAt()).isNotNull();
         assertThat(foundState.getUpdatedAt()).isNotNull();
     }
 
@@ -124,5 +126,42 @@ class UserGamificationStateRepositoryImplTest {
         assertThat(foundState.getLastActivityDate())
                 .isEqualTo(LocalDate.of(2026, 8, 31));
         assertThat(foundState.getVersion()).isGreaterThan(0L);
+    }
+
+    @Test
+    @DisplayName("오래된 버전으로 저장하면 게이미피케이션 상태 충돌 예외를 반환한다")
+    void saveWithStaleVersion_throwsConflict() {
+        // given
+        UUID userId = UUID.randomUUID();
+        repository.save(UserGamificationState.create(userId));
+        entityManager.clear();
+
+        UserGamificationState staleState =
+                repository.findByUserId(userId).orElseThrow();
+        entityManager.detach(staleState);
+
+        UserGamificationState currentState =
+                repository.findByUserId(userId).orElseThrow();
+        currentState.applyXp(100L, 2);
+        repository.save(currentState);
+        entityManager.clear();
+
+        staleState.applyXp(50L, 1);
+
+        // when & then
+        assertThatThrownBy(() -> repository.save(staleState))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(
+                                            ErrorCode.GAMIFICATION_STATE_CONFLICT
+                                    );
+                            assertThat(exception.getMessage())
+                                    .isEqualTo(
+                                            "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
+                                    );
+                        }
+                );
     }
 }

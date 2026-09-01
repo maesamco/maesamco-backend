@@ -2,7 +2,10 @@ package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.UserGamificationState;
 import com.maesamco.user.domain.repository.UserGamificationStateRepository;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -24,7 +27,17 @@ public class UserGamificationStateRepositoryImpl
      */
     @Override
     public UserGamificationState save(UserGamificationState state) {
-        return springDataRepository.save(state);
+        try {
+            /*
+             * 낙관적 락 충돌이 이 메서드 안에서 발생하도록 즉시 flush합니다.
+             * 그래야 기술 예외를 도메인에서 사용하는 409 예외로 변환할 수 있습니다.
+             */
+            return springDataRepository.saveAndFlush(state);
+        } catch (ObjectOptimisticLockingFailureException exception) {
+            throw new BusinessException(
+                    ErrorCode.GAMIFICATION_STATE_CONFLICT
+            );
+        }
     }
 
     /**
