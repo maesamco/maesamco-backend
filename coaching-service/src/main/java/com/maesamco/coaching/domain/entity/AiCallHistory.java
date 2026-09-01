@@ -2,6 +2,7 @@ package com.maesamco.coaching.domain.entity;
 
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -22,7 +23,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 힌트·역질문·피드백 AI 호출 이력 — 매삼코 DB 테이블 명세 05-8절.
+ * 힌트·역질문·피드백 AI 호출 이력 — 매삼코 DB 테이블 명세 8절.
  *
  * BaseEntity 미적용(append-only 로그/이력, 팀 컨벤션 16절) — 발생한 AI 호출 사실을 기록할 뿐
  * 수정·삭제 대상이 아니다. updated_at/by가 없다는 게 명세상으로도 확인된다 — 재시도는 기존 행을
@@ -35,13 +36,10 @@ import java.util.UUID;
  *
  * 다른 Coaching 자식 테이블과 달리 UNIQUE 제약이 없다 — 세션당 여러 번 AI를 호출할 수 있다.
  *
- * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다. purpose의
- * CHECK(purpose IN ('HINT','FOLLOWUP_QUESTION','FEEDBACK'))도 지금 Java enum 레벨에만 있고,
- * 운영 환경은 ddl-auto=validate라 Flyway 마이그레이션 스크립트가 유일한 스키마 소스가 된다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_ai_call_histories에 아래 두 제약 추가.
- *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
- *            2) purpose에 CHECK(purpose IN ('HINT','FOLLOWUP_QUESTION','FEEDBACK')) 제약.
+ * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만, Flyway V1 베이스라인(PR #29)이
+ * coaching_session_id → p_coaching_sessions.id FK와 purpose에 대한
+ * CHECK(purpose IN ('HINT','FOLLOWUP_QUESTION','FEEDBACK'))을 실제 마이그레이션 스크립트로
+ * 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
  */
 @Entity
 @Table(name = "p_ai_call_histories")
@@ -98,11 +96,11 @@ public class AiCallHistory {
             String requestStatus, Integer responseTimeMs, Integer tokenUsage, String failureReason,
             int retryCount
     ) {
-        this.coachingSessionId = requireNonNull(coachingSessionId, "코칭 세션 ID");
-        this.purpose = requireNonNull(purpose, "AI 호출 목적");
-        this.modelName = requireText(modelName, "모델명");
-        this.promptVersion = requireText(promptVersion, "프롬프트 버전");
-        this.requestStatus = requireText(requestStatus, "요청 상태");
+        this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
+        this.purpose = Validate.requireNonNull(purpose, "AI 호출 목적");
+        this.modelName = Validate.requireText(modelName, "모델명");
+        this.promptVersion = Validate.requireText(promptVersion, "프롬프트 버전");
+        this.requestStatus = Validate.requireText(requestStatus, "요청 상태");
         this.responseTimeMs = responseTimeMs;
         this.tokenUsage = tokenUsage;
         this.failureReason = failureReason;
@@ -125,30 +123,6 @@ public class AiCallHistory {
                 .failureReason(failureReason)
                 .retryCount(retryCount)
                 .build();
-    }
-
-    // TODO: CoachingSession.java 등에도 거의 동일한 requireNonNull이 따로 구현돼 있다(User
-    //       Service의 User/UserInterestConcept와 같은 중복 패턴). coaching-service 도메인
-    //       구현이 마무리되면 global/util 공통 Validate 유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static AiCallPurpose requireNonNull(AiCallPurpose value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String fieldNameKorean) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
     }
 
     private static int requirePositiveOrZero(int value, String fieldNameKorean) {

@@ -3,6 +3,7 @@ package com.maesamco.coaching.infrastructure.persistence;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.maesamco.coaching.domain.entity.AiFeedback;
+import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
@@ -10,7 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
@@ -28,14 +31,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
  *
- * ⚠️ 마이그레이션 도구는 Flyway로 확정됐지만(팀 컨벤션 16절, 이슈 #10) 아직 실제 마이그레이션
- *    스크립트가 도입되기 전이라, 운영 스크립트 대신 테스트 전용 ddl-auto=create-drop으로
- *    coaching_schema를 직접 생성해서 검증한다.
+ * 마이그레이션 도구는 Flyway로 확정됐고(팀 컨벤션 16절, 이슈 #10) V1 베이스라인 스크립트도
+ * 이미 도입돼 있다(PR #29). Hibernate가 스키마를 직접 만드는 대신 이 실제 마이그레이션
+ * 스크립트로 생성된 스키마를 ddl-auto=validate로 검증하도록 해서, 엔티티 매핑이 실제 운영
+ * 스키마와 정확히 일치하는지까지 함께 확인한다. @DataJpaTest는 기본적으로 FlywayAutoConfiguration을
+ * 포함하지 않아 @ImportAutoConfiguration으로 명시적으로 가져와야 한다.
  *
  * 이 테스트는 JSONB 컬럼(JsonNode 매핑)이 실제 PostgreSQL에 왕복되는지 검증하는 첫 사례다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @EnableJpaAuditing
 @Testcontainers
 class AiFeedbackRepositoryImplTest {
@@ -50,6 +56,9 @@ class AiFeedbackRepositoryImplTest {
     private SpringDataAiFeedbackRepository springDataAiFeedbackRepository;
 
     @Autowired
+    private SpringDataCoachingSessionRepository springDataCoachingSessionRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     private AiFeedbackRepositoryImpl aiFeedbackRepository;
@@ -59,11 +68,22 @@ class AiFeedbackRepositoryImplTest {
         aiFeedbackRepository = new AiFeedbackRepositoryImpl(springDataAiFeedbackRepository);
     }
 
+    /**
+     * coaching_session_id는 실제 FK(Flyway V1 베이스라인)라, 존재하는 CoachingSession을
+     * 먼저 저장해야 AiFeedback 저장이 성공한다.
+     */
+    private UUID createCoachingSessionId() {
+        CoachingSession coachingSession = springDataCoachingSessionRepository.saveAndFlush(
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        );
+        return coachingSession.getId();
+    }
+
     @Test
     @DisplayName("AI 피드백을 저장하면 JSONB 필드가 실제 DB를 왕복해도 그대로 유지된다")
     void save_andFindByCoachingSessionId_roundTripsJsonFields() throws Exception {
         // given
-        UUID coachingSessionId = UUID.randomUUID();
+        UUID coachingSessionId = createCoachingSessionId();
         JsonNode understoodConcepts = objectMapper.readTree("[\"반복문\", \"조건문\"]");
         JsonNode explanationGaps = objectMapper.readTree("[\"배열 인덱스 경계값\"]");
         JsonNode weakConcepts = objectMapper.readTree("[\"재귀\"]");
@@ -100,7 +120,7 @@ class AiFeedbackRepositoryImplTest {
     @DisplayName("nullable JSONB 필드는 null로 저장하고 조회해도 null을 유지한다")
     void save_allowsNullOptionalJsonFields() throws Exception {
         // given
-        UUID coachingSessionId = UUID.randomUUID();
+        UUID coachingSessionId = createCoachingSessionId();
         JsonNode required = objectMapper.readTree("[]");
 
         aiFeedbackRepository.save(
@@ -158,7 +178,7 @@ class AiFeedbackRepositoryImplTest {
     void save_throwsWhenSessionAlreadyExists() throws Exception {
         // given
         JsonNode required = objectMapper.readTree("[]");
-        UUID coachingSessionId = UUID.randomUUID();
+        UUID coachingSessionId = createCoachingSessionId();
         aiFeedbackRepository.save(
                 AiFeedback.create(coachingSessionId, required, required, required, null, null, null)
         );

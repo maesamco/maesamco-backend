@@ -1,7 +1,6 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -31,15 +30,10 @@ import java.util.UUID;
  * 동일한 이유로 @ManyToOne 없이 raw UUID 컬럼으로 유지한다(지연 로딩·N+1 관리 부담 없이 필요할
  * 때만 FollowUpQuestionRepository로 명시적으로 조회).
  *
- * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
- * 있어야 Hibernate가 FK를 만든다). UNIQUE(follow_up_question_id) 제약도 지금 @Table로 JPA/테스트
- * 레벨에만 있고, 운영 환경은 ddl-auto=validate라 Flyway 마이그레이션 스크립트가 유일한 스키마
- * 소스가 된다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_follow_up_answers에 아래 두 제약 추가.
- *            1) follow_up_question_id에 REFERENCES p_follow_up_questions(id) FK 제약.
- *            2) UNIQUE(follow_up_question_id) — 지금 JPA 애노테이션에만 있는 제약을
- *               마이그레이션 스크립트에도 명시적으로 포함.
+ * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야
+ * Hibernate가 FK를 만든다), Flyway V1 베이스라인(PR #29)이 follow_up_question_id →
+ * p_follow_up_questions.id FK와 UNIQUE(follow_up_question_id)를 실제 마이그레이션
+ * 스크립트로 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
  */
 @Entity
 @Table(
@@ -78,8 +72,8 @@ public class FollowUpAnswer {
 
     @Builder
     private FollowUpAnswer(UUID followUpQuestionId, String answerText) {
-        this.followUpQuestionId = requireNonNull(followUpQuestionId, "역질문 ID");
-        this.answerText = requireText(answerText, "답변 내용");
+        this.followUpQuestionId = Validate.requireNonNull(followUpQuestionId, "역질문 ID");
+        this.answerText = Validate.requireText(answerText, "답변 내용");
     }
 
     public static FollowUpAnswer create(UUID followUpQuestionId, String answerText) {
@@ -87,23 +81,5 @@ public class FollowUpAnswer {
                 .followUpQuestionId(followUpQuestionId)
                 .answerText(answerText)
                 .build();
-    }
-
-    // TODO: CoachingSession.java/Hint.java/Explanation.java/FollowUpQuestion.java에도 거의
-    //       동일한 requireNonNull이 따로 구현돼 있다(User Service의 User/UserInterestConcept와
-    //       같은 중복 패턴). 지금은 엔티티가 5개뿐이라 문제 없지만, coaching-service에 엔티티가
-    //       더 추가되면 global/util 공통 Validate 유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String fieldNameKorean) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
     }
 }

@@ -9,11 +9,11 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    enabled: true # 이슈 #10 — V1 베이스라인 검증 완료(coaching-service 통합 테스트가 이 스크립트로 생성된 스키마를 실제로 검증함), 활성화
     schemas: coaching_schema
   jpa:
     hibernate:
-      ddl-auto: ${DDL_AUTO:validate} # 마이그레이션 도구 도입 전까지 로컬은 .env의 DDL_AUTO=update로 오버라이드(이슈 #10), 그 외 환경은 기본값 validate
+      ddl-auto: validate # Flyway가 스키마를 관리하므로 검증만 수행
     properties:
       hibernate:
         default_schema: coaching_schema

@@ -1,7 +1,6 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -30,15 +29,10 @@ import java.util.UUID;
  *
  * MVP는 텍스트만 지원(음성·STT는 MVP 이후).
  *
- * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
- * 있어야 Hibernate가 FK를 만든다). UNIQUE(coaching_session_id) 제약도 지금 @Table로 JPA/테스트
- * 레벨에만 있고, 운영 환경은 ddl-auto=validate라 Flyway 마이그레이션 스크립트가 유일한 스키마
- * 소스가 된다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_explanations에 아래 두 제약 추가.
- *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
- *            2) UNIQUE(coaching_session_id) — 지금 JPA 애노테이션에만 있는 제약을
- *               마이그레이션 스크립트에도 명시적으로 포함.
+ * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야
+ * Hibernate가 FK를 만든다), Flyway V1 베이스라인(PR #29)이 coaching_session_id →
+ * p_coaching_sessions.id FK와 UNIQUE(coaching_session_id)를 실제 마이그레이션 스크립트로
+ * 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
  */
 @Entity
 @Table(
@@ -77,8 +71,8 @@ public class Explanation {
 
     @Builder
     private Explanation(UUID coachingSessionId, String content) {
-        this.coachingSessionId = requireNonNull(coachingSessionId, "코칭 세션 ID");
-        this.content = requireText(content, "설명 본문");
+        this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
+        this.content = Validate.requireText(content, "설명 본문");
     }
 
     public static Explanation create(UUID coachingSessionId, String content) {
@@ -86,23 +80,5 @@ public class Explanation {
                 .coachingSessionId(coachingSessionId)
                 .content(content)
                 .build();
-    }
-
-    // TODO: CoachingSession.java/Hint.java에도 거의 동일한 requireNonNull이 따로
-    //       구현돼 있다(User Service의 User/UserInterestConcept와 같은 중복 패턴).
-    //       지금은 엔티티가 3개뿐이라 문제 없지만, coaching-service에 엔티티가 더
-    //       추가되면 global/util 공통 Validate 유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String fieldNameKorean) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
     }
 }

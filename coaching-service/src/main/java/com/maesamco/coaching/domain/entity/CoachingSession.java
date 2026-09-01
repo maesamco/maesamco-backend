@@ -2,6 +2,7 @@ package com.maesamco.coaching.domain.entity;
 
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -73,21 +74,10 @@ public class CoachingSession {
 
     @Builder
     private CoachingSession(UUID submissionId, UUID userId, UUID problemId) {
-        this.submissionId = requireNonNull(submissionId, "제출 ID");
-        this.userId = requireNonNull(userId, "사용자 ID");
-        this.problemId = requireNonNull(problemId, "문제 ID");
+        this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");
+        this.userId = Validate.requireNonNull(userId, "사용자 ID");
+        this.problemId = Validate.requireNonNull(problemId, "문제 ID");
         this.status = CoachingSessionStatus.IN_PROGRESS;
-    }
-
-    // TODO: Hint.java에도 거의 동일한 requireNonNull이 따로 구현돼 있다(User Service의
-    //       User/UserInterestConcept와 같은 중복 패턴). 지금은 엔티티가 2개뿐이라 문제
-    //       없지만, coaching-service에 3번째 엔티티가 추가되면 global/util 공통 Validate
-    //       유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
     }
 
     public static CoachingSession create(UUID submissionId, UUID userId, UUID problemId) {

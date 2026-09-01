@@ -1,8 +1,7 @@
 package com.maesamco.coaching.domain.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -33,20 +32,15 @@ import java.util.UUID;
  *
  * JSONB 컬럼은 이 프로젝트에서 이 엔티티가 처음이다. 각 필드의 내부 구조(개념 목록인지, 문제
  * ID 목록인지 등)가 아직 확정되지 않았고 AI 응답을 실제로 파싱하는 로직도 이후 PR의 몫이라,
- * 특정 Java 타입(Map/List/DTO)으로 미리 단정하지 않고 Jackson의 {@link JsonNode}로 임의의
+ * 특정 Java 타입(Map/List/DTO)으로 미리 단정하지 않고 Jackson의 JsonNode로 임의의
  * JSON 트리를 그대로 담는다 — Hibernate 6+가 클래스패스의 Jackson ObjectMapper를 자동으로
- * 사용해 {@code @JdbcTypeCode(SqlTypes.JSON)} + JsonNode 조합을 직렬화/역직렬화한다(실제
+ * 사용해 @JdbcTypeCode(SqlTypes.JSON) + JsonNode 조합을 직렬화/역직렬화한다(실제
  * Testcontainers PostgreSQL로 왕복 검증 완료).
  *
- * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
- * 있어야 Hibernate가 FK를 만든다). UNIQUE(coaching_session_id) 제약도 지금 @Table로 JPA/테스트
- * 레벨에만 있고, 운영 환경은 ddl-auto=validate라 Flyway 마이그레이션 스크립트가 유일한 스키마
- * 소스가 된다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_ai_feedbacks에 아래 두 제약 추가.
- *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
- *            2) UNIQUE(coaching_session_id) — 지금 JPA 애노테이션에만 있는 제약을
- *               마이그레이션 스크립트에도 명시적으로 포함.
+ * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야
+ * Hibernate가 FK를 만든다), Flyway V1 베이스라인(PR #29)이 coaching_session_id →
+ * p_coaching_sessions.id FK와 UNIQUE(coaching_session_id)를 실제 마이그레이션 스크립트로
+ * 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
  */
 @Entity
 @Table(
@@ -123,10 +117,10 @@ public class AiFeedback {
             JsonNode recommendedProblems,
             String nextDirection
     ) {
-        this.coachingSessionId = requireNonNull(coachingSessionId, "코칭 세션 ID");
-        this.understoodConcepts = requireNonNull(understoodConcepts, "이해한 개념");
-        this.explanationGaps = requireNonNull(explanationGaps, "설명 부족 부분");
-        this.weakConcepts = requireNonNull(weakConcepts, "취약 개념");
+        this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
+        this.understoodConcepts = Validate.requireNonNull(understoodConcepts, "이해한 개념");
+        this.explanationGaps = Validate.requireNonNull(explanationGaps, "설명 부족 부분");
+        this.weakConcepts = Validate.requireNonNull(weakConcepts, "취약 개념");
         this.syntaxToImprove = syntaxToImprove;
         this.recommendedProblems = recommendedProblems;
         this.nextDirection = nextDirection;
@@ -152,21 +146,4 @@ public class AiFeedback {
                 .build();
     }
 
-    // TODO: CoachingSession.java/Hint.java 등에도 거의 동일한 requireNonNull이 따로
-    //       구현돼 있다(User Service의 User/UserInterestConcept와 같은 중복 패턴).
-    //       지금은 엔티티가 6개뿐이라 문제 없지만, coaching-service에 엔티티가 더
-    //       추가되면 global/util 공통 Validate 유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static JsonNode requireNonNull(JsonNode value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
-    }
 }

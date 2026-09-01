@@ -2,6 +2,7 @@ package com.maesamco.coaching.domain.entity;
 
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -28,21 +29,15 @@ import java.util.UUID;
  * 조회 위주로만 쓰여서 @ManyToOne 없이 raw UUID 컬럼으로 유지한다(이슈 #16 결정 — 지연 로딩·N+1
  * 관리 부담 없이 필요할 때만 CoachingSessionRepository로 명시적으로 조회).
  *
- * ⚠️ raw UUID 컬럼이라 JPA로는 이 FK 제약이 DDL에 생성되지 않는다(@ManyToOne/@JoinColumn이
- * 있어야 Hibernate가 FK를 만든다). CHECK 제약과 마찬가지로 Flyway 마이그레이션 스크립트에
- * coaching_session_id → p_coaching_sessions.id FK 제약을 명시적으로 포함시켜야 한다(이슈 #10).
+ * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야 Hibernate가
+ * FK를 만든다), Flyway V1 베이스라인(PR #29)이 coaching_session_id → p_coaching_sessions.id FK와
+ * UNIQUE(coaching_session_id, stage)를 실제 마이그레이션 스크립트로 갖고 있어 운영 스키마에도
+ * 반영돼 있다(이슈 #10 해결).
  *
- * ⚠️ UNIQUE(coaching_session_id, stage)는 지금 @Table(uniqueConstraints=...)로 JPA
- * 레벨에는 있지만, 운영 환경은 ddl-auto=validate라 이 애노테이션이 아니라 Flyway 마이그레이션
- * 스크립트가 유일한 스키마 소스가 된다. 테스트만 create-drop으로 이 제약을 항상 갖고 있어서
- * 놓쳐도 테스트가 못 잡아낸다 — 마이그레이션 스크립트에 반드시 명시적으로 포함시켜야 한다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_hints에 아래 세 제약 추가.
- *            1) coaching_session_id에 REFERENCES p_coaching_sessions(id) FK 제약.
- *            2) stage에 CHECK (stage BETWEEN 1 AND 4) — 생성자 검증(requireValidStage)을
- *               우회하는 직접 SQL 입력도 DB 레벨에서 차단.
- *            3) UNIQUE(coaching_session_id, stage) — 지금 JPA 애노테이션에만 있는 제약을
- *               마이그레이션 스크립트에도 명시적으로 포함.
+ * TODO(#10): stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 아직 없다 — 생성자
+ *            검증(requireValidStage)이 애플리케이션 레벨에서만 막고 있고, 매삼코_ERD.sql
+ *            원본에도 이 CHECK가 원래 없었다(V1 베이스라인은 ERD를 그대로 옮긴 것). DB
+ *            레벨 방어가 필요하면 V2 마이그레이션으로 추가할 것 — 팀에 별도 공유 필요.
  */
 @Entity
 @Table(
@@ -87,9 +82,9 @@ public class Hint {
 
     @Builder
     private Hint(UUID coachingSessionId, int stage, String content) {
-        this.coachingSessionId = requireNonNull(coachingSessionId, "코칭 세션 ID");
+        this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
         this.stage = requireValidStage(stage);
-        this.content = requireText(content, "힌트 본문");
+        this.content = Validate.requireText(content, "힌트 본문");
     }
 
     public static Hint create(UUID coachingSessionId, int stage, String content) {
@@ -98,24 +93,6 @@ public class Hint {
                 .stage(stage)
                 .content(content)
                 .build();
-    }
-
-    // TODO: CoachingSession.java에도 거의 동일한 requireNonNull이 따로 구현돼 있다(User
-    //       Service의 User/UserInterestConcept와 같은 중복 패턴). 지금은 엔티티가 2개뿐이라
-    //       문제 없지만, coaching-service에 3번째 엔티티가 추가되면 global/util 공통 Validate
-    //       유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String fieldNameKorean) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
     }
 
     private static int requireValidStage(int stage) {
