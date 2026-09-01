@@ -39,7 +39,8 @@ public enum ErrorCode {
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다."),
     EXPLANATION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 설명이 존재합니다."),
     FOLLOW_UP_QUESTION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 설명에 대한 역질문이 존재합니다."),
-    FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다.");
+    FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다."),
+    AI_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 AI 피드백이 존재합니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
