@@ -167,16 +167,21 @@ CREATE TABLE content_schema.p_daily_quiz_questions (
 );
 COMMENT ON TABLE content_schema.p_daily_quiz_questions IS '일일 추천 퀴즈 문제은행 — 특정 버전 1건 = 1행, 재사용됨';
 COMMENT ON COLUMN content_schema.p_daily_quiz_questions.quiz_question_group_id IS '버전이 달라져도 동일 논리 문제를 묶는 식별자';
-COMMENT ON COLUMN content_schema.p_daily_quiz_questions.concept_tags IS 'GIN 인덱스 필요 — WHERE concept_tags @> ... 재사용 조회';
+COMMENT ON COLUMN content_schema.p_daily_quiz_questions.concept_tags IS '문제은행 재사용 조회 구현 시 후속 Flyway 마이그레이션으로 GIN 인덱스 추가';
+
+CREATE UNIQUE INDEX uq_daily_quiz_questions_active_group
+    ON content_schema.p_daily_quiz_questions (quiz_question_group_id)
+    WHERE status = 'ACTIVE';
 
 CREATE TABLE content_schema.p_daily_quiz_reports (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     daily_quiz_question_id UUID NOT NULL,
     reporter_user_id UUID NOT NULL,
-    reason TEXT,
+    reason TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     resolved_at TIMESTAMPTZ,
     resolved_by UUID,
+    UNIQUE (daily_quiz_question_id, reporter_user_id),
     FOREIGN KEY (daily_quiz_question_id) REFERENCES content_schema.p_daily_quiz_questions(id)
 );
 COMMENT ON TABLE content_schema.p_daily_quiz_reports IS '일일 퀴즈 문제 신고 이력';
@@ -206,6 +211,7 @@ CREATE TABLE content_schema.p_daily_quiz_attempt_items (
     question_order INT NOT NULL,
     answered_at TIMESTAMPTZ,
     UNIQUE (quiz_attempt_id, daily_quiz_question_id),
+    UNIQUE (quiz_attempt_id, question_order),
     FOREIGN KEY (quiz_attempt_id) REFERENCES content_schema.p_daily_quiz_attempts(id),
     FOREIGN KEY (daily_quiz_question_id) REFERENCES content_schema.p_daily_quiz_questions(id)
 );
@@ -227,17 +233,3 @@ CREATE TABLE content_schema.p_ai_generation_histories (
 );
 COMMENT ON TABLE content_schema.p_ai_generation_histories IS 'AI 문제 생성·일일 퀴즈 생성 호출 이력';
 COMMENT ON COLUMN content_schema.p_ai_generation_histories.related_id IS 'purpose로 대상 테이블 판별하는 다형성 논리 참조 — 생성 실패로 대상 행이 없으면 NULL';
-
-CREATE TABLE content_schema.p_user_submission_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    problem_id UUID NOT NULL,
-    problem_version_id UUID NOT NULL,
-    concept_tags JSONB NOT NULL,
-    result VARCHAR(20) NOT NULL CHECK (result IN ('CORRECT','WRONG','COMPILE_ERROR','TIME_LIMIT_EXCEEDED','MEMORY_LIMIT_EXCEEDED','SYSTEM_ERROR')),
-    submitted_at TIMESTAMPTZ NOT NULL,
-    submitted_id UUID NOT NULL,
-    UNIQUE (submitted_id)
-);
-COMMENT ON TABLE content_schema.p_user_submission_history IS 'Judge Service SubmissionJudged 이벤트를 소비해 채우는 조회 전용 캐시 — 이미 푼 문제 제외, 최근 오답, 개념 태그 추출용';
-COMMENT ON COLUMN content_schema.p_user_submission_history.submitted_id IS '논리 FK → Judge Service p_submissions.id — 원본 제출 건 역추적용';
