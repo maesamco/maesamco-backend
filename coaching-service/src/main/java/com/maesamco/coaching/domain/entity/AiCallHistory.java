@@ -1,7 +1,5 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -112,7 +110,7 @@ public class AiCallHistory {
         this.responseTimeMs = Validate.requireNonNegativeIfPresent(responseTimeMs, "응답 시간");
         this.tokenUsage = Validate.requireNonNegativeIfPresent(tokenUsage, "토큰 사용량");
         this.failureReason = failureReason;
-        this.retryCount = requirePositiveOrZero(retryCount, "재시도 횟수");
+        this.retryCount = Validate.requireNonNegative(retryCount, "재시도 횟수");
     }
 
     public static AiCallHistory create(
@@ -131,12 +129,5 @@ public class AiCallHistory {
                 .failureReason(failureReason)
                 .retryCount(retryCount)
                 .build();
-    }
-
-    private static int requirePositiveOrZero(int value, String fieldNameKorean) {
-        if (value < 0) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 0 이상이어야 합니다.");
-        }
-        return value;
     }
 }

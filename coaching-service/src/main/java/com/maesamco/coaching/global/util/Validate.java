@@ -81,6 +81,18 @@ public final class Validate {
     }
 
     /**
+     * NOT NULL 컬럼(retryCount 등 primitive int 필드)이 0 이상인지 검증한다. 위
+     * requireNonNegativeIfPresent(Integer, ...)는 nullable 컬럼용이라 값이 항상 있는
+     * primitive int에는 맞지 않는다.
+     */
+    public static int requireNonNegative(int value, String fieldNameKorean) {
+        if (value < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + particle(fieldNameKorean) + " 0 이상이어야 합니다.");
+        }
+        return value;
+    }
+
+    /**
      * "은/는" 조사를 마지막 글자의 받침 여부로 판단한다. 기존에는 필드 타입에 따라 "는"/"은"을
      * 하드코딩해서, 받침 있는 이름에 "는"이 붙는 오류가 있었다(예: "AI 호출 목적는 필수입니다").
      */
