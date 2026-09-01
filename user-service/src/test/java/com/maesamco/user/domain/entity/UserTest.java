@@ -133,6 +133,40 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("프로필 검증에 실패하면 기존 값이 일부 변경되지 않는다")
+    void updateProfile_whenValidationFails_keepsOriginalState() {
+        // given
+        User user = createDefaultUser();
+
+        // when & then
+        assertThatThrownBy(
+                () -> user.updateProfile(
+                        "변경될닉네임",
+                        12,
+                        null
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(
+                                            ErrorCode.INVALID_INPUT_VALUE
+                                    );
+                            assertThat(exception.getMessage())
+                                    .isEqualTo(
+                                            "학습 수준은 필수입니다."
+                                    );
+                        }
+                );
+
+        assertThat(user.getNickname()).isEqualTo("매삼코");
+        assertThat(user.getJavaExperienceMonths()).isEqualTo(3);
+        assertThat(user.getLearningLevel())
+                .isEqualTo(LearningLevel.BEGINNER);
+    }
+
+    @Test
     @DisplayName("비밀번호 해시를 변경한다")
     void changePasswordHash() {
         // given
