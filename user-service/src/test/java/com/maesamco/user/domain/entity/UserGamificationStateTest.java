@@ -33,7 +33,7 @@ class UserGamificationStateTest {
         assertThat(state.getCurrentStreak()).isZero();
         assertThat(state.getLongestStreak()).isZero();
         assertThat(state.getLastActivityDate()).isNull();
-        assertThat(state.getVersion()).isZero();
+        assertThat(state.getVersion()).isNull();
     }
 
     @Test

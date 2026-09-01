@@ -88,7 +88,7 @@ public class UserGamificationState {
      */
     @Version
     @Column(name = "version", nullable = false)
-    private long version;
+    private Long version;
 
     /**
      * 사용자 가입 시 게이미피케이션 상태가 생성된 시각입니다.
