@@ -80,7 +80,7 @@ public class FollowUpQuestion {
     private FollowUpQuestion(UUID explanationId, String questionText, String category) {
         this.explanationId = Validate.requireNonNull(explanationId, "설명 ID");
         this.questionText = Validate.requireText(questionText, "질문 내용");
-        this.category = category;
+        this.category = Validate.requireMaxLengthIfPresent(category, 30, "카테고리");
     }
 
     public static FollowUpQuestion create(UUID explanationId, String questionText, String category) {

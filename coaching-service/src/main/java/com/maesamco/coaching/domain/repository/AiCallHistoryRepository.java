@@ -9,5 +9,5 @@ public interface AiCallHistoryRepository {
 
     AiCallHistory save(AiCallHistory aiCallHistory);
 
-    List<AiCallHistory> findByCoachingSessionId(UUID coachingSessionId);
+    List<AiCallHistory> findByCoachingSessionIdOrderByCalledAtAsc(UUID coachingSessionId);
 }

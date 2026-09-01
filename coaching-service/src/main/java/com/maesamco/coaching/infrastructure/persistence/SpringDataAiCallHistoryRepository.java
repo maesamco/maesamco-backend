@@ -8,5 +8,5 @@ import java.util.UUID;
 
 interface SpringDataAiCallHistoryRepository extends JpaRepository<AiCallHistory, UUID> {
 
-    List<AiCallHistory> findByCoachingSessionId(UUID coachingSessionId);
+    List<AiCallHistory> findByCoachingSessionIdOrderByCalledAtAsc(UUID coachingSessionId);
 }

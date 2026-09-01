@@ -1,5 +1,6 @@
 package com.maesamco.coaching.global.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 
@@ -22,9 +23,59 @@ public final class Validate {
         return value;
     }
 
+    /**
+     * JsonNode 전용 오버로드 — Java 참조가 null이 아니어도 JSON의 null을 나타내는
+     * NullNode(예: ObjectMapper.readTree("null"))가 들어오면 이 역시 "필수값 없음"으로
+     * 취급한다(PR #8 리뷰). 위의 제네릭 requireNonNull은 value == null만 확인해서
+     * NullNode를 통과시켜 버린다.
+     */
+    public static JsonNode requireNonNull(JsonNode value, String fieldNameKorean) {
+        if (value == null || value.isNull()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + particle(fieldNameKorean) + " 필수입니다.");
+        }
+        return value;
+    }
+
     public static String requireText(String value, String fieldNameKorean) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + particle(fieldNameKorean) + " 필수입니다.");
+        }
+        return value;
+    }
+
+    /**
+     * null/blank 검증에 더해 DB 컬럼 길이(maxLength)까지 함께 검증한다 — 길이 제약이 있는
+     * 컬럼은 도메인 생성 시점에 걸러내지 않으면 DB 저장 시점에야 실패한다(PR #8 리뷰).
+     */
+    public static String requireText(String value, int maxLength, String fieldNameKorean) {
+        String checked = requireText(value, fieldNameKorean);
+        return requireMaxLength(checked, maxLength, fieldNameKorean);
+    }
+
+    /**
+     * null은 허용하되(nullable 컬럼), 값이 있으면 DB 컬럼 길이(maxLength)를 검증한다.
+     */
+    public static String requireMaxLengthIfPresent(String value, int maxLength, String fieldNameKorean) {
+        if (value == null) {
+            return null;
+        }
+        return requireMaxLength(value, maxLength, fieldNameKorean);
+    }
+
+    private static String requireMaxLength(String value, int maxLength, String fieldNameKorean) {
+        if (value.length() > maxLength) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE,
+                    fieldNameKorean + particle(fieldNameKorean) + " " + maxLength + "자를 초과할 수 없습니다.");
+        }
+        return value;
+    }
+
+    /**
+     * null은 허용하되(실패한 호출 등 값이 없을 수 있는 컬럼), 값이 있으면 0 이상인지 검증한다.
+     */
+    public static Integer requireNonNegativeIfPresent(Integer value, String fieldNameKorean) {
+        if (value != null && value < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + particle(fieldNameKorean) + " 0 이상이어야 합니다.");
         }
         return value;
     }

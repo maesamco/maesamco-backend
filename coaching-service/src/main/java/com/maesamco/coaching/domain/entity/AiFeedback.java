@@ -118,12 +118,38 @@ public class AiFeedback {
             String nextDirection
     ) {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
-        this.understoodConcepts = Validate.requireNonNull(understoodConcepts, "이해한 개념");
-        this.explanationGaps = Validate.requireNonNull(explanationGaps, "설명 부족 부분");
-        this.weakConcepts = Validate.requireNonNull(weakConcepts, "취약 개념");
-        this.syntaxToImprove = syntaxToImprove;
-        this.recommendedProblems = recommendedProblems;
+        this.understoodConcepts = Validate.requireNonNull(understoodConcepts, "이해한 개념").deepCopy();
+        this.explanationGaps = Validate.requireNonNull(explanationGaps, "설명 부족 부분").deepCopy();
+        this.weakConcepts = Validate.requireNonNull(weakConcepts, "취약 개념").deepCopy();
+        this.syntaxToImprove = syntaxToImprove == null ? null : syntaxToImprove.deepCopy();
+        this.recommendedProblems = recommendedProblems == null ? null : recommendedProblems.deepCopy();
         this.nextDirection = nextDirection;
+    }
+
+    /**
+     * 불변 보존형 엔티티지만 JsonNode 자체는 ArrayNode/ObjectNode처럼 mutable할 수 있어,
+     * Lombok @Getter가 만드는 기본 getter로 내부 참조를 그대로 반환하면 외부에서 반환값을
+     * 변경해 엔티티 상태를 몰래 바꿀 수 있다(PR #8 리뷰). 생성 시점 deepCopy에 더해 반환
+     * 시점에도 방어적으로 복사한다.
+     */
+    public JsonNode getUnderstoodConcepts() {
+        return understoodConcepts.deepCopy();
+    }
+
+    public JsonNode getExplanationGaps() {
+        return explanationGaps.deepCopy();
+    }
+
+    public JsonNode getWeakConcepts() {
+        return weakConcepts.deepCopy();
+    }
+
+    public JsonNode getSyntaxToImprove() {
+        return syntaxToImprove == null ? null : syntaxToImprove.deepCopy();
+    }
+
+    public JsonNode getRecommendedProblems() {
+        return recommendedProblems == null ? null : recommendedProblems.deepCopy();
     }
 
     public static AiFeedback create(

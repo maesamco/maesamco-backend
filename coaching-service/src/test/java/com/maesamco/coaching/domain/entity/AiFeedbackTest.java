@@ -2,6 +2,7 @@ package com.maesamco.coaching.domain.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -86,5 +87,64 @@ class AiFeedbackTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("필수 JSONB 필드가 Java null이 아니라 JSON의 null(NullNode)이어도 생성할 수 없다")
+    void create_throwsWhenRequiredFieldsAreJsonNull() throws Exception {
+        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode jsonNull = objectMapper.readTree("null");
+
+        assertThatThrownBy(() ->
+                AiFeedback.create(UUID.randomUUID(), jsonNull, empty, empty, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+
+        assertThatThrownBy(() ->
+                AiFeedback.create(UUID.randomUUID(), empty, jsonNull, empty, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+
+        assertThatThrownBy(() ->
+                AiFeedback.create(UUID.randomUUID(), empty, empty, jsonNull, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("생성 후 원본 JsonNode를 수정해도 엔티티 내부 상태는 바뀌지 않는다")
+    void create_isNotAffectedByMutatingOriginalNodeAfterConstruction() throws Exception {
+        // given
+        ArrayNode understoodConcepts = (ArrayNode) objectMapper.readTree("[\"반복문\"]");
+        JsonNode empty = objectMapper.readTree("[]");
+
+        AiFeedback aiFeedback = AiFeedback.create(
+                UUID.randomUUID(), understoodConcepts, empty, empty, null, null, null
+        );
+
+        // when — 생성에 사용한 원본 노드를 나중에 수정
+        understoodConcepts.add("조건문");
+
+        // then
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
+    }
+
+    @Test
+    @DisplayName("getter로 반환받은 JsonNode를 수정해도 엔티티 내부 상태는 바뀌지 않는다")
+    void getter_returnsDefensiveCopy() throws Exception {
+        // given
+        JsonNode empty = objectMapper.readTree("[]");
+        AiFeedback aiFeedback = AiFeedback.create(
+                UUID.randomUUID(), objectMapper.readTree("[\"반복문\"]"), empty, empty, null, null, null
+        );
+
+        // when — getter로 받은 참조를 수정
+        ((ArrayNode) aiFeedback.getUnderstoodConcepts()).add("조건문");
+
+        // then
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
     }
 }

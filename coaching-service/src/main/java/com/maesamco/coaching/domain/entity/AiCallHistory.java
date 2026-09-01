@@ -11,6 +11,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -40,9 +41,16 @@ import java.util.UUID;
  * coaching_session_id → p_coaching_sessions.id FK와 purpose에 대한
  * CHECK(purpose IN ('HINT','FOLLOWUP_QUESTION','FEEDBACK'))을 실제 마이그레이션 스크립트로
  * 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
+ *
+ * coaching_session_id는 FK 컬럼이지만 PostgreSQL은 FK 생성 시 참조 컬럼에 인덱스를 자동으로
+ * 만들어주지 않는다 — findByCoachingSessionId()가 누적되는 호출 이력을 이 컬럼으로 필터링하는
+ * 주요 조회 경로라 인덱스가 필요하다(PR #8 리뷰). V2 마이그레이션에서 실제로 추가했다(이슈 #10).
  */
 @Entity
-@Table(name = "p_ai_call_histories")
+@Table(
+        name = "p_ai_call_histories",
+        indexes = @Index(name = "idx_ai_call_histories_coaching_session", columnList = "coaching_session_id")
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
@@ -98,11 +106,11 @@ public class AiCallHistory {
     ) {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
         this.purpose = Validate.requireNonNull(purpose, "AI 호출 목적");
-        this.modelName = Validate.requireText(modelName, "모델명");
-        this.promptVersion = Validate.requireText(promptVersion, "프롬프트 버전");
-        this.requestStatus = Validate.requireText(requestStatus, "요청 상태");
-        this.responseTimeMs = responseTimeMs;
-        this.tokenUsage = tokenUsage;
+        this.modelName = Validate.requireText(modelName, 50, "모델명");
+        this.promptVersion = Validate.requireText(promptVersion, 20, "프롬프트 버전");
+        this.requestStatus = Validate.requireText(requestStatus, 20, "요청 상태");
+        this.responseTimeMs = Validate.requireNonNegativeIfPresent(responseTimeMs, "응답 시간");
+        this.tokenUsage = Validate.requireNonNegativeIfPresent(tokenUsage, "토큰 사용량");
         this.failureReason = failureReason;
         this.retryCount = requirePositiveOrZero(retryCount, "재시도 횟수");
     }

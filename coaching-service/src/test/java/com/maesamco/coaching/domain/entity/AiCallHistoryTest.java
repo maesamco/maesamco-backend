@@ -95,4 +95,80 @@ class AiCallHistoryTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }
+
+    @Test
+    @DisplayName("모델명이 50자면 생성할 수 있고, 51자면 생성할 수 없다")
+    void create_validatesModelNameMaxLength() {
+        String fiftyChars = "a".repeat(50);
+        String fiftyOneChars = "a".repeat(51);
+
+        assertThat(AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, fiftyChars, "v1", "SUCCESS", null, null, null, 0
+        ).getModelName()).isEqualTo(fiftyChars);
+
+        assertThatThrownBy(() -> AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, fiftyOneChars, "v1", "SUCCESS", null, null, null, 0
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("프롬프트 버전이 20자면 생성할 수 있고, 21자면 생성할 수 없다")
+    void create_validatesPromptVersionMaxLength() {
+        String twentyChars = "v".repeat(20);
+        String twentyOneChars = "v".repeat(21);
+
+        assertThat(AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", twentyChars, "SUCCESS", null, null, null, 0
+        ).getPromptVersion()).isEqualTo(twentyChars);
+
+        assertThatThrownBy(() -> AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", twentyOneChars, "SUCCESS", null, null, null, 0
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("요청 상태가 20자면 생성할 수 있고, 21자면 생성할 수 없다")
+    void create_validatesRequestStatusMaxLength() {
+        String twentyChars = "s".repeat(20);
+        String twentyOneChars = "s".repeat(21);
+
+        assertThat(AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", "v1", twentyChars, null, null, null, 0
+        ).getRequestStatus()).isEqualTo(twentyChars);
+
+        assertThatThrownBy(() -> AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", "v1", twentyOneChars, null, null, null, 0
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("응답 시간·토큰 사용량은 null이거나 0 이상이면 생성할 수 있고, 음수면 생성할 수 없다")
+    void create_validatesResponseTimeMsAndTokenUsageAreNonNegative() {
+        assertThat(AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", "v1", "SUCCESS", 0, 0, null, 0
+        ).getResponseTimeMs()).isEqualTo(0);
+
+        assertThatThrownBy(() -> AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", "v1", "SUCCESS", -1, null, null, 0
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+
+        assertThatThrownBy(() -> AiCallHistory.create(
+                UUID.randomUUID(), AiCallPurpose.HINT, "gpt-4o", "v1", "SUCCESS", null, -1, null, 0
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
 }

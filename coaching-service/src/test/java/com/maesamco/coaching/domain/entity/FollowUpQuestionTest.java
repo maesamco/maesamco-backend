@@ -66,4 +66,19 @@ class FollowUpQuestionTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }
+
+    @Test
+    @DisplayName("분류가 30자면 생성할 수 있고, 31자면 생성할 수 없다")
+    void create_validatesCategoryMaxLength() {
+        String thirtyChars = "a".repeat(30);
+        String thirtyOneChars = "a".repeat(31);
+
+        assertThat(FollowUpQuestion.create(UUID.randomUUID(), "질문 내용", thirtyChars).getCategory())
+                .isEqualTo(thirtyChars);
+
+        assertThatThrownBy(() -> FollowUpQuestion.create(UUID.randomUUID(), "질문 내용", thirtyOneChars))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
 }

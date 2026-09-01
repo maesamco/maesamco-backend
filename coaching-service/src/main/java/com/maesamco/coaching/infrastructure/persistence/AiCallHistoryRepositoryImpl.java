@@ -26,7 +26,7 @@ public class AiCallHistoryRepositoryImpl implements AiCallHistoryRepository {
     }
 
     @Override
-    public List<AiCallHistory> findByCoachingSessionId(UUID coachingSessionId) {
-        return springDataAiCallHistoryRepository.findByCoachingSessionId(coachingSessionId);
+    public List<AiCallHistory> findByCoachingSessionIdOrderByCalledAtAsc(UUID coachingSessionId) {
+        return springDataAiCallHistoryRepository.findByCoachingSessionIdOrderByCalledAtAsc(coachingSessionId);
     }
 }
