@@ -23,6 +23,13 @@ CREATE TABLE judge_schema.p_submissions (
     judged_at TIMESTAMPTZ,
     execution_time_ms INT,
     memory_used_kb INT,
+    -- BaseEntity 감사 컬럼
+    created_at TIMESTAMPTZ NOT NULL,
+    created_by UUID NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    updated_by UUID NOT NULL,
+    deleted_at TIMESTAMPTZ,
+    deleted_by UUID,
     UNIQUE (user_id, problem_id, attempt_no),
     UNIQUE (idempotency_key)
 );
@@ -45,6 +52,9 @@ CREATE TABLE judge_schema.p_submission_test_results (
 COMMENT ON TABLE judge_schema.p_submission_test_results IS '제출 건별 테스트케이스 채점 결과';
 COMMENT ON COLUMN judge_schema.p_submission_test_results.test_case_id IS '논리 FK → Content Service p_test_cases.id';
 COMMENT ON COLUMN judge_schema.p_submission_test_results.actual_output IS '공개 테스트만 학습자에 노출';
+
+CREATE INDEX idx_submission_test_results_submission
+    ON judge_schema.p_submission_test_results (submission_id);
 
 CREATE TABLE judge_schema.p_problem_execution_specs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,3 +83,6 @@ CREATE TABLE judge_schema.p_submission_event_outboxes (
 );
 COMMENT ON TABLE judge_schema.p_submission_event_outboxes IS '채점 요청/완료 이벤트 발행용 Outbox';
 COMMENT ON COLUMN judge_schema.p_submission_event_outboxes.processed_at IS '릴레이 워커가 이벤트 발행을 완료 처리한 시각';
+
+CREATE INDEX idx_submission_event_outboxes_status
+    ON judge_schema.p_submission_event_outboxes (status);
