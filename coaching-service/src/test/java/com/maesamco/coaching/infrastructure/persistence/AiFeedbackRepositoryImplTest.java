@@ -121,6 +121,29 @@ class AiFeedbackRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("JSONB 필드는 실제로 jsonb 컬럼 타입으로, created_at은 timestamptz로 생성된다")
+    void schema_usesJsonbAndTimestamptzColumnTypes() {
+        // when
+        String understoodConceptsType = columnDataType("understood_concepts");
+        String createdAtType = columnDataType("created_at");
+
+        // then
+        assertThat(understoodConceptsType).isEqualTo("jsonb");
+        assertThat(createdAtType).isEqualTo("timestamp with time zone");
+    }
+
+    @SuppressWarnings("unchecked")
+    private String columnDataType(String columnName) {
+        return (String) entityManager.createNativeQuery(
+                        "SELECT data_type FROM information_schema.columns "
+                                + "WHERE table_schema = 'coaching_schema' "
+                                + "AND table_name = 'p_ai_feedbacks' AND column_name = :columnName"
+                )
+                .setParameter("columnName", columnName)
+                .getSingleResult();
+    }
+
+    @Test
     @DisplayName("존재하지 않는 세션으로 조회하면 빈 결과를 반환한다")
     void findByCoachingSessionId_returnsEmpty_whenNotExists() {
         // when
