@@ -3,7 +3,10 @@ package com.maesamco.user.infrastructure.persistence;
 import com.maesamco.user.domain.entity.RewardType;
 import com.maesamco.user.domain.entity.XpHistory;
 import com.maesamco.user.domain.repository.XpHistoryRepository;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -30,7 +33,13 @@ public class XpHistoryRepositoryImpl implements XpHistoryRepository {
      */
     @Override
     public XpHistory save(XpHistory xpHistory) {
-        return springDataXpHistoryRepository.save(xpHistory);
+        try {
+            return springDataXpHistoryRepository.saveAndFlush(xpHistory);
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(
+                    ErrorCode.XP_HISTORY_ALREADY_EXISTS
+            );
+        }
     }
 
     /**

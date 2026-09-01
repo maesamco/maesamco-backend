@@ -80,7 +80,16 @@ CREATE TABLE user_schema.p_xp_histories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     source_event_id UUID,
-    reward_type VARCHAR(30) NOT NULL CHECK (reward_type IN ('FIRST_CORRECT','COACHING_COMPLETED','DAILY_GOAL_COMPLETED','STREAK_MILESTONE','ADMIN_ADJUSTMENT')),
+    reward_type VARCHAR(30) NOT NULL CHECK (
+        reward_type IN (
+            'FIRST_CORRECT',
+            'COACHING_COMPLETED',
+            'DAILY_GOAL_COMPLETED',
+            'DAILY_QUIZ_COMPLETED',
+            'STREAK_MILESTONE',
+            'ADMIN_ADJUSTMENT'
+        )
+    ),
     source_type VARCHAR(30) NOT NULL CHECK (source_type IN ('SUBMISSION','COACHING','DAILY_ACTIVITY','DAILY_QUIZ','STREAK','SYSTEM')),
     source_id UUID,
     problem_id UUID,
