@@ -119,7 +119,10 @@ public class WeakConcept {
      * 반영해야 하는 경우에도 그대로 쓸 수 있다.
      */
     public void recordOccurrence(Instant detectedAt) {
-        this.occurrenceCount += 1;
+        // occurrenceCount는 DB 컬럼도 INT(32비트)라 Integer.MAX_VALUE에서 그냥 += 1하면
+        // 조용히 음수로 뒤집힌다 — 실제로 21억 번 발견될 일은 거의 없지만(PR #34 리뷰),
+        // addExact로 넘칠 때 조용히 틀린 값이 되는 대신 명시적으로 실패하게 한다.
+        this.occurrenceCount = Math.addExact(this.occurrenceCount, 1);
         this.lastDetectedAt = Validate.requireNonNull(detectedAt, "발견 시각");
     }
 

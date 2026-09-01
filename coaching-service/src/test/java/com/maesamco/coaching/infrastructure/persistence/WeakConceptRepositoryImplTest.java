@@ -76,6 +76,24 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     @Test
+    @DisplayName("앞뒤 공백이 붙은 conceptTag로 조회해도 trim된 저장 값을 찾는다")
+    void findByUserIdAndConceptTag_trimsQueryConceptTag() {
+        // given
+        UUID userId = UUID.randomUUID();
+        weakConceptRepository.save(WeakConcept.create(userId, "재귀"));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        Optional<WeakConcept> found = weakConceptRepository.findByUserIdAndConceptTag(userId, "  재귀  ");
+
+        // then
+        assertThat(found).isPresent();
+        assertThat(found.get().getConceptTag()).isEqualTo("재귀");
+    }
+
+    @Test
     @DisplayName("존재하지 않는 (userId, conceptTag)로 조회하면 빈 결과를 반환한다")
     void findByUserIdAndConceptTag_returnsEmpty_whenNotExists() {
         // when

@@ -40,8 +40,13 @@ public class WeakConceptRepositoryImpl implements WeakConceptRepository {
         }
     }
 
+    /**
+     * WeakConcept 생성자가 conceptTag를 trim해서 저장하므로(PR #34 리뷰), 조회도 동일하게
+     * trim해서 전달한다 — 안 그러면 앞뒤 공백이 붙은 태그로 조회했을 때 저장된 행을 못 찾는다.
+     */
     @Override
     public Optional<WeakConcept> findByUserIdAndConceptTag(UUID userId, String conceptTag) {
-        return springDataWeakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag);
+        String trimmedConceptTag = conceptTag == null ? null : conceptTag.trim();
+        return springDataWeakConceptRepository.findByUserIdAndConceptTag(userId, trimmedConceptTag);
     }
 }
