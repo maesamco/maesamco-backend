@@ -20,7 +20,10 @@ import java.util.UUID;
  * 사용자별 취약 개념 집계 — 매삼코 DB 테이블 명세 7절.
  *
  * BaseEntity 미적용 — 사용자당 개념별 1행이 계속 갱신되는 집계 테이블이라 "언제 생성됐는지"는
- * 의미가 없고, 사용자 삭제 시 함께 정리되므로 독립적인 소프트 삭제도 불필요하다(명세 원문).
+ * 의미가 없다. 명세 원문은 "사용자 삭제 시 함께 정리된다"고 되어 있지만, userId가 User
+ * Service에 대한 논리 FK라 실제로는 그 정리를 수행할 경로(이벤트 소비, 내부 API 등)가 아직
+ * 전혀 없다 — User Service가 삭제 사실을 다른 서비스에 알릴 방법 자체가 없다(이슈 #39, 팀
+ * 논의 필요). 그 전까지는 "독립적인 소프트 삭제는 필요 없다"는 명세 판단만 유지한다.
  *
  * 지금까지의 Coaching 엔티티(CoachingSession 제외)와 달리 불변/append-only가 아니라, 같은
  * (user_id, concept_tag)가 재발견될 때마다 새 행을 만들지 않고 기존 행을 갱신하는 집계
@@ -28,9 +31,10 @@ import java.util.UUID;
  * FK(서비스 간 참조)라 같은 서비스 내부 FK와 달리 물리 FK 자체가 성립하지 않는다.
  *
  * UNIQUE(user_id, concept_tag) 제약은 Flyway V1 베이스라인(PR #29)이 실제 마이그레이션
- * 스크립트로 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결). @Table의 uniqueConstraints는
- * 테스트에서 Flyway 없이도 같은 제약을 검증할 수 있게 남겨둔 것으로, 운영 스키마의 소스는
- * 마이그레이션 스크립트다.
+ * 스크립트로 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결) — 운영 스키마의 유일한
+ * 소스는 마이그레이션 스크립트다. @Table의 uniqueConstraints는 스키마를 생성하는 역할이
+ * 아니라(WeakConceptRepositoryImplTest도 실제 Flyway V1 스키마로 검증한다), 엔티티 코드만
+ * 보고도 제약을 바로 알 수 있게 문서 목적으로 중복 명시해둔 것이다.
  */
 @Entity
 @Table(
@@ -73,7 +77,9 @@ public class WeakConcept {
     @Builder
     private WeakConcept(UUID userId, String conceptTag) {
         this.userId = Validate.requireNonNull(userId, "사용자 ID");
-        this.conceptTag = Validate.requireText(conceptTag, "개념 태그");
+        // 앞뒤 공백만 다른 태그("재귀" vs " 재귀 ")가 UNIQUE 제약상 서로 다른 개념으로
+        // 저장되지 않도록 trim 후 검증한다(PR #34 리뷰).
+        this.conceptTag = Validate.requireText(conceptTag == null ? null : conceptTag.trim(), 50, "개념 태그");
         this.occurrenceCount = 1;
         this.lastDetectedAt = Instant.now();
         this.improved = false;
@@ -102,8 +108,19 @@ public class WeakConcept {
      *       그대로 둔다 — 재발견 시 되돌릴지 여부는 응용 계층에서 결정하고 이 TODO 제거.
      */
     public void recordOccurrence() {
+        recordOccurrence(Instant.now());
+    }
+
+    /**
+     * recordOccurrence()가 내부적으로 호출하는 오버로드 — 발견 시각을 직접 주입할 수 있게
+     * 분리했다(PR #34 리뷰). Instant.now()만 쓰면 두 번의 호출이 같은 나노초에 걸릴 가능성이
+     * 0은 아니라서 "정확히 이 시각으로 갱신됐는지" 자체를 테스트로 결정적으로 검증하기 어려운데,
+     * 이 오버로드로 고정된 Instant를 넘겨서 검증할 수 있다. 나중에 이벤트의 발생 시각을 그대로
+     * 반영해야 하는 경우에도 그대로 쓸 수 있다.
+     */
+    public void recordOccurrence(Instant detectedAt) {
         this.occurrenceCount += 1;
-        this.lastDetectedAt = Instant.now();
+        this.lastDetectedAt = Validate.requireNonNull(detectedAt, "발견 시각");
     }
 
     public void markImproved() {

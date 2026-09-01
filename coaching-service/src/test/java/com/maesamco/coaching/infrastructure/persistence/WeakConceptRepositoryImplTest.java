@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -111,19 +112,20 @@ class WeakConceptRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("recordOccurrence() 후 다시 저장하면 발견 횟수·시각이 실제 DB에도 갱신된다")
-    void recordOccurrence_persistsUpdatedCountAndTimestamp() {
-        // given
+    @DisplayName("recordOccurrence(Instant) 후 다시 저장하면 발견 횟수·시각이 실제 DB에도 정확히 반영된다")
+    void recordOccurrence_persistsUpdatedCountAndExactTimestamp() {
+        // given — isAfterOrEqualTo만으로는 lastDetectedAt 갱신이 실수로 빠져도 못 잡아낸다
+        // (PR #34 리뷰). 시각을 직접 주입해서 정확한 값이 DB에도 그대로 반영되는지 확인한다.
         UUID userId = UUID.randomUUID();
         WeakConcept saved = weakConceptRepository.save(WeakConcept.create(userId, "재귀"));
         entityManager.flush();
         entityManager.clear();
 
         WeakConcept found = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
-        var firstDetectedAt = found.getLastDetectedAt();
+        Instant detectedAt = Instant.parse("2026-01-01T00:00:00Z");
 
         // when
-        found.recordOccurrence();
+        found.recordOccurrence(detectedAt);
         weakConceptRepository.save(found);
         entityManager.flush();
         entityManager.clear();
@@ -131,8 +133,30 @@ class WeakConceptRepositoryImplTest {
         // then
         WeakConcept reloaded = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
         assertThat(reloaded.getOccurrenceCount()).isEqualTo(2);
-        assertThat(reloaded.getLastDetectedAt()).isAfterOrEqualTo(firstDetectedAt);
+        assertThat(reloaded.getLastDetectedAt()).isEqualTo(detectedAt);
         assertThat(reloaded.getId()).isEqualTo(saved.getId());
+    }
+
+    @Test
+    @DisplayName("markImproved() 후 다시 저장하면 improved=true가 실제 DB에도 반영된다")
+    void markImproved_persistsImprovedFlag() {
+        // given
+        UUID userId = UUID.randomUUID();
+        weakConceptRepository.save(WeakConcept.create(userId, "재귀"));
+        entityManager.flush();
+        entityManager.clear();
+
+        WeakConcept found = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
+
+        // when
+        found.markImproved();
+        weakConceptRepository.save(found);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        WeakConcept reloaded = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
+        assertThat(reloaded.isImproved()).isTrue();
     }
 
     @Test
