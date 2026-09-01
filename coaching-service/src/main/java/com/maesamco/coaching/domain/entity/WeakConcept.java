@@ -98,6 +98,10 @@ public class WeakConcept {
      *
      * TODO: 취약 개념 조회 후 갱신(find-then-update) Service/Facade 구현 시 위 동시성 문제
      *       해결 방안 확정하고 이 TODO 제거.
+     *
+     * TODO: improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
+     *       false로 되돌려야 하는지가 명세에 없다. 지금은 이 메서드가 improved를 건드리지 않고
+     *       그대로 둔다 — 재발견 시 되돌릴지 여부는 응용 계층에서 결정하고 이 TODO 제거.
      */
     public void recordOccurrence() {
         this.occurrenceCount += 1;

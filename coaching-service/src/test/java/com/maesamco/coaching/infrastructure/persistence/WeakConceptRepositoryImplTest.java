@@ -97,6 +97,9 @@ class WeakConceptRepositoryImplTest {
         assertThat(found).isPresent();
         assertThat(found.get().getUserId()).isEqualTo(userId);
         assertThat(found.get().getConceptTag()).isEqualTo("재귀");
+        assertThat(found.get().getOccurrenceCount()).isEqualTo(1);
+        assertThat(found.get().isImproved()).isFalse();
+        assertThat(found.get().getLastDetectedAt()).isNotNull();
     }
 
     @Test
