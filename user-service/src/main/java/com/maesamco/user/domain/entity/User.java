@@ -167,11 +167,16 @@ public class User extends BaseEntity {
             int javaExperienceMonths,
             LearningLevel learningLevel
     ) {
-        this.nickname = requireText(nickname, "닉네임은 필수입니다.");
-        this.javaExperienceMonths =
+        String validatedNickname =
+                requireText(nickname, "닉네임은 필수입니다.");
+        int validatedJavaExperienceMonths =
                 validateJavaExperienceMonths(javaExperienceMonths);
-        this.learningLevel =
+        LearningLevel validatedLearningLevel =
                 requireNonNull(learningLevel, "학습 수준은 필수입니다.");
+
+        this.nickname = validatedNickname;
+        this.javaExperienceMonths = validatedJavaExperienceMonths;
+        this.learningLevel = validatedLearningLevel;
     }
 
     /**
