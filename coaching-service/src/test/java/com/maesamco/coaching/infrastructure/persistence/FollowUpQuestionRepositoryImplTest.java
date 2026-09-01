@@ -73,7 +73,7 @@ class FollowUpQuestionRepositoryImplTest {
     void findByExplanationId_returnsFollowUpQuestion() {
         // given
         UUID explanationId = UUID.randomUUID();
-        followUpQuestionRepository.save(FollowUpQuestion.create(explanationId, "질문 내용", null));
+        followUpQuestionRepository.save(FollowUpQuestion.create(explanationId, "질문 내용", "선택이유"));
 
         entityManager.flush();
         entityManager.clear();
@@ -84,6 +84,7 @@ class FollowUpQuestionRepositoryImplTest {
         // then
         assertThat(found).isPresent();
         assertThat(found.get().getQuestionText()).isEqualTo("질문 내용");
+        assertThat(found.get().getCategory()).isEqualTo("선택이유");
     }
 
     @Test
