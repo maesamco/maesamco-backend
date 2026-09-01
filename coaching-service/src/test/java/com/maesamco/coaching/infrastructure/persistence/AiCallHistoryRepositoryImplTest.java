@@ -94,6 +94,19 @@ class AiCallHistoryRepositoryImplTest {
         assertThat(found)
                 .extracting(AiCallHistory::getPurpose)
                 .containsExactlyInAnyOrder(AiCallPurpose.HINT, AiCallPurpose.FOLLOWUP_QUESTION, AiCallPurpose.FEEDBACK);
+
+        AiCallHistory hint = found.stream().filter(h -> h.getPurpose() == AiCallPurpose.HINT).findFirst().orElseThrow();
+        assertThat(hint.getModelName()).isEqualTo("gpt-4o");
+        assertThat(hint.getPromptVersion()).isEqualTo("v1");
+        assertThat(hint.getRequestStatus()).isEqualTo("SUCCESS");
+        assertThat(hint.getResponseTimeMs()).isEqualTo(1200);
+        assertThat(hint.getTokenUsage()).isEqualTo(350);
+        assertThat(hint.getRetryCount()).isEqualTo(0);
+
+        AiCallHistory feedback = found.stream().filter(h -> h.getPurpose() == AiCallPurpose.FEEDBACK).findFirst().orElseThrow();
+        assertThat(feedback.getRequestStatus()).isEqualTo("FAILED");
+        assertThat(feedback.getFailureReason()).isEqualTo("timeout");
+        assertThat(feedback.getRetryCount()).isEqualTo(1);
     }
 
     @Test
