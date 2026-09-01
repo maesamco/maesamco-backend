@@ -33,7 +33,7 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // Flyway — 이슈 #10, 기본 비활성화(application.yml spring.flyway.enabled: false). db/migration의 V1 검토 후 서비스별로 활성화
+    // Flyway — 이슈 #10, V1 베이스라인 검증 완료 후 실제 활성화(application.yml spring.flyway.enabled: true)
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
@@ -44,6 +44,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // @DataJpaTest가 FlywayAutoConfiguration을 기본 포함하지 않아 테스트에서 별도로 필요(이슈 #10)
+    testImplementation 'org.springframework.boot:spring-boot-flyway'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

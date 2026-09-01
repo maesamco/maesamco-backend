@@ -1,7 +1,6 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
+import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -18,7 +17,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 사용자별 취약 개념 집계 — 매삼코 DB 테이블 명세 05-7절.
+ * 사용자별 취약 개념 집계 — 매삼코 DB 테이블 명세 7절.
  *
  * BaseEntity 미적용 — 사용자당 개념별 1행이 계속 갱신되는 집계 테이블이라 "언제 생성됐는지"는
  * 의미가 없고, 사용자 삭제 시 함께 정리되므로 독립적인 소프트 삭제도 불필요하다(명세 원문).
@@ -28,11 +27,10 @@ import java.util.UUID;
  * 엔티티다(DB 테이블 명세 06절: "발견 시 count만 증가"). userId는 User Service에 대한 논리
  * FK(서비스 간 참조)라 같은 서비스 내부 FK와 달리 물리 FK 자체가 성립하지 않는다.
  *
- * ⚠️ UNIQUE(user_id, concept_tag) 제약이 지금 @Table로 JPA/테스트 레벨에만 있고, 운영 환경은
- * ddl-auto=validate라 Flyway 마이그레이션 스크립트가 유일한 스키마 소스가 된다.
- *
- * TODO(#10): Flyway 마이그레이션 도입 시 p_weak_concepts에 UNIQUE(user_id, concept_tag)
- *            제약을 마이그레이션 스크립트에도 명시적으로 포함.
+ * UNIQUE(user_id, concept_tag) 제약은 Flyway V1 베이스라인(PR #29)이 실제 마이그레이션
+ * 스크립트로 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결). @Table의 uniqueConstraints는
+ * 테스트에서 Flyway 없이도 같은 제약을 검증할 수 있게 남겨둔 것으로, 운영 스키마의 소스는
+ * 마이그레이션 스크립트다.
  */
 @Entity
 @Table(
@@ -74,8 +72,8 @@ public class WeakConcept {
 
     @Builder
     private WeakConcept(UUID userId, String conceptTag) {
-        this.userId = requireNonNull(userId, "사용자 ID");
-        this.conceptTag = requireText(conceptTag, "개념 태그");
+        this.userId = Validate.requireNonNull(userId, "사용자 ID");
+        this.conceptTag = Validate.requireText(conceptTag, "개념 태그");
         this.occurrenceCount = 1;
         this.lastDetectedAt = Instant.now();
         this.improved = false;
@@ -112,21 +110,4 @@ public class WeakConcept {
         this.improved = true;
     }
 
-    // TODO: CoachingSession.java/Hint.java/Explanation.java 등에도 거의 동일한 requireNonNull이
-    //       따로 구현돼 있다(User Service의 User/UserInterestConcept와 같은 중복 패턴). 지금은
-    //       엔티티가 늘어나는 중이니, coaching-service 도메인 구현이 마무리되면 global/util
-    //       공통 Validate 유틸로 추출을 고려할 것.
-    private static UUID requireNonNull(UUID value, String fieldNameKorean) {
-        if (value == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "는 필수입니다.");
-        }
-        return value;
-    }
-
-    private static String requireText(String value, String fieldNameKorean) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + "은 필수입니다.");
-        }
-        return value;
-    }
 }

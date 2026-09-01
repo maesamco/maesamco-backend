@@ -8,7 +8,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.junit.jupiter.Container;
@@ -25,22 +27,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 팀 컨벤션 18절 — Repository 통합 테스트는 H2가 아니라 Testcontainers 실제 PostgreSQL로 검증한다.
  *
- * ⚠️ 마이그레이션 도구는 Flyway로 확정됐지만(팀 컨벤션 16절, 이슈 #10) 아직 실제 마이그레이션
- *    스크립트가 도입되기 전이라, 운영 스크립트 대신 테스트 전용 ddl-auto=create-drop으로
- *    coaching_schema를 직접 생성해서 검증한다.
+ * 마이그레이션 도구는 Flyway로 확정됐고(팀 컨벤션 16절, 이슈 #10) V1 베이스라인 스크립트도
+ * 이미 도입돼 있다(PR #29). Hibernate가 스키마를 직접 만드는 대신 이 실제 마이그레이션
+ * 스크립트로 생성된 스키마를 ddl-auto=validate로 검증하도록 해서, 엔티티 매핑이 실제 운영
+ * 스키마와 정확히 일치하는지까지 함께 확인한다. @DataJpaTest는 기본적으로 FlywayAutoConfiguration을
+ * 포함하지 않아 @ImportAutoConfiguration으로 명시적으로 가져와야 한다.
  *
  * WeakConcept은 @CreatedDate/@LastModifiedDate 같은 JPA 감사(Auditing)를 쓰지 않으므로
- * (lastDetectedAt은 도메인 메서드로 직접 관리) @EnableJpaAuditing이 필요 없다.
- *
- * ddl-auto=create-drop과 hbm2ddl.create_namespaces=true는 src/test/resources/application.yml에
- * 있다 — coaching_schema가 default_schema로만 지정돼 있어서(Hibernate 7의
- * create_namespaces 기본값이 false) 이 옵션 없이는 CREATE SCHEMA 없이 CREATE TABLE만 시도하다가
- * "schema coaching_schema does not exist"로 실패한다. 이 파일은 PR #8(feature/7) 작업 중에
- * 추가된 건데 아직 develop에 병합되지 않아서, develop에서 바로 분기한 이 PR에 별도로 옮겨왔다
- * — PR #8이 머지되면 중복이 되므로 그때 정리할 것.
+ * (lastDetectedAt은 도메인 메서드로 직접 관리) @EnableJpaAuditing이 필요 없다. 다른 Coaching
+ * 엔티티와 달리 물리 FK도 없어서(userId는 User Service에 대한 논리 FK) 부모 행을 미리
+ * 저장해두는 준비 작업도 필요 없다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Testcontainers
 class WeakConceptRepositoryImplTest {
 
