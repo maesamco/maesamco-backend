@@ -16,8 +16,10 @@ import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 오답 힌트 요청(코칭 서비스 API 명세 1번 API) — Judge Service Feign 호출 + LLM 호출 +
@@ -87,13 +89,18 @@ public class HintGenerationFacade {
         }
 
         int nextStage = maxStage + 1;
-        Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage));
+        Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage, existingHints));
         Hint savedHint = hintRepository.save(hint);
         return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
     }
 
+    /**
+     * 같은 문제를 재시도하는 동안엔 세션을 이어서 쓴다(2026-09-02 확정) — submission_id가
+     * 아니라 (user_id, problem_id) + IN_PROGRESS로 찾는다. 이미 COMPLETED된 세션은 여기
+     * 안 걸리므로, 그 문제를 다시 도전하면 새 세션이 만들어진다.
+     */
     private CoachingSession findOrCreateSession(SubmissionSnapshot submission) {
-        return coachingSessionRepository.findBySubmissionId(submission.submissionId())
+        return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
                 .orElseGet(() -> {
                     try {
                         return coachingSessionRepository.save(
@@ -103,7 +110,7 @@ public class HintGenerationFacade {
                         // 동시 요청으로 다른 트랜잭션이 먼저 세션을 만들었다면 그걸 그대로 쓴다 —
                         // 힌트 요청 자체는 실패시킬 이유가 없다.
                         if (e.getErrorCode() == ErrorCode.COACHING_SESSION_ALREADY_EXISTS) {
-                            return coachingSessionRepository.findBySubmissionId(submission.submissionId())
+                            return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
                                     .orElseThrow(() -> e);
                         }
                         throw e;
@@ -111,19 +118,22 @@ public class HintGenerationFacade {
                 });
     }
 
-    private String generateHintContent(CoachingSession session, SubmissionSnapshot submission, int stage) {
+    private String generateHintContent(CoachingSession session, SubmissionSnapshot submission, int stage, List<Hint> previousHints) {
         String systemPrompt = """
                 당신은 Java 초보 학습자를 돕는 코칭 도우미입니다. 정답 코드를 절대 알려주지 않고,
                 사용자가 스스로 오류를 발견하도록 질문형 힌트를 제공합니다. 지금은 %d/4단계입니다.
                 단계별 방향: 1단계 관련 Java 개념 확인, 2단계 오류 발생 가능 위치 안내,
                 3단계 경계값·실행 흐름 질문, 4단계 수정 방향 제시(완성된 정답 코드는 제공하지 않음).
+                이전 단계에서 이미 준 힌트가 있다면, 그 내용을 반복하지 말고 그 다음 단계로
+                자연스럽게 이어지도록 하세요.
                 """.formatted(stage);
         String userPrompt = """
                 제출 코드:
                 %s
 
                 실패 정보: %s
-                """.formatted(submission.code(), submission.failedTestSummary());
+                %s
+                """.formatted(submission.code(), submission.failedTestSummary(), formatPreviousHints(previousHints));
 
         try {
             AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
@@ -139,6 +149,22 @@ public class HintGenerationFacade {
             ));
             throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
         }
+    }
+
+    /**
+     * AiModelPort는 단발성 호출이라 대화 이력을 서버에 유지하지 않는다 — 대신 이전 단계
+     * 힌트 내용을 매 호출의 프롬프트에 텍스트로 포함시켜, 다음 단계가 앞 단계를 반복하거나
+     * 결이 다른 방향으로 튀지 않고 자연스럽게 이어지게 한다.
+     */
+    private String formatPreviousHints(List<Hint> previousHints) {
+        if (previousHints.isEmpty()) {
+            return "";
+        }
+        String history = previousHints.stream()
+                .sorted(Comparator.comparingInt(Hint::getStage))
+                .map(h -> h.getStage() + "단계: " + h.getContent())
+                .collect(Collectors.joining("\n"));
+        return "\n지난 힌트:\n" + history;
     }
 
     public record HintGenerationResult(UUID coachingSessionId, Hint hint, boolean skipAvailable, boolean created) {

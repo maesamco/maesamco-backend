@@ -25,7 +25,15 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 제출 1건당 코칭 세션(힌트·설명·역질문·피드백의 상위 엔티티) — 매삼코 DB 테이블 명세 1절.
+ * 코칭 세션(힌트·설명·역질문·피드백의 상위 엔티티) — 매삼코 DB 테이블 명세 1절.
+ *
+ * 2026-09-02 확정: "제출 1건당 세션 1건"이 아니라 "같은 문제에 대한 재시도 묶음당 세션 1건"이다
+ * — 오답 재제출마다 submission_id는 바뀌지만 코칭 세션(및 힌트 1~4단계 진행)은 이어진다.
+ * 대신 (user_id, problem_id)가 IN_PROGRESS인 세션은 항상 최대 1개만 존재하게 강제해서(V4
+ * 마이그레이션의 부분 UNIQUE 인덱스), 한 번 COMPLETED된 문제를 나중에 다시 풀 때는 새 세션이
+ * 만들어지는 것도 허용한다. submission_id는 "이 세션이 지금 다루고 있는 제출"을 가리키는
+ * 값으로, 재시도마다 최신 제출로 갈아탈 수 있다(현재는 힌트 흐름에서 갈아탈 필요가 없어
+ * 업데이트 메서드를 아직 추가하지 않았다 — 필요해지면 추가할 것).
  *
  * BaseEntity 미적용(불변 보존형, 팀 컨벤션 16절) — 코칭 기록은 삭제하지 않고 보존하는 게
  * 명시적 원칙이라 updated_at/by · deleted_at/by가 없다. 생성자는 이미 userId로 식별되므로
@@ -40,6 +48,9 @@ import java.util.UUID;
         ),
         indexes = @Index(name = "idx_coaching_sessions_user", columnList = "user_id")
 )
+// ⚠️ 위 uniqueConstraints/indexes는 JPA validate 대상 문서화일 뿐이고, "(user_id, problem_id)가
+// IN_PROGRESS일 때만 유일"이라는 부분 UNIQUE 인덱스는 애노테이션으로 표현할 수 없어
+// V4 마이그레이션(uk_coaching_sessions_user_problem_in_progress)에만 존재한다.
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
