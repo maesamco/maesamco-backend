@@ -21,7 +21,7 @@ import java.util.UUID;
  * 재시도 묶음으로 바꾸면서 생긴 범위 제한). 완료된 회차의 히스토리 조회가 필요해지면,
  * 어떤 submissionId가 어떤 회차(세션)에 속했는지 추적할 방법을 별도로 설계해야 한다.
  *
- * ✅ 2026-09-02(PR #70 리뷰, yonghyun0325님 P2): 위 TODO 때문에, 예전에 COMPLETED된 회차의
+ * ✅ 2026-09-02(PR #70 리뷰, 용현님 P2): 위 TODO 때문에, 예전에 COMPLETED된 회차의
  * submissionId로 조회하면 그 사이 새로 시작된 IN_PROGRESS 세션(같은 문제의 다른 회차)의
  * 힌트가 엉뚱하게 반환되는 문제가 있었다. session.getSubmissionId()(항상 그 세션이 다루는
  * 최신 제출로 갈아탐, HintGenerationFacade.findOrCreateSession() 참고)와 요청받은

@@ -61,7 +61,10 @@ public class CoachingSession {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "submission_id", updatable = false, nullable = false)
+    // updatable = false 아님 — updateSubmissionId()로 재시도마다 최신 제출로 갈아탄다(PR #70
+    // 리뷰 교차검증 — updatable = false로 뒀으면 이 필드를 바꿔서 save()해도 Hibernate가
+    // UPDATE SQL에서 이 컬럼을 통째로 제외해 DB에는 절대 반영되지 않았을 것).
+    @Column(name = "submission_id", nullable = false)
     private UUID submissionId;
 
     @Column(name = "user_id", updatable = false, nullable = false)
@@ -105,7 +108,7 @@ public class CoachingSession {
     }
 
     /**
-     * 같은 재시도 묶음 안에서 새 제출로 갈아탈 때 호출(PR #70 리뷰, yonghyun0325님 P2) —
+     * 같은 재시도 묶음 안에서 새 제출로 갈아탈 때 호출(PR #70 리뷰, 용현님 P2) —
      * 힌트 조회 API가 "이 submissionId가 지금 이 세션이 다루는 최신 제출이 맞는지"를
      * 검증할 수 있으려면 이 값이 항상 최신으로 유지돼야 한다. 그렇지 않으면 이미
      * COMPLETED된 이전 회차의 submissionId로 조회했을 때 엉뚱하게 최신 회차(다른 세션)의

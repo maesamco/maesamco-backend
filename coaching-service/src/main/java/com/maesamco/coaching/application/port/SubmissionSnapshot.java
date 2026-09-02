@@ -1,6 +1,7 @@
 package com.maesamco.coaching.application.port;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -20,8 +21,21 @@ public record SubmissionSnapshot(
         int attemptNo
 ) {
 
-    public boolean isWrong() {
-        return "WRONG".equals(result);
+    /**
+     * PR #70 리뷰 교차검증 — Judge Service의 result는 CORRECT/WRONG 둘뿐이 아니라
+     * COMPILE_ERROR/RUNTIME_ERROR/TIME_LIMIT_EXCEEDED/MEMORY_LIMIT_EXCEEDED도 있다
+     * (매삼코_DB_테이블_명세, judge-service의 SubmissionResult enum). "WRONG"만 확인하면
+     * 컴파일 오류·런타임 오류 등으로 실패한 제출은 힌트를 요청할 수 없게(HINT_NOT_ALLOWED)
+     * 잘못 막혀버린다 — 채점이 아직 안 끝나 result가 null인 경우도 안전하게 false로 처리.
+     */
+    private static final Set<String> HINT_ELIGIBLE_RESULTS = Set.of(
+            "WRONG", "COMPILE_ERROR", "RUNTIME_ERROR", "TIME_LIMIT_EXCEEDED", "MEMORY_LIMIT_EXCEEDED"
+    );
+
+    public boolean isIncorrect() {
+        // Set.of()로 만든 불변 집합은 contains(null)에서 NPE를 던진다(null 원소 자체를
+        // 금지하는 구현) — result == null(아직 채점 중)을 먼저 걸러야 한다.
+        return result != null && HINT_ELIGIBLE_RESULTS.contains(result);
     }
 
     public record FailedTest(boolean isPublic, String errorType) {

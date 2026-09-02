@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * PR #70 리뷰(yonghyun0325님 P3) — Facade 단위 테스트만으로는 Security 설정이나 Controller의
+ * PR #70 리뷰(용현님 P3) — Facade 단위 테스트만으로는 Security 설정이나 Controller의
  * HTTP Status 매핑 변경을 잡지 못하므로, Controller 레벨 HTTP 계약을 별도로 검증한다.
  *
  * 실제 SecurityConfig(JWT PEM 로딩 등)를 그대로 임포트하지 않고, 이 테스트만을 위한 최소

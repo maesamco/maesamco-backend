@@ -78,7 +78,7 @@ class HintQueryServiceTest {
     }
 
     /**
-     * PR #70 리뷰(yonghyun0325님 P2) — 이미 COMPLETED된 회차의 옛 submissionId로 조회하면
+     * PR #70 리뷰(용현님 P2) — 이미 COMPLETED된 회차의 옛 submissionId로 조회하면
      * 그 사이 새로 시작된 다른 회차(IN_PROGRESS 세션)의 힌트가 반환되던 문제.
      */
     @Test

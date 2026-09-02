@@ -16,6 +16,8 @@ import com.maesamco.coaching.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -89,6 +91,38 @@ class HintGenerationFacadeTest {
     void 본인_소유이지만_오답이_아니면_HINT_NOT_ALLOWED() {
         SubmissionSnapshot correct = new SubmissionSnapshot(submissionId, callerId, problemId, "code", "CORRECT", List.of(), 1);
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(correct);
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HINT_NOT_ALLOWED);
+    }
+
+    /**
+     * PR #70 리뷰 — WRONG뿐 아니라 COMPILE_ERROR/RUNTIME_ERROR/
+     * TIME_LIMIT_EXCEEDED/MEMORY_LIMIT_EXCEEDED도 힌트 요청 대상이어야 한다
+     * (judge-service SubmissionResult enum, 매삼코_DB_테이블_명세 04절).
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"WRONG", "COMPILE_ERROR", "RUNTIME_ERROR", "TIME_LIMIT_EXCEEDED", "MEMORY_LIMIT_EXCEEDED"})
+    void 오답으로_분류되는_모든_result값에_대해_힌트를_생성한다(String result) {
+        SubmissionSnapshot submission = new SubmissionSnapshot(submissionId, callerId, problemId, "code", result, List.of(), 1);
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission);
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult generationResult = facade.requestHint(submissionId, callerId);
+
+        assertThat(generationResult.hint().getStage()).isEqualTo(1);
+    }
+
+    @Test
+    void result가_null이면_아직_채점_중이므로_HINT_NOT_ALLOWED() {
+        SubmissionSnapshot pending = new SubmissionSnapshot(submissionId, callerId, problemId, "code", null, List.of(), 0);
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(pending);
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
