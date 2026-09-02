@@ -4,12 +4,9 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -52,13 +49,11 @@ public class DailyQuizAttemptItem {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "quiz_attempt_id", nullable = false, updatable = false)
-    private DailyQuizAttempt attempt;
+    @Column(name = "quiz_attempt_id", nullable = false, updatable = false)
+    private UUID attemptId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "daily_quiz_question_id", nullable = false, updatable = false)
-    private DailyQuizQuestion question;
+    @Column(name = "daily_quiz_question_id", nullable = false, updatable = false)
+    private UUID questionId;
 
     @Column(name = "user_answer", length = MAX_RESPONSE_LENGTH)
     private String userAnswer;
@@ -73,31 +68,25 @@ public class DailyQuizAttemptItem {
     private Instant answeredAt;
 
     private DailyQuizAttemptItem(
-            DailyQuizAttempt attempt,
-            DailyQuizQuestion question,
+            UUID attemptId,
+            UUID questionId,
             int questionOrder
     ) {
-        this.attempt = attempt;
-        this.question = question;
+        this.attemptId = attemptId;
+        this.questionId = questionId;
         this.questionOrder = questionOrder;
     }
 
     public static DailyQuizAttemptItem assign(
-            DailyQuizAttempt attempt,
-            DailyQuizQuestion question,
-            int questionOrder
+            UUID attemptId,
+            UUID questionId,
+            int questionOrder,
+            int totalCount
     ) {
-        DailyQuizAttempt validatedAttempt = requireAttempt(attempt);
-        DailyQuizQuestion validatedQuestion = requireQuestion(question);
-        int validatedQuestionOrder = requireValidQuestionOrder(
-                questionOrder,
-                validatedAttempt.getTotalCount()
-        );
-
         return new DailyQuizAttemptItem(
-                validatedAttempt,
-                validatedQuestion,
-                validatedQuestionOrder
+                requireId(attemptId, "퀴즈 세트 ID"),
+                requireId(questionId, "배정 문제 ID"),
+                requireValidQuestionOrder(questionOrder, totalCount)
         );
     }
 
@@ -105,18 +94,11 @@ public class DailyQuizAttemptItem {
         return this.userAnswer != null;
     }
 
-    private static DailyQuizAttempt requireAttempt(DailyQuizAttempt attempt) {
-        if (attempt == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "퀴즈 세트: 필수입니다.");
+    private static UUID requireId(UUID id, String fieldName) {
+        if (id == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + ": 필수입니다.");
         }
-        return attempt;
-    }
-
-    private static DailyQuizQuestion requireQuestion(DailyQuizQuestion question) {
-        if (question == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "배정 문제: 필수입니다.");
-        }
-        return question;
+        return id;
     }
 
     private static int requireValidQuestionOrder(int questionOrder, int totalCount) {
