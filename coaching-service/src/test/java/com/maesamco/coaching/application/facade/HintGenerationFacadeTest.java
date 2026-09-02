@@ -3,6 +3,7 @@ package com.maesamco.coaching.application.facade;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import com.maesamco.coaching.application.port.HintGenerationLockPort;
 import com.maesamco.coaching.application.port.JudgeServicePort;
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
@@ -29,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +48,8 @@ class HintGenerationFacadeTest {
     private AiModelPort aiModelPort;
     @Mock
     private AiCallHistoryRepository aiCallHistoryRepository;
+    @Mock
+    private HintGenerationLockPort hintGenerationLockPort;
 
     private HintGenerationFacade facade;
 
@@ -56,8 +60,13 @@ class HintGenerationFacadeTest {
     @BeforeEach
     void setUp() {
         facade = new HintGenerationFacade(
-                judgeServicePort, coachingSessionRepository, hintRepository, aiModelPort, aiCallHistoryRepository
+                judgeServicePort, coachingSessionRepository, hintRepository, aiModelPort, aiCallHistoryRepository,
+                hintGenerationLockPort
         );
+        // 대부분의 테스트는 락 자체를 검증 대상이 아니라 "항상 획득 성공"으로 두고 기존
+        // 흐름만 본다 — 락 관련 테스트에서만 개별적으로 재정의한다. lenient()라 다른
+        // 테스트에서 이 스텁을 안 써도 Mockito가 UnnecessaryStubbingException을 안 던진다.
+        org.mockito.Mockito.lenient().when(hintGenerationLockPort.tryLock(any(), any())).thenReturn(true);
     }
 
     private SubmissionSnapshot wrongSubmission(UUID owner, int attemptNo) {
@@ -265,6 +274,62 @@ class HintGenerationFacadeTest {
 
         assertThat(result.created()).isFalse();
         assertThat(result.hint()).isSameAs(winningHint);
+    }
+
+    /**
+     * PR #70 리뷰(비용/어뷰징 관점) — 락을 못 얻으면(다른 요청이 이미 생성 중) LLM을
+     * 아예 호출하지 않아야 한다. 기존 UNIQUE 제약 기반 복구는 "저장 실패 후 복구"라
+     * LLM은 이미 호출된 뒤였는데, 이 테스트는 그 자체가 안 일어나는지를 검증한다.
+     */
+    @Test
+    void 락을_못_얻으면_LLM을_호출하지_않고_다른_요청이_만든_힌트를_기다려서_반환한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
+        Hint concurrentlyCreatedHint = Hint.create(existingSession.getId(), 1, "다른 요청이 만든 힌트");
+        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1))
+                .thenReturn(Optional.of(concurrentlyCreatedHint));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.hint()).isSameAs(concurrentlyCreatedHint);
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintGenerationLockPort, never()).unlock(any(), any()); // 락을 못 얻었으니 해제할 것도 없다
+    }
+
+    @Test
+    void 락을_못_얻고_기다려도_힌트가_안_나타나면_AI_GENERATION_FAILED() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
+        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
+
+        verify(aiModelPort, never()).generate(any(), any());
+    }
+
+    @Test
+    void 락을_얻으면_힌트_생성_후_반드시_해제한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("1단계 힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.requestHint(submissionId, callerId);
+
+        verify(hintGenerationLockPort).tryLock(eq(existingSession.getId()), any());
+        verify(hintGenerationLockPort).unlock(eq(existingSession.getId()), any());
     }
 
     @Test

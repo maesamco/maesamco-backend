@@ -3,6 +3,7 @@ package com.maesamco.coaching.application.facade;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import com.maesamco.coaching.application.port.HintGenerationLockPort;
 import com.maesamco.coaching.application.port.JudgeServicePort;
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -39,25 +41,30 @@ public class HintGenerationFacade {
     private static final int MAX_STAGE = 4;
     private static final int SKIP_THRESHOLD_ATTEMPT_NO = 8;
     private static final String PROMPT_VERSION = "hint-v1";
+    private static final int LOCK_WAIT_MAX_ATTEMPTS = 20;
+    private static final long LOCK_WAIT_INTERVAL_MILLIS = 100;
 
     private final JudgeServicePort judgeServicePort;
     private final CoachingSessionRepository coachingSessionRepository;
     private final HintRepository hintRepository;
     private final AiModelPort aiModelPort;
     private final AiCallHistoryRepository aiCallHistoryRepository;
+    private final HintGenerationLockPort hintGenerationLockPort;
 
     public HintGenerationFacade(
             JudgeServicePort judgeServicePort,
             CoachingSessionRepository coachingSessionRepository,
             HintRepository hintRepository,
             AiModelPort aiModelPort,
-            AiCallHistoryRepository aiCallHistoryRepository
+            AiCallHistoryRepository aiCallHistoryRepository,
+            HintGenerationLockPort hintGenerationLockPort
     ) {
         this.judgeServicePort = judgeServicePort;
         this.coachingSessionRepository = coachingSessionRepository;
         this.hintRepository = hintRepository;
         this.aiModelPort = aiModelPort;
         this.aiCallHistoryRepository = aiCallHistoryRepository;
+        this.hintGenerationLockPort = hintGenerationLockPort;
     }
 
     public HintGenerationResult requestHint(UUID submissionId, UUID callerId) {
@@ -83,31 +90,85 @@ public class HintGenerationFacade {
         int maxStage = existingHints.stream().mapToInt(Hint::getStage).max().orElse(0);
 
         if (maxStage >= MAX_STAGE) {
-            Hint lastHint = existingHints.stream()
-                    .filter(h -> h.getStage() == MAX_STAGE)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("stage 4 힌트가 있어야 하는데 없습니다"));
-            return new HintGenerationResult(session.getId(), lastHint, skipAvailable, false);
+            return new HintGenerationResult(session.getId(), maxStageHint(existingHints), skipAvailable, false);
         }
 
-        int nextStage = maxStage + 1;
-        Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage, existingHints));
-        try {
-            Hint savedHint = hintRepository.save(hint);
-            return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
-        } catch (BusinessException e) {
-            // 동시 요청 두 개가 같은 nextStage를 계산해 LLM을 각각 호출한 뒤 저장을 시도하면,
-            // 먼저 커밋한 쪽만 성공하고 나머지는 여기로 들어온다(팀 컨벤션 UNIQUE(coaching_
-            // session_id, stage) 위반 → HINT_ALREADY_EXISTS). 힌트 요청 자체를 실패시킬
-            // 이유가 없으니 방금 다른 요청이 만든 힌트를 그대로 반환한다(PR #70 리뷰,
-            // 용현님 P2 — LLM 비용은 이미 발생했지만 최소한 사용자 응답은 정상화).
-            if (e.getErrorCode() == ErrorCode.HINT_ALREADY_EXISTS) {
-                Hint existingHint = hintRepository.findByCoachingSessionIdAndStage(session.getId(), nextStage)
-                        .orElseThrow(() -> e);
-                return new HintGenerationResult(session.getId(), existingHint, skipAvailable, false);
-            }
-            throw e;
+        return generateNextStageHint(session, submission, maxStage + 1, skipAvailable);
+    }
+
+    /**
+     * PR #70 리뷰(비용/어뷰징 관점) — LLM 호출 전에 세션 단위로 락을 걸어서 동시 요청이
+     * 같은 stage를 계산해 LLM을 각각 호출하는 것 자체를 막는다. 기존에는 DB UNIQUE
+     * 제약으로 "저장"만 막았을 뿐이라, 두 요청 모두 LLM을 호출해서 실제 과금이 두 번
+     * 발생했다 — "힌트 받기" 버튼 더블클릭이나 타임아웃 재시도 한 번으로도 발생 가능한
+     * 문제였다.
+     *
+     * 락을 못 얻으면(다른 요청이 이미 생성 중) LLM을 호출하지 않고, 그 요청이 저장을
+     * 마칠 때까지 짧게 대기했다가 결과를 그대로 반환한다(waitForConcurrentHint()).
+     */
+    private HintGenerationResult generateNextStageHint(CoachingSession session, SubmissionSnapshot submission, int nextStage, boolean skipAvailable) {
+        String lockToken = UUID.randomUUID().toString();
+        if (!hintGenerationLockPort.tryLock(session.getId(), lockToken)) {
+            return waitForConcurrentHint(session.getId(), nextStage, skipAvailable);
         }
+        try {
+            // 락 대기 없이 바로 획득한 경우에도, 혹시 그 사이 다른 흐름(레이스 복구 등)이
+            // 이미 이 stage를 만들어뒀을 가능성에 대비해 최신 상태를 한 번 더 확인한다.
+            List<Hint> freshHints = hintRepository.findByCoachingSessionId(session.getId());
+            Optional<Hint> alreadyGenerated = freshHints.stream()
+                    .filter(h -> h.getStage() == nextStage)
+                    .findFirst();
+            if (alreadyGenerated.isPresent()) {
+                return new HintGenerationResult(session.getId(), alreadyGenerated.get(), skipAvailable, false);
+            }
+
+            Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage, freshHints));
+            try {
+                Hint savedHint = hintRepository.save(hint);
+                return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
+            } catch (BusinessException e) {
+                // 락으로 대부분 막히지만, 락 메커니즘 장애(Redis 오류로 fail-open된 경우 등)에
+                // 대한 방어선으로 UNIQUE(coaching_session_id, stage) 위반 케이스는 그대로
+                // 남겨둔다 — 방금 다른 요청이 만든 힌트를 재조회해서 반환한다.
+                if (e.getErrorCode() == ErrorCode.HINT_ALREADY_EXISTS) {
+                    Hint existingHint = hintRepository.findByCoachingSessionIdAndStage(session.getId(), nextStage)
+                            .orElseThrow(() -> e);
+                    return new HintGenerationResult(session.getId(), existingHint, skipAvailable, false);
+                }
+                throw e;
+            }
+        } finally {
+            hintGenerationLockPort.unlock(session.getId(), lockToken);
+        }
+    }
+
+    /**
+     * 다른 요청이 이미 이 stage의 힌트를 생성 중일 때, LLM을 또 호출하지 않고 그 요청이
+     * 저장을 마칠 때까지 짧게 폴링한다. 시간 안에 나타나지 않으면(그 요청이 실패했거나
+     * 예상보다 오래 걸리는 경우) 클라이언트에 재시도 가능한 실패로 응답한다.
+     */
+    private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int expectedStage, boolean skipAvailable) {
+        for (int attempt = 0; attempt < LOCK_WAIT_MAX_ATTEMPTS; attempt++) {
+            try {
+                Thread.sleep(LOCK_WAIT_INTERVAL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+            }
+            Optional<Hint> hint = hintRepository.findByCoachingSessionIdAndStage(coachingSessionId, expectedStage);
+            if (hint.isPresent()) {
+                return new HintGenerationResult(coachingSessionId, hint.get(), skipAvailable, false);
+            }
+        }
+        log.warn("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
+        throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+    }
+
+    private Hint maxStageHint(List<Hint> existingHints) {
+        return existingHints.stream()
+                .filter(h -> h.getStage() == MAX_STAGE)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("stage 4 힌트가 있어야 하는데 없습니다"));
     }
 
     /**
