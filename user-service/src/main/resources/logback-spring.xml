@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!--
+        로그 원칙(팀 컨벤션 14절):
+        남긴다   : 요청 시작/종료, 주요 비즈니스 처리, Exception
+        남기지 않는다 : Password / JWT / Refresh Token / LLM API Key /
+                     개인정보 원문(이메일 등) / 사용자 제출 코드 원문 / 비공개 테스트케이스
+
+        ⚠️ 이 설정 파일 자체가 자동으로 민감정보를 마스킹해주진 않는다.
+        로그 문구에 위 항목의 원문을 직접 찍는 log.info(...) 호출 자체를
+        코드 리뷰 단계에서 걸러내는 것이 원칙이다(패턴 마스킹은 완전하지 않음).
+    -->
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- 프로필별 조정 예시: 운영에서는 DEBUG 금지, 로그에 요청 바디 전체를 남기는 라이브러리 로거는 WARN 이상으로 -->
+    <springProfile name="local">
+        <logger name="com.maesamco" level="DEBUG"/>
+    </springProfile>
+</configuration>
