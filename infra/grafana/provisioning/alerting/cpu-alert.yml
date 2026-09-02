@@ -16,7 +16,7 @@ contactPoints:
       - uid: slack-cpu-alert-receiver
         type: slack
         settings:
-          url: ${SLACK_WEBHOOK_URL}
+          url: $__env{SLACK_WEBHOOK_URL}
           title: '{{ .CommonLabels.alertname }} — CPU 사용량 경고'
           text: |
             서비스: {{ .CommonLabels.job }}
@@ -42,14 +42,20 @@ groups:
           current_value: '{{ $values.B }}'
         data:
           - refId: A
-            datasourceUid: prometheus
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 600
+              to: 0
             model:
               # 컨테이너별 CPU 사용률(%) — cAdvisor/node-exporter 미도입 시
               # process_cpu_usage(Micrometer 기본 메트릭)로 임시 대체 가능
               expr: 100 * avg by (job) (rate(process_cpu_usage[1m]))
               instant: true
           - refId: B
-            datasourceUid: prometheus
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 600
+              to: 0
             model:
               expr: 100 * avg by (job) (rate(process_cpu_usage[1m]))
               instant: true
