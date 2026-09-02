@@ -111,6 +111,58 @@ class UserTest {
     }
 
     @Test
+    @DisplayName("닉네임이 50자를 초과하면 사용자를 생성할 수 없다")
+    void rejectTooLongNicknameOnCreate() {
+        // given
+        String tooLongNickname = "가".repeat(51);
+
+        // when & then
+        assertThatThrownBy(() -> User.create(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                PASSWORD_HASH,
+                tooLongNickname,
+                3,
+                LearningLevel.BEGINNER
+        ))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                            assertThat(exception.getMessage())
+                                    .isEqualTo("닉네임은 50자 이하여야 합니다.");
+                        }
+                );
+    }
+
+    @Test
+    @DisplayName("닉네임이 50자를 초과하면 프로필을 변경할 수 없다")
+    void rejectTooLongNicknameOnUpdate() {
+        // given
+        User user = createDefaultUser();
+        String originalNickname = user.getNickname();
+        String tooLongNickname = "가".repeat(51);
+
+        // when & then
+        assertThatThrownBy(() -> user.updateProfile(
+                tooLongNickname,
+                12,
+                LearningLevel.BASIC
+        ))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                            assertThat(exception.getMessage())
+                                    .isEqualTo("닉네임은 50자 이하여야 합니다.");
+                        }
+                );
+        assertThat(user.getNickname()).isEqualTo(originalNickname);
+    }
+
+    @Test
     @DisplayName("닉네임과 Java 경험 개월 수 및 학습 수준을 변경한다")
     void updateProfile() {
         // given
