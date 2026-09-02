@@ -50,6 +50,8 @@ docker compose ps   # 전부 Up 상태인지 확인
 
 이 3단계가 끝나면 아래 접속 주소로 확인하시면 됩니다.
 
+> **coaching-service를 예전에(PR #8 이전) 띄워본 적이 있다면**: 그때는 `DDL_AUTO=update`로 Hibernate가 `coaching_schema`를 직접 만들었습니다. 지금은 Flyway가 스키마의 source of truth라(이슈 #10), 그 Hibernate가 만든 스키마 위에서 Flyway를 처음 실행하면 migration history가 없는 상태로 기존 테이블만 있어서 충돌할 수 있습니다. `docker compose down -v` 후 다시 `docker compose up -d`로 로컬 coaching DB 볼륨을 초기화하고 시작하세요(더미 데이터라 안전합니다) — Flyway가 V1부터 새로 만듭니다.
+
 ## 접속 주소
 
 | 서비스 | 주소 | 계정 |
