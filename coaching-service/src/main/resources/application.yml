@@ -18,6 +18,8 @@ spring:
       hibernate:
         default_schema: coaching_schema
         format_sql: true
+        jdbc:
+          time_zone: UTC
   data:
     redis:
       host: ${REDIS_HOST:localhost}
