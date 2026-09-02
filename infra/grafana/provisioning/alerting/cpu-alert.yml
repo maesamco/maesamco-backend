@@ -39,7 +39,7 @@ groups:
         condition: C
         for: 1m
         annotations:
-          current_value: '{{ $values.B }}'
+          current_value: '{{ $values.A }}'
         data:
           - refId: A
             datasourceUid: prometheus-uid
@@ -54,19 +54,11 @@ groups:
               # for: 1m이 이미 "지속 시간" 판단을 담당하므로 별도 집계 불필요.
               expr: 100 * process_cpu_usage
               instant: true
-          - refId: B
-            datasourceUid: prometheus-uid
-            relativeTimeRange:
-              from: 600
-              to: 0
-            model:
-              expr: 100 * process_cpu_usage
-              instant: true
           - refId: C
             datasourceUid: '__expr__'
             model:
               type: threshold
-              expression: B
+              expression: A
               conditions:
                 - evaluator:
                     type: gt
