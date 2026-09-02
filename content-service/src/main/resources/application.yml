@@ -9,7 +9,8 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    # Content Service 기능 구현 및 V1 스키마·Entity 정합성 검증 완료 후 활성화
+    enabled: false
     schemas: content_schema
   jpa:
     hibernate:
@@ -35,8 +36,8 @@ jwt:
 
 internal:
   hmac:
-    keys: {}
-    # 예: content-service: ${HMAC_KEY_CONTENT_TO_JUDGE}
+    keys:
+      coaching-service: ${HMAC_KEY_COACHING_TO_CONTENT}
 
 eureka:
   client:

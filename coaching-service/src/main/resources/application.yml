@@ -9,11 +9,11 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    enabled: true # 이슈 #10 — V1 베이스라인 검증 완료(coaching-service 통합 테스트가 이 스크립트로 생성된 스키마를 실제로 검증함), 활성화
     schemas: coaching_schema
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate # Flyway가 스키마를 관리하므로 검증만 수행
     properties:
       hibernate:
         default_schema: coaching_schema
@@ -35,8 +35,8 @@ jwt:
 
 internal:
   hmac:
-    keys: {}
-    # 예: content-service: ${HMAC_KEY_CONTENT_TO_JUDGE}
+    keys:
+      content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
 
 eureka:
   client:
