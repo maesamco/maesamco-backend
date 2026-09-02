@@ -32,19 +32,19 @@ public abstract class BaseEntity {
     public static final UUID SYSTEM_ACTOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @CreatedDate
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
 
     @CreatedBy
-    @Column(name = "created_by", updatable = false)
+    @Column(name = "created_by", updatable = false, nullable = false)
     private UUID createdBy;
 
     @LastModifiedDate
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @LastModifiedBy
-    @Column(name = "updated_by")
+    @Column(name = "updated_by", nullable = false)
     private UUID updatedBy;
 
     @Column(name = "deleted_at")
@@ -62,3 +62,4 @@ public abstract class BaseEntity {
         return this.deletedAt != null;
     }
 }
+
