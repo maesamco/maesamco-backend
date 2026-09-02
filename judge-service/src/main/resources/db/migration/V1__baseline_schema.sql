@@ -19,6 +19,7 @@ CREATE TABLE judge_schema.p_submissions (
     attempt_no INT NOT NULL,
     idempotency_key VARCHAR(100) NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
+    version BIGINT NOT NULL DEFAULT 0,
     submitted_at TIMESTAMPTZ NOT NULL,
     judged_at TIMESTAMPTZ,
     execution_time_ms INT,
@@ -31,7 +32,18 @@ CREATE TABLE judge_schema.p_submissions (
     deleted_at TIMESTAMPTZ,
     deleted_by UUID,
     UNIQUE (user_id, problem_id, attempt_no),
-    UNIQUE (idempotency_key)
+    UNIQUE (idempotency_key),
+    CONSTRAINT chk_submissions_status_result_consistency CHECK (
+        (status = 'COMPLETED' AND result IS NOT NULL AND failure_code IS NULL)
+            OR (status = 'FAILED' AND result IS NULL AND failure_code IS NOT NULL)
+            OR (status IN ('PENDING', 'QUEUED', 'RUNNING', 'RETRY_WAIT') AND result IS NULL AND failure_code IS NULL)
+        ),
+    CONSTRAINT chk_submissions_attempt_no_positive CHECK (attempt_no > 0),
+    CONSTRAINT chk_submissions_code_not_blank CHECK (btrim(code) <> ''),
+    CONSTRAINT chk_submissions_code_size CHECK (octet_length(code) <= 102400),
+    CONSTRAINT chk_submissions_idempotency_key_not_blank CHECK (btrim(idempotency_key) <> ''),
+    CONSTRAINT chk_submissions_execution_time_non_negative CHECK (execution_time_ms IS NULL OR execution_time_ms >= 0),
+    CONSTRAINT chk_submissions_memory_used_non_negative CHECK (memory_used_kb IS NULL OR memory_used_kb >= 0)
 );
 COMMENT ON TABLE judge_schema.p_submissions IS '코드/답안 제출 및 채점 상태 — id가 submissionId';
 COMMENT ON COLUMN judge_schema.p_submissions.status IS '처리 상태(lifecycle) — 채점 결과는 result, 시스템 실패 원인은 failure_code에 별도 저장';
@@ -47,11 +59,19 @@ CREATE TABLE judge_schema.p_submission_test_results (
     passed BOOLEAN NOT NULL,
     actual_output TEXT,
     error_type VARCHAR(30),
-    FOREIGN KEY (submission_id) REFERENCES judge_schema.p_submissions(id)
+    FOREIGN KEY (submission_id) REFERENCES judge_schema.p_submissions(id),
+    CONSTRAINT chk_submission_test_results_error_type_values CHECK (
+        error_type IS NULL
+            OR error_type IN ('WRONG_ANSWER', 'RUNTIME_ERROR', 'TIME_LIMIT_EXCEEDED', 'MEMORY_LIMIT_EXCEEDED')
+        ),
+    CONSTRAINT chk_submission_test_results_passed_error_type CHECK (
+        passed = false OR error_type IS NULL
+        )
 );
 COMMENT ON TABLE judge_schema.p_submission_test_results IS '제출 건별 테스트케이스 채점 결과';
 COMMENT ON COLUMN judge_schema.p_submission_test_results.test_case_id IS '논리 FK → Content Service p_test_cases.id';
 COMMENT ON COLUMN judge_schema.p_submission_test_results.actual_output IS '공개 테스트만 학습자에 노출';
+COMMENT ON COLUMN judge_schema.p_submission_test_results.error_type IS '값 목록: WRONG_ANSWER/RUNTIME_ERROR/TIME_LIMIT_EXCEEDED/MEMORY_LIMIT_EXCEEDED. passed=true면 항상 NULL, passed=false면 NULL 허용(미분류 가능)';
 
 CREATE INDEX idx_submission_test_results_submission
     ON judge_schema.p_submission_test_results (submission_id);
@@ -86,3 +106,5 @@ COMMENT ON COLUMN judge_schema.p_submission_event_outboxes.processed_at IS '릴�
 
 CREATE INDEX idx_submission_event_outboxes_status
     ON judge_schema.p_submission_event_outboxes (status);
+CREATE INDEX idx_problem_execution_specs_problem_published
+    ON judge_schema.p_problem_execution_specs (problem_id, published_at DESC);
