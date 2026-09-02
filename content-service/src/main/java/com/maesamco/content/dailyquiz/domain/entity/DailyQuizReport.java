@@ -85,33 +85,6 @@ public class DailyQuizReport {
         );
     }
 
-    /**
-     * 미해결 신고 한 건의 처리자와 처리 시각을 함께 기록합니다.
-     * 이미 해결된 신고는 최초 처리 정보를 보존하기 위해 변경하지 않습니다.
-     *
-     * 이미 새 버전이 존재하는 과거 문제에 늦게 들어온 신고를
-     * 접수 즉시 자동 해결할 때 사용합니다.
-     *
-     * 관리자가 새 버전을 생성한 뒤 해당 문제 버전의 미해결 신고 전체를
-     * 해결하는 작업은 엔티티를 개별 조회하지 않고 Repository의 벌크 UPDATE로
-     * 처리할 예정입니다.
-     */
-    public void resolveIfUnresolved(UUID resolverId, Instant resolvedAt) {
-        if (isResolved()) {
-            return;
-        }
-
-        UUID validatedResolverId = requireId(resolverId, "처리자 ID");
-        Instant validatedResolvedAt = requireResolvedAt(resolvedAt);
-
-        this.resolvedBy = validatedResolverId;
-        this.resolvedAt = validatedResolvedAt;
-    }
-
-    public boolean isResolved() {
-        return this.resolvedAt != null;
-    }
-
     private static UUID requireId(UUID id, String fieldName) {
         if (id == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + ": 필수입니다.");
@@ -126,10 +99,4 @@ public class DailyQuizReport {
         return reason.strip();
     }
 
-    private static Instant requireResolvedAt(Instant resolvedAt) {
-        if (resolvedAt == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "처리 시각: 필수입니다.");
-        }
-        return resolvedAt;
-    }
 }
