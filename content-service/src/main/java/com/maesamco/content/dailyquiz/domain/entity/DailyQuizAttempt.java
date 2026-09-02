@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,14 @@ import java.util.UUID;
  * 별도의 시작 메서드를 제공하지 않습니다.
  */
 @Entity
-@Table(name = "p_daily_quiz_attempts")
+@Table(
+        name = "p_daily_quiz_attempts",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"user_id", "attempt_date"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailyQuizAttempt {

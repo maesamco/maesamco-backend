@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,7 +34,14 @@ import java.util.stream.IntStream;
  * 새 버전은 Repository에서 조회한 최신 버전이 FLAGGED일 때만 생성합니다.
  */
 @Entity
-@Table(name = "p_daily_quiz_questions")
+@Table(
+        name = "p_daily_quiz_questions",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"quiz_question_group_id", "version_no"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)

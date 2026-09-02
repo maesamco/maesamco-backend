@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,7 +29,14 @@ import java.util.UUID;
  * 신고자와 처리자 ID는 User Service의 사용자 ID입니다.
  */
 @Entity
-@Table(name = "p_daily_quiz_reports")
+@Table(
+        name = "p_daily_quiz_reports",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"daily_quiz_question_id", "reporter_user_id"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)

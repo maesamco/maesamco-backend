@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,17 @@ import java.util.UUID;
  * 별도의 답변 변경 메서드를 제공하지 않습니다.
  */
 @Entity
-@Table(name = "p_daily_quiz_attempt_items")
+@Table(
+        name = "p_daily_quiz_attempt_items",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"quiz_attempt_id", "daily_quiz_question_id"}
+                ),
+                @UniqueConstraint(
+                        columnNames = {"quiz_attempt_id", "question_order"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailyQuizAttemptItem {
