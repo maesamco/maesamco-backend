@@ -37,6 +37,10 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
+    // @DataJpaTest는 FlywayAutoConfiguration을 기본 포함하지 않아 @ImportAutoConfiguration으로
+    // 명시적으로 가져와야 한다 — 그러려면 이 autoconfigure 모듈이 테스트 컴파일 classpath에 있어야 함.
+    testImplementation 'org.springframework.boot:spring-boot-flyway'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'

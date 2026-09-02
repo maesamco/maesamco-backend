@@ -28,15 +28,21 @@ public enum ErrorCode {
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "무효화된 토큰입니다."),
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
 
+    // ===== user =====
+    GAMIFICATION_STATE_CONFLICT(
+            HttpStatus.CONFLICT,
+            "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
+    ),
+
     // ===== 서비스 간 통신 =====
     FEIGN_CLIENT_ERROR(HttpStatus.BAD_GATEWAY, "서비스 간 통신 중 오류가 발생했습니다."),
     INTERNAL_CALL_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "내부 호출 서명이 유효하지 않습니다."),
-    INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심).");
+    INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
-    // USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
-    //
+    USER_INTEREST_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 관심 개념입니다.");
+
     // ===== judge =====
     // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     // IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
