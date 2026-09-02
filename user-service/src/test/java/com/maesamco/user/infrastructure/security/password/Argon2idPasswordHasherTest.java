@@ -5,6 +5,7 @@ import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,7 +18,10 @@ class Argon2idPasswordHasherTest {
     private static final String RAW_PASSWORD = "Abcd1234!";
 
     private final PasswordHasher passwordHasher =
-            new Argon2idPasswordHasher();
+            new Argon2idPasswordHasher(
+                    Argon2PasswordEncoder
+                            .defaultsForSpringSecurity_v5_8()
+            );
 
     @Test
     @DisplayName("비밀번호를 Argon2id로 해시하고 원문과 일치하는지 확인한다")

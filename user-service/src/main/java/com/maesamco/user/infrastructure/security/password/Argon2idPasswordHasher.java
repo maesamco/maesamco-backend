@@ -3,7 +3,7 @@ package com.maesamco.user.infrastructure.security.password;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
-import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,14 +18,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class Argon2idPasswordHasher implements PasswordHasher {
 
-    private final Argon2PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
     /**
-     * Spring Security에서 권장하는 Argon2id 기본 설정으로 초기화합니다.
+     * 설정에 등록된 Argon2id 비밀번호 인코더를 주입받습니다.
+     *
+     * @param passwordEncoder 비밀번호 해시와 검증을 담당하는 인코더
      */
-    public Argon2idPasswordHasher() {
-        this.passwordEncoder =
-                Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
+    public Argon2idPasswordHasher(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
