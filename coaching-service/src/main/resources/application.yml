@@ -35,8 +35,8 @@ jwt:
 
 internal:
   hmac:
-    keys: {}
-    # 예: content-service: ${HMAC_KEY_CONTENT_TO_JUDGE}
+    keys:
+      content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
 
 eureka:
   client:
