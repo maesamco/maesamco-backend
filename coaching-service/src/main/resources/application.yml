@@ -51,8 +51,8 @@ jwt:
 
 internal:
   hmac:
-    keys: {}
-    # 예: content-service: ${HMAC_KEY_CONTENT_TO_JUDGE}
+    keys:
+      content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
     outbound:
       judge-service: ${HMAC_KEY_COACHING_TO_JUDGE:} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
 
