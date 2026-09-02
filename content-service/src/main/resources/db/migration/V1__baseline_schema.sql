@@ -163,6 +163,8 @@ CREATE TABLE content_schema.p_daily_quiz_questions (
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','FLAGGED','DISABLED')),
     created_at TIMESTAMPTZ NOT NULL,
     created_by UUID NOT NULL,
+    CONSTRAINT ck_daily_quiz_questions_version_no
+        CHECK (version_no >= 1),
     UNIQUE (quiz_question_group_id, version_no)
 );
 COMMENT ON TABLE content_schema.p_daily_quiz_questions IS '일일 추천 퀴즈 문제은행 — 특정 버전 1건 = 1행, 재사용됨';
@@ -181,6 +183,11 @@ CREATE TABLE content_schema.p_daily_quiz_reports (
     created_at TIMESTAMPTZ NOT NULL,
     resolved_at TIMESTAMPTZ,
     resolved_by UUID,
+    CONSTRAINT ck_daily_quiz_reports_resolution
+        CHECK (
+            (resolved_at IS NULL AND resolved_by IS NULL)
+            OR (resolved_at IS NOT NULL AND resolved_by IS NOT NULL)
+        ),
     UNIQUE (daily_quiz_question_id, reporter_user_id),
     FOREIGN KEY (daily_quiz_question_id) REFERENCES content_schema.p_daily_quiz_questions(id)
 );
@@ -196,6 +203,39 @@ CREATE TABLE content_schema.p_daily_quiz_attempts (
     total_count INT NOT NULL,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
+    CONSTRAINT ck_daily_quiz_attempts_total_count
+        CHECK (total_count BETWEEN 3 AND 5),
+    CONSTRAINT ck_daily_quiz_attempts_correct_count
+        CHECK (
+            correct_count IS NULL
+            OR correct_count BETWEEN 0 AND total_count
+        ),
+    CONSTRAINT ck_daily_quiz_attempts_state
+        CHECK (
+            (
+                status = 'READY'
+                AND started_at IS NULL
+                AND correct_count IS NULL
+                AND completed_at IS NULL
+            )
+            OR (
+                status = 'IN_PROGRESS'
+                AND started_at IS NOT NULL
+                AND correct_count IS NULL
+                AND completed_at IS NULL
+            )
+            OR (
+                status = 'COMPLETED'
+                AND started_at IS NOT NULL
+                AND correct_count IS NOT NULL
+                AND completed_at IS NOT NULL
+            )
+        ),
+    CONSTRAINT ck_daily_quiz_attempts_completed_at
+        CHECK (
+            completed_at IS NULL
+            OR (started_at IS NOT NULL AND completed_at >= started_at)
+        ),
     UNIQUE (user_id, attempt_date)
 );
 COMMENT ON TABLE content_schema.p_daily_quiz_attempts IS '사용자별 일일 퀴즈 응시(하루 1회) — id가 quizAttemptId';
@@ -210,6 +250,21 @@ CREATE TABLE content_schema.p_daily_quiz_attempt_items (
     is_correct BOOLEAN,
     question_order INT NOT NULL,
     answered_at TIMESTAMPTZ,
+    CONSTRAINT ck_daily_quiz_attempt_items_question_order
+        CHECK (question_order BETWEEN 1 AND 5),
+    CONSTRAINT ck_daily_quiz_attempt_items_answer
+        CHECK (
+            (
+                user_answer IS NULL
+                AND is_correct IS NULL
+                AND answered_at IS NULL
+            )
+            OR (
+                user_answer IS NOT NULL
+                AND is_correct IS NOT NULL
+                AND answered_at IS NOT NULL
+            )
+        ),
     UNIQUE (quiz_attempt_id, daily_quiz_question_id),
     UNIQUE (quiz_attempt_id, question_order),
     FOREIGN KEY (quiz_attempt_id) REFERENCES content_schema.p_daily_quiz_attempts(id),
