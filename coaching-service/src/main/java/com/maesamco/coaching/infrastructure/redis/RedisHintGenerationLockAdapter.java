@@ -22,6 +22,10 @@ import java.util.UUID;
  *
  * Redis 장애 시에는 락 없이 그냥 진행한다(fail-open) — 이 락은 비용 보호용 부가 장치라,
  * Redis가 죽었다고 힌트 생성 핵심 기능까지 막을 이유는 없다.
+ *
+ * TODO(#74): 지금은 fail-open 발생 시 log.warn 한 줄만 남긴다 — Redis가 죽어도 서비스는
+ * 정상처럼 계속 동작해서, 로그를 따로 안 보면 "비용 보호 장치가 꺼진 상태"가 한참
+ * 방치될 수 있다. Micrometer 카운터 + Grafana 알림 추가할 것.
  */
 @Slf4j
 @Component
