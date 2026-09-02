@@ -175,6 +175,11 @@ public class HintGenerationFacade {
      * 같은 문제를 재시도하는 동안엔 세션을 이어서 쓴다(2026-09-02 확정) — submission_id가
      * 아니라 (user_id, problem_id) + IN_PROGRESS로 찾는다. 이미 COMPLETED된 세션은 여기
      * 안 걸리므로, 그 문제를 다시 도전하면 새 세션이 만들어진다.
+     *
+     * TODO(#73): 세션이 COMPLETED된 뒤 같은 문제를 다시 틀리면 매번 새 세션 + 새 4단계
+     * 힌트 예산이 생긴다 — 사용자/문제당 힌트 생성 총량 상한이 코드 어디에도 없다. MVP
+     * 문제 수가 15~20개뿐이라 지금은 이슈 #72(Rate Limit)가 실질적 상한 역할을 하지만,
+     * 문제 수가 늘거나 실제 남용 패턴이 관측되면 재검토할 것.
      */
     private CoachingSession findOrCreateSession(SubmissionSnapshot submission) {
         return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())

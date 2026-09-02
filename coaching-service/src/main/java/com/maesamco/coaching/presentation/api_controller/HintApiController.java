@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+// TODO(#72): 이 엔드포인트(특히 POST — LLM 호출이 있는 비용 있는 액션)에 api-gateway
+// RateLimitFilter 룰이 아직 없다. 동시 요청의 LLM 중복 호출 자체는 Redis 락으로 막았지만,
+// 애초에 짧은 시간에 많은 요청을 보내는 것 자체를 막는 장치는 아직 없다.
 @RestController
 @RequestMapping("/api/v1/coaching/submissions/{submissionId}/hints")
 public class HintApiController {
