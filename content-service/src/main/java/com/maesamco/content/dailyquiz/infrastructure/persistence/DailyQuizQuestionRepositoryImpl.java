@@ -5,6 +5,8 @@ import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionReposit
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 @RequiredArgsConstructor
 public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionRepository {
@@ -14,5 +16,15 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
     @Override
     public DailyQuizQuestion save(DailyQuizQuestion question) {
         return springDataRepository.save(question);
+    }
+
+    @Override
+    public List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags) {
+        if (conceptTags.isEmpty()) {
+            return List.of();
+        }
+
+        String[] conceptTagArray = conceptTags.toArray(String[]::new);
+        return springDataRepository.findActiveByAnyConceptTags(conceptTagArray);
     }
 }
