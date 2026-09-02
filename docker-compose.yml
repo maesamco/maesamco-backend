@@ -240,6 +240,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_CHAT: ${AI_MODEL_CHAT:-anthropic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres-coaching:
         condition: service_healthy
