@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    hibernate:
+      # 테스트가 시작될 때 테이블을 생성하고 종료될 때 제거합니다.
+      ddl-auto: create-drop
+
+    properties:
+      hibernate:
+        # User 엔티티가 사용하는 user_schema를 테스트 DB에 자동 생성합니다.
+        default_schema: user_schema
+        hbm2ddl:
+          create_namespaces: true
