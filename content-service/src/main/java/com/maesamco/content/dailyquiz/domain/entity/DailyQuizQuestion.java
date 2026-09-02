@@ -49,7 +49,7 @@ public class DailyQuizQuestion {
 
     private static final int MAX_RESPONSE_LENGTH = 200;
     private static final int MAX_CONCEPT_TAG_LENGTH = 50;
-    private static final int MIN_MULTIPLE_CHOICE_OPTIONS = 2;
+    private static final int MULTIPLE_CHOICE_OPTION_COUNT = 4;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -261,9 +261,9 @@ public class DailyQuizQuestion {
             return null;
         }
 
-        if (choices == null || choices.size() < MIN_MULTIPLE_CHOICE_OPTIONS) {
+        if (choices == null || choices.size() != MULTIPLE_CHOICE_OPTION_COUNT) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE,
-                    "객관식 문제는 선택지가 " + MIN_MULTIPLE_CHOICE_OPTIONS + "개 이상 필요합니다.");
+                    "객관식 문제는 선택지가 정확히 " + MULTIPLE_CHOICE_OPTION_COUNT + "개 필요합니다.");
         }
 
         List<String> validatedChoices = validateTextList(choices, "선택지", MAX_RESPONSE_LENGTH);
