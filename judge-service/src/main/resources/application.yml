@@ -8,6 +8,9 @@ spring:
     url: jdbc:postgresql://localhost:5434/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    schemas: judge_schema
   jpa:
     hibernate:
       ddl-auto: validate
