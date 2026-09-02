@@ -113,6 +113,13 @@ public class CoachingSession {
      * 검증할 수 있으려면 이 값이 항상 최신으로 유지돼야 한다. 그렇지 않으면 이미
      * COMPLETED된 이전 회차의 submissionId로 조회했을 때 엉뚱하게 최신 회차(다른 세션)의
      * 힌트가 반환될 수 있다.
+     *
+     * ⚠️ complete()와 동일하게 낙관적 락 없이 값을 바로 덮어쓴다(PR #70 리뷰). 같은 세션에
+     * 서로 다른 submissionId로 두 힌트 요청이 짧은 시간 안에 동시에 들어오면, 나중에
+     * flush되는 쪽이 조용히 덮어써서 하나가 유실될 수 있다. 발생 가능성은 낮지만
+     * complete()/recordOccurrence()와 같은 계열의 문제라 같이 트래킹할 것.
+     *
+     * TODO: 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
      */
     public void updateSubmissionId(UUID submissionId) {
         this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");

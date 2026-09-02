@@ -56,6 +56,16 @@ internal:
     outbound:
       judge-service: ${HMAC_KEY_COACHING_TO_JUDGE:} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      judge-service: # JudgeServiceAdapter.getSubmission() — 힌트 생성 핵심 경로 호출(팀 컨벤션 2절)
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+
 eureka:
   client:
     service-url:

@@ -31,17 +31,20 @@ public class GeminiModelAdapter implements AiModelPort {
 
     @Override
     public AiModelResponse generate(String systemPrompt, String userPrompt) {
+        // 호출(네트워크) 실패와 응답 파싱 버그를 구분한다(PR #70 리뷰) — ClaudeModelAdapter와
+        // 동일한 이유로 catch를 chatModel.call() 하나에만 좁힌다.
+        Prompt prompt = new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
+        ChatResponse response;
         try {
-            Prompt prompt = new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
-            ChatResponse response = chatModel.call(prompt);
-            String content = response.getResult().getOutput().getText();
-            String modelName = response.getMetadata().getModel();
-            Integer tokenUsage = response.getMetadata().getUsage() == null
-                    ? null
-                    : response.getMetadata().getUsage().getTotalTokens();
-            return new AiModelResponse(content, modelName, tokenUsage);
+            response = chatModel.call(prompt);
         } catch (RuntimeException e) {
             throw new AiModelCallException("Gemini 호출에 실패했습니다.", e);
         }
+        String content = response.getResult().getOutput().getText();
+        String modelName = response.getMetadata().getModel();
+        Integer tokenUsage = response.getMetadata().getUsage() == null
+                ? null
+                : response.getMetadata().getUsage().getTotalTokens();
+        return new AiModelResponse(content, modelName, tokenUsage);
     }
 }

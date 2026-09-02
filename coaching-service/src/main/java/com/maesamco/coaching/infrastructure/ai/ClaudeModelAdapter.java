@@ -30,17 +30,21 @@ public class ClaudeModelAdapter implements AiModelPort {
 
     @Override
     public AiModelResponse generate(String systemPrompt, String userPrompt) {
+        // 호출(네트워크) 실패와 응답 파싱 버그를 구분한다(PR #70 리뷰) — catch를 chatModel.call()
+        // 하나에만 좁혀서, 파싱 단계의 NPE 등 우리 코드 버그까지 "Claude 호출 실패"(503)로
+        // 뭉뚱그려지지 않게 한다. 파싱 버그는 GlobalExceptionHandler의 500 안전망으로 간다.
+        Prompt prompt = new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
+        ChatResponse response;
         try {
-            Prompt prompt = new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
-            ChatResponse response = chatModel.call(prompt);
-            String content = response.getResult().getOutput().getText();
-            String modelName = response.getMetadata().getModel();
-            Integer tokenUsage = response.getMetadata().getUsage() == null
-                    ? null
-                    : response.getMetadata().getUsage().getTotalTokens();
-            return new AiModelResponse(content, modelName, tokenUsage);
+            response = chatModel.call(prompt);
         } catch (RuntimeException e) {
             throw new AiModelCallException("Claude 호출에 실패했습니다.", e);
         }
+        String content = response.getResult().getOutput().getText();
+        String modelName = response.getMetadata().getModel();
+        Integer tokenUsage = response.getMetadata().getUsage() == null
+                ? null
+                : response.getMetadata().getUsage().getTotalTokens();
+        return new AiModelResponse(content, modelName, tokenUsage);
     }
 }

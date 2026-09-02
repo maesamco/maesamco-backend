@@ -35,7 +35,10 @@ public enum ErrorCode {
 
     // ===== coaching =====
     COACHING_SESSION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 코칭 세션입니다."),
-    COACHING_SESSION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 제출에 대한 코칭 세션이 존재합니다."),
+    // PR #70 리뷰 — 이 코드는 UNIQUE(submission_id) 위반과 V4의 (user_id, problem_id)
+    // WHERE IN_PROGRESS 파셜 인덱스 위반 둘 다에서 재사용된다(CoachingSessionRepositoryImpl.
+    // save()가 어떤 제약이 위반됐는지 구분하지 않음) — 메시지를 두 경우 모두에 맞게 일반화했다.
+    COACHING_SESSION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 조건에 맞는 코칭 세션이 존재합니다."),
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 오답 상태일 때만 힌트를 요청할 수 있습니다."),
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다."),

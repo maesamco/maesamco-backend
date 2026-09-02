@@ -14,6 +14,7 @@ import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.domain.repository.HintRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
  * 태그로 WeakConcept를 자동 기록하는 로직도 이 이슈가 풀리기 전까지는 구현할 수 없다
  * (skipAvailable 계산 자체는 Judge의 attemptNo만 있으면 되므로 이미 반영돼 있다).
  */
+@Slf4j
 @Component
 public class HintGenerationFacade {
 
@@ -180,17 +182,32 @@ public class HintGenerationFacade {
             if (response.content() == null || response.content().isBlank()) {
                 throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
             }
-            aiCallHistoryRepository.save(AiCallHistory.create(
+            recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
                     "SUCCESS", null, response.tokenUsage(), null, 0
             ));
             return response.content();
         } catch (AiModelCallException e) {
-            aiCallHistoryRepository.save(AiCallHistory.create(
+            recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
                     "FAILED", null, null, e.getMessage(), 0
             ));
             throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+        }
+    }
+
+    /**
+     * PR #70 리뷰 — 이력 저장 자체가 실패해도(DB 커넥션 문제 등) 이미 발생한 LLM 호출
+     * 결과(성공한 힌트든 AI_GENERATION_FAILED 판단이든)를 사용자에게 정상적으로 돌려줘야
+     * 한다. 이력 저장 실패를 그대로 던지면 SUCCESS 경로에서는 이미 완료된 힌트 생성이
+     * 500으로 뒤집히고, FAILED 경로에서는 원래 원인(AI_GENERATION_FAILED)이 엉뚱한 DB
+     * 예외로 가려진다 — 이력 저장은 감사 목적의 부가 작업이라 핵심 흐름을 막지 않는다.
+     */
+    private void recordAiCallHistory(AiCallHistory history) {
+        try {
+            aiCallHistoryRepository.save(history);
+        } catch (RuntimeException e) {
+            log.warn("AI 호출 이력 저장 실패 - coachingSessionId={}, status={}", history.getCoachingSessionId(), history.getRequestStatus(), e);
         }
     }
 
