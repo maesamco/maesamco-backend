@@ -64,11 +64,11 @@ public class AiFeedback {
     private UUID coachingSessionId;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "understood_concepts", updatable = false, nullable = false)
-    private JsonNode understoodConcepts;
+    @Column(name = "understood_tags", updatable = false, nullable = false)
+    private JsonNode understoodTags;
 
     /**
-     * 설명이 부족한 부분 — 구 weak_points에서 개명(weak_concepts 컬럼·p_weak_concepts
+     * 설명이 부족한 부분 — 구 weak_points에서 개명(weak_tags 컬럼·p_weak_tags
      * 테이블과 혼동 방지 목적).
      */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -76,11 +76,11 @@ public class AiFeedback {
     private JsonNode explanationGaps;
 
     /**
-     * 취약 개념 요약값 — 상세 집계는 p_weak_concepts.
+     * 취약 태그 요약값 — 상세 집계는 p_weak_tags.
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "weak_concepts", updatable = false, nullable = false)
-    private JsonNode weakConcepts;
+    @Column(name = "weak_tags", updatable = false, nullable = false)
+    private JsonNode weakTags;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "syntax_to_improve", updatable = false)
@@ -110,17 +110,17 @@ public class AiFeedback {
     @Builder
     private AiFeedback(
             UUID coachingSessionId,
-            JsonNode understoodConcepts,
+            JsonNode understoodTags,
             JsonNode explanationGaps,
-            JsonNode weakConcepts,
+            JsonNode weakTags,
             JsonNode syntaxToImprove,
             JsonNode recommendedProblems,
             String nextDirection
     ) {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
-        this.understoodConcepts = Validate.requireNonNull(understoodConcepts, "이해한 개념").deepCopy();
+        this.understoodTags = Validate.requireNonNull(understoodTags, "이해한 태그").deepCopy();
         this.explanationGaps = Validate.requireNonNull(explanationGaps, "설명 부족 부분").deepCopy();
-        this.weakConcepts = Validate.requireNonNull(weakConcepts, "취약 개념").deepCopy();
+        this.weakTags = Validate.requireNonNull(weakTags, "취약 태그").deepCopy();
         this.syntaxToImprove = syntaxToImprove == null ? null : syntaxToImprove.deepCopy();
         this.recommendedProblems = recommendedProblems == null ? null : recommendedProblems.deepCopy();
         this.nextDirection = nextDirection;
@@ -132,16 +132,16 @@ public class AiFeedback {
      * 변경해 엔티티 상태를 몰래 바꿀 수 있다(PR #8 리뷰). 생성 시점 deepCopy에 더해 반환
      * 시점에도 방어적으로 복사한다.
      */
-    public JsonNode getUnderstoodConcepts() {
-        return understoodConcepts.deepCopy();
+    public JsonNode getUnderstoodTags() {
+        return understoodTags.deepCopy();
     }
 
     public JsonNode getExplanationGaps() {
         return explanationGaps.deepCopy();
     }
 
-    public JsonNode getWeakConcepts() {
-        return weakConcepts.deepCopy();
+    public JsonNode getWeakTags() {
+        return weakTags.deepCopy();
     }
 
     public JsonNode getSyntaxToImprove() {
@@ -154,18 +154,18 @@ public class AiFeedback {
 
     public static AiFeedback create(
             UUID coachingSessionId,
-            JsonNode understoodConcepts,
+            JsonNode understoodTags,
             JsonNode explanationGaps,
-            JsonNode weakConcepts,
+            JsonNode weakTags,
             JsonNode syntaxToImprove,
             JsonNode recommendedProblems,
             String nextDirection
     ) {
         return AiFeedback.builder()
                 .coachingSessionId(coachingSessionId)
-                .understoodConcepts(understoodConcepts)
+                .understoodTags(understoodTags)
                 .explanationGaps(explanationGaps)
-                .weakConcepts(weakConcepts)
+                .weakTags(weakTags)
                 .syntaxToImprove(syntaxToImprove)
                 .recommendedProblems(recommendedProblems)
                 .nextDirection(nextDirection)

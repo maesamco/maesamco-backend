@@ -58,16 +58,16 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     void save_andFindByCoachingSessionId_roundTripsJsonFields() throws Exception {
         // given
         UUID coachingSessionId = createCoachingSessionId();
-        JsonNode understoodConcepts = objectMapper.readTree("[\"반복문\", \"조건문\"]");
+        JsonNode understoodTags = objectMapper.readTree("[\"반복문\", \"조건문\"]");
         JsonNode explanationGaps = objectMapper.readTree("[\"배열 인덱스 경계값\"]");
-        JsonNode weakConcepts = objectMapper.readTree("[\"재귀\"]");
+        JsonNode weakTags = objectMapper.readTree("[\"재귀\"]");
         JsonNode syntaxToImprove = objectMapper.readTree("[\"for-each 문법\"]");
         JsonNode recommendedProblems = objectMapper.readTree(
                 "[\"" + UUID.randomUUID() + "\"]"
         );
 
         AiFeedback aiFeedback = AiFeedback.create(
-                coachingSessionId, understoodConcepts, explanationGaps, weakConcepts,
+                coachingSessionId, understoodTags, explanationGaps, weakTags,
                 syntaxToImprove, recommendedProblems, "다음엔 재귀를 복습하세요."
         );
 
@@ -81,9 +81,9 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
         // then
         assertThat(found).isPresent();
         AiFeedback foundFeedback = found.get();
-        assertThat(foundFeedback.getUnderstoodConcepts()).isEqualTo(understoodConcepts);
+        assertThat(foundFeedback.getUnderstoodTags()).isEqualTo(understoodTags);
         assertThat(foundFeedback.getExplanationGaps()).isEqualTo(explanationGaps);
-        assertThat(foundFeedback.getWeakConcepts()).isEqualTo(weakConcepts);
+        assertThat(foundFeedback.getWeakTags()).isEqualTo(weakTags);
         assertThat(foundFeedback.getSyntaxToImprove()).isEqualTo(syntaxToImprove);
         assertThat(foundFeedback.getRecommendedProblems()).isEqualTo(recommendedProblems);
         assertThat(foundFeedback.getNextDirection()).isEqualTo("다음엔 재귀를 복습하세요.");
@@ -118,11 +118,11 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("JSONB 필드는 실제로 jsonb 컬럼 타입으로, created_at은 timestamptz로 생성된다")
     void schema_usesJsonbAndTimestamptzColumnTypes() {
         // when
-        String understoodConceptsType = columnDataType("understood_concepts");
+        String understoodTagsType = columnDataType("understood_tags");
         String createdAtType = columnDataType("created_at");
 
         // then
-        assertThat(understoodConceptsType).isEqualTo("jsonb");
+        assertThat(understoodTagsType).isEqualTo("jsonb");
         assertThat(createdAtType).isEqualTo("timestamp with time zone");
     }
 

@@ -83,7 +83,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("complete() 후 다시 저장하면 COMPLETED 상태·completedAt이 실제 DB에도 반영된다")
     void complete_persistsCompletedStatusAndTimestamp() {
         // given — 지금까지는 complete()가 도메인 단위 테스트로만 검증돼서, save()가 변경된
-        // 상태를 실제로 갱신 저장하는지는 회귀 방지가 안 되고 있었다(WeakConcept.markImproved()
+        // 상태를 실제로 갱신 저장하는지는 회귀 방지가 안 되고 있었다(WeakTag.markImproved()
         // 리뷰와 같은 성격의 갭, PR #34 리뷰에서 발견).
         CoachingSession saved = coachingSessionRepository.save(
                 CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())

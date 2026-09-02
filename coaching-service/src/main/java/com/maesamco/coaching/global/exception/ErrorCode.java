@@ -44,7 +44,7 @@ public enum ErrorCode {
     FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다."),
     AI_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 AI 피드백이 존재합니다."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
-    WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
+    WEAK_TAG_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·태그에 대한 취약 태그 집계 행이 존재합니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
