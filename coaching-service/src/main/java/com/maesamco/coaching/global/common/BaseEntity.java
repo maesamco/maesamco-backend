@@ -3,6 +3,8 @@ package com.maesamco.coaching.global.common;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.Getter;
 import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedBy;
@@ -10,9 +12,6 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 /**
  * 감사(Audit) 컬럼 + 소프트 삭제 공통 상위 클래스 (팀 컨벤션 16절).
@@ -33,29 +32,29 @@ public abstract class BaseEntity {
     public static final UUID SYSTEM_ACTOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @CreatedDate
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private Instant createdAt;
 
     @CreatedBy
-    @Column(name = "created_by", updatable = false)
+    @Column(name = "created_by", updatable = false, nullable = false)
     private UUID createdBy;
 
     @LastModifiedDate
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @LastModifiedBy
-    @Column(name = "updated_by")
+    @Column(name = "updated_by", nullable = false)
     private UUID updatedBy;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     @Column(name = "deleted_by")
     private UUID deletedBy;
 
     public void softDelete(UUID deletedBy) {
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = Instant.now();
         this.deletedBy = deletedBy;
     }
 
