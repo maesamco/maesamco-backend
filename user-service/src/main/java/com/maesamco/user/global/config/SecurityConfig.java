@@ -2,7 +2,6 @@ package com.maesamco.user.global.config;
 
 import com.maesamco.user.global.security.JwtAuthenticationFilter;
 import com.maesamco.user.global.security.JwtProperties;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,9 +12,13 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.Clock;
 import java.util.Base64;
 
 /**
@@ -29,38 +32,100 @@ import java.util.Base64;
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
+    /**
+     * JWT 검증에 사용할 RSA 공개키를 생성합니다.
+     *
+     * @param jwtProperties JWT 설정
+     * @return RSA 공개키
+     * @throws GeneralSecurityException 공개키를 생성할 수 없는 경우
+     */
     @Bean
-    public PublicKey jwtPublicKey(JwtProperties jwtProperties) throws Exception {
+    public PublicKey jwtPublicKey(
+            JwtProperties jwtProperties
+    ) throws GeneralSecurityException {
         String pem = jwtProperties.publicKey()
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s", "");
+
         byte[] decoded = Base64.getDecoder().decode(pem);
-        // 서명 알고리즘은 User Service의 키 발급 방식과 일치해야 한다(예: RSA/RS256, EdDSA 등).
-        // 알고리즘이 달라지면 KeyFactory.getInstance(...) 인자도 함께 바꿔야 한다.
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        return keyFactory.generatePublic(new X509EncodedKeySpec(decoded));
+
+        return keyFactory.generatePublic(
+                new X509EncodedKeySpec(decoded)
+        );
+    }
+
+    /**
+     * JWT 발급 서명에 사용할 RSA 개인키를 생성합니다.
+     *
+     * @param jwtProperties JWT 설정
+     * @return RSA 개인키
+     * @throws GeneralSecurityException 개인키를 생성할 수 없는 경우
+     */
+    @Bean
+    public PrivateKey jwtPrivateKey(
+            JwtProperties jwtProperties
+    ) throws GeneralSecurityException {
+        String pem = jwtProperties.privateKey()
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] decoded = Base64.getDecoder().decode(pem);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+        return keyFactory.generatePrivate(
+                new PKCS8EncodedKeySpec(decoded)
+        );
+    }
+
+    /**
+     * JWT 발급 시각 계산에 사용할 UTC Clock입니다.
+     *
+     * @return 시스템 UTC Clock
+     */
+    @Bean
+    public Clock jwtClock() {
+        return Clock.systemUTC();
     }
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(PublicKey jwtPublicKey) {
+    public JwtAuthenticationFilter jwtAuthenticationFilter(
+            PublicKey jwtPublicKey
+    ) {
         return new JwtAuthenticationFilter(jwtPublicKey);
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                     JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter
+    ) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
-                        .anyRequest().permitAll()
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
                 )
-                .addFilterBefore(jwtAuthenticationFilter, AnonymousAuthenticationFilter.class);
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/actuator/health/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**"
+                        )
+                        .permitAll()
+                        .anyRequest()
+                        .permitAll()
+                )
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        AnonymousAuthenticationFilter.class
+                );
 
         return http.build();
     }
