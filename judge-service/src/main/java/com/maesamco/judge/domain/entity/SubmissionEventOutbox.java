@@ -3,13 +3,14 @@ package com.maesamco.judge.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Outbox 패턴 레코드 — Submission 관련 상태 변경(접수, 채점 완료)과 이벤트 발행을
@@ -41,7 +42,8 @@ public class SubmissionEventOutbox {
     @Column(name = "event_type", nullable = false, updatable = false, length = 50)
     private String eventType;
 
-    @Column(name = "payload", nullable = false, updatable = false, columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String payload;
 
     @Enumerated(EnumType.STRING)

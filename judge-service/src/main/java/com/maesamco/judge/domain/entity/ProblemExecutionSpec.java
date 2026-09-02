@@ -3,12 +3,13 @@ package com.maesamco.judge.domain.entity;
 import jakarta.persistence.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 /**
  * ProblemPublished 이벤트 소비로 채워지는 "문제 실행 명세" 캐시.
@@ -23,8 +24,13 @@ import org.hibernate.annotations.UuidGenerator;
 @Entity
 @Table(
         name = "p_problem_execution_specs",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"problem_id", "problem_version_id"})
-)@Getter
+        uniqueConstraints = @UniqueConstraint(columnNames = {"problem_id", "problem_version_id"}),
+        indexes = @Index(
+                name = "idx_problem_execution_specs_problem_published",
+                columnList = "problem_id, published_at DESC"
+        )
+)
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProblemExecutionSpec {
 
@@ -47,7 +53,8 @@ public class ProblemExecutionSpec {
     @Column(name = "starter_code", updatable = false, columnDefinition = "TEXT")
     private String starterCode;
 
-    @Column(name = "test_cases", nullable = false, updatable = false, columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "test_cases", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String testCases;
 
     @Column(name = "time_limit_ms", nullable = false, updatable = false)

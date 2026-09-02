@@ -1,18 +1,20 @@
 package com.maesamco.judge.domain.entity;
 
 import com.maesamco.judge.global.common.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
+import jakarta.persistence.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.EnumSet;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -26,10 +28,18 @@ import org.hibernate.annotations.UuidGenerator;
  * 논리 FK로만 저장합니다.
  */
 @Entity
-@Table(name = "p_submissions")
+@Table(name = "p_submissions",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "problem_id", "attempt_no"}))
 @Getter
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Submission extends BaseEntity {
+
+    private static final Set<SubmissionStatus> TERMINAL_STATUSES =
+            EnumSet.of(SubmissionStatus.COMPLETED, SubmissionStatus.FAILED);
+
+    private static final int MAX_CODE_BYTES = 100 * 1024; // 100KB
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
     @Id
     @UuidGenerator
@@ -89,6 +99,10 @@ public class Submission extends BaseEntity {
     @Column(name = "judged_at")
     private Instant judgedAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
     private Submission(
             UUID userId,
             UUID problemId,
@@ -98,6 +112,8 @@ public class Submission extends BaseEntity {
             SubmissionLanguage language,
             String idempotencyKey
     ) {
+        validate(userId, problemId, problemVersionId, attemptNo, code, language, idempotencyKey);
+
         this.userId = userId;
         this.problemId = problemId;
         this.problemVersionId = problemVersionId;
@@ -128,12 +144,18 @@ public class Submission extends BaseEntity {
 
     /** Outbox Relay가 JudgeRequested 발행에 성공한 뒤 호출 (PENDING -> QUEUED). */
     public void markQueued() {
-        this.status = SubmissionStatus.QUEUED;
+        if (this.status == SubmissionStatus.QUEUED) {
+            return;
+        }
+        transition(SubmissionStatus.QUEUED, EnumSet.of(SubmissionStatus.PENDING));
     }
-
+    
     /** Judge Worker가 JudgeRequested를 수신해 Judge0 호출을 시작할 때 호출 (QUEUED/RETRY_WAIT -> RUNNING). */
     public void markRunning() {
-        this.status = SubmissionStatus.RUNNING;
+        if (this.status == SubmissionStatus.RUNNING) {
+            return;
+        }
+        transition(SubmissionStatus.RUNNING, EnumSet.of(SubmissionStatus.QUEUED, SubmissionStatus.RETRY_WAIT));
     }
 
     /**
@@ -141,15 +163,28 @@ public class Submission extends BaseEntity {
      * 재시도 소진 여부는 Application 계층(재시도 정책)이 판단해서 소진 시 markFailed를 대신 호출한다.
      */
     public void markRetryWait() {
-        this.status = SubmissionStatus.RETRY_WAIT;
+        if (this.status == SubmissionStatus.RETRY_WAIT) {
+            return; // 같은 이벤트 중복 처리
+        }
+        transition(SubmissionStatus.RETRY_WAIT, EnumSet.of(SubmissionStatus.RUNNING));
         this.retryCount++;
     }
 
-    /**
-     * 채점 완료 처리 — result만 채워지고 failureCode는 비운다.
-     */
+    /** 채점 완료 처리 — result만 채워지고 failureCode는 비운다. */
     public void markCompleted(SubmissionResult result, int executionTimeMs, int memoryUsedKb) {
-        this.status = SubmissionStatus.COMPLETED;
+        if (this.status == SubmissionStatus.COMPLETED) {
+            return; // 중복/지연 이벤트 — 멱등 no-op
+        }
+        Objects.requireNonNull(result, "result는 null일 수 없습니다.");
+        if (executionTimeMs < 0) {
+            throw new IllegalArgumentException("executionTimeMs는 음수일 수 없습니다. executionTimeMs=" + executionTimeMs);
+        }
+        if (memoryUsedKb < 0) {
+            throw new IllegalArgumentException("memoryUsedKb는 음수일 수 없습니다. memoryUsedKb=" + memoryUsedKb);
+        }
+
+        transition(SubmissionStatus.COMPLETED,
+                EnumSet.of(SubmissionStatus.QUEUED, SubmissionStatus.RUNNING, SubmissionStatus.RETRY_WAIT));
         this.result = result;
         this.failureCode = null;
         this.executionTimeMs = executionTimeMs;
@@ -157,21 +192,71 @@ public class Submission extends BaseEntity {
         this.judgedAt = Instant.now();
     }
 
-    /**
-     * 채점 시스템 자체 실패로 재시도까지 소진됐을 때 호출 — failureCode만 채워지고 result는 비운다.
-     */
+    /** 채점 시스템 자체 실패로 재시도까지 소진됐을 때 호출 — failureCode만 채워지고 result는 비운다. */
     public void markFailed(FailureCode failureCode) {
-        this.status = SubmissionStatus.FAILED;
+        if (this.status == SubmissionStatus.FAILED) {
+            return; // 중복/지연 이벤트 — 멱등 no-op
+        }
+        Objects.requireNonNull(failureCode, "failureCode는 null일 수 없습니다.");
+        transition(SubmissionStatus.FAILED,
+                EnumSet.of(SubmissionStatus.QUEUED, SubmissionStatus.RUNNING, SubmissionStatus.RETRY_WAIT));
         this.failureCode = failureCode;
         this.result = null;
         this.judgedAt = Instant.now();
     }
 
+    private static void validate(
+            UUID userId, UUID problemId, UUID problemVersionId,
+            int attemptNo, String code, SubmissionLanguage language, String idempotencyKey
+    ) {
+        Objects.requireNonNull(userId, "userId는 null일 수 없습니다.");
+        Objects.requireNonNull(problemId, "problemId는 null일 수 없습니다.");
+        Objects.requireNonNull(problemVersionId, "problemVersionId는 null일 수 없습니다.");
+        Objects.requireNonNull(language, "language는 null일 수 없습니다.");
+
+        if (attemptNo <= 0) {
+            throw new IllegalArgumentException("attemptNo는 1 이상이어야 합니다. attemptNo=" + attemptNo);
+        }
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("code는 비어있을 수 없습니다.");
+        }
+        int codeBytes = code.getBytes(StandardCharsets.UTF_8).length;
+        if (codeBytes > MAX_CODE_BYTES) {
+            throw new IllegalArgumentException(
+                    "code는 %dKB(UTF-8 기준)를 초과할 수 없습니다. 실제 크기=%dbytes"
+                            .formatted(MAX_CODE_BYTES / 1024, codeBytes));
+        }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey는 비어있을 수 없습니다.");
+        }
+        if (idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new IllegalArgumentException(
+                    "idempotencyKey는 %d자를 초과할 수 없습니다. 실제 길이=%d"
+                            .formatted(MAX_IDEMPOTENCY_KEY_LENGTH, idempotencyKey.length()));
+        }
+    }
+
     /**
-     * status가 COMPLETED 또는 FAILED면 true를 반환
-     * 해당 제출이 상태가 변할 수 있는 상황인지를 체크.
+     * 상태 전이 공통 검증.
+     * - 목표 상태가 현재 상태와 같으면(자기 자신으로의 전이) 호출부에서 이미 멱등 처리했다고 가정하고 여기까지 오지 않음.
+     * - 터미널 상태(COMPLETED/FAILED)에서는 어떤 전이도 차단한다 — 지연/중복 Kafka 메시지로 인한 역행 방지.
+     * - 그 외에는 목표 상태별로 허용된 이전 상태 목록에 있는지 검증한다.
      */
+    private void transition(SubmissionStatus target, Set<SubmissionStatus> allowedFrom) {
+        if (TERMINAL_STATUSES.contains(this.status)) {
+            log.error("[Judge] 터미널 상태에서 전이 시도 submissionId={}, 현재={}, 시도한전이={}",
+                    this.id, this.status, target);
+            throw new BusinessException(ErrorCode.SUBMISSION_INVALID_STATE_TRANSITION);
+        }
+        if (!allowedFrom.contains(this.status)) {
+            log.error("[Judge] 허용되지 않는 상태 전이 submissionId={}, 현재={}, 시도한전이={}",
+                    this.id, this.status, target);
+            throw new BusinessException(ErrorCode.SUBMISSION_INVALID_STATE_TRANSITION);
+        }
+        this.status = target;
+    }
+
     public boolean isTerminal() {
-        return status == SubmissionStatus.COMPLETED || status == SubmissionStatus.FAILED;
+        return TERMINAL_STATUSES.contains(status);
     }
 }

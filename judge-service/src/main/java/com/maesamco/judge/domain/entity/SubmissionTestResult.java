@@ -6,6 +6,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -17,11 +18,13 @@ import org.hibernate.annotations.UuidGenerator;
  * testCaseId는 Content Service 소유 리소스라 논리 FK(UUID)로만 저장합니다.
  * submissionId만 같은 DB 안의 실제 FK.
  */
+
 @Entity
 @Table(name = "p_submission_test_results",
        indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id")
 )
 @Getter
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SubmissionTestResult {
 
@@ -30,9 +33,8 @@ public class SubmissionTestResult {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "submission_id", nullable = false, updatable = false)
-    private Submission submission;
+    @Column(name = "submission_id", nullable = false, updatable = false)
+    private UUID submissionId;
 
     @Column(name = "test_case_id", nullable = false, updatable = false)
     private UUID testCaseId;
@@ -52,30 +54,35 @@ public class SubmissionTestResult {
     private SubmissionTestErrorType errorType;
 
     private SubmissionTestResult(
-            Submission submission,
+            UUID submissionId,
             UUID testCaseId,
             boolean isPublic,
             boolean passed,
             String actualOutput,
             SubmissionTestErrorType errorType
     ) {
-        this.submission = submission;
+        this.submissionId = submissionId;
         this.testCaseId = testCaseId;
         this.isPublic = isPublic;
         this.passed = passed;
         // 비공개 테스트케이스는 실제 값을 저장하지 않음
         this.actualOutput = isPublic ? actualOutput : null;
-        this.errorType = errorType;
+        this.errorType = passed ? null : errorType;
+
+        if (!passed && errorType == null) {
+            log.warn("[Judge] 오답 테스트 결과에 실패 유형 미분류 submissionId={}, testCaseId={}",
+                    submissionId, testCaseId);
+        }
     }
 
     public static SubmissionTestResult create(
-            Submission submission,
+            UUID submissionId,
             UUID testCaseId,
             boolean isPublic,
             boolean passed,
             String actualOutput,
             SubmissionTestErrorType errorType
     ) {
-        return new SubmissionTestResult(submission, testCaseId, isPublic, passed, actualOutput, errorType);
+        return new SubmissionTestResult(submissionId, testCaseId, isPublic, passed, actualOutput, errorType);
     }
 }
