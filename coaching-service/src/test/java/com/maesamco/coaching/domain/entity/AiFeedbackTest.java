@@ -22,21 +22,21 @@ class AiFeedbackTest {
     void create_setsFields() throws Exception {
         // given
         UUID coachingSessionId = UUID.randomUUID();
-        JsonNode understoodTags = objectMapper.readTree("[\"반복문\", \"조건문\"]");
+        JsonNode understoodConcepts = objectMapper.readTree("[\"반복문\", \"조건문\"]");
         JsonNode explanationGaps = objectMapper.readTree("[\"배열 인덱스 경계값\"]");
-        JsonNode weakTags = objectMapper.readTree("[\"재귀\"]");
+        JsonNode weakConcepts = objectMapper.readTree("[\"재귀\"]");
 
         // when
         AiFeedback aiFeedback = AiFeedback.create(
-                coachingSessionId, understoodTags, explanationGaps, weakTags,
+                coachingSessionId, understoodConcepts, explanationGaps, weakConcepts,
                 null, null, null
         );
 
         // then
         assertThat(aiFeedback.getCoachingSessionId()).isEqualTo(coachingSessionId);
-        assertThat(aiFeedback.getUnderstoodTags()).isEqualTo(understoodTags);
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(understoodConcepts);
         assertThat(aiFeedback.getExplanationGaps()).isEqualTo(explanationGaps);
-        assertThat(aiFeedback.getWeakTags()).isEqualTo(weakTags);
+        assertThat(aiFeedback.getWeakConcepts()).isEqualTo(weakConcepts);
         assertThat(aiFeedback.getSyntaxToImprove()).isNull();
         assertThat(aiFeedback.getRecommendedProblems()).isNull();
         assertThat(aiFeedback.getNextDirection()).isNull();
@@ -54,8 +54,8 @@ class AiFeedbackTest {
     }
 
     @Test
-    @DisplayName("이해한 태그가 null이면 생성할 수 없다")
-    void create_throwsWhenUnderstoodTagsIsNull() throws Exception {
+    @DisplayName("이해한 개념이 null이면 생성할 수 없다")
+    void create_throwsWhenUnderstoodConceptsIsNull() throws Exception {
         JsonNode empty = objectMapper.readTree("[]");
 
         assertThatThrownBy(() ->
@@ -78,8 +78,8 @@ class AiFeedbackTest {
     }
 
     @Test
-    @DisplayName("취약 태그가 null이면 생성할 수 없다")
-    void create_throwsWhenWeakTagsIsNull() throws Exception {
+    @DisplayName("취약 개념이 null이면 생성할 수 없다")
+    void create_throwsWhenWeakConceptsIsNull() throws Exception {
         JsonNode empty = objectMapper.readTree("[]");
 
         assertThatThrownBy(() ->
@@ -118,18 +118,18 @@ class AiFeedbackTest {
     @DisplayName("생성 후 원본 JsonNode를 수정해도 엔티티 내부 상태는 바뀌지 않는다")
     void create_isNotAffectedByMutatingOriginalNodeAfterConstruction() throws Exception {
         // given
-        ArrayNode understoodTags = (ArrayNode) objectMapper.readTree("[\"반복문\"]");
+        ArrayNode understoodConcepts = (ArrayNode) objectMapper.readTree("[\"반복문\"]");
         JsonNode empty = objectMapper.readTree("[]");
 
         AiFeedback aiFeedback = AiFeedback.create(
-                UUID.randomUUID(), understoodTags, empty, empty, null, null, null
+                UUID.randomUUID(), understoodConcepts, empty, empty, null, null, null
         );
 
         // when — 생성에 사용한 원본 노드를 나중에 수정
-        understoodTags.add("조건문");
+        understoodConcepts.add("조건문");
 
         // then
-        assertThat(aiFeedback.getUnderstoodTags()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
     }
 
     @Test
@@ -142,9 +142,9 @@ class AiFeedbackTest {
         );
 
         // when — getter로 받은 참조를 수정
-        ((ArrayNode) aiFeedback.getUnderstoodTags()).add("조건문");
+        ((ArrayNode) aiFeedback.getUnderstoodConcepts()).add("조건문");
 
         // then
-        assertThat(aiFeedback.getUnderstoodTags()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
     }
 }

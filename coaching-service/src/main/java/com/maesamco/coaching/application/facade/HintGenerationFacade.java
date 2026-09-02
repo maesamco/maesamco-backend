@@ -26,9 +26,9 @@ import java.util.stream.Collectors;
  * 여러 번의 DB 쓰기가 함께 일어나므로 Facade로 둔다(팀 컨벤션 2절).
  *
  * TODO(#62): Content Service의 GET /internal/v1/problems/{problemId}가 아직 없어서,
- * 지금은 Judge Service 조회 결과(제출 코드·실패 정보)만으로 힌트를 생성한다. 문제 지문·태그를
- * 프롬프트에 포함하지 못해 힌트 품질이 떨어질 수 있고, attemptNo >= 8일 때 태그로
- * WeakTag를 자동 기록하는 로직도 이 이슈가 풀리기 전까지는 구현할 수 없다
+ * 지금은 Judge Service 조회 결과(제출 코드·실패 정보)만으로 힌트를 생성한다. 문제 지문·개념
+ * 태그를 프롬프트에 포함하지 못해 힌트 품질이 떨어질 수 있고, attemptNo >= 8일 때 개념
+ * 태그로 WeakConcept를 자동 기록하는 로직도 이 이슈가 풀리기 전까지는 구현할 수 없다
  * (skipAvailable 계산 자체는 Judge의 attemptNo만 있으면 되므로 이미 반영돼 있다).
  */
 @Component
@@ -73,9 +73,9 @@ public class HintGenerationFacade {
         CoachingSession session = findOrCreateSession(submission);
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
-        // TODO(#62): skipAvailable == true일 때 문제의 태그로 WeakTag를 자동
+        // TODO(#62): skipAvailable == true일 때 문제의 개념 태그로 WeakConcept를 자동
         // 기록해야 한다(신규면 생성, 있으면 recordOccurrence()). Content Service에서
-        // 태그를 조회할 방법이 아직 없어 보류.
+        // 개념 태그를 조회할 방법이 아직 없어 보류.
 
         List<Hint> existingHints = hintRepository.findByCoachingSessionId(session.getId());
         int maxStage = existingHints.stream().mapToInt(Hint::getStage).max().orElse(0);

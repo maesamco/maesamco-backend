@@ -17,40 +17,36 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 사용자별 취약 태그 집계 — 매삼코 DB 테이블 명세 7절.
+ * 사용자별 취약 개념 집계 — 매삼코 DB 테이블 명세 7절.
  *
- * BaseEntity 미적용 — 사용자당 태그별 1행이 계속 갱신되는 집계 테이블이라 "언제 생성됐는지"는
+ * BaseEntity 미적용 — 사용자당 개념별 1행이 계속 갱신되는 집계 테이블이라 "언제 생성됐는지"는
  * 의미가 없다. 명세 원문은 "사용자 삭제 시 함께 정리된다"고 되어 있지만, userId가 User
  * Service에 대한 논리 FK라 실제로는 그 정리를 수행할 경로(이벤트 소비, 내부 API 등)가 아직
  * 전혀 없다 — User Service가 삭제 사실을 다른 서비스에 알릴 방법 자체가 없다(이슈 #39, 팀
  * 논의 필요). 그 전까지는 "독립적인 소프트 삭제는 필요 없다"는 명세 판단만 유지한다.
  *
  * 지금까지의 Coaching 엔티티(CoachingSession 제외)와 달리 불변/append-only가 아니라, 같은
- * (user_id, tag)가 재발견될 때마다 새 행을 만들지 않고 기존 행을 갱신하는 집계
+ * (user_id, concept_tag)가 재발견될 때마다 새 행을 만들지 않고 기존 행을 갱신하는 집계
  * 엔티티다(DB 테이블 명세 06절: "발견 시 count만 증가"). userId는 User Service에 대한 논리
  * FK(서비스 간 참조)라 같은 서비스 내부 FK와 달리 물리 FK 자체가 성립하지 않는다.
  *
- * UNIQUE(user_id, tag) 제약은 Flyway V1 베이스라인(PR #29)이 실제 마이그레이션
+ * UNIQUE(user_id, concept_tag) 제약은 Flyway V1 베이스라인(PR #29)이 실제 마이그레이션
  * 스크립트로 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결) — 운영 스키마의 유일한
  * 소스는 마이그레이션 스크립트다. @Table의 uniqueConstraints는 스키마를 생성하는 역할이
- * 아니라(WeakTagRepositoryImplTest도 실제 Flyway 스키마로 검증한다), 엔티티 코드만
+ * 아니라(WeakConceptRepositoryImplTest도 실제 Flyway V1 스키마로 검증한다), 엔티티 코드만
  * 보고도 제약을 바로 알 수 있게 문서 목적으로 중복 명시해둔 것이다.
- *
- * 원래 이름은 WeakConcept/concept_tag였으나, Content Service가 p_concepts를 p_tags로
- * 통합하면서(2026-09-02) "개념"이라는 용어 자체를 없애고 "태그"로 통일했다 — 이 테이블이
- * 담는 문자열도 결국 Content의 태그명이라 같은 이유로 개명했다(V5 마이그레이션).
  */
 @Entity
 @Table(
-        name = "p_weak_tags",
+        name = "p_weak_concepts",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_weak_tags_user_tag",
-                columnNames = {"user_id", "tag"}
+                name = "uk_weak_concepts_user_concept",
+                columnNames = {"user_id", "concept_tag"}
         )
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WeakTag {
+public class WeakConcept {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -60,8 +56,8 @@ public class WeakTag {
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userId;
 
-    @Column(name = "tag", updatable = false, nullable = false, length = 50)
-    private String tag;
+    @Column(name = "concept_tag", updatable = false, nullable = false, length = 50)
+    private String conceptTag;
 
     @Column(name = "occurrence_count", nullable = false)
     private int occurrenceCount;
@@ -79,32 +75,32 @@ public class WeakTag {
     private boolean improved;
 
     @Builder
-    private WeakTag(UUID userId, String tag) {
+    private WeakConcept(UUID userId, String conceptTag) {
         this.userId = Validate.requireNonNull(userId, "사용자 ID");
-        // 앞뒤 공백만 다른 태그("재귀" vs " 재귀 ")가 UNIQUE 제약상 서로 다른 태그로
+        // 앞뒤 공백만 다른 태그("재귀" vs " 재귀 ")가 UNIQUE 제약상 서로 다른 개념으로
         // 저장되지 않도록 trim 후 검증한다(PR #34 리뷰) — trim은 이제 Validate.requireText()가 기본으로 한다(이슈 #45).
-        this.tag = Validate.requireText(tag, 50, "태그");
+        this.conceptTag = Validate.requireText(conceptTag, 50, "개념 태그");
         this.occurrenceCount = 1;
         this.lastDetectedAt = Instant.now();
         this.improved = false;
     }
 
-    public static WeakTag create(UUID userId, String tag) {
-        return WeakTag.builder()
+    public static WeakConcept create(UUID userId, String conceptTag) {
+        return WeakConcept.builder()
                 .userId(userId)
-                .tag(tag)
+                .conceptTag(conceptTag)
                 .build();
     }
 
     /**
-     * 같은 태그가 다시 발견됐을 때 호출 — 새 행을 만들지 않고 기존 집계 행의 발견 횟수/시각만
+     * 같은 개념이 다시 발견됐을 때 호출 — 새 행을 만들지 않고 기존 집계 행의 발견 횟수/시각만
      * 갱신한다.
      *
      * ⚠️ CoachingSession.complete()와 동일하게 낙관적 락 없이 값을 읽고 바로 갱신한다(check-
-     * then-act). (user_id, tag) 조회 후 갱신하는 Service/Facade를 만들 때, 같은
-     * 태그가 짧은 시간에 동시에 재발견되는 경로의 동시성 처리 여부를 함께 고려할 것.
+     * then-act). (user_id, concept_tag) 조회 후 갱신하는 Service/Facade를 만들 때, 같은
+     * 개념이 짧은 시간에 동시에 재발견되는 경로의 동시성 처리 여부를 함께 고려할 것.
      *
-     * TODO: 취약 태그 조회 후 갱신(find-then-update) Service/Facade 구현 시 위 동시성 문제
+     * TODO: 취약 개념 조회 후 갱신(find-then-update) Service/Facade 구현 시 위 동시성 문제
      *       해결 방안 확정하고 이 TODO 제거.
      *
      * TODO: improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
