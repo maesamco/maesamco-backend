@@ -199,6 +199,58 @@ class HintGenerationFacadeTest {
     }
 
     @Test
+    void 재시도로_submissionId가_바뀌면_세션의_submissionId를_최신으로_갱신한다() {
+        UUID newSubmissionId = UUID.randomUUID();
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(newSubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        when(judgeServicePort.getSubmission(newSubmissionId)).thenReturn(retrySubmission);
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(coachingSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("2단계 힌트", "claude-sonnet-5", 10));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.requestHint(newSubmissionId, callerId);
+
+        assertThat(existingSession.getSubmissionId()).isEqualTo(newSubmissionId);
+        verify(coachingSessionRepository).save(existingSession);
+    }
+
+    @Test
+    void 동시_요청으로_같은_stage_힌트가_이미_저장됐으면_기존_힌트를_반환한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("1단계 힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenThrow(new BusinessException(ErrorCode.HINT_ALREADY_EXISTS));
+        Hint winningHint = Hint.create(existingSession.getId(), 1, "다른 요청이 먼저 저장한 힌트");
+        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1)).thenReturn(Optional.of(winningHint));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.hint()).isSameAs(winningHint);
+    }
+
+    @Test
+    void AI가_빈_응답을_반환하면_AI_GENERATION_FAILED로_처리하고_힌트를_저장하지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("   ", "claude-sonnet-5", 1));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
+
+        verify(aiCallHistoryRepository).save(argThatFailed());
+        verify(hintRepository, never()).save(any());
+    }
+
+    @Test
     void 동시_요청으로_세션이_이미_생성됐으면_그_세션을_다시_조회해서_사용한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession racedSession = persistedSession();

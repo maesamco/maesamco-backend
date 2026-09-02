@@ -90,8 +90,22 @@ public class HintGenerationFacade {
 
         int nextStage = maxStage + 1;
         Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage, existingHints));
-        Hint savedHint = hintRepository.save(hint);
-        return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
+        try {
+            Hint savedHint = hintRepository.save(hint);
+            return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
+        } catch (BusinessException e) {
+            // 동시 요청 두 개가 같은 nextStage를 계산해 LLM을 각각 호출한 뒤 저장을 시도하면,
+            // 먼저 커밋한 쪽만 성공하고 나머지는 여기로 들어온다(팀 컨벤션 UNIQUE(coaching_
+            // session_id, stage) 위반 → HINT_ALREADY_EXISTS). 힌트 요청 자체를 실패시킬
+            // 이유가 없으니 방금 다른 요청이 만든 힌트를 그대로 반환한다(PR #70 리뷰,
+            // yonghyun0325님 P2 — LLM 비용은 이미 발생했지만 최소한 사용자 응답은 정상화).
+            if (e.getErrorCode() == ErrorCode.HINT_ALREADY_EXISTS) {
+                Hint existingHint = hintRepository.findByCoachingSessionIdAndStage(session.getId(), nextStage)
+                        .orElseThrow(() -> e);
+                return new HintGenerationResult(session.getId(), existingHint, skipAvailable, false);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -101,6 +115,17 @@ public class HintGenerationFacade {
      */
     private CoachingSession findOrCreateSession(SubmissionSnapshot submission) {
         return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
+                .map(session -> {
+                    // 재시도마다 세션의 submission_id를 최신 제출로 갈아탄다 — 힌트 조회
+                    // API(HintQueryService)가 요청받은 submissionId가 이 세션의 최신
+                    // 제출인지 검증하는 데 쓴다(PR #70 리뷰, yonghyun0325님 P2). 이미
+                    // 최신이면(동일 제출로 재요청) 불필요한 UPDATE를 건너뛴다.
+                    if (!session.getSubmissionId().equals(submission.submissionId())) {
+                        session.updateSubmissionId(submission.submissionId());
+                        return coachingSessionRepository.save(session);
+                    }
+                    return session;
+                })
                 .orElseGet(() -> {
                     try {
                         return coachingSessionRepository.save(
@@ -137,6 +162,13 @@ public class HintGenerationFacade {
 
         try {
             AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
+            // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 —
+            // 그대로 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
+            // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
+            // 잘못 분류된다(PR #70 리뷰, yonghyun0325님 P2).
+            if (response.content() == null || response.content().isBlank()) {
+                throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
+            }
             aiCallHistoryRepository.save(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
                     "SUCCESS", null, response.tokenUsage(), null, 0

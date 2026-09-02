@@ -32,8 +32,8 @@ import java.util.UUID;
  * 대신 (user_id, problem_id)가 IN_PROGRESS인 세션은 항상 최대 1개만 존재하게 강제해서(V4
  * 마이그레이션의 부분 UNIQUE 인덱스), 한 번 COMPLETED된 문제를 나중에 다시 풀 때는 새 세션이
  * 만들어지는 것도 허용한다. submission_id는 "이 세션이 지금 다루고 있는 제출"을 가리키는
- * 값으로, 재시도마다 최신 제출로 갈아탈 수 있다(현재는 힌트 흐름에서 갈아탈 필요가 없어
- * 업데이트 메서드를 아직 추가하지 않았다 — 필요해지면 추가할 것).
+ * 값으로, 재시도마다 updateSubmissionId()로 최신 제출로 갈아탄다 — 힌트 조회 API가 요청받은
+ * submissionId가 실제로 이 세션의 최신 제출인지 검증하는 데 쓰인다(PR #70 리뷰).
  *
  * BaseEntity 미적용(불변 보존형, 팀 컨벤션 16절) — 코칭 기록은 삭제하지 않고 보존하는 게
  * 명시적 원칙이라 updated_at/by · deleted_at/by가 없다. 생성자는 이미 userId로 식별되므로
@@ -102,6 +102,17 @@ public class CoachingSession {
                 .userId(userId)
                 .problemId(problemId)
                 .build();
+    }
+
+    /**
+     * 같은 재시도 묶음 안에서 새 제출로 갈아탈 때 호출(PR #70 리뷰, yonghyun0325님 P2) —
+     * 힌트 조회 API가 "이 submissionId가 지금 이 세션이 다루는 최신 제출이 맞는지"를
+     * 검증할 수 있으려면 이 값이 항상 최신으로 유지돼야 한다. 그렇지 않으면 이미
+     * COMPLETED된 이전 회차의 submissionId로 조회했을 때 엉뚱하게 최신 회차(다른 세션)의
+     * 힌트가 반환될 수 있다.
+     */
+    public void updateSubmissionId(UUID submissionId) {
+        this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");
     }
 
     /**

@@ -20,6 +20,14 @@ import java.util.UUID;
  * COMPLETED된 회차의 과거 힌트 히스토리는 조회되지 않는다(2026-09-02, 코칭 세션을 문제당
  * 재시도 묶음으로 바꾸면서 생긴 범위 제한). 완료된 회차의 히스토리 조회가 필요해지면,
  * 어떤 submissionId가 어떤 회차(세션)에 속했는지 추적할 방법을 별도로 설계해야 한다.
+ *
+ * ✅ 2026-09-02(PR #70 리뷰, yonghyun0325님 P2): 위 TODO 때문에, 예전에 COMPLETED된 회차의
+ * submissionId로 조회하면 그 사이 새로 시작된 IN_PROGRESS 세션(같은 문제의 다른 회차)의
+ * 힌트가 엉뚱하게 반환되는 문제가 있었다. session.getSubmissionId()(항상 그 세션이 다루는
+ * 최신 제출로 갈아탐, HintGenerationFacade.findOrCreateSession() 참고)와 요청받은
+ * submissionId가 일치하는지 확인해서, 다른 회차의 제출이면 빈 목록을 반환하도록 막았다 —
+ * "아직 힌트를 요청한 적 없음"과 동일하게 처리(에러 아님, 위 TODO가 풀리기 전까지 과거
+ * 히스토리는 여전히 조회 불가하다는 한계는 남아있음).
  */
 @Service
 public class HintQueryService {
@@ -45,6 +53,7 @@ public class HintQueryService {
         }
 
         return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
+                .filter(session -> session.getSubmissionId().equals(submissionId))
                 .map(session -> hintRepository.findByCoachingSessionId(session.getId()))
                 .orElseGet(List::of);
     }
