@@ -239,7 +239,7 @@ public class DailyQuizQuestion {
         if (value == null || value.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + ": 필수입니다.");
         }
-        return value;
+        return value.strip();
     }
 
     private static String requireText(String value, String fieldName, int maxLength) {
