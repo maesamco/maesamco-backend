@@ -49,7 +49,7 @@ class HintQueryServiceTest {
     }
 
     private CoachingSession persistedSession(UUID sessionSubmissionId) {
-        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId);
+        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
     }

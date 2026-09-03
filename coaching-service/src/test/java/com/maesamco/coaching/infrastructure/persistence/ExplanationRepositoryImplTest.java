@@ -41,7 +41,7 @@ class ExplanationRepositoryImplTest extends AbstractCoachingRepositoryTest {
      */
     private UUID createCoachingSessionId() {
         CoachingSession coachingSession = springDataCoachingSessionRepository.saveAndFlush(
-                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1)
         );
         return coachingSession.getId();
     }

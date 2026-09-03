@@ -84,7 +84,19 @@ class HintGenerationFacadeTest {
      * 단위 테스트에는 그 과정이 없으므로, Hibernate가 하는 일을 여기서 대신 시뮬레이션한다.
      */
     private CoachingSession persistedSession() {
-        CoachingSession session = CoachingSession.create(submissionId, callerId, problemId);
+        return persistedSession(1);
+    }
+
+    /**
+     * PR #88 리뷰(용현님 P1) 대응으로 advanceToSubmission()이 attemptNo 기준으로 갈아탈지
+     * 판단하게 되면서, "기존 세션이 이미 이번 요청과 같은 시도를 다루고 있다"고 가정하는
+     * 테스트는 세션의 lastAttemptNo를 그 테스트의 SubmissionSnapshot.attemptNo와 맞춰줘야
+     * 한다 — 안 맞으면 advanceToSubmission()이 attemptNo 증가로 오인해 의도치 않게
+     * save()를 호출한다(일부 테스트는 coachingSessionRepository.save()를 스텁하지 않으므로
+     * null을 반환받아 NPE로 이어질 수 있다).
+     */
+    private CoachingSession persistedSession(int attemptNo) {
+        CoachingSession session = CoachingSession.create(submissionId, callerId, problemId, attemptNo);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
     }
@@ -166,7 +178,7 @@ class HintGenerationFacadeTest {
     @Test
     void 이미_1단계_힌트가_있으면_2단계를_생성한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 2));
-        CoachingSession existingSession = persistedSession();
+        CoachingSession existingSession = persistedSession(2);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         Hint stage1 = Hint.create(existingSession.getId(), 1, "1단계");
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of(stage1));
@@ -182,7 +194,7 @@ class HintGenerationFacadeTest {
     @Test
     void 이미_4단계까지_있으면_새로_생성하지_않고_기존_4단계를_그대로_반환한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 5));
-        CoachingSession existingSession = persistedSession();
+        CoachingSession existingSession = persistedSession(5);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         Hint stage4 = Hint.create(existingSession.getId(), 4, "4단계 — 수정 방향");
         when(hintRepository.findByCoachingSessionId(existingSession.getId()))
@@ -200,7 +212,7 @@ class HintGenerationFacadeTest {
     @Test
     void attemptNo가_8이상이면_skipAvailable이_true다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
-        CoachingSession existingSession = persistedSession();
+        CoachingSession existingSession = persistedSession(8);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
@@ -214,7 +226,7 @@ class HintGenerationFacadeTest {
     @Test
     void attemptNo가_8미만이면_skipAvailable이_false다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 7));
-        CoachingSession existingSession = persistedSession();
+        CoachingSession existingSession = persistedSession(7);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));

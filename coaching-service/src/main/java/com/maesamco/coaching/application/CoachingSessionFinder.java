@@ -30,12 +30,16 @@ public class CoachingSessionFinder {
      * COACHING_SESSION_ALREADY_EXISTS를 받는다 — 이 경우 방금 다른 트랜잭션이 만든 세션을
      * 그대로 재조회해서 쓴다(힌트 요청·설명 등록 자체를 실패시킬 이유가 없다, PR #70 리뷰와
      * 동일한 판단).
+     *
+     * PR #88 리뷰(용현님 P1) — submission_id를 갈아탈지는 더 이상 여기서 "값이 다른가"로
+     * 판단하지 않는다. CoachingSession.advanceToSubmission()이 attemptNo 기준으로
+     * 자체 방어하므로, 과거 제출로 들어온 요청은 advanceToSubmission()이 false를 반환해
+     * save() 자체가 일어나지 않는다.
      */
     public CoachingSession findOrCreate(SubmissionSnapshot submission) {
         return coachingSessionRepository.findByUserIdAndProblemId(submission.userId(), submission.problemId())
                 .map(session -> {
-                    if (!session.getSubmissionId().equals(submission.submissionId())) {
-                        session.updateSubmissionId(submission.submissionId());
+                    if (session.advanceToSubmission(submission.submissionId(), submission.attemptNo())) {
                         return coachingSessionRepository.save(session);
                     }
                     return session;
@@ -43,7 +47,10 @@ public class CoachingSessionFinder {
                 .orElseGet(() -> {
                     try {
                         return coachingSessionRepository.save(
-                                CoachingSession.create(submission.submissionId(), submission.userId(), submission.problemId())
+                                CoachingSession.create(
+                                        submission.submissionId(), submission.userId(), submission.problemId(),
+                                        submission.attemptNo()
+                                )
                         );
                     } catch (BusinessException e) {
                         if (e.getErrorCode() == ErrorCode.COACHING_SESSION_ALREADY_EXISTS) {

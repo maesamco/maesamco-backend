@@ -35,7 +35,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("코칭 세션을 저장하면 ID가 채번되고 IN_PROGRESS 상태·생성 시각이 채워진다")
     void save_assignsIdAndDefaults() {
         // given
-        CoachingSession coachingSession = CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        CoachingSession coachingSession = CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1);
 
         // when
         CoachingSession saved = coachingSessionRepository.save(coachingSession);
@@ -51,7 +51,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
     void findBySubmissionId_returnsSession() {
         // given
         UUID submissionId = UUID.randomUUID();
-        coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID()));
+        coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID(), 1));
 
         /*
          * flush로 INSERT를 실제로 반영하고, clear로 영속성 컨텍스트(1차 캐시)를 비운다.
@@ -86,7 +86,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         // 상태를 실제로 갱신 저장하는지는 회귀 방지가 안 되고 있었다(WeakConcept.markImproved()
         // 리뷰와 같은 성격의 갭, PR #34 리뷰에서 발견).
         CoachingSession saved = coachingSessionRepository.save(
-                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1)
         );
         entityManager.flush();
         entityManager.clear();
@@ -106,20 +106,21 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     /**
-     * PR #70 리뷰(용현님 P1) — updateSubmissionId()를 호출한
+     * PR #70 리뷰(용현님 P1) — advanceToSubmission()을 호출한
      * 뒤 save()해도, submission_id 컬럼이 @Column(updatable = false)였다면 Hibernate가
      * UPDATE SQL에서 이 컬럼을 통째로 제외해 실제 DB에는 반영되지 않는다. 이전 값은
      * 엔티티 객체(1차 캐시)에서만 보였을 뿐이라 Mockito 기반 Facade/QueryService 테스트로는
      * 이 문제를 잡을 수 없다 — entityManager.clear()로 1차 캐시를 비우고 완전히 새로
-     * 조회해서 실제 DB 반영 여부를 확인한다.
+     * 조회해서 실제 DB 반영 여부를 확인한다. last_attempt_no(PR #88 리뷰, 용현님 P1)도
+     * 같은 UPDATE 문에 실려야 갈아탄 값이 유지되므로 함께 검증한다.
      */
     @Test
-    @DisplayName("updateSubmissionId() 후 다시 저장하면 최신 submissionId가 실제 DB에도 반영된다")
-    void updateSubmissionId_persistsNewSubmissionIdAfterReload() {
+    @DisplayName("advanceToSubmission() 후 다시 저장하면 최신 submissionId·lastAttemptNo가 실제 DB에도 반영된다")
+    void advanceToSubmission_persistsNewSubmissionIdAndAttemptNoAfterReload() {
         // given
         UUID originalSubmissionId = UUID.randomUUID();
         CoachingSession saved = coachingSessionRepository.save(
-                CoachingSession.create(originalSubmissionId, UUID.randomUUID(), UUID.randomUUID())
+                CoachingSession.create(originalSubmissionId, UUID.randomUUID(), UUID.randomUUID(), 1)
         );
         entityManager.flush();
         entityManager.clear();
@@ -128,7 +129,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         UUID retrySubmissionId = UUID.randomUUID();
 
         // when
-        found.updateSubmissionId(retrySubmissionId);
+        found.advanceToSubmission(retrySubmissionId, 2);
         coachingSessionRepository.save(found);
         entityManager.flush();
         entityManager.clear();
@@ -137,6 +138,38 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         CoachingSession reloaded = coachingSessionRepository.findById(saved.getId()).orElseThrow();
         assertThat(reloaded.getSubmissionId()).isEqualTo(retrySubmissionId);
         assertThat(reloaded.getSubmissionId()).isNotEqualTo(originalSubmissionId);
+        assertThat(reloaded.getLastAttemptNo()).isEqualTo(2);
+    }
+
+    /**
+     * PR #88 리뷰(용현님 P1) 대응 — advanceToSubmission()의 역행 방지 자체는
+     * CoachingSessionTest(도메인 단위)에서 검증하지만, "역행 시도가 실제 DB에는 아무
+     * 영향도 주지 않는다"는 건 실제 저장·재조회로만 증명된다.
+     */
+    @Test
+    @DisplayName("attemptNo가 더 작은 제출로 advanceToSubmission()을 시도해도 DB의 submissionId는 그대로다")
+    void advanceToSubmission_withOlderAttempt_doesNotPersistChange() {
+        // given
+        UUID originalSubmissionId = UUID.randomUUID();
+        CoachingSession saved = coachingSessionRepository.save(
+                CoachingSession.create(originalSubmissionId, UUID.randomUUID(), UUID.randomUUID(), 3)
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        CoachingSession found = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+
+        // when — attemptNo 2는 이미 저장된 3보다 오래된 시도이므로 무시돼야 한다
+        boolean advanced = found.advanceToSubmission(UUID.randomUUID(), 2);
+        coachingSessionRepository.save(found);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(advanced).isFalse();
+        CoachingSession reloaded = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getSubmissionId()).isEqualTo(originalSubmissionId);
+        assertThat(reloaded.getLastAttemptNo()).isEqualTo(3);
     }
 
     /**
@@ -155,14 +188,14 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         UUID problemId = UUID.randomUUID();
 
         CoachingSession completedSession = coachingSessionRepository.save(
-                CoachingSession.create(UUID.randomUUID(), userId, problemId)
+                CoachingSession.create(UUID.randomUUID(), userId, problemId, 1)
         );
         completedSession.complete();
         coachingSessionRepository.save(completedSession);
         entityManager.flush();
         entityManager.clear();
 
-        CoachingSession retrySession = CoachingSession.create(UUID.randomUUID(), userId, problemId);
+        CoachingSession retrySession = CoachingSession.create(UUID.randomUUID(), userId, problemId, 1);
 
         // when & then
         assertThatThrownBy(() -> coachingSessionRepository.save(retrySession))
@@ -179,7 +212,7 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         UUID problemId = UUID.randomUUID();
 
         CoachingSession saved = coachingSessionRepository.save(
-                CoachingSession.create(UUID.randomUUID(), userId, problemId)
+                CoachingSession.create(UUID.randomUUID(), userId, problemId, 1)
         );
         saved.complete();
         coachingSessionRepository.save(saved);
@@ -206,9 +239,9 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
          */
         // given
         UUID submissionId = UUID.randomUUID();
-        coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID()));
+        coachingSessionRepository.save(CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID(), 1));
 
-        CoachingSession duplicate = CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID());
+        CoachingSession duplicate = CoachingSession.create(submissionId, UUID.randomUUID(), UUID.randomUUID(), 1);
 
         // when & then
         assertThatThrownBy(() -> coachingSessionRepository.save(duplicate))

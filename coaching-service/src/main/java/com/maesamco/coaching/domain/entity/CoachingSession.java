@@ -35,8 +35,14 @@ import java.util.UUID;
  * 설명·역질문 조회 API 설계 중 "과거 세션과 최신 세션 중 무엇을 반환?"이라는 애매함을 낳는
  * 걸 발견해 되돌렸다 — 이미 코칭이 끝난 문제를 재제출해도 기존(COMPLETED 포함) 세션을 그대로
  * 재사용한다. submission_id는 "이 세션이 지금 다루고 있는 제출"을 가리키는 값으로, 재시도마다
- * updateSubmissionId()로 최신 제출로 갈아탄다 — 힌트 조회 API가 요청받은 submissionId가
+ * advanceToSubmission()으로 최신 제출로 갈아탄다 — 힌트 조회 API가 요청받은 submissionId가
  * 실제로 이 세션의 최신 제출인지 검증하는 데 쓰인다(PR #70 리뷰).
+ *
+ * 2026-09-03 PR #88 리뷰(용현님 P1) — Hint/Explanation이 findOrCreate()를 공유하게 되면서,
+ * 과거 제출(지연된 요청, 이미 지난 정답 제출에 대한 뒤늦은 설명 등록 등)로 들어온 요청이
+ * submission_id를 검증 없이 덮어써 최신 제출 이전으로 되돌릴 수 있었다. last_attempt_no(V7,
+ * Judge Service SubmissionSnapshot.attemptNo — 문제당 제출 순번, 단조 증가)를 함께 저장해,
+ * advanceToSubmission()이 더 큰 attemptNo가 들어올 때만 실제로 갈아타도록 자체 방어한다.
  *
  * BaseEntity 미적용(불변 보존형, 팀 컨벤션 16절) — 코칭 기록은 삭제하지 않고 보존하는 게
  * 명시적 원칙이라 updated_at/by · deleted_at/by가 없다. 생성자는 이미 userId로 식별되므로
@@ -64,11 +70,16 @@ public class CoachingSession {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    // updatable = false 아님 — updateSubmissionId()로 재시도마다 최신 제출로 갈아탄다(PR #70
-    // 리뷰 교차검증 — updatable = false로 뒀으면 이 필드를 바꿔서 save()해도 Hibernate가
+    // updatable = false 아님 — advanceToSubmission()으로 재시도마다 최신 제출로 갈아탄다(PR
+    // #70 리뷰 교차검증 — updatable = false로 뒀으면 이 필드를 바꿔서 save()해도 Hibernate가
     // UPDATE SQL에서 이 컬럼을 통째로 제외해 DB에는 절대 반영되지 않았을 것).
     @Column(name = "submission_id", nullable = false)
     private UUID submissionId;
+
+    // PR #88 리뷰(용현님 P1) — submission_id가 실제로 최신 제출을 가리키는지 판단할 기준.
+    // advanceToSubmission()이 이 값보다 큰 attemptNo가 들어올 때만 submission_id를 갱신한다.
+    @Column(name = "last_attempt_no", nullable = false)
+    private int lastAttemptNo;
 
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userId;
@@ -95,18 +106,20 @@ public class CoachingSession {
     private Instant completedAt;
 
     @Builder
-    private CoachingSession(UUID submissionId, UUID userId, UUID problemId) {
+    private CoachingSession(UUID submissionId, UUID userId, UUID problemId, int attemptNo) {
         this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");
         this.userId = Validate.requireNonNull(userId, "사용자 ID");
         this.problemId = Validate.requireNonNull(problemId, "문제 ID");
+        this.lastAttemptNo = attemptNo;
         this.status = CoachingSessionStatus.IN_PROGRESS;
     }
 
-    public static CoachingSession create(UUID submissionId, UUID userId, UUID problemId) {
+    public static CoachingSession create(UUID submissionId, UUID userId, UUID problemId, int attemptNo) {
         return CoachingSession.builder()
                 .submissionId(submissionId)
                 .userId(userId)
                 .problemId(problemId)
+                .attemptNo(attemptNo)
                 .build();
     }
 
@@ -118,6 +131,14 @@ public class CoachingSession {
      * 엉뚱하게 반환될 수 있다(이슈 #84/V5로 세션이 문제당 유일해진 뒤에도, "다른 세션"이
      * 아니라 "같은 세션 내 예전 제출"에 대한 가드로 여전히 유효하다).
      *
+     * 2026-09-03 PR #88 리뷰(용현님 P1) — Hint/Explanation이 findOrCreate()를 공유하게
+     * 되면서, 과거 제출(지연된 요청, 이미 지난 정답 제출에 대한 뒤늦은 설명 등록 등)이
+     * submissionId를 무검증으로 덮어써 최신 제출 이전으로 되돌릴 수 있었다. attemptNo가
+     * lastAttemptNo보다 클 때만 실제로 갈아타고, 아니면 아무 것도 하지 않은 채 false를
+     * 반환한다 — 과거 제출에 대한 요청 자체는 정상적인 유스케이스(예: 이미 정답을 낸
+     * 이전 제출에 대해 뒤늦게 설명을 등록)이므로 예외로 막지 않고 조용히 무시한다.
+     * 호출자(CoachingSessionFinder)는 반환값이 true일 때만 save()한다.
+     *
      * ⚠️ complete()와 동일하게 낙관적 락 없이 값을 바로 덮어쓴다(PR #70 리뷰). 같은 세션에
      * 서로 다른 submissionId로 두 힌트 요청이 짧은 시간 안에 동시에 들어오면, 나중에
      * flush되는 쪽이 조용히 덮어써서 하나가 유실될 수 있다. 발생 가능성은 낮지만
@@ -125,8 +146,13 @@ public class CoachingSession {
      *
      * TODO: 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
      */
-    public void updateSubmissionId(UUID submissionId) {
+    public boolean advanceToSubmission(UUID submissionId, int attemptNo) {
+        if (attemptNo <= this.lastAttemptNo) {
+            return false;
+        }
         this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");
+        this.lastAttemptNo = attemptNo;
+        return true;
     }
 
     /**

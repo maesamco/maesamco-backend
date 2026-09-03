@@ -44,12 +44,12 @@ class CoachingSessionFinderTest {
         finder = new CoachingSessionFinder(coachingSessionRepository);
     }
 
-    private SubmissionSnapshot submission(UUID subId) {
-        return new SubmissionSnapshot(subId, callerId, problemId, "code", "WRONG", List.of(), 1);
+    private SubmissionSnapshot submission(UUID subId, int attemptNo) {
+        return new SubmissionSnapshot(subId, callerId, problemId, "code", "WRONG", List.of(), attemptNo);
     }
 
-    private CoachingSession persistedSession(UUID sessionSubmissionId) {
-        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId);
+    private CoachingSession persistedSession(UUID sessionSubmissionId, int attemptNo) {
+        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId, attemptNo);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
     }
@@ -57,48 +57,69 @@ class CoachingSessionFinderTest {
     @Test
     void 세션이_없으면_새로_만든다() {
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
-        CoachingSession newSession = persistedSession(submissionId);
+        CoachingSession newSession = persistedSession(submissionId, 1);
         when(coachingSessionRepository.save(any())).thenReturn(newSession);
 
-        CoachingSession result = finder.findOrCreate(submission(submissionId));
+        CoachingSession result = finder.findOrCreate(submission(submissionId, 1));
 
         assertThat(result).isSameAs(newSession);
     }
 
     @Test
     void 세션이_있고_최신_제출과_동일하면_그대로_반환한다() {
-        CoachingSession existing = persistedSession(submissionId);
+        CoachingSession existing = persistedSession(submissionId, 1);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existing));
 
-        CoachingSession result = finder.findOrCreate(submission(submissionId));
+        CoachingSession result = finder.findOrCreate(submission(submissionId, 1));
 
         assertThat(result).isSameAs(existing);
         verify(coachingSessionRepository, never()).save(any());
     }
 
     @Test
-    void 세션이_있고_제출이_바뀌었으면_submissionId를_갱신하고_저장한다() {
+    void 세션이_있고_더_최신_제출이_들어오면_submissionId를_갱신하고_저장한다() {
         UUID newSubmissionId = UUID.randomUUID();
-        CoachingSession existing = persistedSession(submissionId);
+        CoachingSession existing = persistedSession(submissionId, 1);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existing));
         when(coachingSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        CoachingSession result = finder.findOrCreate(submission(newSubmissionId));
+        CoachingSession result = finder.findOrCreate(submission(newSubmissionId, 2));
 
         assertThat(result.getSubmissionId()).isEqualTo(newSubmissionId);
         verify(coachingSessionRepository).save(existing);
     }
 
+    /**
+     * PR #88 리뷰(용현님 P1) — Hint/Explanation이 이 로직을 공유하면서, 과거 제출(지연된
+     * 요청, 이미 지난 정답 제출에 대한 뒤늦은 설명 등록 등)에 대한 요청이 세션의
+     * submissionId를 최신 제출 이전으로 되돌릴 수 있었다. attemptNo가 더 작은 제출이
+     * 들어오면 세션을 건드리지 않아야 한다 — 그래야 HintQueryService가 최신 제출 기준으로
+     * 힌트를 조회할 때 엉뚱하게 빈 목록을 받는 회귀가 재발하지 않는다.
+     */
+    @Test
+    void 세션이_있고_더_오래된_제출이_들어오면_submissionId를_역행시키지_않는다() {
+        UUID latestSubmissionId = UUID.randomUUID();
+        CoachingSession existing = persistedSession(latestSubmissionId, 3);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existing));
+
+        UUID olderSubmissionId = UUID.randomUUID();
+        CoachingSession result = finder.findOrCreate(submission(olderSubmissionId, 2));
+
+        assertThat(result.getSubmissionId()).isEqualTo(latestSubmissionId);
+        assertThat(result.getLastAttemptNo()).isEqualTo(3);
+        verify(coachingSessionRepository, never()).save(any());
+    }
+
     @Test
     void 동시_생성_레이스로_저장이_실패하면_방금_생성된_세션을_재조회해서_반환한다() {
-        CoachingSession racedSession = persistedSession(submissionId);
+        CoachingSession racedSession = persistedSession(submissionId, 1);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(racedSession));
         when(coachingSessionRepository.save(any()))
                 .thenThrow(new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_EXISTS));
 
-        CoachingSession result = finder.findOrCreate(submission(submissionId));
+        CoachingSession result = finder.findOrCreate(submission(submissionId, 1));
 
         assertThat(result).isSameAs(racedSession);
     }
@@ -109,7 +130,7 @@ class CoachingSessionFinderTest {
         when(coachingSessionRepository.save(any()))
                 .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT_VALUE));
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> finder.findOrCreate(submission(submissionId)))
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> finder.findOrCreate(submission(submissionId, 1)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);

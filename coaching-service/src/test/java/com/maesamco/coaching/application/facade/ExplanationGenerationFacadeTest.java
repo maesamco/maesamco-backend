@@ -75,7 +75,7 @@ class ExplanationGenerationFacadeTest {
      * Hibernate의 saveAndFlush 시점 ID 생성이 일어나지 않으므로 직접 채워준다.
      */
     private CoachingSession persistedSession() {
-        CoachingSession session = CoachingSession.create(submissionId, callerId, problemId);
+        CoachingSession session = CoachingSession.create(submissionId, callerId, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
     }
