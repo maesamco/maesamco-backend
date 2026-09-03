@@ -26,6 +26,10 @@ public enum ErrorCode {
     AUTH_INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
     AUTH_EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "만료된 토큰입니다."),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "무효화된 토큰입니다."),
+    AUTH_REFRESH_TOKEN_REUSED(
+            HttpStatus.UNAUTHORIZED,
+            "Refresh Token 재사용이 감지되었습니다. 다시 로그인해주세요."
+    ),
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,
