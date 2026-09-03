@@ -7,6 +7,7 @@ import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionReposit
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DailyQuizQuestionSourcingService {
 
     // 문제 은행에서 재사용 문항 선정
@@ -42,6 +44,11 @@ public class DailyQuizQuestionSourcingService {
                 question = toDailyQuizQuestion(generatedQuestion);
             } catch (BusinessException exception) {
                 // 도메인 규칙을 통과하지 못한 AI 문항만 실패 처리하고 다음 문항 생성을 계속합니다.
+                log.warn(
+                        "AI 생성 Daily Quiz 문항 도메인 검증 실패. conceptTags={}, reason={}",
+                        generatedQuestion.conceptTags(),
+                        exception.getMessage()
+                );
                 failedConcepts.addAll(generatedQuestion.conceptTags());
                 continue;
             }

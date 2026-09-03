@@ -5,6 +5,7 @@ import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGe
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DailyQuizQuestionGenerationService {
 
     private final DailyQuizQuestionGenerator questionGenerator;
@@ -27,7 +29,8 @@ public class DailyQuizQuestionGenerationService {
                 GeneratedDailyQuizQuestion generatedQuestion = questionGenerator.generate(concept);
 
                 generatedQuestions.add(generatedQuestion);
-            } catch (DailyQuizQuestionGenerationException e) {
+            } catch (DailyQuizQuestionGenerationException exception) {
+                log.warn("Daily Quiz AI 문항 생성 실패. conceptTag={}", concept, exception);
                 failedConcepts.add(concept);
             }
         }
