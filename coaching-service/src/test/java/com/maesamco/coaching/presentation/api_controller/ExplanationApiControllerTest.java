@@ -92,7 +92,7 @@ class ExplanationApiControllerTest {
         Explanation explanation = Explanation.create(UUID.randomUUID(), submissionId, "이 코드는 반복문으로 배열을 순회합니다.");
         FollowUpQuestion followUpQuestion = FollowUpQuestion.create(UUID.randomUUID(), "종료 조건은?", "경계값");
         when(explanationGenerationFacade.registerExplanation(submissionId, "이 코드는 반복문으로 배열을 순회합니다.", userId))
-                .thenReturn(new ExplanationGenerationFacade.ExplanationRegistrationResult(explanation, followUpQuestion));
+                .thenReturn(new ExplanationGenerationFacade.ExplanationRegistrationResult(explanation, followUpQuestion, true));
 
         mockMvc.perform(post("/api/v1/coaching/submissions/{submissionId}/explanations", submissionId)
                         .with(asUser(userId))
@@ -109,7 +109,7 @@ class ExplanationApiControllerTest {
     void registerExplanation_followUpQuestionGenerationFailed_stillReturns201WithNullFollowUp() throws Exception {
         Explanation explanation = Explanation.create(UUID.randomUUID(), submissionId, "설명");
         when(explanationGenerationFacade.registerExplanation(submissionId, "설명", userId))
-                .thenReturn(new ExplanationGenerationFacade.ExplanationRegistrationResult(explanation, null));
+                .thenReturn(new ExplanationGenerationFacade.ExplanationRegistrationResult(explanation, null, true));
 
         mockMvc.perform(post("/api/v1/coaching/submissions/{submissionId}/explanations", submissionId)
                         .with(asUser(userId))
@@ -117,6 +117,28 @@ class ExplanationApiControllerTest {
                         .content("{\"content\":\"설명\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.followUpQuestion").doesNotExist());
+    }
+
+    /**
+     * 재교차검증 리뷰 대응 — 이미 등록된 설명에 대한 재요청(재시도, 중복 클릭 등)은
+     * ExplanationGenerationFacade.retryExistingExplanation()이 처리하고 created=false로
+     * 돌아온다. 컨트롤러는 이걸 201이 아니라 200으로 응답해야 한다 —
+     * HintApiController.requestHint()와 같은 패턴.
+     */
+    @Test
+    @DisplayName("이미 등록된 설명에 대한 재요청이면 201이 아니라 200을 반환한다")
+    void registerExplanation_alreadyRegistered_returns200NotCreated() throws Exception {
+        Explanation explanation = Explanation.create(UUID.randomUUID(), submissionId, "설명");
+        FollowUpQuestion followUpQuestion = FollowUpQuestion.create(UUID.randomUUID(), "종료 조건은?", "경계값");
+        when(explanationGenerationFacade.registerExplanation(submissionId, "설명", userId))
+                .thenReturn(new ExplanationGenerationFacade.ExplanationRegistrationResult(explanation, followUpQuestion, false));
+
+        mockMvc.perform(post("/api/v1/coaching/submissions/{submissionId}/explanations", submissionId)
+                        .with(asUser(userId))
+                        .contentType("application/json")
+                        .content("{\"content\":\"설명\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followUpQuestion.questionText").value("종료 조건은?"));
     }
 
     @Test

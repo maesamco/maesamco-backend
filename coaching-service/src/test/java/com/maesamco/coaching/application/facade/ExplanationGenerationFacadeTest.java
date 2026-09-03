@@ -9,6 +9,7 @@ import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.Explanation;
+import com.maesamco.coaching.domain.entity.FollowUpQuestion;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.domain.repository.ExplanationRepository;
@@ -148,19 +149,77 @@ class ExplanationGenerationFacadeTest {
         verify(coachingSessionRepository, never()).save(any());
     }
 
+    /**
+     * 재교차검증 리뷰(3a/3b) 대응 — EXPLANATION_ALREADY_EXISTS를 더 이상 그대로 전파하지
+     * 않고 retryExistingExplanation()으로 위임한다. 아래 세 테스트가 그 분기를 검증한다.
+     */
     @Test
-    void 이미_같은_제출에_설명이_등록돼있으면_EXPLANATION_ALREADY_EXISTS가_그대로_전파된다() {
+    void 이미_설명이_있고_역질문도_있으면_재생성_없이_기존_결과를_그대로_반환한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(explanationRepository.save(any())).thenThrow(new BusinessException(ErrorCode.EXPLANATION_ALREADY_EXISTS));
 
-        assertThatThrownBy(() -> facade.registerExplanation(submissionId, "설명", callerId))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.EXPLANATION_ALREADY_EXISTS);
+        Explanation existingExplanation =
+                persistedExplanation(Explanation.create(existingSession.getId(), submissionId, "이전 설명"));
+        when(explanationRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(existingExplanation));
+        FollowUpQuestion existingFollowUpQuestion =
+                FollowUpQuestion.create(existingExplanation.getId(), "질문", "경계값");
+        when(followUpQuestionRepository.findByExplanationId(existingExplanation.getId()))
+                .thenReturn(Optional.of(existingFollowUpQuestion));
 
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.explanation()).isSameAs(existingExplanation);
+        assertThat(result.followUpQuestion()).isSameAs(existingFollowUpQuestion);
         verify(aiModelPort, never()).generate(any(), any());
+    }
+
+    @Test
+    void 이미_설명은_있지만_역질문이_없으면_역질문_생성만_재시도한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenThrow(new BusinessException(ErrorCode.EXPLANATION_ALREADY_EXISTS));
+
+        Explanation existingExplanation =
+                persistedExplanation(Explanation.create(existingSession.getId(), submissionId, "이전 설명"));
+        when(explanationRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(existingExplanation));
+        when(followUpQuestionRepository.findByExplanationId(existingExplanation.getId())).thenReturn(Optional.empty());
+        when(aiModelPort.generate(any(), any())).thenReturn(
+                new AiModelResponse("{\"category\": \"경계값\", \"question\": \"재시도로 생성된 질문\"}", "claude-sonnet-5", 10)
+        );
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.explanation()).isSameAs(existingExplanation);
+        assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("재시도로 생성된 질문");
+    }
+
+    @Test
+    void 재시도에서도_AI가_실패하면_역질문_없이_기존_설명을_그대로_반환한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenThrow(new BusinessException(ErrorCode.EXPLANATION_ALREADY_EXISTS));
+
+        Explanation existingExplanation =
+                persistedExplanation(Explanation.create(existingSession.getId(), submissionId, "이전 설명"));
+        when(explanationRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(existingExplanation));
+        when(followUpQuestionRepository.findByExplanationId(existingExplanation.getId())).thenReturn(Optional.empty());
+        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("timeout", new RuntimeException()));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.explanation()).isSameAs(existingExplanation);
+        assertThat(result.followUpQuestion()).isNull();
     }
 
     /**

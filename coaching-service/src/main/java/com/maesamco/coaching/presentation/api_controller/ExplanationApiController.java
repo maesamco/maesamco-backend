@@ -42,7 +42,11 @@ public class ExplanationApiController {
         requireAuthenticated(userId);
         ExplanationGenerationFacade.ExplanationRegistrationResult result =
                 explanationGenerationFacade.registerExplanation(submissionId, request.content(), userId);
-        return ResponseEntity.status(HttpStatus.CREATED)
+        // 재교차검증 리뷰 대응(ExplanationGenerationFacade.retryExistingExplanation() 참고) —
+        // 이미 등록된 설명에 대한 재요청은 created=false로 와서 200, 새로 등록됐으면 201.
+        // HintApiController.requestHint()와 동일한 패턴.
+        HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.OK;
+        return ResponseEntity.status(status)
                 .body(SuccessResponse.success(ExplanationRegisterResponse.from(result)));
     }
 

@@ -81,12 +81,17 @@ public class ExplanationGenerationFacade {
      *
      * 설명을 먼저 저장(UNIQUE(submission_id) 즉시 flush)한 뒤에 AI 역질문을
      * 생성한다 — 동시에 같은 제출에 두 요청이 들어와도, 저장 단계에서 하나는 반드시
-     * EXPLANATION_ALREADY_EXISTS(409)로 막혀 AI를 호출하지 않는다. HintGenerationFacade가
+     * EXPLANATION_ALREADY_EXISTS로 막혀 AI를 호출하지 않는다. HintGenerationFacade가
      * Redis 락으로 막아야 했던 "동시 요청 LLM 중복 호출·중복 과금" 문제가 여기서는 DB
      * UNIQUE 제약 하나로 충분하다 — 힌트는 매 요청마다 내용이 달라지는 다단계 생성이라
      * 저장 시점 제약만으론 중복 호출 자체를 못 막았지만, 설명은 제출당 정확히 1번만
      * 등록되므로 저장이 곧 그 판단이다(이슈 #84 결정 2 — 세션은 문제당 평생 1개지만,
      * 설명은 재도전으로 같은 문제를 새로 정답 제출할 때마다 다시 등록할 수 있다).
+     *
+     * 재교차검증 리뷰 대응 — EXPLANATION_ALREADY_EXISTS를 더 이상 그대로 전파하지 않고
+     * retryExistingExplanation()으로 위임한다. Hint API가 같은 stage 재요청에 200 +
+     * 기존 힌트를 돌려주는 것과 같은 멱등성을 맞추기 위함 — 자세한 이유는 그 메서드
+     * Javadoc 참고.
      */
     public ExplanationRegistrationResult registerExplanation(UUID submissionId, String content, UUID callerId) {
         SubmissionSnapshot submission = judgeServicePort.getSubmission(submissionId);
@@ -99,11 +104,56 @@ public class ExplanationGenerationFacade {
         }
 
         CoachingSession session = coachingSessionFinder.findOrCreate(submission);
-        Explanation explanation =
-                explanationRepository.save(Explanation.create(session.getId(), submissionId, content));
 
-        FollowUpQuestion followUpQuestion = generateFollowUpQuestion(session, submission, explanation);
-        return new ExplanationRegistrationResult(explanation, followUpQuestion);
+        try {
+            Explanation explanation =
+                    explanationRepository.save(Explanation.create(session.getId(), submissionId, content));
+            FollowUpQuestion followUpQuestion = generateFollowUpQuestion(session, submission, explanation);
+            return new ExplanationRegistrationResult(explanation, followUpQuestion, true);
+        } catch (BusinessException e) {
+            if (e.getErrorCode() != ErrorCode.EXPLANATION_ALREADY_EXISTS) {
+                throw e;
+            }
+            return retryExistingExplanation(session, submission, submissionId);
+        }
+    }
+
+    /**
+     * 재교차검증 리뷰(3a/3b) 대응 — 이 제출에 이미 설명이 등록돼 있으면(재요청, 중복
+     * 클릭, 클라이언트 재시도 등) 무조건 409로 튕기지 않는다.
+     *
+     * - 역질문까지 이미 있으면 그대로 반환한다(완전히 끝난 상태라 다시 만들 것이 없음).
+     * - 역질문이 아직 없으면(전에 AI 호출이 실패해서 null로 남은 경우) 이미 저장된 설명은
+     *   그대로 두고 역질문 생성만 다시 시도한다 — 사용자가 60초 안에 쓴 설명 본문을 다시
+     *   잃을 필요가 없다. 성공하면 채워서 반환하고, 또 실패해도 예외 없이 null로
+     *   반환한다(generateFollowUpQuestion()의 "AI 실패해도 설명은 유지" 원칙과 동일).
+     *
+     * 이렇게 되돌아온 경우는 created=false라 컨트롤러가 201이 아닌 200으로 응답한다 —
+     * HintApiController가 result.created()로 201/200을 가르는 것과 동일한 패턴.
+     *
+     * ⚠️ 동시에 두 요청이 이 경로로 들어오면(둘 다 역질문이 비어있다고 보고 동시에
+     * 재시도) AI가 두 번 호출될 수 있다. 그래도 저장 시점엔 FollowUpQuestion의
+     * UNIQUE(explanation_id) 제약이 있어 데이터가 두 건으로 꼬이진 않는다 — 나중에
+     * flush되는 쪽만 FOLLOW_UP_QUESTION_ALREADY_EXISTS로 저장이 무시되고, 결과는
+     * 항상 안전하게 하나로 수렴한다. 이 경로 자체가 "AI가 이미 한 번 실패한 직후 + 그
+     * 짧은 틈에 동시 재시도"라는 드문 조합에서만 발생하고, 이 API는 하루 1회뿐인
+     * 액션(기획안 7-1절 핵심 루프)이라 실제 트래픽상 Redis 락까지 얹을 필요는 없다고
+     * 판단한다.
+     */
+    private ExplanationRegistrationResult retryExistingExplanation(
+            CoachingSession session, SubmissionSnapshot submission, UUID submissionId
+    ) {
+        Explanation existingExplanation = explanationRepository.findBySubmissionId(submissionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EXPLANATION_ALREADY_EXISTS));
+
+        FollowUpQuestion existingFollowUpQuestion =
+                followUpQuestionRepository.findByExplanationId(existingExplanation.getId()).orElse(null);
+        if (existingFollowUpQuestion != null) {
+            return new ExplanationRegistrationResult(existingExplanation, existingFollowUpQuestion, false);
+        }
+
+        FollowUpQuestion regenerated = generateFollowUpQuestion(session, submission, existingExplanation);
+        return new ExplanationRegistrationResult(existingExplanation, regenerated, false);
     }
 
     /**
@@ -214,7 +264,7 @@ public class ExplanationGenerationFacade {
         }
     }
 
-    public record ExplanationRegistrationResult(Explanation explanation, FollowUpQuestion followUpQuestion) {
+    public record ExplanationRegistrationResult(Explanation explanation, FollowUpQuestion followUpQuestion, boolean created) {
     }
 
     private record ParsedFollowUp(String questionText, String category) {
