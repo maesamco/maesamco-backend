@@ -10,3 +10,8 @@ spring:
         default_schema: user_schema
         hbm2ddl:
           create_namespaces: true
+
+security:
+  email:
+    encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    lookup-hmac-key: ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=

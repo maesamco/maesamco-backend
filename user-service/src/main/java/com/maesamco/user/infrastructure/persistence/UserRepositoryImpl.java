@@ -2,7 +2,11 @@ package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.repository.UserRepository;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.global.util.DataIntegrityViolations;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -18,6 +22,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserRepositoryImpl implements UserRepository {
 
+    private static final String ACTIVE_EMAIL_UNIQUE_INDEX =
+            "uk_p_users_active_email_lookup_hash";
+
+    private static final String ACTIVE_NICKNAME_UNIQUE_INDEX =
+            "uk_p_users_active_nickname_ci";
+
     /**
      * 실제 JPA 저장과 조회를 담당하는 내부 Repository입니다.
      */
@@ -25,10 +35,35 @@ public class UserRepositoryImpl implements UserRepository {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>저장 내용을 즉시 flush하여 동시 회원가입 중 발생하는
+     * 이메일·닉네임 UNIQUE 충돌을 이 메서드 안에서 감지합니다.</p>
      */
     @Override
     public User save(User user) {
-        return springDataUserRepository.save(user);
+        try {
+            return springDataUserRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            if (DataIntegrityViolations.isUniqueViolation(
+                    exception,
+                    ACTIVE_EMAIL_UNIQUE_INDEX
+            )) {
+                throw new BusinessException(
+                        ErrorCode.USER_DUPLICATE_EMAIL
+                );
+            }
+
+            if (DataIntegrityViolations.isUniqueViolation(
+                    exception,
+                    ACTIVE_NICKNAME_UNIQUE_INDEX
+            )) {
+                throw new BusinessException(
+                        ErrorCode.USER_DUPLICATE_NICKNAME
+                );
+            }
+
+            throw exception;
+        }
     }
 
     /**
@@ -65,7 +100,8 @@ public class UserRepositoryImpl implements UserRepository {
      * {@inheritDoc}
      */
     @Override
-    public boolean existsByNickname(String nickname) {
-        return springDataUserRepository.existsByNickname(nickname);
+    public boolean existsByNicknameIgnoreCase(String nickname) {
+        return springDataUserRepository
+                .existsByNicknameIgnoreCase(nickname);
     }
 }
