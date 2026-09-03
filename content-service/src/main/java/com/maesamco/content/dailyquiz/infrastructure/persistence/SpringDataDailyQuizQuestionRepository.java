@@ -15,7 +15,7 @@ interface SpringDataDailyQuizQuestionRepository extends JpaRepository<DailyQuizQ
                     SELECT q.*
                     FROM content_schema.p_daily_quiz_questions q
                     WHERE q.status = 'ACTIVE'
-                      AND q.concept_tags ?| CAST(:conceptTags AS text[])
+                      AND jsonb_exists_any(q.concept_tags, CAST(:conceptTags AS text[]))
                     """,
             nativeQuery = true
     )
