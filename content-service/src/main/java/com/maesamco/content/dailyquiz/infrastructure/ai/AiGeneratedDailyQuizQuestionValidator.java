@@ -51,12 +51,15 @@ final class AiGeneratedDailyQuizQuestionValidator {
             throw new IllegalArgumentException("객관식 선택지는 비어 있을 수 없습니다.");
         }
 
-        int uniqueChoiceCount = new HashSet<>(response.choices()).size();
-        if (uniqueChoiceCount != response.choices().size()) {
+        List<String> normalizedChoices = normalize(response.choices());
+        String normalizedAnswer = response.answer().strip();
+
+        int uniqueChoiceCount = new HashSet<>(normalizedChoices).size();
+        if (uniqueChoiceCount != normalizedChoices.size()) {
             throw new IllegalArgumentException("중복 선택지가 있습니다.");
         }
 
-        if (!response.choices().contains(response.answer())) {
+        if (!normalizedChoices.contains(normalizedAnswer)) {
             throw new IllegalArgumentException("객관식 정답은 선택지 중 하나여야 합니다.");
         }
 
@@ -97,14 +100,23 @@ final class AiGeneratedDailyQuizQuestionValidator {
             throw new IllegalArgumentException("허용 답안 표현은 비어 있을 수 없습니다.");
         }
 
-        int uniqueVariantCount = new HashSet<>(response.allowedAnswerVariants()).size();
-        if (uniqueVariantCount != response.allowedAnswerVariants().size()) {
+        List<String> normalizedVariants = normalize(response.allowedAnswerVariants());
+        String normalizedAnswer = response.answer().strip();
+
+        int uniqueVariantCount = new HashSet<>(normalizedVariants).size();
+        if (uniqueVariantCount != normalizedVariants.size()) {
             throw new IllegalArgumentException("허용 답안 표현은 중복될 수 없습니다.");
         }
 
-        if (response.allowedAnswerVariants().contains(response.answer())) {
+        if (normalizedVariants.contains(normalizedAnswer)) {
             throw new IllegalArgumentException("대표 정답을 허용 답안 표현에 중복해서 넣을 수 없습니다.");
         }
+    }
+
+    private static List<String> normalize(List<String> values) {
+        return values.stream()
+                .map(String::strip)
+                .toList();
     }
 
     private static int countOccurrences(String text, String target) {
