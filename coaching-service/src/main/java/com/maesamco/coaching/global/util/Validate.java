@@ -36,11 +36,16 @@ public final class Validate {
         return value;
     }
 
+    /**
+     * 공백만 다른 값이 서로 다른 값으로 취급되는 걸 막기 위해 앞뒤 공백을 제거한 값을
+     * 반환한다(Content Service PR #43 리뷰에서 발견된 것과 동일한 갭 — WeakConcept.conceptTag가
+     * 엔티티 쪽에서 개별적으로 .trim()하던 임시방편을 여기로 흡수했다, 이슈 #45).
+     */
     public static String requireText(String value, String fieldNameKorean) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldNameKorean + particle(fieldNameKorean) + " 필수입니다.");
         }
-        return value;
+        return value.trim();
     }
 
     /**

@@ -71,4 +71,10 @@ dependencyManagement {
 dependencies {
     // 문제/일일퀴즈 생성 또는 힌트·역질문·피드백 생성용 — Spring AI (11절: 벤더 확정 시 아래 starter만 교체)
     implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+
+    // 로컬 개발 전용 대체 벤더(GeminiModelAdapter, .env의 AI_MODEL_CHAT=google-genai) — 팀 컨벤션
+    // 2절이 예고한 "벤더 변경 시 스타터 교체" 대상 중 하나를 실제로 병행 등록. 기본(Claude) 동작에는
+    // 영향 없음 — ChatModel 빈은 spring.ai.model.chat 프로퍼티 값으로 갈리므로(ConditionalOnProperty,
+    // Spring 프로필이 아님) 두 스타터가 같이 있어도 충돌하지 않는다.
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
 }

@@ -105,6 +105,40 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         assertThat(reloaded.getCompletedAt()).isNotNull();
     }
 
+    /**
+     * PR #70 리뷰(용현님 P1) — updateSubmissionId()를 호출한
+     * 뒤 save()해도, submission_id 컬럼이 @Column(updatable = false)였다면 Hibernate가
+     * UPDATE SQL에서 이 컬럼을 통째로 제외해 실제 DB에는 반영되지 않는다. 이전 값은
+     * 엔티티 객체(1차 캐시)에서만 보였을 뿐이라 Mockito 기반 Facade/QueryService 테스트로는
+     * 이 문제를 잡을 수 없다 — entityManager.clear()로 1차 캐시를 비우고 완전히 새로
+     * 조회해서 실제 DB 반영 여부를 확인한다.
+     */
+    @Test
+    @DisplayName("updateSubmissionId() 후 다시 저장하면 최신 submissionId가 실제 DB에도 반영된다")
+    void updateSubmissionId_persistsNewSubmissionIdAfterReload() {
+        // given
+        UUID originalSubmissionId = UUID.randomUUID();
+        CoachingSession saved = coachingSessionRepository.save(
+                CoachingSession.create(originalSubmissionId, UUID.randomUUID(), UUID.randomUUID())
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        CoachingSession found = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+        UUID retrySubmissionId = UUID.randomUUID();
+
+        // when
+        found.updateSubmissionId(retrySubmissionId);
+        coachingSessionRepository.save(found);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then — 1차 캐시를 비운 뒤 완전히 새로 조회해서 실제 DB 값을 확인한다
+        CoachingSession reloaded = coachingSessionRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getSubmissionId()).isEqualTo(retrySubmissionId);
+        assertThat(reloaded.getSubmissionId()).isNotEqualTo(originalSubmissionId);
+    }
+
     @Test
     @DisplayName("동일한 submissionId로 두 번 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSubmissionIdAlreadyExists() {
