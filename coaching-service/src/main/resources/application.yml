@@ -29,6 +29,22 @@ spring:
     consumer:
       group-id: coaching-service
       auto-offset-reset: earliest
+  ai:
+    # AI_MODEL_CHAT=anthropic(기본, 팀 컨벤션상 실제 벤더) 또는 google-genai(.env, 로컬 전용)
+    # 값 하나로 벤더가 갈리며, ClaudeModelAdapter/GeminiModelAdapter도 이 프로퍼티 하나로 게이트된다.
+    model:
+      chat: ${AI_MODEL_CHAT:anthropic}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: claude-sonnet-5 # ⚠️ 팀 확인 필요 — 힌트 생성용 모델 티어 미확정, 임시값
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          options:
+            model: gemini-3.6-flash # 로컬 전용(GeminiModelAdapter) — AI_MODEL_CHAT=google-genai일 때만 사용, 실제 호출로 확인(2026-09-02)
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -37,6 +53,18 @@ internal:
   hmac:
     keys:
       content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
+    outbound:
+      judge-service: ${HMAC_KEY_COACHING_TO_JUDGE:} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      judge-service: # JudgeServiceAdapter.getSubmission() — 힌트 생성 핵심 경로 호출(팀 컨벤션 2절)
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
 
 eureka:
   client:
