@@ -10,8 +10,13 @@ spring:
         webflux:
           discovery:
             locator:
-              enabled: true
-              lower-case-service-id: true
+              # ⚠️ P1 리뷰 반영: enabled: true였을 때 discovery locator가 자동으로
+              # /{serviceId}/** 라우트를 만들면서 prefix를 벗겨 전달했음. 그 결과
+              # /user-service/internal/v1/**처럼 요청하면 JwtValidationFilter의
+              # "/internal/"로 시작하는지" 체크(원본 경로 기준)를 우회해서
+              # 실제로 내부 API에 도달할 수 있었음(보안 구멍). 지금은 모든 라우트를
+              # 아래처럼 명시적으로만 등록하므로 discovery locator 자체가 필요 없다.
+              enabled: false
           routes:
             - id: user-service
               uri: lb://user-service
@@ -30,32 +35,6 @@ spring:
               predicates:
                 - Path=/api/v1/coaching/**
             # ⚠️ /internal/v1/** 라우트는 의도적으로 등록하지 않는다 — 외부에서 접근 불가.
-            # 통합 테스트용 — 각 서비스의 Swagger(OpenAPI) 문서를 Gateway 경유로 프록시.
-            # /internal/v1/**과 달리 이건 의도적으로 외부에 열어둔 경로다.
-            - id: user-service-docs
-              uri: lb://user-service
-              predicates:
-                - Path=/user-service/v3/api-docs
-              filters:
-                - RewritePath=/user-service/v3/api-docs, /v3/api-docs
-            - id: content-service-docs
-              uri: lb://content-service
-              predicates:
-                - Path=/content-service/v3/api-docs
-              filters:
-                - RewritePath=/content-service/v3/api-docs, /v3/api-docs
-            - id: judge-service-docs
-              uri: lb://judge-service
-              predicates:
-                - Path=/judge-service/v3/api-docs
-              filters:
-                - RewritePath=/judge-service/v3/api-docs, /v3/api-docs
-            - id: coaching-service-docs
-              uri: lb://coaching-service
-              predicates:
-                - Path=/coaching-service/v3/api-docs
-              filters:
-                - RewritePath=/coaching-service/v3/api-docs, /v3/api-docs
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -82,16 +61,12 @@ management:
     sampling:
       probability: 1.0
 
-# 통합 테스트용 — http://localhost:8080/swagger-ui.html 에서 드롭다운으로
-# 서비스 선택해서 각자 API 문서를 확인할 수 있다.
+# ⚠️ P1 리뷰 반영: profile 없이 기본값으로는 문서 자체를 완전히 끈다.
+# 내부 API 상세 스펙이 문서에 노출될 수 있어, 운영 환경에 실수로 배포돼도
+# 인증 없이 API 문서가 공개되는 사고를 막는다. 로컬 통합 테스트용 설정은
+# application-dev.yml에 분리해뒀다(SPRING_PROFILES_ACTIVE=dev로 활성화).
 springdoc:
+  api-docs:
+    enabled: false
   swagger-ui:
-    urls:
-      - name: user-service
-        url: /user-service/v3/api-docs
-      - name: content-service
-        url: /content-service/v3/api-docs
-      - name: judge-service
-        url: /judge-service/v3/api-docs
-      - name: coaching-service
-        url: /coaching-service/v3/api-docs
+    enabled: false
