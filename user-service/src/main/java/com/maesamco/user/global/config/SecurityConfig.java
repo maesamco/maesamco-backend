@@ -2,6 +2,7 @@ package com.maesamco.user.global.config;
 
 import com.maesamco.user.global.security.JwtAuthenticationFilter;
 import com.maesamco.user.global.security.JwtProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,7 +34,7 @@ import java.util.Base64;
 public class SecurityConfig {
 
     /**
-     * JWT 검증에 사용할 RSA 공개키를 생성합니다.
+     * Access Token 검증에 사용할 RSA 공개키를 생성합니다.
      *
      * @param jwtProperties JWT 설정
      * @return RSA 공개키
@@ -57,7 +58,7 @@ public class SecurityConfig {
     }
 
     /**
-     * JWT 발급 서명에 사용할 RSA 개인키를 생성합니다.
+     * Access Token 발급 서명에 사용할 RSA 개인키를 생성합니다.
      *
      * @param jwtProperties JWT 설정
      * @return RSA 개인키
@@ -68,6 +69,54 @@ public class SecurityConfig {
             JwtProperties jwtProperties
     ) throws GeneralSecurityException {
         String pem = jwtProperties.privateKey()
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] decoded = Base64.getDecoder().decode(pem);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+        return keyFactory.generatePrivate(
+                new PKCS8EncodedKeySpec(decoded)
+        );
+    }
+
+    /**
+     * Refresh Token 검증에 사용할 RSA 공개키를 생성합니다.
+     *
+     * @param jwtProperties JWT 설정
+     * @return RSA 공개키
+     * @throws GeneralSecurityException 공개키를 생성할 수 없는 경우
+     */
+    @Bean
+    public PublicKey jwtRefreshPublicKey(
+            JwtProperties jwtProperties
+    ) throws GeneralSecurityException {
+        String pem = jwtProperties.refreshPublicKey()
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] decoded = Base64.getDecoder().decode(pem);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+        return keyFactory.generatePublic(
+                new X509EncodedKeySpec(decoded)
+        );
+    }
+
+    /**
+     * Refresh Token 발급 서명에 사용할 RSA 개인키를 생성합니다.
+     *
+     * @param jwtProperties JWT 설정
+     * @return RSA 개인키
+     * @throws GeneralSecurityException 개인키를 생성할 수 없는 경우
+     */
+    @Bean
+    public PrivateKey jwtRefreshPrivateKey(
+            JwtProperties jwtProperties
+    ) throws GeneralSecurityException {
+        String pem = jwtProperties.refreshPrivateKey()
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
                 .replaceAll("\\s", "");
@@ -92,6 +141,7 @@ public class SecurityConfig {
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(
+            @Qualifier("jwtPublicKey")
             PublicKey jwtPublicKey
     ) {
         return new JwtAuthenticationFilter(jwtPublicKey);

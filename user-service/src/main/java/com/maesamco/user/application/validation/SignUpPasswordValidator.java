@@ -31,7 +31,7 @@ public class SignUpPasswordValidator
 
         boolean sameAsNickname =
                 command.nickname() != null
-                        && password.equals(command.nickname());
+                        && password.equalsIgnoreCase(command.nickname());
 
         if (!sameAsEmail && !sameAsNickname) {
             return true;
