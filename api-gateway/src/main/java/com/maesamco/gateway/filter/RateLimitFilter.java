@@ -43,15 +43,16 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     }
 
     // 실제 임계값은 부하 테스트/운영 데이터로 조정할 것 — 여기 숫자는 초기값 예시.
-    // TODO(#72): /api/v1/coaching/submissions/{submissionId}/hints(POST, 힌트 생성)에도
-    // 룰이 필요하다 — LLM 호출이 있는 비용 있는 액션인데 지금은 룰이 전혀 없음. 초안:
-    // new RuleMatch("/api/v1/coaching/submissions", 10, Duration.ofMinutes(1))
     private static final List<RuleMatch> RULES = List.of(
             new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
             new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
             new RuleMatch(null, "/api/v1/submissions", 30, Duration.ofMinutes(1)),
             // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.
             // GET(목록/상세 조회)은 LLM 비용이 없어 이 룰에서 의도적으로 제외(method=POST만 매칭).
+            // prefix가 "/api/v1/coaching/submissions"라 startsWith로 매칭되는
+            // POST /api/v1/coaching/submissions/{id}/explanations(60초 설명 등록, 마찬가지로
+            // LLM 호출 비용 있는 액션)도 이미 이 룰로 함께 보호된다(PR #88 리뷰 재검토) —
+            // 별도 룰을 새로 추가하지 않는다.
             new RuleMatch(HttpMethod.POST, "/api/v1/coaching/submissions", 10, Duration.ofMinutes(1))
     );
 
