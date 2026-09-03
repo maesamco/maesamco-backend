@@ -6,6 +6,7 @@ import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.global.security.JwtProperties;
 import com.maesamco.user.global.security.TokenType;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PublicKey;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * RsaJwtTokenIssuer의 토큰 발급 규칙을 검증하는 단위 테스트입니다.
+ * RsaJwtTokenIssuer의 토큰 발급 및 서명 키 분리 규칙을 검증하는 단위 테스트입니다.
  */
 class RsaJwtTokenIssuerTest {
 
@@ -48,19 +50,23 @@ class RsaJwtTokenIssuerTest {
                     "22222222-2222-2222-2222-222222222222"
             );
 
-    private static final KeyPair KEY_PAIR = generateKeyPair();
+    private static final KeyPair ACCESS_KEY_PAIR = generateKeyPair();
+    private static final KeyPair REFRESH_KEY_PAIR = generateKeyPair();
 
     private final JwtProperties jwtProperties =
             new JwtProperties(
-                    "unused-public-key",
-                    "unused-private-key",
+                    "unused-access-public-key",
+                    "unused-access-private-key",
+                    "unused-refresh-public-key",
+                    "unused-refresh-private-key",
                     ACCESS_TOKEN_TTL,
                     REFRESH_TOKEN_TTL
             );
 
     private final TokenIssuer tokenIssuer =
             new RsaJwtTokenIssuer(
-                    KEY_PAIR.getPrivate(),
+                    ACCESS_KEY_PAIR.getPrivate(),
+                    REFRESH_KEY_PAIR.getPrivate(),
                     jwtProperties,
                     Clock.fixed(
                             ISSUED_AT,
@@ -80,10 +86,16 @@ class RsaJwtTokenIssuerTest {
 
         // then
         Claims accessClaims =
-                parseClaims(tokens.accessToken());
+                parseClaims(
+                        tokens.accessToken(),
+                        ACCESS_KEY_PAIR.getPublic()
+                );
 
         Claims refreshClaims =
-                parseClaims(tokens.refreshToken());
+                parseClaims(
+                        tokens.refreshToken(),
+                        REFRESH_KEY_PAIR.getPublic()
+                );
 
         assertThat(accessClaims.getSubject())
                 .isEqualTo(USER_ID.toString());
@@ -149,6 +161,60 @@ class RsaJwtTokenIssuerTest {
     }
 
     @Test
+    @DisplayName("Access Token은 Access Token 공개키로만 검증할 수 있다")
+    void accessToken_canBeVerifiedOnlyWithAccessPublicKey() {
+        // given
+        IssuedTokens tokens = tokenIssuer.issueTokens(
+                USER_ID,
+                UserRole.USER,
+                SESSION_ID
+        );
+
+        // when
+        Claims claims = parseClaims(
+                tokens.accessToken(),
+                ACCESS_KEY_PAIR.getPublic()
+        );
+
+        // then
+        assertThat(claims.getSubject())
+                .isEqualTo(USER_ID.toString());
+
+        assertThatThrownBy(() -> parseClaims(
+                tokens.accessToken(),
+                REFRESH_KEY_PAIR.getPublic()
+        ))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    @DisplayName("Refresh Token은 Refresh Token 공개키로만 검증할 수 있다")
+    void refreshToken_canBeVerifiedOnlyWithRefreshPublicKey() {
+        // given
+        IssuedTokens tokens = tokenIssuer.issueTokens(
+                USER_ID,
+                UserRole.USER,
+                SESSION_ID
+        );
+
+        // when
+        Claims claims = parseClaims(
+                tokens.refreshToken(),
+                REFRESH_KEY_PAIR.getPublic()
+        );
+
+        // then
+        assertThat(claims.getSubject())
+                .isEqualTo(USER_ID.toString());
+
+        assertThatThrownBy(() -> parseClaims(
+                tokens.refreshToken(),
+                ACCESS_KEY_PAIR.getPublic()
+        ))
+                .isInstanceOf(JwtException.class);
+    }
+
+    @Test
     @DisplayName("동일한 정보로 발급해도 매번 서로 다른 토큰을 생성한다")
     void issueTokens_generatesUniqueTokens() {
         // when
@@ -201,14 +267,18 @@ class RsaJwtTokenIssuerTest {
     }
 
     /**
-     * 발급된 JWT를 테스트 공개키와 고정 시각으로 검증하고 Claim을 반환합니다.
+     * 발급된 JWT를 지정된 공개키와 고정 시각으로 검증하고 Claim을 반환합니다.
      *
      * @param token 검증할 JWT
+     * @param publicKey 토큰 검증에 사용할 RSA 공개키
      * @return 검증된 JWT Claim
      */
-    private Claims parseClaims(String token) {
+    private Claims parseClaims(
+            String token,
+            PublicKey publicKey
+    ) {
         return Jwts.parser()
-                .verifyWith(KEY_PAIR.getPublic())
+                .verifyWith(publicKey)
                 .clock(() -> Date.from(ISSUED_AT))
                 .build()
                 .parseSignedClaims(token)

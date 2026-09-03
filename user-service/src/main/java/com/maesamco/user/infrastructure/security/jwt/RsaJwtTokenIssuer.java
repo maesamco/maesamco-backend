@@ -6,6 +6,7 @@ import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.global.security.JwtProperties;
 import com.maesamco.user.global.security.TokenType;
 import io.jsonwebtoken.Jwts;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.security.PrivateKey;
@@ -16,7 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * RSA 개인키로 Access Token과 Refresh Token을 발급합니다.
+ * 서로 다른 RSA 개인키로 Access Token과 Refresh Token을 발급합니다.
  *
  * <p>두 토큰에는 동일한 사용자 및 세션 식별자가 포함되며,
  * 각 토큰은 별도의 JWT ID를 가집니다.</p>
@@ -28,23 +29,29 @@ public class RsaJwtTokenIssuer implements TokenIssuer {
     private static final String TOKEN_TYPE_CLAIM = "tokenType";
     private static final String SESSION_ID_CLAIM = "sessionId";
 
-    private final PrivateKey privateKey;
+    private final PrivateKey accessPrivateKey;
+    private final PrivateKey refreshPrivateKey;
     private final JwtProperties jwtProperties;
     private final Clock clock;
 
     /**
      * JWT 발급 구현체를 생성합니다.
      *
-     * @param privateKey RS256 서명에 사용할 RSA 개인키
+     * @param accessPrivateKey Access Token RS256 서명에 사용할 RSA 개인키
+     * @param refreshPrivateKey Refresh Token RS256 서명에 사용할 RSA 개인키
      * @param jwtProperties 토큰 만료시간 설정
      * @param clock 토큰 발급 시각 계산에 사용할 Clock
      */
     public RsaJwtTokenIssuer(
-            PrivateKey privateKey,
+            @Qualifier("jwtPrivateKey")
+            PrivateKey accessPrivateKey,
+            @Qualifier("jwtRefreshPrivateKey")
+            PrivateKey refreshPrivateKey,
             JwtProperties jwtProperties,
             Clock clock
     ) {
-        this.privateKey = privateKey;
+        this.accessPrivateKey = accessPrivateKey;
+        this.refreshPrivateKey = refreshPrivateKey;
         this.jwtProperties = jwtProperties;
         this.clock = clock;
     }
@@ -109,7 +116,7 @@ public class RsaJwtTokenIssuer implements TokenIssuer {
                 .claim(SESSION_ID_CLAIM, sessionId.toString())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiresAt))
-                .signWith(privateKey, Jwts.SIG.RS256)
+                .signWith(accessPrivateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -129,7 +136,7 @@ public class RsaJwtTokenIssuer implements TokenIssuer {
                 .claim(SESSION_ID_CLAIM, sessionId.toString())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiresAt))
-                .signWith(privateKey, Jwts.SIG.RS256)
+                .signWith(refreshPrivateKey, Jwts.SIG.RS256)
                 .compact();
     }
 }
