@@ -50,7 +50,7 @@ class ExplanationRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("설명을 저장하면 ID와 생성 시각이 채워진다")
     void save_assignsIdAndCreatedAt() {
         // given
-        Explanation explanation = Explanation.create(createCoachingSessionId(), "내용");
+        Explanation explanation = Explanation.create(createCoachingSessionId(), UUID.randomUUID(), "내용");
 
         // when
         Explanation saved = explanationRepository.save(explanation);
@@ -61,17 +61,17 @@ class ExplanationRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     @Test
-    @DisplayName("코칭 세션 ID로 설명을 조회할 수 있다")
-    void findByCoachingSessionId_returnsExplanation() {
+    @DisplayName("제출 ID로 설명을 조회할 수 있다")
+    void findBySubmissionId_returnsExplanation() {
         // given
-        UUID coachingSessionId = createCoachingSessionId();
-        explanationRepository.save(Explanation.create(coachingSessionId, "내용"));
+        UUID submissionId = UUID.randomUUID();
+        explanationRepository.save(Explanation.create(createCoachingSessionId(), submissionId, "내용"));
 
         entityManager.flush();
         entityManager.clear();
 
         // when
-        Optional<Explanation> found = explanationRepository.findByCoachingSessionId(coachingSessionId);
+        Optional<Explanation> found = explanationRepository.findBySubmissionId(submissionId);
 
         // then
         assertThat(found).isPresent();
@@ -79,23 +79,24 @@ class ExplanationRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 세션으로 조회하면 빈 결과를 반환한다")
-    void findByCoachingSessionId_returnsEmpty_whenNotExists() {
+    @DisplayName("존재하지 않는 제출로 조회하면 빈 결과를 반환한다")
+    void findBySubmissionId_returnsEmpty_whenNotExists() {
         // when
-        Optional<Explanation> found = explanationRepository.findByCoachingSessionId(UUID.randomUUID());
+        Optional<Explanation> found = explanationRepository.findBySubmissionId(UUID.randomUUID());
 
         // then
         assertThat(found).isEmpty();
     }
 
     @Test
-    @DisplayName("같은 세션에 설명을 두 번 저장하면 EXPLANATION_ALREADY_EXISTS(409)로 실패한다")
-    void save_throwsWhenSessionAlreadyExists() {
+    @DisplayName("같은 제출에 설명을 두 번 저장하면 EXPLANATION_ALREADY_EXISTS(409)로 실패한다")
+    void save_throwsWhenSubmissionAlreadyExists() {
         // given
         UUID coachingSessionId = createCoachingSessionId();
-        explanationRepository.save(Explanation.create(coachingSessionId, "1차 설명"));
+        UUID submissionId = UUID.randomUUID();
+        explanationRepository.save(Explanation.create(coachingSessionId, submissionId, "1차 설명"));
 
-        Explanation duplicate = Explanation.create(coachingSessionId, "2차 설명");
+        Explanation duplicate = Explanation.create(coachingSessionId, submissionId, "2차 설명");
 
         // when & then
         assertThatThrownBy(() -> explanationRepository.save(duplicate))
@@ -104,11 +105,36 @@ class ExplanationRepositoryImplTest extends AbstractCoachingRepositoryTest {
                 );
     }
 
+    /**
+     * 이슈 #84 결정 2의 핵심 동작 — 코칭 세션은 문제당 평생 1개(V5)로 재사용되지만,
+     * 같은 세션에 대해 서로 다른 제출(재도전)이라면 설명은 각각 따로 등록될 수 있어야
+     * 한다(V6, UNIQUE(submission_id)로 변경돼 더 이상 세션 단위로 막히지 않음).
+     */
+    @Test
+    @DisplayName("같은 코칭 세션이라도 제출 ID가 다르면 설명을 각각 등록할 수 있다")
+    void save_allowsMultipleExplanationsForSameSession_withDifferentSubmissionIds() {
+        // given
+        UUID coachingSessionId = createCoachingSessionId();
+
+        // when
+        Explanation first = explanationRepository.save(
+                Explanation.create(coachingSessionId, UUID.randomUUID(), "1차 시도 설명")
+        );
+        Explanation second = explanationRepository.save(
+                Explanation.create(coachingSessionId, UUID.randomUUID(), "재도전 설명")
+        );
+
+        // then
+        assertThat(first.getId()).isNotEqualTo(second.getId());
+        assertThat(first.getCoachingSessionId()).isEqualTo(second.getCoachingSessionId());
+        assertThat(first.getSubmissionId()).isNotEqualTo(second.getSubmissionId());
+    }
+
     @Test
     @DisplayName("존재하지 않는 코칭 세션으로 설명을 저장하면 FK 위반으로 실패한다(EXPLANATION_ALREADY_EXISTS로 잘못 변환되지 않음)")
     void save_throwsRawExceptionWhenCoachingSessionDoesNotExist() {
         // given
-        Explanation explanation = Explanation.create(UUID.randomUUID(), "내용");
+        Explanation explanation = Explanation.create(UUID.randomUUID(), UUID.randomUUID(), "내용");
 
         // when & then
         assertThatThrownBy(() -> explanationRepository.save(explanation))

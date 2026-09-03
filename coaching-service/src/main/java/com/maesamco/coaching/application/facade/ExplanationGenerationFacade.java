@@ -62,13 +62,14 @@ public class ExplanationGenerationFacade {
      * 소유권 검증을 상태 검증보다 먼저 한다 — 팀 컨벤션 12절(403이 소유권+상태를 같이
      * 담으면 리소스 존재 여부가 새어나간다), HintGenerationFacade와 동일한 순서.
      *
-     * 설명을 먼저 저장(UNIQUE(coaching_session_id) 즉시 flush)한 뒤에 AI 역질문을
-     * 생성한다 — 동시에 같은 세션에 두 요청이 들어와도, 저장 단계에서 하나는 반드시
+     * 설명을 먼저 저장(UNIQUE(submission_id) 즉시 flush)한 뒤에 AI 역질문을
+     * 생성한다 — 동시에 같은 제출에 두 요청이 들어와도, 저장 단계에서 하나는 반드시
      * EXPLANATION_ALREADY_EXISTS(409)로 막혀 AI를 호출하지 않는다. HintGenerationFacade가
      * Redis 락으로 막아야 했던 "동시 요청 LLM 중복 호출·중복 과금" 문제가 여기서는 DB
      * UNIQUE 제약 하나로 충분하다 — 힌트는 매 요청마다 내용이 달라지는 다단계 생성이라
-     * 저장 시점 제약만으론 중복 호출 자체를 못 막았지만, 설명은 세션당 정확히 1번만
-     * 등록되므로 저장이 곧 그 판단이다.
+     * 저장 시점 제약만으론 중복 호출 자체를 못 막았지만, 설명은 제출당 정확히 1번만
+     * 등록되므로 저장이 곧 그 판단이다(이슈 #84 결정 2 — 세션은 문제당 평생 1개지만,
+     * 설명은 재도전으로 같은 문제를 새로 정답 제출할 때마다 다시 등록할 수 있다).
      */
     public ExplanationRegistrationResult registerExplanation(UUID submissionId, String content, UUID callerId) {
         SubmissionSnapshot submission = judgeServicePort.getSubmission(submissionId);
@@ -81,7 +82,8 @@ public class ExplanationGenerationFacade {
         }
 
         CoachingSession session = coachingSessionFinder.findOrCreate(submission);
-        Explanation explanation = explanationRepository.save(Explanation.create(session.getId(), content));
+        Explanation explanation =
+                explanationRepository.save(Explanation.create(session.getId(), submissionId, content));
 
         FollowUpQuestion followUpQuestion = generateFollowUpQuestion(session, submission, explanation);
         return new ExplanationRegistrationResult(explanation, followUpQuestion);
