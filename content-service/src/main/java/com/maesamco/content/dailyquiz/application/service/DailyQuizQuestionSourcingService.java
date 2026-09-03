@@ -8,6 +8,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -63,9 +64,19 @@ public class DailyQuizQuestionSourcingService {
                 continue;
             }
 
-            DailyQuizQuestion savedQuestion = questionRepository.save(question);
-
-            questionsBySlot.put(slotIndex, savedQuestion);
+            try {
+                DailyQuizQuestion savedQuestion = questionRepository.save(question);
+                questionsBySlot.put(slotIndex, savedQuestion);
+            } catch (DataIntegrityViolationException exception) {
+                // 한 문항의 무결성 오류가 나머지 슬롯의 저장까지 중단시키지 않도록 개별 실패로 처리
+                log.error(
+                        "AI 생성 Daily Quiz 문항 저장 실패. slotIndex={}, conceptTags={}",
+                        slotIndex,
+                        generatedQuestion.conceptTags(),
+                        exception
+                );
+                failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
+            }
         }
 
         List<DailyQuizQuestion> sourcedQuestions = valuesInSlotOrder(
