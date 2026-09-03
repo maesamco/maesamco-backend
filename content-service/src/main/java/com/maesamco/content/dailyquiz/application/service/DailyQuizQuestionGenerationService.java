@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -29,12 +30,25 @@ public class DailyQuizQuestionGenerationService {
                 .toList()) {
             int slotIndex = missingSlot.getKey();
             String concept = missingSlot.getValue();
+            long startedAtNanos = System.nanoTime();
             try {
                 GeneratedDailyQuizQuestion generatedQuestion = questionGenerator.generate(concept);
 
                 generatedQuestionsBySlot.put(slotIndex, generatedQuestion);
+                log.info(
+                        "Daily Quiz AI 문항 생성 성공. slotIndex={}, conceptTag={}, elapsedMs={}",
+                        slotIndex,
+                        concept,
+                        elapsedMillis(startedAtNanos)
+                );
             } catch (DailyQuizQuestionGenerationException exception) {
-                log.warn("Daily Quiz AI 문항 생성 실패. conceptTag={}", concept, exception);
+                log.warn(
+                        "Daily Quiz AI 문항 생성 실패. slotIndex={}, conceptTag={}, elapsedMs={}",
+                        slotIndex,
+                        concept,
+                        elapsedMillis(startedAtNanos),
+                        exception
+                );
                 failedConceptsBySlot.put(slotIndex, concept);
             }
         }
@@ -43,5 +57,9 @@ public class DailyQuizQuestionGenerationService {
                 generatedQuestionsBySlot,
                 failedConceptsBySlot
         );
+    }
+
+    private static long elapsedMillis(long startedAtNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos);
     }
 }
