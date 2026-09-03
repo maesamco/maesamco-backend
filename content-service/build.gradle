@@ -36,6 +36,7 @@ dependencies {
     // Flyway — 이슈 #10, 기본 비활성화(application.yml spring.flyway.enabled: false). db/migration의 V1 검토 후 서비스별로 활성화
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.springframework.boot:spring-boot-flyway'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
