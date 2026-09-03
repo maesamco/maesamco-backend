@@ -38,6 +38,10 @@ public record SubmissionSnapshot(
         return result != null && HINT_ELIGIBLE_RESULTS.contains(result);
     }
 
+    public boolean isCorrect() {
+        return "CORRECT".equals(result);
+    }
+
     public record FailedTest(boolean isPublic, String errorType) {
     }
 }

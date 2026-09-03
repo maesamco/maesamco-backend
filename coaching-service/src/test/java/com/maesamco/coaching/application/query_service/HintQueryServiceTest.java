@@ -49,7 +49,7 @@ class HintQueryServiceTest {
     }
 
     private CoachingSession persistedSession(UUID sessionSubmissionId) {
-        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId);
+        CoachingSession session = CoachingSession.create(sessionSubmissionId, callerId, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
     }
@@ -68,7 +68,7 @@ class HintQueryServiceTest {
     void 요청한_submissionId가_세션의_최신_제출과_일치하면_힌트_목록을_반환한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(submissionId, callerId));
         CoachingSession session = persistedSession(submissionId);
-        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
         Hint stage1 = Hint.create(session.getId(), 1, "1단계");
         when(hintRepository.findByCoachingSessionId(session.getId())).thenReturn(List.of(stage1));
 
@@ -78,16 +78,18 @@ class HintQueryServiceTest {
     }
 
     /**
-     * PR #70 리뷰(용현님 P2) — 이미 COMPLETED된 회차의 옛 submissionId로 조회하면
-     * 그 사이 새로 시작된 다른 회차(IN_PROGRESS 세션)의 힌트가 반환되던 문제.
+     * PR #70 리뷰(용현님 P2) — V4 시절엔 이미 COMPLETED된 회차의 옛 submissionId로 조회하면
+     * 그 사이 새로 시작된 다른 회차(세션)의 힌트가 반환되던 문제였다. V5(이슈 #84)로 세션이
+     * 문제당 유일해진 뒤에도, 같은 세션 안에서 더 예전 제출 ID로 조회하면 여전히 이 가드가
+     * 막아준다.
      */
     @Test
     void 요청한_submissionId가_세션의_최신_제출과_다르면_빈_목록을_반환한다() {
         UUID staleSubmissionId = UUID.randomUUID();
         when(judgeServicePort.getSubmission(staleSubmissionId)).thenReturn(submission(staleSubmissionId, callerId));
-        // 세션은 그 사이 새로 시작된 다른 회차(최신 제출 = submissionId, 옛 제출인 staleSubmissionId와는 다름)
+        // 세션의 최신 제출은 submissionId — staleSubmissionId는 그보다 이전에 있었던 제출
         CoachingSession session = persistedSession(submissionId);
-        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
 
         List<Hint> hints = queryService.getHints(staleSubmissionId, callerId);
 
@@ -97,7 +99,7 @@ class HintQueryServiceTest {
     @Test
     void 진행중인_세션이_없으면_빈_목록을_반환한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(submissionId, callerId));
-        when(coachingSessionRepository.findInProgressByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
 
         List<Hint> hints = queryService.getHints(submissionId, callerId);
 
