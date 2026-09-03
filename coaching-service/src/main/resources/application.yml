@@ -5,7 +5,7 @@ spring:
   application:
     name: coaching-service
   datasource:
-    url: jdbc:postgresql://localhost:5435/maesamco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5435}/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
