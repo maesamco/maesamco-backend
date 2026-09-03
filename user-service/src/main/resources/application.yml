@@ -5,7 +5,7 @@ spring:
   application:
     name: user-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/maesamco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
@@ -58,3 +58,4 @@ management:
   otlp:
     tracing:
       endpoint: ${TEMPO_OTLP_URL:http://localhost:4318/v1/traces}
+      

@@ -200,6 +200,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-user
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -222,6 +224,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-content
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -246,6 +250,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-judge
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -271,6 +277,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-coaching
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
