@@ -3,10 +3,10 @@ package com.maesamco.content.dailyquiz.application.service;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,20 +37,20 @@ public class ReusableQuestionSelector {
             );
         }
 
-        List<DailyQuizQuestion> selectedQuestions = new ArrayList<>();
-        List<String> missingConcepts = new ArrayList<>();
+        Map<Integer, DailyQuizQuestion> selectedQuestionsBySlot = new LinkedHashMap<>();
+        Map<Integer, String> missingConceptsBySlot = new LinkedHashMap<>();
 
         for (int slotIndex = 0; slotIndex < requiredConcepts.size(); slotIndex++) {
             DailyQuizQuestion selectedQuestion = questionBySlot[slotIndex];
 
             if (selectedQuestion != null) {
-                selectedQuestions.add(selectedQuestion);
+                selectedQuestionsBySlot.put(slotIndex, selectedQuestion);
             } else {
-                missingConcepts.add(requiredConcepts.get(slotIndex));
+                missingConceptsBySlot.put(slotIndex, requiredConcepts.get(slotIndex));
             }
         }
 
-        return new QuestionSelection(selectedQuestions, missingConcepts);
+        return new QuestionSelection(selectedQuestionsBySlot, missingConceptsBySlot);
     }
 
     private boolean tryAssign(

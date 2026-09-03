@@ -8,8 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,25 +19,29 @@ public class DailyQuizQuestionGenerationService {
     private final DailyQuizQuestionGenerator questionGenerator;
 
     public DailyQuizQuestionGenerationResult generateMissingQuestions(
-            List<String> missingConcepts
+            Map<Integer, String> missingConceptsBySlot
     ) {
-        List<GeneratedDailyQuizQuestion> generatedQuestions = new ArrayList<>();
-        List<String> failedConcepts = new ArrayList<>();
+        Map<Integer, GeneratedDailyQuizQuestion> generatedQuestionsBySlot = new LinkedHashMap<>();
+        Map<Integer, String> failedConceptsBySlot = new LinkedHashMap<>();
 
-        for (String concept : missingConcepts) {
+        for (Map.Entry<Integer, String> missingSlot : missingConceptsBySlot.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList()) {
+            int slotIndex = missingSlot.getKey();
+            String concept = missingSlot.getValue();
             try {
                 GeneratedDailyQuizQuestion generatedQuestion = questionGenerator.generate(concept);
 
-                generatedQuestions.add(generatedQuestion);
+                generatedQuestionsBySlot.put(slotIndex, generatedQuestion);
             } catch (DailyQuizQuestionGenerationException exception) {
                 log.warn("Daily Quiz AI 문항 생성 실패. conceptTag={}", concept, exception);
-                failedConcepts.add(concept);
+                failedConceptsBySlot.put(slotIndex, concept);
             }
         }
 
         return new DailyQuizQuestionGenerationResult(
-                generatedQuestions,
-                failedConcepts
+                generatedQuestionsBySlot,
+                failedConceptsBySlot
         );
     }
 }

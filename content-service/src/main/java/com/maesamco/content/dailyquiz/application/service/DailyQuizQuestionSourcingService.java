@@ -10,8 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -33,12 +36,19 @@ public class DailyQuizQuestionSourcingService {
         QuestionSelection selection = reuseService.selectReusableQuestions(requiredConcepts.values());
 
         DailyQuizQuestionGenerationResult generationResult =
-                generationService.generateMissingQuestions(selection.missingConcepts());
+                generationService.generateMissingQuestions(selection.missingConceptsBySlot());
 
-        List<DailyQuizQuestion> savedGeneratedQuestions = new ArrayList<>();
-        List<String> failedConcepts = new ArrayList<>(generationResult.failedConcepts());
+        Map<Integer, DailyQuizQuestion> questionsBySlot =
+                new HashMap<>(selection.selectedQuestionsBySlot());
+        Map<Integer, String> failedConceptsBySlot =
+                new HashMap<>(generationResult.failedConceptsBySlot());
 
-        for (GeneratedDailyQuizQuestion generatedQuestion : generationResult.generatedQuestions()) {
+        for (Map.Entry<Integer, GeneratedDailyQuizQuestion> generatedSlot
+                : generationResult.generatedQuestionsBySlot().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList()) {
+            int slotIndex = generatedSlot.getKey();
+            GeneratedDailyQuizQuestion generatedQuestion = generatedSlot.getValue();
             DailyQuizQuestion question;
             try {
                 question = toDailyQuizQuestion(generatedQuestion);
@@ -49,20 +59,32 @@ public class DailyQuizQuestionSourcingService {
                         generatedQuestion.conceptTags(),
                         exception.getMessage()
                 );
-                failedConcepts.addAll(generatedQuestion.conceptTags());
+                failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
                 continue;
             }
 
             DailyQuizQuestion savedQuestion = questionRepository.save(question);
 
-            savedGeneratedQuestions.add(savedQuestion);
+            questionsBySlot.put(slotIndex, savedQuestion);
         }
 
-        List<DailyQuizQuestion> sourcedQuestions = new ArrayList<>(selection.selectedQuestions());
-
-        sourcedQuestions.addAll(savedGeneratedQuestions);
+        List<DailyQuizQuestion> sourcedQuestions = valuesInSlotOrder(
+                questionsBySlot,
+                requiredConcepts.size()
+        );
+        List<String> failedConcepts = valuesInSlotOrder(
+                failedConceptsBySlot,
+                requiredConcepts.size()
+        );
 
         return new DailyQuizQuestionSourcingResult(sourcedQuestions, failedConcepts);
+    }
+
+    private static <T> List<T> valuesInSlotOrder(Map<Integer, T> valuesBySlot, int slotCount) {
+        return IntStream.range(0, slotCount)
+                .mapToObj(valuesBySlot::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private static DailyQuizQuestion toDailyQuizQuestion(GeneratedDailyQuizQuestion generatedQuestion) {

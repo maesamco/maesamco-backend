@@ -1,11 +1,16 @@
 package com.maesamco.content.dailyquiz.application.generation;
 
-import java.util.List;
+import java.util.Map;
 
 public record DailyQuizQuestionGenerationResult(
-        // 생성에 성공한 문항
-        List<GeneratedDailyQuizQuestion> generatedQuestions,
-        // AI 호출 또는 응답 검증에 실패한 개념
-        List<String> failedConcepts
+        // 슬롯 번호별 생성에 성공한 문항
+        Map<Integer, GeneratedDailyQuizQuestion> generatedQuestionsBySlot,
+        // 슬롯 번호별 AI 호출 또는 응답 검증에 실패한 개념
+        Map<Integer, String> failedConceptsBySlot
 ) {
+
+    public DailyQuizQuestionGenerationResult {
+        generatedQuestionsBySlot = Map.copyOf(generatedQuestionsBySlot);
+        failedConceptsBySlot = Map.copyOf(failedConceptsBySlot);
+    }
 }
