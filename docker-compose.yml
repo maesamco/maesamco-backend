@@ -156,7 +156,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "4000:3000"   # 호스트 3000번이 Windows에서 막히는 경우가 있어 3001로 노출(컨테이너 내부는 그대로 3000)
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
