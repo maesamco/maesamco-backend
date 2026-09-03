@@ -7,6 +7,9 @@ spring:
   ai:
     model:
       chat: ${AI_MODEL_CHAT:anthropic}
+    retry:
+      # 슬롯별 최초 요청 1회와 일시적 오류 재시도 1회만 허용해 배치 지연과 AI 호출 비용을 제한합니다.
+      max-attempts: ${SPRING_AI_RETRY_MAX_ATTEMPTS:2}
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
     google:
