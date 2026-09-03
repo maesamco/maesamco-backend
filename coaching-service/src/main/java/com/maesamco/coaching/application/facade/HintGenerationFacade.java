@@ -1,5 +1,6 @@
 package com.maesamco.coaching.application.facade;
 
+import com.maesamco.coaching.application.CoachingSessionFinder;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
@@ -11,7 +12,6 @@ import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.Hint;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
-import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.domain.repository.HintRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
@@ -45,7 +45,7 @@ public class HintGenerationFacade {
     private static final long LOCK_WAIT_INTERVAL_MILLIS = 100;
 
     private final JudgeServicePort judgeServicePort;
-    private final CoachingSessionRepository coachingSessionRepository;
+    private final CoachingSessionFinder coachingSessionFinder;
     private final HintRepository hintRepository;
     private final AiModelPort aiModelPort;
     private final AiCallHistoryRepository aiCallHistoryRepository;
@@ -53,14 +53,14 @@ public class HintGenerationFacade {
 
     public HintGenerationFacade(
             JudgeServicePort judgeServicePort,
-            CoachingSessionRepository coachingSessionRepository,
+            CoachingSessionFinder coachingSessionFinder,
             HintRepository hintRepository,
             AiModelPort aiModelPort,
             AiCallHistoryRepository aiCallHistoryRepository,
             HintGenerationLockPort hintGenerationLockPort
     ) {
         this.judgeServicePort = judgeServicePort;
-        this.coachingSessionRepository = coachingSessionRepository;
+        this.coachingSessionFinder = coachingSessionFinder;
         this.hintRepository = hintRepository;
         this.aiModelPort = aiModelPort;
         this.aiCallHistoryRepository = aiCallHistoryRepository;
@@ -79,7 +79,7 @@ public class HintGenerationFacade {
             throw new BusinessException(ErrorCode.HINT_NOT_ALLOWED);
         }
 
-        CoachingSession session = findOrCreateSession(submission);
+        CoachingSession session = coachingSessionFinder.findOrCreate(submission);
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
         // TODO(#62): skipAvailable == true일 때 문제의 개념 태그로 WeakConcept를 자동
@@ -169,46 +169,6 @@ public class HintGenerationFacade {
                 .filter(h -> h.getStage() == MAX_STAGE)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("stage 4 힌트가 있어야 하는데 없습니다"));
-    }
-
-    /**
-     * 같은 문제를 재시도하는 동안엔 세션을 이어서 쓴다(2026-09-02 확정) — submission_id가
-     * 아니라 (user_id, problem_id) + IN_PROGRESS로 찾는다. 이미 COMPLETED된 세션은 여기
-     * 안 걸리므로, 그 문제를 다시 도전하면 새 세션이 만들어진다.
-     *
-     * TODO(#73): 세션이 COMPLETED된 뒤 같은 문제를 다시 틀리면 매번 새 세션 + 새 4단계
-     * 힌트 예산이 생긴다 — 사용자/문제당 힌트 생성 총량 상한이 코드 어디에도 없다. MVP
-     * 문제 수가 15~20개뿐이라 지금은 이슈 #72(Rate Limit)가 실질적 상한 역할을 하지만,
-     * 문제 수가 늘거나 실제 남용 패턴이 관측되면 재검토할 것.
-     */
-    private CoachingSession findOrCreateSession(SubmissionSnapshot submission) {
-        return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
-                .map(session -> {
-                    // 재시도마다 세션의 submission_id를 최신 제출로 갈아탄다 — 힌트 조회
-                    // API(HintQueryService)가 요청받은 submissionId가 이 세션의 최신
-                    // 제출인지 검증하는 데 쓴다(PR #70 리뷰, 용현님 P2). 이미
-                    // 최신이면(동일 제출로 재요청) 불필요한 UPDATE를 건너뛴다.
-                    if (!session.getSubmissionId().equals(submission.submissionId())) {
-                        session.updateSubmissionId(submission.submissionId());
-                        return coachingSessionRepository.save(session);
-                    }
-                    return session;
-                })
-                .orElseGet(() -> {
-                    try {
-                        return coachingSessionRepository.save(
-                                CoachingSession.create(submission.submissionId(), submission.userId(), submission.problemId())
-                        );
-                    } catch (BusinessException e) {
-                        // 동시 요청으로 다른 트랜잭션이 먼저 세션을 만들었다면 그걸 그대로 쓴다 —
-                        // 힌트 요청 자체는 실패시킬 이유가 없다.
-                        if (e.getErrorCode() == ErrorCode.COACHING_SESSION_ALREADY_EXISTS) {
-                            return coachingSessionRepository.findInProgressByUserIdAndProblemId(submission.userId(), submission.problemId())
-                                    .orElseThrow(() -> e);
-                        }
-                        throw e;
-                    }
-                });
     }
 
     /**

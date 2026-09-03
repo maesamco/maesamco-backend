@@ -1,7 +1,5 @@
 package com.maesamco.coaching.infrastructure.persistence;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.global.exception.BusinessException;
@@ -12,6 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @Autowired
     private SpringDataAiFeedbackRepository springDataAiFeedbackRepository;
@@ -58,11 +58,11 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     void save_andFindByCoachingSessionId_roundTripsJsonFields() throws Exception {
         // given
         UUID coachingSessionId = createCoachingSessionId();
-        JsonNode understoodConcepts = objectMapper.readTree("[\"반복문\", \"조건문\"]");
-        JsonNode explanationGaps = objectMapper.readTree("[\"배열 인덱스 경계값\"]");
-        JsonNode weakConcepts = objectMapper.readTree("[\"재귀\"]");
-        JsonNode syntaxToImprove = objectMapper.readTree("[\"for-each 문법\"]");
-        JsonNode recommendedProblems = objectMapper.readTree(
+        JsonNode understoodConcepts = jsonMapper.readTree("[\"반복문\", \"조건문\"]");
+        JsonNode explanationGaps = jsonMapper.readTree("[\"배열 인덱스 경계값\"]");
+        JsonNode weakConcepts = jsonMapper.readTree("[\"재귀\"]");
+        JsonNode syntaxToImprove = jsonMapper.readTree("[\"for-each 문법\"]");
+        JsonNode recommendedProblems = jsonMapper.readTree(
                 "[\"" + UUID.randomUUID() + "\"]"
         );
 
@@ -95,7 +95,7 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     void save_allowsNullOptionalJsonFields() throws Exception {
         // given
         UUID coachingSessionId = createCoachingSessionId();
-        JsonNode required = objectMapper.readTree("[]");
+        JsonNode required = jsonMapper.readTree("[]");
 
         aiFeedbackRepository.save(
                 AiFeedback.create(coachingSessionId, required, required, required, null, null, null)
@@ -151,7 +151,7 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("같은 세션에 AI 피드백을 두 번 저장하면 AI_FEEDBACK_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSessionAlreadyExists() throws Exception {
         // given
-        JsonNode required = objectMapper.readTree("[]");
+        JsonNode required = jsonMapper.readTree("[]");
         UUID coachingSessionId = createCoachingSessionId();
         aiFeedbackRepository.save(
                 AiFeedback.create(coachingSessionId, required, required, required, null, null, null)
@@ -171,7 +171,7 @@ class AiFeedbackRepositoryImplTest extends AbstractCoachingRepositoryTest {
     @DisplayName("존재하지 않는 코칭 세션으로 AI 피드백을 저장하면 FK 위반으로 실패한다(AI_FEEDBACK_ALREADY_EXISTS로 잘못 변환되지 않음)")
     void save_throwsRawExceptionWhenCoachingSessionDoesNotExist() throws Exception {
         // given
-        JsonNode required = objectMapper.readTree("[]");
+        JsonNode required = jsonMapper.readTree("[]");
         AiFeedback aiFeedback =
                 AiFeedback.create(UUID.randomUUID(), required, required, required, null, null, null);
 

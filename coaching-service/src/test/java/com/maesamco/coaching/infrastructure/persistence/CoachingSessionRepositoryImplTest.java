@@ -139,6 +139,62 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         assertThat(reloaded.getSubmissionId()).isNotEqualTo(originalSubmissionId);
     }
 
+    /**
+     * 이슈 #84(V5) — 문제당 세션은 평생 최대 1개다. V4까지는 IN_PROGRESS인 세션만
+     * 유일성을 강제해서 COMPLETED 후 재도전하면 새 세션이 만들어질 수 있었는데, 이제는
+     * 완전한 UNIQUE(user_id, problem_id)라 COMPLETED 상태에서도 새 세션 생성이 막혀야 한다.
+     * 이 시나리오를 검증하는 테스트가 없었어서(V4 부분 UNIQUE 인덱스 자체를 직접 재현하는
+     * 테스트가 없었음) 새로 추가한다 — 실제 Postgres로 제약을 검증해야 실수로 부분 UNIQUE로
+     * 되돌아가는 회귀를 잡을 수 있다.
+     */
+    @Test
+    @DisplayName("완료된 세션이 있어도 같은 (user_id, problem_id)로 새 세션을 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
+    void save_throwsWhenSessionAlreadyExistsForSameUserAndProblem_evenAfterCompleted() {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+
+        CoachingSession completedSession = coachingSessionRepository.save(
+                CoachingSession.create(UUID.randomUUID(), userId, problemId)
+        );
+        completedSession.complete();
+        coachingSessionRepository.save(completedSession);
+        entityManager.flush();
+        entityManager.clear();
+
+        CoachingSession retrySession = CoachingSession.create(UUID.randomUUID(), userId, problemId);
+
+        // when & then
+        assertThatThrownBy(() -> coachingSessionRepository.save(retrySession))
+                .isInstanceOfSatisfying(BusinessException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_EXISTS)
+                );
+    }
+
+    @Test
+    @DisplayName("findByUserIdAndProblemId는 세션이 COMPLETED여도 그대로 조회한다")
+    void findByUserIdAndProblemId_returnsSession_regardlessOfStatus() {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+
+        CoachingSession saved = coachingSessionRepository.save(
+                CoachingSession.create(UUID.randomUUID(), userId, problemId)
+        );
+        saved.complete();
+        coachingSessionRepository.save(saved);
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        Optional<CoachingSession> found = coachingSessionRepository.findByUserIdAndProblemId(userId, problemId);
+
+        // then
+        assertThat(found).isPresent();
+        assertThat(found.get().getId()).isEqualTo(saved.getId());
+        assertThat(found.get().getStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+    }
+
     @Test
     @DisplayName("동일한 submissionId로 두 번 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSubmissionIdAlreadyExists() {
