@@ -28,6 +28,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -47,6 +49,8 @@ security:
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
   private-key: ${JWT_PRIVATE_KEY}
+  refresh-public-key: ${JWT_REFRESH_PUBLIC_KEY}
+  refresh-private-key: ${JWT_REFRESH_PRIVATE_KEY}
   access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
   refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:14d}
 
