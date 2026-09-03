@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
+import static com.maesamco.content.global.util.DataIntegrityViolations.isUniqueViolation;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -73,12 +75,24 @@ public class DailyQuizQuestionSourcingFacade {
                 DailyQuizQuestion savedQuestion = questionRepository.save(question);
                 questionsBySlot.put(slotIndex, savedQuestion);
             } catch (DataIntegrityViolationException exception) {
-                // 한 문항의 무결성 오류가 나머지 슬롯의 저장까지 중단시키지 않도록 개별 실패로 처리
-                log.error(
-                        "AI 생성 Daily Quiz 문항 저장 실패. slotIndex={}, conceptTags={}",
+                if (!isUniqueViolation(exception)) {
+                    // 도메인 검증과 DB 제약의 불일치 가능성이 있으므로 시스템 오류로 전파합니다.
+                    log.error(
+                            "AI 생성 Daily Quiz 문항 저장 중 예상하지 못한 무결성 오류. "
+                                    + "slotIndex={}, conceptTags={}",
+                            slotIndex,
+                            generatedQuestion.conceptTags(),
+                            exception
+                    );
+                    throw exception;
+                }
+
+                // 문항 하나의 UNIQUE 충돌은 해당 슬롯만 실패 처리하고 나머지 저장을 계속합니다.
+                log.warn(
+                        "AI 생성 Daily Quiz 문항 UNIQUE 충돌. slotIndex={}, conceptTags={}, reason={}",
                         slotIndex,
                         generatedQuestion.conceptTags(),
-                        exception
+                        exception.getMessage()
                 );
                 failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
             }

@@ -10,6 +10,7 @@ import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourc
 import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +25,9 @@ import java.util.UUID;
 
 import static com.maesamco.content.dailyquiz.domain.entity.DailyQuizProblemType.SHORT_ANSWER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -171,7 +174,7 @@ class DailyQuizQuestionSourcingFacadeTest {
     }
 
     @Test
-    void 한_문항의_DB_저장이_실패해도_다음_슬롯을_계속_처리한다() {
+    void 한_문항의_UNIQUE_저장_충돌이_발생해도_다음_슬롯을_계속_처리한다() {
         ConceptSlots conceptSlots = conceptSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
@@ -183,8 +186,9 @@ class DailyQuizQuestionSourcingFacadeTest {
                 ));
         when(questionGenerator.generate(STRING)).thenReturn(generatedQuestion(STRING));
         when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
+        DataIntegrityViolationException uniqueViolation = uniqueViolation();
         when(questionRepository.save(any()))
-                .thenThrow(new DataIntegrityViolationException("테스트 저장 실패"))
+                .thenThrow(uniqueViolation)
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
@@ -195,6 +199,28 @@ class DailyQuizQuestionSourcingFacadeTest {
         assertThat(result.isFallback()).isTrue();
         verify(questionGenerator).generate(METHOD);
         verify(questionRepository, times(2)).save(any());
+    }
+
+    @Test
+    void UNIQUE가_아닌_DB_무결성_오류는_상위로_전파한다() {
+        ConceptSlots conceptSlots = conceptSlots();
+        DailyQuizQuestion loopQuestion = question(1, LOOP);
+        DailyQuizQuestion conditionQuestion = question(2, CONDITION);
+        DailyQuizQuestion arrayQuestion = question(3, ARRAY);
+        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+                .thenReturn(new QuestionSelection(
+                        Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
+                        Map.of(3, STRING, 4, METHOD)
+                ));
+        when(questionGenerator.generate(STRING)).thenReturn(generatedQuestion(STRING));
+        when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
+        DataIntegrityViolationException unexpectedException =
+                new DataIntegrityViolationException("예상하지 못한 테스트 무결성 오류");
+        when(questionRepository.save(any())).thenThrow(unexpectedException);
+
+        assertThatThrownBy(() -> sourcingFacade.sourceQuestions(conceptSlots))
+                .isSameAs(unexpectedException);
+        verify(questionRepository, times(1)).save(any());
     }
 
     private ConceptSlots conceptSlots() {
@@ -241,5 +267,11 @@ class DailyQuizQuestionSourcingFacadeTest {
                 conceptTag,
                 new IllegalStateException("테스트 AI 생성 실패")
         );
+    }
+
+    private DataIntegrityViolationException uniqueViolation() {
+        ConstraintViolationException cause = mock(ConstraintViolationException.class);
+        when(cause.getKind()).thenReturn(ConstraintViolationException.ConstraintKind.UNIQUE);
+        return new DataIntegrityViolationException("테스트 UNIQUE 저장 충돌", cause);
     }
 }
