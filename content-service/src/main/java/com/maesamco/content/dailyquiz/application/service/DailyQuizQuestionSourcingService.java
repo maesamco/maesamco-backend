@@ -4,6 +4,7 @@ import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGe
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
+import com.maesamco.content.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +29,17 @@ public class DailyQuizQuestionSourcingService {
                 generationService.generateMissingQuestions(selection.missingConcepts());
 
         List<DailyQuizQuestion> savedGeneratedQuestions = new ArrayList<>();
+        List<String> failedConcepts = new ArrayList<>(generationResult.failedConcepts());
 
         for (GeneratedDailyQuizQuestion generatedQuestion : generationResult.generatedQuestions()) {
-            DailyQuizQuestion question = toDailyQuizQuestion(generatedQuestion);
+            DailyQuizQuestion question;
+            try {
+                question = toDailyQuizQuestion(generatedQuestion);
+            } catch (BusinessException exception) {
+                // 도메인 규칙을 통과하지 못한 AI 문항만 실패 처리하고 다음 문항 생성을 계속합니다.
+                failedConcepts.addAll(generatedQuestion.conceptTags());
+                continue;
+            }
 
             DailyQuizQuestion savedQuestion = questionRepository.save(question);
 
@@ -41,7 +50,7 @@ public class DailyQuizQuestionSourcingService {
 
         sourcedQuestions.addAll(savedGeneratedQuestions);
 
-        return new DailyQuizQuestionSourcingResult(sourcedQuestions, generationResult.failedConcepts());
+        return new DailyQuizQuestionSourcingResult(sourcedQuestions, failedConcepts);
     }
 
     private static DailyQuizQuestion toDailyQuizQuestion(GeneratedDailyQuizQuestion generatedQuestion) {
@@ -55,4 +64,3 @@ public class DailyQuizQuestionSourcingService {
         );
     }
 }
-
