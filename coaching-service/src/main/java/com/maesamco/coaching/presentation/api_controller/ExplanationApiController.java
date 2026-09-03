@@ -18,8 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-// TODO(#72): 이 엔드포인트(특히 POST — LLM 호출이 있는 비용 있는 액션)에 api-gateway
-// RateLimitFilter 룰이 아직 없다(HintApiController.requestHint()와 동일한 공백).
 @RestController
 @RequestMapping("/api/v1/coaching/submissions/{submissionId}/explanations")
 public class ExplanationApiController {
