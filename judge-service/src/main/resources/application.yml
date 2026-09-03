@@ -26,9 +26,13 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topic:
+      problem-published: problem-published-events
     consumer:
       group-id: judge-service
       auto-offset-reset: earliest
+      group:
+        problem-published: judge-service-problem-published-group
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
