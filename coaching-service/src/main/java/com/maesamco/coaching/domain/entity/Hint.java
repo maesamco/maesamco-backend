@@ -34,6 +34,10 @@ import java.util.UUID;
  * UNIQUE(coaching_session_id, stage)를 실제 마이그레이션 스크립트로 갖고 있어 운영 스키마에도
  * 반영돼 있다(이슈 #10 해결).
  *
+ * TODO(#66): 이 테이블이 절대 삭제되지 않는 append-only라는 점을 이용해, 나중에 pgvector로
+ * 임베딩해서 RAG에 활용할 수 있다(비슷한 개념 태그·오류 패턴의 과거 힌트를 새 힌트 생성
+ * 프롬프트에 few-shot으로 포함하는 식). MVP 이후 검토 — 지금 스키마는 안 건드려도 된다.
+ *
  * TODO(#10): stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 아직 없다 — 생성자
  *            검증(requireValidStage)이 애플리케이션 레벨에서만 막고 있고, 매삼코_ERD.sql
  *            원본에도 이 CHECK가 원래 없었다(V1 베이스라인은 ERD를 그대로 옮긴 것). DB
