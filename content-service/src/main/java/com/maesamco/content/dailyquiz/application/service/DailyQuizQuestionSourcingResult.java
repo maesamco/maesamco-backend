@@ -11,7 +11,7 @@ public record DailyQuizQuestionSourcingResult(
         List<String> failedConcepts
 ) {
     private static final int MINIMUM_QUESTION_COUNT = 3;
-    private static final int TARGET_QUESTION_COUNT = 5;
+    private static final int TARGET_QUESTION_COUNT = ConceptSlots.SLOT_COUNT;
 
     public boolean canCreateQuiz() {
         return questions.size() >= MINIMUM_QUESTION_COUNT;

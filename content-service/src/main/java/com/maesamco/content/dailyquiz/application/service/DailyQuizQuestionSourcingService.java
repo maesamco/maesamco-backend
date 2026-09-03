@@ -5,6 +5,7 @@ import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQ
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,8 +23,12 @@ public class DailyQuizQuestionSourcingService {
     // 생성된 문항을 문제은행에 저장
     private final DailyQuizQuestionRepository questionRepository;
 
-    public DailyQuizQuestionSourcingResult sourceQuestions(List<String> requiredConcepts) {
-        QuestionSelection selection = reuseService.selectReusableQuestions(requiredConcepts);
+    public DailyQuizQuestionSourcingResult sourceQuestions(ConceptSlots requiredConcepts) {
+        if (requiredConcepts == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "개념 슬롯은 필수입니다.");
+        }
+
+        QuestionSelection selection = reuseService.selectReusableQuestions(requiredConcepts.values());
 
         DailyQuizQuestionGenerationResult generationResult =
                 generationService.generateMissingQuestions(selection.missingConcepts());
