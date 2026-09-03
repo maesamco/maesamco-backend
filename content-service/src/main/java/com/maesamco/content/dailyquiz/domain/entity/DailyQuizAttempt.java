@@ -19,6 +19,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MINIMUM_QUESTION_COUNT;
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.TARGET_QUESTION_COUNT;
+
 /**
  * 사용자에게 하루 한 번 제공되는 일일 퀴즈 세트입니다.
  *
@@ -41,9 +44,6 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailyQuizAttempt {
-
-    private static final int MIN_QUESTION_COUNT = 3;
-    private static final int MAX_QUESTION_COUNT = 5;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -143,11 +143,11 @@ public class DailyQuizAttempt {
     }
 
     private static int requireValidTotalCount(int totalCount) {
-        if (totalCount < MIN_QUESTION_COUNT || totalCount > MAX_QUESTION_COUNT) {
+        if (totalCount < MINIMUM_QUESTION_COUNT || totalCount > TARGET_QUESTION_COUNT) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "전체 문제 수는 " + MIN_QUESTION_COUNT + "개 이상 "
-                            + MAX_QUESTION_COUNT + "개 이하여야 합니다."
+                    "전체 문제 수는 " + MINIMUM_QUESTION_COUNT + "개 이상 "
+                            + TARGET_QUESTION_COUNT + "개 이하여야 합니다."
             );
         }
         return totalCount;

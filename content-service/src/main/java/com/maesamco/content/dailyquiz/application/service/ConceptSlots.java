@@ -5,13 +5,14 @@ import com.maesamco.content.global.exception.ErrorCode;
 
 import java.util.List;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.TARGET_QUESTION_COUNT;
+
 /**
  * Daily Quiz 한 세트를 구성하기 위해 필요한 개념 슬롯입니다.
  * 슬롯의 입력 순서와 중복은 유지합니다.
  */
 public record ConceptSlots(List<String> values) {
 
-    public static final int SLOT_COUNT = 5;
     private static final int MAX_CONCEPT_LENGTH = 50;
 
     public ConceptSlots {
@@ -22,10 +23,10 @@ public record ConceptSlots(List<String> values) {
             );
         }
 
-        if (values.size() != SLOT_COUNT) {
+        if (values.size() != TARGET_QUESTION_COUNT) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "개념 슬롯은 정확히 " + SLOT_COUNT + "개여야 합니다. 실제: " + values.size()
+                    "개념 슬롯은 정확히 " + TARGET_QUESTION_COUNT + "개여야 합니다. 실제: " + values.size()
             );
         }
 
