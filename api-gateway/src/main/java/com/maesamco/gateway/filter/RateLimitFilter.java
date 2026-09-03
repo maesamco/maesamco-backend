@@ -9,6 +9,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -20,9 +21,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 로그인/비밀번호 재설정/코드 제출 API에 고정 윈도(fixed window) Rate Limit을 적용한다
- * (게이트웨이 및 인증 보안 설계 8절). 계정 단위 로그인 실패 잠금은 별개로 User Service가
- * 담당한다 — 이 필터는 "요청 빈도" 자체를 제한하는 1차 방어선이다.
+ * 로그인/비밀번호 재설정/코드 제출/코칭 힌트 생성 API에 고정 윈도(fixed window)
+ * Rate Limit을 적용한다(게이트웨이 및 인증 보안 설계 8절). 계정 단위 로그인 실패
+ * 잠금은 별개로 User Service가 담당한다 — 이 필터는 "요청 빈도" 자체를 제한하는
+ * 1차 방어선이다.
  *
  * Redis 자료구조: INCR + 최초 요청 시에만 EXPIRE — Lua로 원자 처리해 레이스 컨디션 방지.
  * (resources/scripts/rate_limit.lua 참고)
@@ -32,7 +34,12 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
-    private record RuleMatch(String prefix, int limit, Duration window) {
+    /**
+     * method가 null이면 모든 HTTP 메서드에 적용(기존 3개 룰과 동일한 동작).
+     * 특정 메서드만 지정하면 그 메서드만 매칭 — 예: 코칭 힌트 생성(POST)만 제한하고
+     * 같은 경로 하위의 GET(목록/상세 조회)은 별도로 두고 싶을 때 사용(PR #70 리뷰 반영).
+     */
+    private record RuleMatch(HttpMethod method, String prefix, int limit, Duration window) {
     }
 
     // 실제 임계값은 부하 테스트/운영 데이터로 조정할 것 — 여기 숫자는 초기값 예시.
@@ -40,9 +47,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     // 룰이 필요하다 — LLM 호출이 있는 비용 있는 액션인데 지금은 룰이 전혀 없음. 초안:
     // new RuleMatch("/api/v1/coaching/submissions", 10, Duration.ofMinutes(1))
     private static final List<RuleMatch> RULES = List.of(
-            new RuleMatch("/api/v1/auth/login", 10, Duration.ofMinutes(1)),
-            new RuleMatch("/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
-            new RuleMatch("/api/v1/submissions", 30, Duration.ofMinutes(1))
+            new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
+            new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
+            new RuleMatch(null, "/api/v1/submissions", 30, Duration.ofMinutes(1)),
+            // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.
+            // GET(목록/상세 조회)은 LLM 비용이 없어 이 룰에서 의도적으로 제외(method=POST만 매칭).
+            new RuleMatch(HttpMethod.POST, "/api/v1/coaching/submissions", 10, Duration.ofMinutes(1))
     );
 
     private final ReactiveRedisTemplate<String, Long> redisTemplate;
@@ -53,9 +63,11 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
+        HttpMethod method = request.getMethod();
 
         RuleMatch rule = RULES.stream()
                 .filter(r -> path.startsWith(r.prefix()))
+                .filter(r -> r.method() == null || r.method() == method)
                 .findFirst()
                 .orElse(null);
 
