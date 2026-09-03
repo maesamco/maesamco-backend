@@ -199,6 +199,7 @@ services:
     ports:
       - "9000:9000"
     environment:
+      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: postgres-user
@@ -228,6 +229,7 @@ services:
     ports:
       - "9001:9001"
     environment:
+      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: postgres-content
@@ -254,6 +256,7 @@ services:
     ports:
       - "9002:9002"
     environment:
+      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: postgres-judge
@@ -281,6 +284,7 @@ services:
     ports:
       - "9003:9003"
     environment:
+      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: postgres-coaching
