@@ -9,5 +9,5 @@ public interface ExplanationRepository {
 
     Explanation save(Explanation explanation);
 
-    Optional<Explanation> findByCoachingSessionId(UUID coachingSessionId);
+    Optional<Explanation> findBySubmissionId(UUID submissionId);
 }

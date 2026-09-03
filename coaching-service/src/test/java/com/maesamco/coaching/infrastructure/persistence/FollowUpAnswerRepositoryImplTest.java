@@ -49,10 +49,10 @@ class FollowUpAnswerRepositoryImplTest extends AbstractCoachingRepositoryTest {
      */
     private UUID createFollowUpQuestionId() {
         CoachingSession coachingSession = springDataCoachingSessionRepository.saveAndFlush(
-                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1)
         );
         Explanation explanation = springDataExplanationRepository.saveAndFlush(
-                Explanation.create(coachingSession.getId(), "설명 내용")
+                Explanation.create(coachingSession.getId(), UUID.randomUUID(), "설명 내용")
         );
         FollowUpQuestion followUpQuestion = springDataFollowUpQuestionRepository.saveAndFlush(
                 FollowUpQuestion.create(explanation.getId(), "질문 내용", null)

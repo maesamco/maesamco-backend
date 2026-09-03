@@ -1,8 +1,8 @@
 package com.maesamco.coaching.global.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 도메인 엔티티 생성자에서 반복되는 필수값 검증을 모아둔 유틸리티.
