@@ -78,8 +78,8 @@ public class WeakConcept {
     private WeakConcept(UUID userId, String conceptTag) {
         this.userId = Validate.requireNonNull(userId, "사용자 ID");
         // 앞뒤 공백만 다른 태그("재귀" vs " 재귀 ")가 UNIQUE 제약상 서로 다른 개념으로
-        // 저장되지 않도록 trim 후 검증한다(PR #34 리뷰).
-        this.conceptTag = Validate.requireText(conceptTag == null ? null : conceptTag.trim(), 50, "개념 태그");
+        // 저장되지 않도록 trim 후 검증한다(PR #34 리뷰) — trim은 이제 Validate.requireText()가 기본으로 한다(이슈 #45).
+        this.conceptTag = Validate.requireText(conceptTag, 50, "개념 태그");
         this.occurrenceCount = 1;
         this.lastDetectedAt = Instant.now();
         this.improved = false;

@@ -1,6 +1,7 @@
 package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.CoachingSession;
+import com.maesamco.coaching.domain.entity.CoachingSessionStatus;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
@@ -46,5 +47,12 @@ public class CoachingSessionRepositoryImpl implements CoachingSessionRepository 
     @Override
     public Optional<CoachingSession> findBySubmissionId(UUID submissionId) {
         return springDataCoachingSessionRepository.findBySubmissionId(submissionId);
+    }
+
+    @Override
+    public Optional<CoachingSession> findInProgressByUserIdAndProblemId(UUID userId, UUID problemId) {
+        return springDataCoachingSessionRepository.findByUserIdAndProblemIdAndStatus(
+                userId, problemId, CoachingSessionStatus.IN_PROGRESS
+        );
     }
 }
