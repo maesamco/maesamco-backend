@@ -9,4 +9,6 @@ import java.util.UUID;
 interface SpringDataCoachingSessionRepository extends JpaRepository<CoachingSession, UUID> {
 
     Optional<CoachingSession> findBySubmissionId(UUID submissionId);
+
+    Optional<CoachingSession> findByUserIdAndProblemId(UUID userId, UUID problemId);
 }

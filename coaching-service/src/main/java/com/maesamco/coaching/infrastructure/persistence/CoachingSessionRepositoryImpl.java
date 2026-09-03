@@ -47,4 +47,9 @@ public class CoachingSessionRepositoryImpl implements CoachingSessionRepository 
     public Optional<CoachingSession> findBySubmissionId(UUID submissionId) {
         return springDataCoachingSessionRepository.findBySubmissionId(submissionId);
     }
+
+    @Override
+    public Optional<CoachingSession> findByUserIdAndProblemId(UUID userId, UUID problemId) {
+        return springDataCoachingSessionRepository.findByUserIdAndProblemId(userId, problemId);
+    }
 }

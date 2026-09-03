@@ -31,16 +31,19 @@ public enum ErrorCode {
     // ===== 서비스 간 통신 =====
     FEIGN_CLIENT_ERROR(HttpStatus.BAD_GATEWAY, "서비스 간 통신 중 오류가 발생했습니다."),
     INTERNAL_CALL_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "내부 호출 서명이 유효하지 않습니다."),
-    INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심).");
+    INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
     // USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
     //
-    // ===== judge =====
-    // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
-    // IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
-    //
+
+    //===== judge =====
+    SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
+    SUBMISSION_INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 채점 상태 전이입니다."),
+    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
+    IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다.");
+
     // ===== coaching =====
     // HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인의 오답 제출에만 힌트를 요청할 수 있습니다.");
 

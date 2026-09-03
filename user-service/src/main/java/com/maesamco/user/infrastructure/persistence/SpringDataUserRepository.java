@@ -32,10 +32,11 @@ public interface SpringDataUserRepository
     boolean existsByEmailLookupHash(String emailLookupHash);
 
     /**
-     * 동일한 닉네임을 사용하는 사용자가 존재하는지 확인합니다.
+     * 대소문자를 구분하지 않고 동일한 닉네임을 사용하는
+     * 사용자가 존재하는지 확인합니다.
      *
      * @param nickname 확인할 닉네임
      * @return 존재하면 true
      */
-    boolean existsByNickname(String nickname);
+    boolean existsByNicknameIgnoreCase(String nickname);
 }

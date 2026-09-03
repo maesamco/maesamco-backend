@@ -17,20 +17,31 @@ class ExplanationTest {
     void create_setsFields() {
         // given
         UUID coachingSessionId = UUID.randomUUID();
+        UUID submissionId = UUID.randomUUID();
         String content = "이 문제는 배열 인덱스가 0부터 시작한다는 점이 핵심입니다.";
 
         // when
-        Explanation explanation = Explanation.create(coachingSessionId, content);
+        Explanation explanation = Explanation.create(coachingSessionId, submissionId, content);
 
         // then
         assertThat(explanation.getCoachingSessionId()).isEqualTo(coachingSessionId);
+        assertThat(explanation.getSubmissionId()).isEqualTo(submissionId);
         assertThat(explanation.getContent()).isEqualTo(content);
     }
 
     @Test
     @DisplayName("코칭 세션 ID가 null이면 생성할 수 없다")
     void create_throwsWhenCoachingSessionIdIsNull() {
-        assertThatThrownBy(() -> Explanation.create(null, "내용"))
+        assertThatThrownBy(() -> Explanation.create(null, UUID.randomUUID(), "내용"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("제출 ID가 null이면 생성할 수 없다")
+    void create_throwsWhenSubmissionIdIsNull() {
+        assertThatThrownBy(() -> Explanation.create(UUID.randomUUID(), null, "내용"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
@@ -39,7 +50,7 @@ class ExplanationTest {
     @Test
     @DisplayName("본문이 비어있으면 생성할 수 없다")
     void create_throwsWhenContentIsBlank() {
-        assertThatThrownBy(() -> Explanation.create(UUID.randomUUID(), "   "))
+        assertThatThrownBy(() -> Explanation.create(UUID.randomUUID(), UUID.randomUUID(), "   "))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
@@ -48,7 +59,7 @@ class ExplanationTest {
     @Test
     @DisplayName("본문이 null이면 생성할 수 없다")
     void create_throwsWhenContentIsNull() {
-        assertThatThrownBy(() -> Explanation.create(UUID.randomUUID(), null))
+        assertThatThrownBy(() -> Explanation.create(UUID.randomUUID(), UUID.randomUUID(), null))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);

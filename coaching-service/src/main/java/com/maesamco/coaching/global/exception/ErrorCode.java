@@ -35,12 +35,23 @@ public enum ErrorCode {
 
     // ===== coaching =====
     COACHING_SESSION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 코칭 세션입니다."),
-    COACHING_SESSION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 제출에 대한 코칭 세션이 존재합니다."),
+    // PR #70 리뷰 — 이 코드는 UNIQUE(submission_id) 위반과 V4의 (user_id, problem_id)
+    // WHERE IN_PROGRESS 파셜 인덱스 위반 둘 다에서 재사용된다(CoachingSessionRepositoryImpl.
+    // save()가 어떤 제약이 위반됐는지 구분하지 않음) — 메시지를 두 경우 모두에 맞게 일반화했다.
+    COACHING_SESSION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 조건에 맞는 코칭 세션이 존재합니다."),
+    SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
+    HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 오답 상태일 때만 힌트를 요청할 수 있습니다."),
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다."),
-    EXPLANATION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 설명이 존재합니다."),
+    EXPLANATION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 정답 상태일 때만 설명을 등록할 수 있습니다."),
+    EXPLANATION_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 설명을 찾을 수 없습니다."),
+    // 이슈 #84 결정 2(2026-09-03) — 유일성 기준이 코칭 세션이 아니라 제출(submission_id)
+    // 단위로 바뀌어서 메시지도 다시 제출 기준으로 되돌렸다. 같은 문제를 다른 접근으로
+    // 재도전해서 새로 정답 제출하면, 그 새 제출에 대해서는 이 예외가 나지 않는다.
+    EXPLANATION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 설명이 등록된 제출입니다."),
     FOLLOW_UP_QUESTION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 설명에 대한 역질문이 존재합니다."),
     FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다."),
     AI_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 AI 피드백이 존재합니다."),
+    AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
     WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
