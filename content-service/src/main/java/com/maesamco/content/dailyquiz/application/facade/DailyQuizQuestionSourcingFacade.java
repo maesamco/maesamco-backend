@@ -1,7 +1,12 @@
-package com.maesamco.content.dailyquiz.application.service;
+package com.maesamco.content.dailyquiz.application.facade;
 
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationResult;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
+import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionGenerationService;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionReuseService;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourcingResult;
+import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -9,7 +14,7 @@ import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,10 +22,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
-@Service
+@Component
 @RequiredArgsConstructor
 @Slf4j
-public class DailyQuizQuestionSourcingService {
+public class DailyQuizQuestionSourcingFacade {
 
     // 문제 은행에서 재사용 문항 선정
     private final DailyQuizQuestionReuseService reuseService;

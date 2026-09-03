@@ -1,8 +1,13 @@
-package com.maesamco.content.dailyquiz.application.service;
+package com.maesamco.content.dailyquiz.application.facade;
 
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationException;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
+import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionGenerationService;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionReuseService;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourcingResult;
+import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class DailyQuizQuestionSourcingServiceTest {
+class DailyQuizQuestionSourcingFacadeTest {
 
     private static final String LOOP = "반복문";
     private static final String CONDITION = "조건문";
@@ -44,13 +49,13 @@ class DailyQuizQuestionSourcingServiceTest {
     @Mock
     private DailyQuizQuestionRepository questionRepository;
 
-    private DailyQuizQuestionSourcingService sourcingService;
+    private DailyQuizQuestionSourcingFacade sourcingFacade;
 
     @BeforeEach
     void setUp() {
         DailyQuizQuestionGenerationService generationService =
                 new DailyQuizQuestionGenerationService(questionGenerator);
-        sourcingService = new DailyQuizQuestionSourcingService(
+        sourcingFacade = new DailyQuizQuestionSourcingFacade(
                 reuseService,
                 generationService,
                 questionRepository
@@ -77,7 +82,7 @@ class DailyQuizQuestionSourcingServiceTest {
                         Map.of()
                 ));
 
-        DailyQuizQuestionSourcingResult result = sourcingService.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
 
         assertThat(result.questions()).containsExactly(
                 loopQuestion,
@@ -108,7 +113,7 @@ class DailyQuizQuestionSourcingServiceTest {
         when(questionGenerator.generate(METHOD)).thenThrow(generationFailure(METHOD));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingService.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
 
         assertThat(result.questions()).hasSize(3);
         assertThat(result.failedConcepts()).containsExactly(STRING, METHOD);
@@ -132,7 +137,7 @@ class DailyQuizQuestionSourcingServiceTest {
         when(questionGenerator.generate(METHOD)).thenThrow(generationFailure(METHOD));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingService.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
 
         assertThat(result.questions()).hasSize(2);
         assertThat(result.failedConcepts()).containsExactly(ARRAY, STRING, METHOD);
@@ -155,7 +160,7 @@ class DailyQuizQuestionSourcingServiceTest {
         when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingService.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
 
         assertThat(result.questions()).hasSize(4);
         assertThat(result.failedConcepts()).containsExactly(STRING);
@@ -182,7 +187,7 @@ class DailyQuizQuestionSourcingServiceTest {
                 .thenThrow(new DataIntegrityViolationException("테스트 저장 실패"))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingService.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
 
         assertThat(result.questions()).hasSize(4);
         assertThat(result.failedConcepts()).containsExactly(STRING);
