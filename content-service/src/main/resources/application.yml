@@ -20,7 +20,8 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    enabled: true
+    # 신규·기존 DB의 Flyway 전환 경로를 통합 테스트에서 검증한 뒤 활성화합니다.
+    enabled: false
     schemas: content_schema
   jpa:
     hibernate:
