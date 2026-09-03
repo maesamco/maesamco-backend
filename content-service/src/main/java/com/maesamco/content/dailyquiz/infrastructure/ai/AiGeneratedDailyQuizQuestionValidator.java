@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.HashSet;
+import java.util.List;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class AiGeneratedDailyQuizQuestionValidator {
@@ -59,13 +60,13 @@ final class AiGeneratedDailyQuizQuestionValidator {
             throw new IllegalArgumentException("객관식 정답은 선택지 중 하나여야 합니다.");
         }
 
-        if (response.allowedAnswerVariants() != null) {
+        if (hasValues(response.allowedAnswerVariants())) {
             throw new IllegalArgumentException("허용 답안 표현은 단답형 문제에서만 사용할 수 있습니다.");
         }
     }
 
     private static void validateFillInBlank(AiGeneratedDailyQuizQuestionResponse response) {
-        if (response.choices() != null) {
+        if (hasValues(response.choices())) {
             throw new IllegalArgumentException("선택지는 객관식 문제에서만 사용할 수 있습니다.");
         }
 
@@ -76,22 +77,18 @@ final class AiGeneratedDailyQuizQuestionValidator {
             );
         }
 
-        if (response.allowedAnswerVariants() != null) {
+        if (hasValues(response.allowedAnswerVariants())) {
             throw new IllegalArgumentException("허용 답안 표현은 단답형 문제에서만 사용할 수 있습니다.");
         }
     }
 
     private static void validateShortAnswer(AiGeneratedDailyQuizQuestionResponse response) {
-        if (response.choices() != null) {
+        if (hasValues(response.choices())) {
             throw new IllegalArgumentException("선택지는 객관식 문제에서만 사용할 수 있습니다.");
         }
 
-        if (response.allowedAnswerVariants() == null) {
+        if (!hasValues(response.allowedAnswerVariants())) {
             return;
-        }
-
-        if (response.allowedAnswerVariants().isEmpty()) {
-            throw new IllegalArgumentException("허용 답안 표현이 없다면 null이어야 합니다.");
         }
 
         boolean hasBlankVariant = response.allowedAnswerVariants().stream()
@@ -120,5 +117,9 @@ final class AiGeneratedDailyQuizQuestionValidator {
         }
 
         return count;
+    }
+
+    private static boolean hasValues(List<?> values) {
+        return values != null && !values.isEmpty();
     }
 }

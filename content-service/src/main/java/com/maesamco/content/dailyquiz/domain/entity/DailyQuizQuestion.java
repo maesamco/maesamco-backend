@@ -304,12 +304,8 @@ public class DailyQuizQuestion {
             return null;
         }
 
-        if (allowedAnswerVariants == null) {
+        if (allowedAnswerVariants == null || allowedAnswerVariants.isEmpty()) {
             return null;
-        }
-
-        if (allowedAnswerVariants.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "허용 답안 표현이 없다면 null이어야 합니다.");
         }
 
         List<String> validatedVariants = validateTextList(
