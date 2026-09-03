@@ -20,8 +20,7 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    # Content Service 기능 구현 및 V1 스키마·Entity 정합성 검증 완료 후 활성화
-    enabled: false
+    enabled: true
     schemas: content_schema
   jpa:
     hibernate:
