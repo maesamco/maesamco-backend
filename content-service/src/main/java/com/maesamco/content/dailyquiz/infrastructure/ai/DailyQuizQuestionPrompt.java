@@ -12,6 +12,7 @@ final class DailyQuizQuestionPrompt {
             - 사용자 메시지로 전달된 개념에 집중한 짧은 복습 문제를 생성한다.
             - 문제 유형은 MULTIPLE_CHOICE, FILL_IN_BLANK, SHORT_ANSWER 중 하나를 선택한다.
             - 문제 지문과 일반 설명은 한국어로 작성한다.
+            - questionText는 코드와 공백을 포함해 1000자 이하로 작성한다.
             - Java 키워드, 코드, 타입명, 식별자는 원문을 유지한다.
             - 정답은 하나로 명확하게 채점할 수 있어야 하며 문제 내용과 일치해야 한다.
             - 풀이 설명, 힌트, Markdown, 코드 펜스 등 추가 문장을 생성하지 않는다.

@@ -47,6 +47,7 @@ import java.util.stream.IntStream;
 @EntityListeners(AuditingEntityListener.class)
 public class DailyQuizQuestion {
 
+    private static final int MAX_QUESTION_TEXT_LENGTH = 1_000;
     private static final int MAX_RESPONSE_LENGTH = 200;
     private static final int MAX_CONCEPT_TAG_LENGTH = 50;
     private static final int MULTIPLE_CHOICE_OPTION_COUNT = 4;
@@ -257,7 +258,11 @@ public class DailyQuizQuestion {
             DailyQuizProblemType problemType,
             String questionText
     ) {
-        String validatedQuestionText = requireText(questionText, "문제 지문");
+        String validatedQuestionText = requireText(
+                questionText,
+                "문제 지문",
+                MAX_QUESTION_TEXT_LENGTH
+        );
 
         if (problemType == DailyQuizProblemType.FILL_IN_BLANK
                 && countOccurrences(validatedQuestionText, FILL_IN_BLANK_MARKER) != 1) {
