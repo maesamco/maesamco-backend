@@ -204,10 +204,10 @@ public class User extends BaseEntity {
     }
 
     /**
-     * 닉네임이 필수값이며 데이터베이스 최대 길이를 넘지 않는지 검증합니다.
+     * 닉네임의 앞뒤 공백을 제거하고 필수값과 최대 길이를 검증합니다.
      */
     private static String validateNickname(String nickname) {
-        String value = requireText(nickname, "닉네임은 필수입니다.");
+        String value = requireText(nickname, "닉네임은 필수입니다.").trim();
 
         if (value.length() > 50) {
             throw new BusinessException(

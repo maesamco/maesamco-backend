@@ -1,12 +1,12 @@
 package com.maesamco.user.domain.entity;
 
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import com.maesamco.user.global.exception.BusinessException;
-import com.maesamco.user.global.exception.ErrorCode;
 
 /**
  * User 도메인의 생성 규칙과 상태 변경을 검증하는 단위 테스트입니다.
@@ -293,5 +293,41 @@ class UserTest {
                                     );
                         }
                 );
+    }
+
+    @Test
+    @DisplayName("사용자 생성 시 닉네임의 앞뒤 공백을 제거한다")
+    void create_trimsNickname() {
+        // when
+        User user = User.create(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                PASSWORD_HASH,
+                "  JavaLearner  ",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        // then
+        assertThat(user.getNickname())
+                .isEqualTo("JavaLearner");
+    }
+
+    @Test
+    @DisplayName("프로필 수정 시 닉네임의 앞뒤 공백을 제거한다")
+    void updateProfile_trimsNickname() {
+        // given
+        User user = createDefaultUser();
+
+        // when
+        user.updateProfile(
+                "  JavaMaster  ",
+                12,
+                LearningLevel.BASIC
+        );
+
+        // then
+        assertThat(user.getNickname())
+                .isEqualTo("JavaMaster");
     }
 }

@@ -17,6 +17,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
+import org.springframework.test.context.jdbc.Sql;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +42,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
 @Import(JpaAuditingConfig.class)
+@Sql(
+        scripts = "/db/migration/V2__add_active_user_unique_indexes.sql",
+        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS
+)
 @Testcontainers
 class UserRepositoryImplTest {
 
@@ -119,11 +128,11 @@ class UserRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("이메일 조회용 해시와 닉네임의 존재 여부를 확인할 수 있다")
+    @DisplayName("이메일 해시와 대소문자를 무시한 닉네임의 존재 여부를 확인한다")
     void exists_returnsCorrectResult() {
         // given
         String emailLookupHash = "c".repeat(64);
-        String nickname = "중복확인사용자";
+        String nickname = "JavaLearner";
 
         userRepository.save(
                 createUser(emailLookupHash, nickname)
@@ -140,10 +149,14 @@ class UserRepositoryImplTest {
                 userRepository.existsByEmailLookupHash("d".repeat(64));
 
         boolean existingNickname =
-                userRepository.existsByNickname(nickname);
+                userRepository.existsByNicknameIgnoreCase(
+                        "javalearner"
+                );
 
         boolean missingNickname =
-                userRepository.existsByNickname("존재하지않는닉네임");
+                userRepository.existsByNicknameIgnoreCase(
+                        "존재하지않는닉네임"
+                );
 
         // then
         assertThat(existingEmail).isTrue();
@@ -195,5 +208,99 @@ class UserRepositoryImplTest {
                 6,
                 LearningLevel.BEGINNER
         );
+    }
+
+    @Test
+    @DisplayName("미삭제 사용자의 이메일 해시가 중복되면 전용 예외가 발생한다")
+    void save_throwsWhenActiveEmailLookupHashAlreadyExists() {
+        // given
+        String emailLookupHash = "f".repeat(64);
+
+        userRepository.save(
+                createUser(emailLookupHash, "EmailOwner")
+        );
+
+        User duplicateUser = createUser(
+                emailLookupHash,
+                "AnotherNickname"
+        );
+
+        // when & then
+        assertThatThrownBy(() -> userRepository.save(duplicateUser))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(
+                                exception.getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.USER_DUPLICATE_EMAIL
+                        )
+                );
+    }
+
+    @Test
+    @DisplayName("미삭제 사용자의 닉네임이 대소문자만 다르면 전용 예외가 발생한다")
+    void save_throwsWhenActiveNicknameAlreadyExistsIgnoringCase() {
+        // given
+        userRepository.save(
+                createUser(
+                        "g".repeat(64),
+                        "JavaLearner"
+                )
+        );
+
+        User duplicateUser = createUser(
+                "h".repeat(64),
+                "javalearner"
+        );
+
+        // when & then
+        assertThatThrownBy(() -> userRepository.save(duplicateUser))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(
+                                exception.getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.USER_DUPLICATE_NICKNAME
+                        )
+                );
+    }
+
+    @Test
+    @DisplayName("탈퇴한 사용자의 이메일과 닉네임은 재가입에 사용할 수 있다")
+    void save_allowsEmailAndNicknameOfSoftDeletedUser() {
+        // given
+        String emailLookupHash = "i".repeat(64);
+        User withdrawnUser = userRepository.save(
+                createUser(
+                        emailLookupHash,
+                        "ReusableNickname"
+                )
+        );
+
+        withdrawnUser.softDelete(UUID.randomUUID());
+        userRepository.save(withdrawnUser);
+        entityManager.clear();
+
+        // when
+        User rejoinedUser = userRepository.save(
+                createUser(
+                        emailLookupHash,
+                        "reusablenickname"
+                )
+        );
+
+        // then
+        assertThat(rejoinedUser.getId())
+                .isNotEqualTo(withdrawnUser.getId());
+        assertThat(
+                userRepository.existsByEmailLookupHash(
+                        emailLookupHash
+                )
+        ).isTrue();
+        assertThat(
+                userRepository.existsByNicknameIgnoreCase(
+                        "REUSABLENICKNAME"
+                )
+        ).isTrue();
     }
 }

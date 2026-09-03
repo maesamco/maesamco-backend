@@ -29,6 +29,14 @@ public enum ErrorCode {
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
 
     // ===== user =====
+    USER_DUPLICATE_EMAIL(
+            HttpStatus.CONFLICT,
+            "이미 사용 중인 이메일입니다."
+    ),
+    USER_DUPLICATE_NICKNAME(
+            HttpStatus.CONFLICT,
+            "이미 사용 중인 닉네임입니다."
+    ),
     GAMIFICATION_STATE_CONFLICT(
             HttpStatus.CONFLICT,
             "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
