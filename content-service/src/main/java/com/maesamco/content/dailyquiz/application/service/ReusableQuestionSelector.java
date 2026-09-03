@@ -4,112 +4,93 @@ import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 @Component
 public class ReusableQuestionSelector {
 
-    public QuestionSelection select(List<String> requiredConcepts,
-                                          List<DailyQuizQuestion> candidates
+    public QuestionSelection select(
+            List<String> requiredConcepts,
+            List<DailyQuizQuestion> candidates
     ) {
-        List<String> remainingConcepts = new ArrayList<>(requiredConcepts);
-        List<DailyQuizQuestion>  remainingCandidates = new ArrayList<>(candidates);
+        List<DailyQuizQuestion> sortedCandidates = candidates.stream()
+                .sorted(Comparator.comparing(DailyQuizQuestion::getId))
+                .toList();
+
+        Map<UUID, Integer> slotByQuestionId = new HashMap<>();
+        DailyQuizQuestion[] questionBySlot = new DailyQuizQuestion[requiredConcepts.size()];
+
+        for (int slotIndex = 0; slotIndex < requiredConcepts.size(); slotIndex++) {
+            tryAssign(
+                    slotIndex,
+                    requiredConcepts,
+                    sortedCandidates,
+                    slotByQuestionId,
+                    questionBySlot,
+                    new HashSet<>()
+            );
+        }
 
         List<DailyQuizQuestion> selectedQuestions = new ArrayList<>();
         List<String> missingConcepts = new ArrayList<>();
 
-        while (!remainingConcepts.isEmpty()) {
-            String hardestConcept = findHardestConcept(remainingConcepts, remainingCandidates);
-            Optional<DailyQuizQuestion> leastOverlappingCandidate = findLeastOverlappingCandidate(hardestConcept, remainingConcepts, remainingCandidates);
+        for (int slotIndex = 0; slotIndex < requiredConcepts.size(); slotIndex++) {
+            DailyQuizQuestion selectedQuestion = questionBySlot[slotIndex];
 
-            if (leastOverlappingCandidate.isPresent()) {
-                selectedQuestions.add(leastOverlappingCandidate.get());
-                remainingCandidates.remove(leastOverlappingCandidate.get());
+            if (selectedQuestion != null) {
+                selectedQuestions.add(selectedQuestion);
             } else {
-                missingConcepts.add(hardestConcept);
+                missingConcepts.add(requiredConcepts.get(slotIndex));
             }
-            remainingConcepts.remove(hardestConcept);
         }
 
         return new QuestionSelection(selectedQuestions, missingConcepts);
-
     }
 
-    // 요청 개념을 포함하는 퀴즈 수 반환
-    private int countCandidates(String requiredConcept, List<DailyQuizQuestion> candidates) {
-        // candidates 중 requiredConcept를 포함한 문항 수 반환
-        int count = 0;
-        for (DailyQuizQuestion candidate : candidates) {
-            if (candidate.getConceptTags().contains(requiredConcept)) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    // 가장 어려운 즉 문항에 가장 적게 포함된 개념을 반환 - 필요한개념 / 문항들
-    private String findHardestConcept(List<String> requiredConcepts, List<DailyQuizQuestion> candidates) {
-
-        String hardestConcept = null;
-        int minimumCandidateCount = Integer.MAX_VALUE;
-
-        for (String requiredConcept : requiredConcepts) {
-            int count = countCandidates(requiredConcept, candidates);
-            if (count < minimumCandidateCount) {
-                minimumCandidateCount = count;
-                hardestConcept = requiredConcept;
-            }
-
-        }
-
-        if (hardestConcept == null) {
-            throw new IllegalArgumentException("필요 개념은 하나 이상이어야 합니다.");
-        }
-        return hardestConcept;
-
-    }
-
-    // 남은 필요 개념과 가장 적게 겹치는 후보 문항 반환 - remainingConcepts 아직 문제 배정을 하지 못한 개념 목록
-    private Optional<DailyQuizQuestion> findLeastOverlappingCandidate(
-            String requiredConcept,
-            List<String> remainingConcepts,
-            List<DailyQuizQuestion> candidates) {
-
-        List<DailyQuizQuestion> matchingCandidates = new ArrayList<>();
-
-        // 퀴즈에서 현재 요청된 개념을 가지고 있는 것들을 리스트에 저장
-        for (DailyQuizQuestion candidate : candidates) {
-            if (candidate.getConceptTags().contains(requiredConcept)) {
-                matchingCandidates.add(candidate);
-            }
-        }
-
-        DailyQuizQuestion leastOverlappingCandidate = null;
-        int minimumOverlapCount = Integer.MAX_VALUE;
-        for (DailyQuizQuestion question : matchingCandidates) {
-            int overlapCount = countConceptOverlaps(question, remainingConcepts);
-            if (overlapCount < minimumOverlapCount) {
-                minimumOverlapCount = overlapCount;
-                leastOverlappingCandidate = question;
-            }
-        }
-
-        return Optional.ofNullable(leastOverlappingCandidate);
-    }
-
-    // 필요한 개념과 후보 문항 한개씩 몇 개 겹치는지
-    private int countConceptOverlaps(
-            DailyQuizQuestion candidate,
-            List<String> remainingConcepts
+    private boolean tryAssign(
+            int slotIndex,
+            List<String> requiredConcepts,
+            List<DailyQuizQuestion> sortedCandidates,
+            Map<UUID, Integer> slotByQuestionId,
+            DailyQuizQuestion[] questionBySlot,
+            Set<UUID> visitedQuestionIds
     ) {
-        int count = 0;
-        for (String requiredConcept : remainingConcepts) {
-            if (candidate.getConceptTags().contains(requiredConcept)) {
-                count++;
+        String requiredConcept = requiredConcepts.get(slotIndex);
+
+        for (DailyQuizQuestion candidate : sortedCandidates) {
+            if (!candidate.getConceptTags().contains(requiredConcept)) {
+                continue;
+            }
+
+            UUID questionVersionId = candidate.getId();
+            if (!visitedQuestionIds.add(questionVersionId)) {
+                continue;
+            }
+
+            Integer assignedSlotIndex = slotByQuestionId.get(questionVersionId);
+            boolean isUnassigned = assignedSlotIndex == null;
+            boolean canMoveAssignedSlot = !isUnassigned && tryAssign(
+                    assignedSlotIndex,
+                    requiredConcepts,
+                    sortedCandidates,
+                    slotByQuestionId,
+                    questionBySlot,
+                    visitedQuestionIds
+            );
+
+            if (isUnassigned || canMoveAssignedSlot) {
+                slotByQuestionId.put(questionVersionId, slotIndex);
+                questionBySlot[slotIndex] = candidate;
+                return true;
             }
         }
-        return count;
+
+        return false;
     }
 }
