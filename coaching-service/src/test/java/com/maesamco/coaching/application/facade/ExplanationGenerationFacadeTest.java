@@ -188,6 +188,89 @@ class ExplanationGenerationFacadeTest {
     }
 
     @Test
+    void AI가_JSON으로_응답하면_category와_question을_분리해서_저장한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        when(aiModelPort.generate(any(), any())).thenReturn(
+                new AiModelResponse("{\"category\": \"경계값\", \"question\": \"배열이 비어있을 때는 어떻게 되나요?\"}",
+                        "claude-sonnet-5", 20)
+        );
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("배열이 비어있을 때는 어떻게 되나요?");
+        assertThat(result.followUpQuestion().getCategory()).isEqualTo("경계값");
+    }
+
+    @Test
+    void AI_응답이_마크다운_코드블록으로_감싸져_있어도_JSON을_파싱한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        when(aiModelPort.generate(any(), any())).thenReturn(
+                new AiModelResponse("```json\n{\"category\": \"자료구조\", \"question\": \"왜 배열을 썼나요?\"}\n```",
+                        "claude-sonnet-5", 20)
+        );
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("왜 배열을 썼나요?");
+        assertThat(result.followUpQuestion().getCategory()).isEqualTo("자료구조");
+    }
+
+    @Test
+    void AI가_JSON이_아닌_평문으로_응답해도_전체를_질문으로_저장하고_category는_null이다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        when(aiModelPort.generate(any(), any())).thenReturn(
+                new AiModelResponse("반복문의 종료 조건은 무엇인가요?", "claude-sonnet-5", 20)
+        );
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("반복문의 종료 조건은 무엇인가요?");
+        assertThat(result.followUpQuestion().getCategory()).isNull();
+    }
+
+    /**
+     * PR #88 리뷰(용현님 P2) 대응 — category가 DB 컬럼 한도(30자)를 넘으면
+     * FollowUpQuestion.create()가 BusinessException을 던진다. 모델이 "한 단어" 지시를
+     * 안 지켜도 그 포맷 실수 때문에 이미 저장된 설명까지 포함한 요청 전체가 깨지면 안
+     * 된다 — category만 버리고 questionText·등록 자체는 그대로 성공해야 한다.
+     */
+    @Test
+    void category가_30자를_초과하면_category만_버리고_등록은_그대로_성공한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        String tooLongCategory = "가".repeat(31);
+        when(aiModelPort.generate(any(), any())).thenReturn(
+                new AiModelResponse("{\"category\": \"" + tooLongCategory + "\", \"question\": \"질문\"}",
+                        "claude-sonnet-5", 20)
+        );
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.explanation()).isNotNull();
+        assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("질문");
+        assertThat(result.followUpQuestion().getCategory()).isNull();
+    }
+
+    @Test
     void AI가_빈_응답을_반환해도_설명은_저장된_채로_반환하고_역질문만_null이다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
         CoachingSession existingSession = persistedSession();
