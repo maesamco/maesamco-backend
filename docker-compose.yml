@@ -200,6 +200,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-user
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -222,6 +224,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-content
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -246,6 +250,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-judge
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -271,12 +277,17 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-coaching
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_CHAT: ${AI_MODEL_CHAT:-anthropic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       HMAC_KEY_CONTENT_TO_COACHING: ${HMAC_KEY_CONTENT_TO_COACHING}
+      HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
     depends_on:
       postgres-coaching:
         condition: service_healthy

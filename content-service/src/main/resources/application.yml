@@ -5,7 +5,7 @@ spring:
   application:
     name: content-service
   datasource:
-    url: jdbc:postgresql://localhost:5433/maesamco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
