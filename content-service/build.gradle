@@ -65,4 +65,5 @@ dependencyManagement {
 dependencies {
     // 문제/일일퀴즈 생성 또는 힌트·역질문·피드백 생성용 — Spring AI (11절: 벤더 확정 시 아래 starter만 교체)
     implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
 }
