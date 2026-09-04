@@ -3,6 +3,7 @@ package com.maesamco.judge.application.service;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
+import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,11 @@ public class ProblemExecutionSpecService {
             return;
         }
 
+        if (event.publishedAt() == null) {
+            throw new InvalidProblemPublishedEventException(
+                    "publishedAt 누락. eventId=" + event.eventId());
+        }
+
         ProblemExecutionSpec spec = ProblemExecutionSpec.fromPublishedEvent(
                 event.problemId(),
                 event.problemVersionId(),
@@ -38,11 +44,11 @@ public class ProblemExecutionSpecService {
                 writeTestCasesAsJson(event),
                 event.timeLimit(),
                 event.memoryLimit(),
-                event.publishedAt() != null ? event.publishedAt() : Instant.now()
+                event.publishedAt()
         );
 
         try {
-            problemExecutionSpecRepository.save(spec);
+            problemExecutionSpecRepository.saveAndFlush(spec);
         } catch (DataIntegrityViolationException e) {
             log.info("[Judge] ProblemPublished 저장 경합으로 UNIQUE 충돌 — 이미 처리된 것으로 간주. "
                             + "eventId={}, problemId={}, problemVersionId={}",
