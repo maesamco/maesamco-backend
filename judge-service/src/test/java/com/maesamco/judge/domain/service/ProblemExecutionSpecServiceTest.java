@@ -3,6 +3,7 @@ package com.maesamco.judge.domain.service;
 import com.maesamco.judge.application.service.ProblemExecutionSpecService;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
+import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -86,7 +87,7 @@ class ProblemExecutionSpecServiceTest {
 
             // then
             ArgumentCaptor<ProblemExecutionSpec> captor = ArgumentCaptor.forClass(ProblemExecutionSpec.class);
-            verify(problemExecutionSpecRepository, times(1)).save(captor.capture());
+            verify(problemExecutionSpecRepository, times(1)).saveAndFlush(captor.capture());
 
             ProblemExecutionSpec saved = captor.getValue();
             assertThat(saved.getProblemId()).isEqualTo(event.problemId());
@@ -100,8 +101,8 @@ class ProblemExecutionSpecServiceTest {
         }
 
         @Test
-        @DisplayName("publishedAt이 없는 이벤트는 현재 시각으로 대체한다")
-        void fallsBackToNowWhenPublishedAtMissing() {
+        @DisplayName("publishedAt이 없는 이벤트는 잘못된 이벤트로 간주해 예외를 던진다")
+        void throwsWhenPublishedAtMissing() {
             // given
             ProblemPublishedEvent event = new ProblemPublishedEvent(
                     UUID.randomUUID(), "ProblemPublished", 1, Instant.now(),
@@ -111,13 +112,10 @@ class ProblemExecutionSpecServiceTest {
             given(problemExecutionSpecRepository.existsByProblemIdAndProblemVersionId(
                     event.problemId(), event.problemVersionId())).willReturn(false);
 
-            // when
-            problemExecutionSpecService.saveIfAbsent(event);
-
-            // then
-            ArgumentCaptor<ProblemExecutionSpec> captor = ArgumentCaptor.forClass(ProblemExecutionSpec.class);
-            verify(problemExecutionSpecRepository).save(captor.capture());
-            assertThat(captor.getValue().getPublishedAt()).isNotNull();
+            // when / then
+            assertThatThrownBy(() -> problemExecutionSpecService.saveIfAbsent(event))
+                    .isInstanceOf(InvalidProblemPublishedEventException.class);
+            verify(problemExecutionSpecRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -127,7 +125,7 @@ class ProblemExecutionSpecServiceTest {
             ProblemPublishedEvent event = validEvent();
             given(problemExecutionSpecRepository.existsByProblemIdAndProblemVersionId(
                     event.problemId(), event.problemVersionId())).willReturn(false);
-            given(problemExecutionSpecRepository.save(any()))
+            given(problemExecutionSpecRepository.saveAndFlush(any()))
                     .willThrow(new DataIntegrityViolationException("duplicate key"));
 
             // when / then — 예외가 밖으로 새면 안 됨(멱등 처리 대상이지 오류가 아님)
