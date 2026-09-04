@@ -1,5 +1,6 @@
 package com.maesamco.content.dailyquiz.application.service;
 
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ public class DailyQuizQuestionReuseService {
     private final DailyQuizQuestionRepository questionRepository;
     private final ReusableQuestionSelector questionSelector;
 
-    public QuestionSelection selectReusableQuestions(List<String> requiredConcepts) {
+    public DailyQuizQuestionSelectionResult selectReusableQuestions(List<String> requiredConcepts) {
         List<DailyQuizQuestion> candidates = questionRepository.findActiveByAnyConcepts(requiredConcepts);
         return questionSelector.select(requiredConcepts, candidates);
     }

@@ -1,4 +1,4 @@
-package com.maesamco.content.dailyquiz.application.service;
+package com.maesamco.content.dailyquiz.application.result;
 
 import java.util.UUID;
 

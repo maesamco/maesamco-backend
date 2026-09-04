@@ -5,11 +5,11 @@ import com.maesamco.content.aigeneration.application.AiGenerationMetadata;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationException;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
-import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSourcingResult;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionGenerationService;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionReuseService;
-import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourcingResult;
-import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
+import com.maesamco.content.dailyquiz.domain.ConceptSlots;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -81,7 +81,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion stringQuestion = question(4, STRING);
         DailyQuizQuestion methodQuestion = question(5, METHOD);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(
                                 0, loopQuestion,
                                 1, conditionQuestion,
@@ -114,7 +114,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion),
                         Map.of(2, ARRAY, 3, STRING, 4, METHOD)
                 ));
@@ -137,7 +137,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         ConceptSlots conceptSlots = conceptSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion),
                         Map.of(1, CONDITION, 2, ARRAY, 3, STRING, 4, METHOD)
                 ));
@@ -162,7 +162,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));
@@ -187,7 +187,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));
@@ -215,7 +215,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));

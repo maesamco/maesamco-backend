@@ -1,4 +1,4 @@
-package com.maesamco.content.dailyquiz.application.service;
+package com.maesamco.content.dailyquiz.application.result;
 
 public enum DailyQuizSetGenerationStatus {
     // 세트 생성 완료
