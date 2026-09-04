@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 메모리 제한 */
 public enum RunningMemoryLimit {
 
     /** 128MB */

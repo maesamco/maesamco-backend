@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 시간 제한 */
 public enum RunningTimeLimit {
 
     /** 1초 */

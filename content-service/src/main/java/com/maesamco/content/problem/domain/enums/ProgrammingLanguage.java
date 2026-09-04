@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 개발 언어 */
 public enum ProgrammingLanguage {
 
     /** C 언어 */

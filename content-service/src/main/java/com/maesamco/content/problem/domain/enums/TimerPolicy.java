@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 타이머 설정 */
 public enum TimerPolicy {
 
     /** 1분 제한 */

@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 유형 */
 public enum ProblemType {
 
     /** 코드 작성 */

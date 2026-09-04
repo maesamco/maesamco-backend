@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 상태 */
 public enum ProblemStatus {
 
     /** AI 생성 */

@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.domain.enums;
 
+/** 문제 출처 */
 public enum ProblemSource {
 
     /** 사람이 생성 */
