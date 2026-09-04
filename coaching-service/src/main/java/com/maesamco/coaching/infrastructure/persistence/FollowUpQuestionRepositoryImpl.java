@@ -42,4 +42,9 @@ public class FollowUpQuestionRepositoryImpl implements FollowUpQuestionRepositor
     public Optional<FollowUpQuestion> findByExplanationId(UUID explanationId) {
         return springDataFollowUpQuestionRepository.findByExplanationId(explanationId);
     }
+
+    @Override
+    public Optional<FollowUpQuestion> findById(UUID id) {
+        return springDataFollowUpQuestionRepository.findById(id);
+    }
 }
