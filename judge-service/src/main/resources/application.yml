@@ -9,7 +9,7 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
-    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    enabled: true
     schemas: judge_schema
   jpa:
     hibernate:
@@ -26,9 +26,13 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topic:
+      problem-published: problem-published-events
     consumer:
       group-id: judge-service
       auto-offset-reset: earliest
+      group:
+        problem-published: judge-service-problem-published-group
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -59,3 +63,15 @@ management:
   otlp:
     tracing:
       endpoint: ${TEMPO_OTLP_URL:http://localhost:4318/v1/traces}
+
+# ⚠️ 리뷰 반영: profile 없이 기본값으로는 문서 자체를 완전히 끈다.
+# docker-compose가 이 서비스 포트를 호스트에 직접 노출하고 있어, Gateway를
+# 건너뛰고 직접 접속하면 JwtValidationFilter(Gateway 계층에만 존재)가 적용 안 돼
+# 인증 없이 API 문서가 노출될 수 있었다. Gateway의 application.yml과 동일한
+# 패턴 — 로컬 통합 테스트용 설정은 application-dev.yml에 분리해뒀다
+# (SPRING_PROFILES_ACTIVE=dev로 활성화).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

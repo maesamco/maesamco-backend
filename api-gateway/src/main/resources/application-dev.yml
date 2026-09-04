@@ -1,0 +1,51 @@
+# 통합 테스트용(로컬 전용) — SPRING_PROFILES_ACTIVE=dev 로 활성화해야만 적용된다.
+# 기본 application.yml에서 springdoc을 꺼둔 이유(P1 리뷰): profile 없이 그대로
+# 배포되면 4개 서비스의 OpenAPI 문서(내부 API 스펙 포함 가능)가 인증 없이
+# 외부에 노출될 수 있어서다. 반드시 이 profile을 명시적으로 켰을 때만 열린다.
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            # /internal/v1/**과 달리 이건 의도적으로 외부에 열어둔 경로다.
+            - id: user-service-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/user-service/v3/api-docs
+              filters:
+                - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+            - id: content-service-docs
+              uri: lb://content-service
+              predicates:
+                - Path=/content-service/v3/api-docs
+              filters:
+                - RewritePath=/content-service/v3/api-docs, /v3/api-docs
+            - id: judge-service-docs
+              uri: lb://judge-service
+              predicates:
+                - Path=/judge-service/v3/api-docs
+              filters:
+                - RewritePath=/judge-service/v3/api-docs, /v3/api-docs
+            - id: coaching-service-docs
+              uri: lb://coaching-service
+              predicates:
+                - Path=/coaching-service/v3/api-docs
+              filters:
+                - RewritePath=/coaching-service/v3/api-docs, /v3/api-docs
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    urls:
+      - name: user-service
+        url: /user-service/v3/api-docs
+      - name: content-service
+        url: /content-service/v3/api-docs
+      - name: judge-service
+        url: /judge-service/v3/api-docs
+      - name: coaching-service
+        url: /coaching-service/v3/api-docs

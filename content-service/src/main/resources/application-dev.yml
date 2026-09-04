@@ -1,0 +1,10 @@
+# 통합 테스트용(로컬 전용) — SPRING_PROFILES_ACTIVE=dev 로 활성화해야만 적용된다.
+# 기본 application.yml에서 springdoc을 꺼둔 이유(리뷰 반영): docker-compose가
+# 이 서비스 포트를 호스트에 직접 노출하고 있어, profile 없이 그대로 배포되면
+# API 문서가 인증 없이 노출될 수 있어서다.
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
