@@ -20,8 +20,8 @@ public class ProblemPublishedConsumer {
     private final ProblemExecutionSpecService problemExecutionSpecService;
 
     @KafkaListener(
-            topics = "${kafka.topic.problem-published:problem-published}",
-            groupId = "${kafka.consumer.group.problem-published:judge-service-problem-published}",
+            topics = "${spring.kafka.topic.problem-published:problem-published}",
+            groupId = "${spring.kafka.consumer.group.problem-published:judge-service-problem-published}",
             containerFactory = "problemPublishedKafkaListenerContainerFactory"
     )
     public void consume(ProblemPublishedEvent event) {
@@ -30,12 +30,20 @@ public class ProblemPublishedConsumer {
             log.warn("[Judge] 처리 불가능한 ProblemPublished eventVersion={} — 무시. "
                             + "eventId={}, problemId={}, problemVersionId={}",
                     event.eventVersion(), event.eventId(), event.problemId(), event.problemVersionId());
-            return;
+            throw new UnsupportedProblemPublishedEventVersionException(
+                    "지원하지 않는 eventVersion=" + event.eventVersion() + ", eventId=" + event.eventId()
+            );
         }
 
         log.info("[Judge] ProblemPublished 수신. eventId={}, problemId={}, problemVersionId={}",
                 event.eventId(), event.problemId(), event.problemVersionId());
 
         problemExecutionSpecService.saveIfAbsent(event);
+    }
+
+    public static class UnsupportedProblemPublishedEventVersionException extends RuntimeException {
+        UnsupportedProblemPublishedEventVersionException(String message) {
+            super(message);
+        }
     }
 }
