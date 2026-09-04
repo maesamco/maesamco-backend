@@ -1,5 +1,6 @@
 package com.maesamco.coaching.application.facade;
 
+import com.maesamco.coaching.application.persistence_service.FeedbackPersistenceService;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
@@ -7,32 +8,34 @@ import com.maesamco.coaching.application.port.JudgeServicePort;
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
-import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.Explanation;
 import com.maesamco.coaching.domain.entity.FollowUpAnswer;
 import com.maesamco.coaching.domain.entity.FollowUpQuestion;
-import com.maesamco.coaching.domain.entity.WeakConcept;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
-import com.maesamco.coaching.domain.repository.AiFeedbackRepository;
-import com.maesamco.coaching.domain.repository.WeakConceptRepository;
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.UUID;
-
 /**
  * 역질문 답변 등록(이슈 #51) 성공 후 best-effort로 호출되는 AI 종합 이해도 피드백 생성 —
- * Judge Service Feign 호출 + LLM 호출 + DB 쓰기(AiFeedback, WeakConcept)가 함께 일어나므로
- * Facade로 둔다(팀 컨벤션 2절). FollowUpAnswerFacade가 이 메서드를 try/catch로 감싸
- * 호출하므로, 여기서 던지는 예외는 전부 이 클래스 안에서 로그만 남기고 삼킨다 —
- * 실패해도 이미 완료된 코칭 세션·저장된 답변에는 영향을 주지 않는다(API 명세 — 피드백은
- * best-effort).
+ * Judge Service Feign 호출 + LLM 호출이 있어 Facade로 둔다(팀 컨벤션 2절). 순수 DB 저장
+ * 구간(AiCallHistory + AiFeedback + WeakConcept)은 FeedbackPersistenceService의 한
+ * 트랜잭션으로 분리돼 있다(PR #98 자가 리뷰 반영 — 아래 참고).
+ *
+ * FollowUpAnswerFacade가 이 메서드를 try/catch로 감싸 호출하므로, 여기서 던지는 예외는
+ * 전부 이 클래스 안에서 로그만 남기고 삼킨다 — 실패해도 이미 완료된 코칭 세션·저장된
+ * 답변에는 영향을 주지 않는다(API 명세 — 피드백은 best-effort).
+ *
+ * PR #98 리뷰(용현님 P1) — 실패해도 재시도(이슈 #52)가 찾을 수 있도록 모든 실패 경로가
+ * AiCallHistory에 FAILED로 남아야 하는데, 두 군데가 빠져 있었다: ① judgeServicePort
+ * .getSubmission() 실패는 바깥 catch에서 로그만 남기고 이력 자체가 안 생겼음(지금은 별도로
+ * FAILED 기록), ② AiCallHistory(SUCCESS)를 AiFeedback/WeakConcept 저장보다 먼저 기록해서
+ * 그 뒤 저장이 실패해도 이력은 이미 SUCCESS로 남았음(지금은 저장 전부를
+ * FeedbackPersistenceService 트랜잭션으로 묶어서, 저장 실패 시 SUCCESS 자체가 커밋되지
+ * 않고 이 Facade가 별도로 FAILED를 기록).
  *
  * TODO(#62): Content Service의 GET /internal/v1/problems/{problemId}가 아직 없어서,
  * 프롬프트에 문제 지문·개념 태그를 포함하지 못한다. HintGenerationFacade/
@@ -50,21 +53,18 @@ public class FeedbackGenerationFacade {
     private final JudgeServicePort judgeServicePort;
     private final AiModelPort aiModelPort;
     private final AiCallHistoryRepository aiCallHistoryRepository;
-    private final AiFeedbackRepository aiFeedbackRepository;
-    private final WeakConceptRepository weakConceptRepository;
+    private final FeedbackPersistenceService feedbackPersistenceService;
 
     public FeedbackGenerationFacade(
             JudgeServicePort judgeServicePort,
             AiModelPort aiModelPort,
             AiCallHistoryRepository aiCallHistoryRepository,
-            AiFeedbackRepository aiFeedbackRepository,
-            WeakConceptRepository weakConceptRepository
+            FeedbackPersistenceService feedbackPersistenceService
     ) {
         this.judgeServicePort = judgeServicePort;
         this.aiModelPort = aiModelPort;
         this.aiCallHistoryRepository = aiCallHistoryRepository;
-        this.aiFeedbackRepository = aiFeedbackRepository;
-        this.weakConceptRepository = weakConceptRepository;
+        this.feedbackPersistenceService = feedbackPersistenceService;
     }
 
     /**
@@ -76,7 +76,16 @@ public class FeedbackGenerationFacade {
             FollowUpQuestion followUpQuestion, FollowUpAnswer followUpAnswer
     ) {
         try {
-            SubmissionSnapshot submission = judgeServicePort.getSubmission(session.getSubmissionId());
+            SubmissionSnapshot submission;
+            try {
+                submission = judgeServicePort.getSubmission(session.getSubmissionId());
+            } catch (RuntimeException e) {
+                recordAiCallHistory(AiCallHistory.create(
+                        session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
+                        "FAILED", null, null, "제출 조회 실패: " + e.getMessage(), 0
+                ));
+                return;
+            }
 
             AiModelResponse response;
             try {
@@ -108,19 +117,21 @@ public class FeedbackGenerationFacade {
                 return;
             }
 
-            recordAiCallHistory(AiCallHistory.create(
-                    session.getId(), AiCallPurpose.FEEDBACK, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", null, response.tokenUsage(), null, 0
-            ));
-
-            aiFeedbackRepository.save(AiFeedback.create(
-                    session.getId(), parsed.understoodConcepts(), parsed.explanationGaps(), parsed.weakConcepts(),
-                    parsed.syntaxToImprove(), parsed.recommendedProblems(), parsed.nextDirection()
-            ));
-
-            recordWeakConcepts(session.getUserId(), parsed.weakConcepts());
+            try {
+                feedbackPersistenceService.saveFeedback(
+                        session.getId(), session.getUserId(), response.modelName(), PROMPT_VERSION, response.tokenUsage(),
+                        parsed.understoodConcepts(), parsed.explanationGaps(), parsed.weakConcepts(),
+                        parsed.syntaxToImprove(), parsed.recommendedProblems(), parsed.nextDirection()
+                );
+            } catch (RuntimeException e) {
+                recordAiCallHistory(AiCallHistory.create(
+                        session.getId(), AiCallPurpose.FEEDBACK, response.modelName(), PROMPT_VERSION,
+                        "FAILED", null, response.tokenUsage(), "피드백 저장 실패: " + e.getMessage(), 0
+                ));
+                log.warn("AI 종합 피드백 저장 실패 - coachingSessionId={}", session.getId(), e);
+            }
         } catch (RuntimeException e) {
-            log.warn("AI 종합 피드백 생성 실패 - coachingSessionId={}", session.getId(), e);
+            log.warn("AI 종합 피드백 생성 중 예기치 못한 오류 - coachingSessionId={}", session.getId(), e);
         }
     }
 
@@ -224,49 +235,6 @@ public class FeedbackGenerationFacade {
             }
         }
         return content;
-    }
-
-    /**
-     * weakConcepts 배열의 각 태그에 대해 기존 집계 행이 있으면 recordOccurrence()로
-     * 갱신하고, 없으면 새로 만든다. 조회 후 생성 사이의 동시성 경합으로 WeakConceptRepository
-     * .save()가 WEAK_CONCEPT_ALREADY_EXISTS를 던지면(WeakConceptRepositoryImpl의 UNIQUE
-     * 위반 안전망), 그 사이 다른 트랜잭션이 먼저 만든 행을 다시 조회해 recordOccurrence()로
-     * 갱신한다 — 이 피드백 생성 자체가 세션당 한 번뿐이라 실제 경합 가능성은 낮지만, 저장
-     * 실패로 태그 하나가 통째로 유실되는 것보다는 안전하다.
-     */
-    private void recordWeakConcepts(UUID userId, JsonNode weakConcepts) {
-        for (JsonNode tagNode : weakConcepts) {
-            if (tagNode == null || tagNode.isNull() || !tagNode.isString()) {
-                continue;
-            }
-            String conceptTag = tagNode.asString().trim();
-            if (conceptTag.isBlank()) {
-                continue;
-            }
-            recordWeakConcept(userId, conceptTag);
-        }
-    }
-
-    private void recordWeakConcept(UUID userId, String conceptTag) {
-        var existing = weakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag);
-        if (existing.isPresent()) {
-            existing.get().recordOccurrence();
-            weakConceptRepository.save(existing.get());
-            return;
-        }
-
-        try {
-            weakConceptRepository.save(WeakConcept.create(userId, conceptTag));
-        } catch (BusinessException e) {
-            if (e.getErrorCode() != ErrorCode.WEAK_CONCEPT_ALREADY_EXISTS) {
-                throw e;
-            }
-            weakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag)
-                    .ifPresent(concept -> {
-                        concept.recordOccurrence();
-                        weakConceptRepository.save(concept);
-                    });
-        }
     }
 
     private void recordAiCallHistory(AiCallHistory history) {

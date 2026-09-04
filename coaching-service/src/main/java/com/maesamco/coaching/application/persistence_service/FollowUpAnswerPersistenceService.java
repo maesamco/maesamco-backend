@@ -25,11 +25,17 @@ import java.util.UUID;
  * 메서드를 호출한다. 팀 컨벤션 406행의 "엔티티 전달 규칙"에 따라, Facade가 이미 조회한
  * CoachingSession을 그대로 넘기지 않고 ID로 받아 이 새 트랜잭션 안에서 다시 조회한다.
  *
- * 동시성: FollowUpAnswer에 UNIQUE(follow_up_question_id) 제약이 있어, 같은 역질문에
+ * 동시성: FollowUpAnswer에 UNIQUE(follow_up_question_id) 제약이 있어, **같은** 역질문에
  * 대한 동시 요청 중 하나는 반드시 답변 저장 단계에서 UNIQUE 위반으로 이 트랜잭션 전체가
- * 롤백된다 — 세션 완료(complete())도 함께 롤백되므로, 별도의 낙관적 락(@Version) 없이도
- * 안전하다(CoachingSession#complete() Javadoc의 "역질문 답변 처리 Service/Facade 구현 시
- * 해결" TODO를 이 트랜잭션으로 해소한다).
+ * 롤백된다 — 세션 완료(complete())도 함께 롤백되므로 안전하다. 다만 이건 같은 역질문에
+ * 한해서다 — 한 세션에 서로 다른 역질문이 여러 개 있을 수 있어서(재도전 시 새 설명이
+ * 등록될 때마다 새 역질문이 쌓임, 이슈 #84), **서로 다른** 역질문 두 개를 순차적으로든
+ * 동시에든 답하면 이 UNIQUE 제약만으로는 못 막는다(PR #98 자가 리뷰 반영, 용현님 P1) —
+ * 아래 completeSessionIfNeeded()가 그 순차 재진입 케이스(가장 흔한 경우: 세션이 이미
+ * COMPLETED인 상태에서 다른 역질문에 늦게 답하는 경우)를 별도로 처리한다. 두 요청이
+ * 정말로 거의 동시에 들어와서 둘 다 세션을 IN_PROGRESS로 읽는 진짜 레이스까지 막으려면
+ * CoachingSession에 낙관적 락(@Version)이 필요한데, 그건 advanceToSubmission() 쪽에도
+ * 영향을 주는 더 큰 변경이라 이번엔 범위에서 뺐다(TODO로 남김).
  */
 @Service
 @Transactional
@@ -69,6 +75,23 @@ public class FollowUpAnswerPersistenceService {
                 FollowUpAnswer.create(followUpQuestionId, answerText)
         );
 
+        CoachingSession completedSession = completeSessionIfNeeded(session);
+
+        return new FollowUpAnswerCompletionResult(answer, completedSession);
+    }
+
+    /**
+     * 세션이 이미 COMPLETED면(한 세션의 다른 역질문이 먼저 완료 처리한 경우, PR #98 자가
+     * 리뷰 반영) 방금 저장한 답변은 그대로 유효하게 두되, 세션 재완료·Outbox 재발행은
+     * 건너뛴다 — CoachingSession.complete()를 다시 호출하면 COACHING_SESSION_ALREADY_
+     * COMPLETED로 예외가 나서 이 트랜잭션 전체가 롤백되고, 방금 저장한 정당한 답변까지
+     * 같이 사라지는 문제가 있었다.
+     */
+    private CoachingSession completeSessionIfNeeded(CoachingSession session) {
+        if (session.isCompleted()) {
+            return session;
+        }
+
         session.complete();
         CoachingSession completedSession = coachingSessionRepository.save(session);
 
@@ -78,7 +101,7 @@ public class FollowUpAnswerPersistenceService {
                 buildCoachingCompletedPayload(completedSession)
         ));
 
-        return new FollowUpAnswerCompletionResult(answer, completedSession);
+        return completedSession;
     }
 
     /**

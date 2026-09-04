@@ -160,11 +160,20 @@ public class CoachingSession {
     /**
      * 역질문 답변까지 완료된 시점에 호출 — 스트릭 반영 기준(서비스 기능 요약 [1]-4절).
      *
-     * 낙관적 락(@Version) 없이 상태를 확인 후 변경하지만(check-then-act), 이슈 #51 —
+     * 낙관적 락(@Version) 없이 상태를 확인 후 변경한다(check-then-act). 이슈 #51의
      * FollowUpAnswerPersistenceService가 이 메서드 호출을 FollowUpAnswer 저장과 한
-     * 트랜잭션으로 묶어서 안전하다. FollowUpAnswer에 UNIQUE(follow_up_question_id) 제약이
-     * 있어, 같은 역질문에 대한 동시 요청 중 하나는 반드시 답변 저장 단계에서 UNIQUE
-     * 위반으로 트랜잭션 전체가 롤백되고, 이 완료 처리도 함께 롤백된다.
+     * 트랜잭션으로 묶어서, **같은** 역질문에 대한 동시 답변은 안전하다(FollowUpAnswer의
+     * UNIQUE(follow_up_question_id) 제약으로 한쪽이 저장 단계에서 롤백되므로 이 완료
+     * 처리까지 도달 못 함).
+     *
+     * 다만 한 세션에 서로 다른 역질문이 여러 개 쌓일 수 있어서(재도전 시 새 설명 등록,
+     * 이슈 #84), **서로 다른** 역질문 두 개를 순차적으로(며칠 뒤라도) 또는 거의 동시에
+     * 답하는 경우는 이 UNIQUE 제약으로 안 막힌다 — 이미 COMPLETED인 세션에 다른 역질문의
+     * 답변이 들어오면 이 메서드가 예외를 던지는데, 순차 재진입 케이스는
+     * FollowUpAnswerPersistenceService.completeSessionIfNeeded()가 이 메서드 호출 자체를
+     * 건너뛰어 해소했다(PR #98 자가 리뷰, 용현님 P1). 두 요청이 진짜 거의 동시에 들어와서
+     * 둘 다 이 세션을 COMPLETED 이전 상태로 읽는 레이스까지는 여전히 미해결 —
+     * advanceToSubmission()과 함께 @Version 도입 시 같이 해결할 것.
      */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {

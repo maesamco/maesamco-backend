@@ -191,6 +191,51 @@ class FollowUpAnswerPersistenceServiceTest {
         assertThat(outboxRows).isEmpty();
     }
 
+    private FollowUpQuestion createSecondFollowUpQuestion(CoachingSession session) {
+        Explanation explanation = explanationRepository.save(
+                Explanation.create(session.getId(), UUID.randomUUID(), "설명 내용 2")
+        );
+        return followUpQuestionRepository.save(FollowUpQuestion.create(explanation.getId(), "질문 내용 2", null));
+    }
+
+    /**
+     * PR #98 자가 리뷰(용현님 P1) 대응 — 한 세션에 서로 다른 역질문이 여러 개 있을 수
+     * 있는데(재도전 시 새 설명 등록, 이슈 #84), 첫 번째 역질문 답변으로 세션이 이미
+     * COMPLETED된 뒤 두 번째 역질문에 답하면 예전엔 complete()가 ALREADY_COMPLETED를
+     * 던져 트랜잭션 전체가 롤백되면서 방금 저장한 정당한 답변까지 사라졌다. 이제는 답변만
+     * 저장되고 세션 재완료·Outbox 재발행은 건너뛴다.
+     */
+    @Test
+    @DisplayName("이미 완료된 세션의 다른 역질문에 답하면 답변만 저장되고 세션 재완료·Outbox 재발행은 없다")
+    void completeWithAnswer_savesAnswerOnly_whenSessionAlreadyCompletedByAnotherQuestion() {
+        // given
+        Fixture fixture = createFixture();
+        followUpAnswerPersistenceService.completeWithAnswer(
+                fixture.session().getId(), fixture.followUpQuestion().getId(), "첫 번째 답변"
+        );
+        entityManager.clear();
+        FollowUpQuestion secondQuestion = createSecondFollowUpQuestion(fixture.session());
+
+        // when
+        FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult result =
+                followUpAnswerPersistenceService.completeWithAnswer(
+                        fixture.session().getId(), secondQuestion.getId(), "두 번째 답변"
+                );
+
+        entityManager.clear();
+
+        // then
+        assertThat(result.followUpAnswer().getAnswerText()).isEqualTo("두 번째 답변");
+        assertThat(result.coachingSession().getStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+        assertThat(followUpAnswerRepository.findByFollowUpQuestionId(secondQuestion.getId())).isPresent();
+
+        List<CoachingEventOutbox> outboxRows = entityManager
+                .createQuery("select o from CoachingEventOutbox o where o.aggregateId = :sessionId", CoachingEventOutbox.class)
+                .setParameter("sessionId", fixture.session().getId())
+                .getResultList();
+        assertThat(outboxRows).hasSize(1);
+    }
+
     @Test
     @DisplayName("존재하지 않는 코칭 세션 ID면 COACHING_SESSION_NOT_FOUND를 던지고 답변도 저장하지 않는다")
     void completeWithAnswer_throwsCoachingSessionNotFound_whenSessionDoesNotExist() {

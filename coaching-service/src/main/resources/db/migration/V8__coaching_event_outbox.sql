@@ -10,6 +10,9 @@
 -- Relay Worker는 이슈 #89에서 별도로 구현한다 — 그 전까지는 row가 쌓이기만 하고 발행은
 -- 안 된다.
 
+-- event_type CHECK가 지금은 'CoachingCompleted' 하나뿐이다 — 엔티티 Javadoc은 "나중에
+-- event_type만 늘려서 쓴다"고 확장성을 얘기하지만, 실제로 두 번째 이벤트 타입이 생기면 이
+-- CHECK를 넓히는 후속 마이그레이션이 반드시 필요하다(PR #98 자가 리뷰, Pass 2 발견).
 CREATE TABLE coaching_schema.p_coaching_event_outboxes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     aggregate_id UUID NOT NULL,
