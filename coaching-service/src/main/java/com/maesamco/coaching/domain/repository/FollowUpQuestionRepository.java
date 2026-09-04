@@ -10,4 +10,6 @@ public interface FollowUpQuestionRepository {
     FollowUpQuestion save(FollowUpQuestion followUpQuestion);
 
     Optional<FollowUpQuestion> findByExplanationId(UUID explanationId);
+
+    Optional<FollowUpQuestion> findById(UUID id);
 }

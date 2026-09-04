@@ -96,12 +96,17 @@ public class WeakConcept {
      * 같은 개념이 다시 발견됐을 때 호출 — 새 행을 만들지 않고 기존 집계 행의 발견 횟수/시각만
      * 갱신한다.
      *
-     * ⚠️ CoachingSession.complete()와 동일하게 낙관적 락 없이 값을 읽고 바로 갱신한다(check-
-     * then-act). (user_id, concept_tag) 조회 후 갱신하는 Service/Facade를 만들 때, 같은
-     * 개념이 짧은 시간에 동시에 재발견되는 경로의 동시성 처리 여부를 함께 고려할 것.
+     * ⚠️ 낙관적 락 없이 값을 읽고 바로 갱신한다(check-then-act). 이슈 #51의
+     * FeedbackGenerationFacade.recordWeakConcept()가 실제 조회 후 갱신하는 Facade다 —
+     * 그 행이 아직 없어서 처음 만드는 경우의 경합은 UNIQUE(user_id, concept_tag) 제약 +
+     * WEAK_CONCEPT_ALREADY_EXISTS 재조회로 방어했지만(WeakConceptRepositoryImpl), 이미
+     * 있는 행을 두 트랜잭션이 동시에 조회해서 각자 recordOccurrence() 후 저장하는
+     * 경우(같은 개념이 짧은 시간에 서로 다른 코칭 세션에서 재발견되는 경로)는 여전히
+     * 무방비다 — 나중에 저장하는 쪽이 먼저 저장된 값을 그대로 덮어써 발견 횟수 증가분이
+     * 하나 유실될 수 있다.
      *
-     * TODO: 취약 개념 조회 후 갱신(find-then-update) Service/Facade 구현 시 위 동시성 문제
-     *       해결 방안 확정하고 이 TODO 제거.
+     * TODO: 위 "이미 있는 행"에 대한 동시 갱신 경합은 @Version 등으로 아직 해결 안 됨 —
+     *       실제 트래픽에서 발생 빈도를 보고 방안 확정하고 이 TODO 제거.
      *
      * TODO: improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
      *       false로 되돌려야 하는지가 명세에 없다. 지금은 이 메서드가 improved를 건드리지 않고
