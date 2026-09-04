@@ -14,6 +14,7 @@ import com.maesamco.user.domain.repository.UserGamificationStateRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.global.security.TokenExpirationCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +22,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -135,7 +135,7 @@ public class SignUpService {
         authSessionStore.save(authSession);
 
         long accessTokenExpiresIn =
-                calculateExpiresInSeconds(
+                TokenExpirationCalculator.remainingSeconds(
                         now,
                         issuedTokens.accessTokenExpiresAt()
                 );
@@ -190,34 +190,6 @@ public class SignUpService {
         }
 
         return nickname.trim();
-    }
-
-    /**
-     * Access Token 만료 시각을 현재 시각 기준의 남은 초 단위로 변환합니다.
-     *
-     * <p>밀리초 단위의 일부 시간이 남아 있는 경우 클라이언트가
-     * 지나치게 짧은 만료 시간을 받지 않도록 초 단위로 올림 처리합니다.</p>
-     */
-    private long calculateExpiresInSeconds(
-            Instant now,
-            Instant expiresAt
-    ) {
-        Objects.requireNonNull(
-                expiresAt,
-                "Access Token 만료 시각은 필수입니다."
-        );
-
-        long remainingMillis =
-                Duration.between(
-                        now,
-                        expiresAt
-                ).toMillis();
-
-        if (remainingMillis <= 0) {
-            return 0;
-        }
-
-        return (remainingMillis + 999L) / 1000L;
     }
 
     /**
