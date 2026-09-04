@@ -21,6 +21,7 @@ public record LoginCommand(
         String email,
 
         @NotBlank(message = "비밀번호는 필수입니다.")
+        @Size(max = 64, message = "비밀번호는 64자 이하여야 합니다.")
         String password
 ) {
 

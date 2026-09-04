@@ -8,6 +8,7 @@ import com.maesamco.user.application.service.SignUpCommand;
 import com.maesamco.user.application.service.SignUpResult;
 import com.maesamco.user.application.service.SignUpService;
 import com.maesamco.user.global.response.SuccessResponse;
+import com.maesamco.user.global.security.TokenExpirationCalculator;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -21,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 
 /**
  * 회원가입과 로그인을 포함한 사용자 인증 API를 제공합니다.
@@ -115,6 +115,9 @@ public class AuthApiController {
      * <p>Refresh Token 원문은 API 응답 본문에 포함하지 않고
      * 인증 API 요청에서만 사용할 수 있도록 Cookie Path를 제한합니다.</p>
      *
+     * <p>Cookie Max-Age는 공통 TokenExpirationCalculator를 사용해
+     * Refresh Token의 실제 만료 시각 기준으로 계산합니다.</p>
+     *
      * @param issuedTokens 발급된 인증 토큰 정보
      * @return Refresh Token Cookie
      */
@@ -122,7 +125,7 @@ public class AuthApiController {
             IssuedTokens issuedTokens
     ) {
         long maxAgeSeconds =
-                calculateRemainingSeconds(
+                TokenExpirationCalculator.remainingSeconds(
                         clock.instant(),
                         issuedTokens.refreshTokenExpiresAt()
                 );
@@ -140,29 +143,5 @@ public class AuthApiController {
                         Duration.ofSeconds(maxAgeSeconds)
                 )
                 .build();
-    }
-
-    /**
-     * 현재 시각부터 만료 시각까지 남은 시간을 초 단위로 계산합니다.
-     *
-     * @param now 현재 시각
-     * @param expiresAt 만료 시각
-     * @return 0 이상의 남은 초
-     */
-    private long calculateRemainingSeconds(
-            Instant now,
-            Instant expiresAt
-    ) {
-        long remainingMillis =
-                Duration.between(
-                        now,
-                        expiresAt
-                ).toMillis();
-
-        if (remainingMillis <= 0) {
-            return 0;
-        }
-
-        return (remainingMillis + 999L) / 1000L;
     }
 }

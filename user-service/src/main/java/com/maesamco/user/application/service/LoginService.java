@@ -2,7 +2,6 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
-import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.EmailLookupHasher;
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.PasswordHasher;
@@ -13,11 +12,12 @@ import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.global.security.TokenExpirationCalculator;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -34,14 +34,44 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LoginService {
 
+    private static final String LOGIN_METRIC_NAME =
+            "user.auth.login";
+
+    private static final String LOGIN_RESULT_TAG =
+            "result";
+
+    private static final String LOGIN_RESULT_SUCCESS =
+            "success";
+
+    private static final String LOGIN_RESULT_INVALID_CREDENTIALS =
+            "invalid_credentials";
+
+    private static final String LOGIN_RESULT_INACTIVE_USER =
+            "inactive_user";
+
+    /**
+     * 존재하지 않는 사용자 로그인에서도 실제 비밀번호 검증과
+     * 유사한 Argon2id 연산 비용을 발생시키기 위한 더미 해시입니다.
+     *
+     * <p>현재 PasswordEncoderConfig에서 사용하는
+     * Argon2PasswordEncoder Spring Security 5.8 기본 설정과
+     * 동일한 파라미터 형식을 사용합니다.</p>
+     *
+     * <p>더미 비교 결과는 인증 판단에 절대 사용하지 않습니다.</p>
+     */
+    private static final String DUMMY_PASSWORD_HASH =
+            "$argon2id$v=19$m=16384,t=2,p=1$"
+                    + "lcXwO0AWY0tG92eew5K4Eg$"
+                    + "bBmYQrH4yfKc8V4FqDeuehlyCV+i+FALyHg+3qUUypM";
+
     private final EmailNormalizer emailNormalizer;
     private final EmailLookupHasher emailLookupHasher;
-    private final EmailCipher emailCipher;
     private final PasswordHasher passwordHasher;
     private final UserRepository userRepository;
     private final TokenIssuer tokenIssuer;
     private final RefreshTokenHasher refreshTokenHasher;
     private final AuthSessionStore authSessionStore;
+    private final MeterRegistry meterRegistry;
     private final Clock clock;
 
     /**
@@ -50,6 +80,14 @@ public class LoginService {
      * <p>존재하지 않는 사용자와 비밀번호 불일치는
      * 사용자 존재 여부가 외부에 노출되지 않도록
      * 동일한 {@link ErrorCode#INVALID_CREDENTIALS}로 처리합니다.</p>
+     *
+     * <p>존재하지 않는 사용자의 경우에도 더미 Argon2id 해시에 대해
+     * 비밀번호 비교를 수행하여 사용자 존재 여부에 따른
+     * 비밀번호 검증 비용 차이를 줄입니다.</p>
+     *
+     * <p>로그인 성공과 인증 실패는 Micrometer Counter로 기록합니다.
+     * 이메일, 비밀번호, userId와 같은 사용자별 식별값은
+     * Metric Tag로 사용하지 않습니다.</p>
      *
      * <p>로그인 과정에서는 PostgreSQL에 변경사항을 저장하지 않습니다.
      * Redis 인증 세션 저장에 실패한 경우 예외를 그대로 전파하여
@@ -72,11 +110,21 @@ public class LoginService {
 
         User user = userRepository
                 .findByEmailLookupHash(emailLookupHash)
-                .orElseThrow(
-                        () -> new BusinessException(
-                                ErrorCode.INVALID_CREDENTIALS
-                        )
-                );
+                .orElse(null);
+
+        if (user == null) {
+            consumePasswordVerificationCost(
+                    command.password()
+            );
+
+            incrementLoginMetric(
+                    LOGIN_RESULT_INVALID_CREDENTIALS
+            );
+
+            throw new BusinessException(
+                    ErrorCode.INVALID_CREDENTIALS
+            );
+        }
 
         validatePassword(
                 command.password(),
@@ -84,11 +132,6 @@ public class LoginService {
         );
 
         validateActiveUser(user);
-
-        String decryptedEmail =
-                emailCipher.decrypt(
-                        user.getEncryptedEmail()
-                );
 
         UUID sessionId = UUID.randomUUID();
         UUID familyId = UUID.randomUUID();
@@ -120,26 +163,42 @@ public class LoginService {
         authSessionStore.save(authSession);
 
         long accessTokenExpiresIn =
-                calculateExpiresInSeconds(
+                TokenExpirationCalculator.remainingSeconds(
                         now,
                         issuedTokens.accessTokenExpiresAt()
                 );
 
-        LoginResult.UserInfo userInfo =
-                new LoginResult.UserInfo(
-                        user.getId(),
-                        decryptedEmail,
-                        user.getNickname(),
-                        user.getRole(),
-                        user.getStatus(),
-                        user.getLearningLevel()
-                );
+        incrementLoginMetric(
+                LOGIN_RESULT_SUCCESS
+        );
 
         return new LoginResult(
-                userInfo,
+                user.getId(),
+                user.getNickname(),
+                user.getRole(),
+                user.getStatus(),
+                user.getJavaExperienceMonths(),
+                user.getLearningLevel(),
                 issuedTokens.accessToken(),
                 accessTokenExpiresIn,
                 issuedTokens
+        );
+    }
+
+    /**
+     * 존재하지 않는 사용자에 대해서도 실제 로그인과 유사하게
+     * Argon2id 비밀번호 비교 연산을 한 번 수행합니다.
+     *
+     * <p>더미 해시와의 비교 결과는 인증 판단에 사용하지 않습니다.</p>
+     *
+     * @param rawPassword 로그인 요청의 비밀번호 원문
+     */
+    private void consumePasswordVerificationCost(
+            String rawPassword
+    ) {
+        passwordHasher.matches(
+                rawPassword,
+                DUMMY_PASSWORD_HASH
         );
     }
 
@@ -160,6 +219,10 @@ public class LoginService {
                 rawPassword,
                 passwordHash
         )) {
+            incrementLoginMetric(
+                    LOGIN_RESULT_INVALID_CREDENTIALS
+            );
+
             throw new BusinessException(
                     ErrorCode.INVALID_CREDENTIALS
             );
@@ -176,6 +239,10 @@ public class LoginService {
      */
     private void validateActiveUser(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {
+            incrementLoginMetric(
+                    LOGIN_RESULT_INACTIVE_USER
+            );
+
             throw new BusinessException(
                     ErrorCode.USER_NOT_ACTIVE
             );
@@ -183,35 +250,22 @@ public class LoginService {
     }
 
     /**
-     * Access Token 만료 시각을 현재 시각 기준
-     * 남은 초 단위로 변환합니다.
+     * 로그인 결과를 Micrometer Counter에 기록합니다.
      *
-     * <p>밀리초 단위의 일부 시간이 남아 있는 경우
-     * 회원가입과 동일하게 초 단위로 올림 처리합니다.</p>
+     * <p>result는 정해진 소수의 값만 사용하여
+     * Metric Cardinality가 사용자 수에 따라 증가하지 않도록 합니다.</p>
      *
-     * @param now 현재 시각
-     * @param expiresAt Access Token 만료 시각
-     * @return Access Token 만료까지 남은 시간(초)
+     * @param result 로그인 처리 결과
      */
-    private long calculateExpiresInSeconds(
-            Instant now,
-            Instant expiresAt
+    private void incrementLoginMetric(
+            String result
     ) {
-        Objects.requireNonNull(
-                expiresAt,
-                "Access Token 만료 시각은 필수입니다."
-        );
-
-        long remainingMillis =
-                Duration.between(
-                        now,
-                        expiresAt
-                ).toMillis();
-
-        if (remainingMillis <= 0) {
-            return 0;
-        }
-
-        return (remainingMillis + 999L) / 1000L;
+        meterRegistry
+                .counter(
+                        LOGIN_METRIC_NAME,
+                        LOGIN_RESULT_TAG,
+                        result
+                )
+                .increment();
     }
 }
