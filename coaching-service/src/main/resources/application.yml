@@ -5,7 +5,7 @@ spring:
   application:
     name: coaching-service
   datasource:
-    url: jdbc:postgresql://localhost:5435/maesamco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5435}/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   flyway:
@@ -20,6 +20,11 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+        type:
+          # 클래스패스에 Jackson 2/3이 둘 다 있으면 Hibernate는 기본적으로 구버전(Jackson 2)을
+          # 골라서, tools.jackson.databind.JsonNode(AiFeedback 등)를 못 역직렬화하고 실패한다
+          # (실제 재현: InvalidDefinitionException). 명시적으로 Jackson 3 매퍼를 지정해야 한다.
+          json_format_mapper: org.hibernate.type.format.jackson.Jackson3JsonFormatMapper
   data:
     redis:
       host: ${REDIS_HOST:localhost}

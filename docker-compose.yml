@@ -200,7 +200,14 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-user
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_REFRESH_PUBLIC_KEY: ${JWT_REFRESH_PUBLIC_KEY}
+      JWT_REFRESH_PRIVATE_KEY: ${JWT_REFRESH_PRIVATE_KEY}
+      EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
+      EMAIL_LOOKUP_HMAC_KEY: ${EMAIL_LOOKUP_HMAC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
@@ -222,6 +229,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-content
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -246,6 +255,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-judge
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -271,6 +282,8 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres-coaching
+      DB_PORT: "5432"
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092

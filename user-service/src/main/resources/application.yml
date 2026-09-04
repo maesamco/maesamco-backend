@@ -4,13 +4,16 @@ server:
 spring:
   application:
     name: user-service
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/maesamco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/maesamco
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+
   flyway:
     enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
     schemas: user_schema
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -20,18 +23,36 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: user-service
       auto-offset-reset: earliest
 
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+security:
+  email:
+    encryption-key: ${EMAIL_ENCRYPTION_KEY}
+    lookup-hmac-key: ${EMAIL_LOOKUP_HMAC_KEY}
+
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
+  private-key: ${JWT_PRIVATE_KEY}
+  refresh-public-key: ${JWT_REFRESH_PUBLIC_KEY}
+  refresh-private-key: ${JWT_REFRESH_PRIVATE_KEY}
+  access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
+  refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:14d}
 
 internal:
   hmac:
@@ -48,13 +69,17 @@ management:
     web:
       exposure:
         include: health,prometheus
+
   endpoint:
     health:
       probes:
         enabled: true
+
   tracing:
     sampling:
       probability: 1.0
+
   otlp:
     tracing:
       endpoint: ${TEMPO_OTLP_URL:http://localhost:4318/v1/traces}
+      
