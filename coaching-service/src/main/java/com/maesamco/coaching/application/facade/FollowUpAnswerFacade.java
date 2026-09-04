@@ -65,9 +65,7 @@ public class FollowUpAnswerFacade {
         }
 
         FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult completion =
-                followUpAnswerPersistenceService.completeWithAnswer(
-                        session.getId(), followUpQuestionId, answerText, session.getSubmissionId(), session.getProblemId()
-                );
+                followUpAnswerPersistenceService.completeWithAnswer(session.getId(), followUpQuestionId, answerText);
 
         try {
             feedbackGenerationFacade.generateFeedback(

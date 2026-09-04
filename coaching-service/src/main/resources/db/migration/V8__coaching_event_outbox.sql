@@ -1,7 +1,7 @@
 -- 이슈 #51(역질문 답변 API) — 답변 등록 시 코칭 세션이 COMPLETED로 전이되면 CoachingCompleted
 -- 이벤트를 User Service에 발행해야 한다. DB 커밋과 Kafka 발행이 서로 다른 트랜잭션이라 그대로
--- 직접 발행하면 하나만 성공하는 경우 XP·스트릭 반영이 영구히 누락될 수 있어(기술 선택 근거
--- 로그.md 2026-09-04), Outbox 패턴으로 완료 처리와 같은 트랜잭션에 이벤트를 기록한다.
+-- 직접 발행하면 하나만 성공하는 경우 XP·스트릭 반영이 영구히 누락될 수 있어, Outbox 패턴으로
+-- 완료 처리와 같은 트랜잭션에 이벤트를 기록한다.
 --
 -- 이 Outbox는 CoachingCompleted 전용이 아니라 CoachingSession 애그리거트에 대한 발행
 -- 대기함이다(judge_schema.p_submission_event_outboxes와 동일한 설계 — 이슈 #63 패턴).

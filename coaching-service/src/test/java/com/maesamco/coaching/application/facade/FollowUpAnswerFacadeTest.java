@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -85,7 +84,7 @@ class FollowUpAnswerFacadeTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FOLLOW_UP_QUESTION_NOT_FOUND);
 
-        verify(followUpAnswerPersistenceService, never()).completeWithAnswer(any(), any(), any(), any(), any());
+        verify(followUpAnswerPersistenceService, never()).completeWithAnswer(any(), any(), any());
         verify(feedbackGenerationFacade, never()).generateFeedback(any(), any(), any(), any());
     }
 
@@ -103,7 +102,7 @@ class FollowUpAnswerFacadeTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FOLLOW_UP_QUESTION_NOT_FOUND);
 
-        verify(followUpAnswerPersistenceService, never()).completeWithAnswer(any(), any(), any(), any(), any());
+        verify(followUpAnswerPersistenceService, never()).completeWithAnswer(any(), any(), any());
     }
 
     @Test
@@ -118,9 +117,8 @@ class FollowUpAnswerFacadeTest {
         FollowUpAnswer answer = FollowUpAnswer.create(followUpQuestionId, "답변");
         ReflectionTestUtils.setField(answer, "id", UUID.randomUUID());
         ownedSession.complete();
-        when(followUpAnswerPersistenceService.completeWithAnswer(
-                ownedSession.getId(), followUpQuestionId, "답변", ownedSession.getSubmissionId(), ownedSession.getProblemId()
-        )).thenReturn(new FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult(answer, ownedSession));
+        when(followUpAnswerPersistenceService.completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변"))
+                .thenReturn(new FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult(answer, ownedSession));
 
         FollowUpAnswerFacade.FollowUpAnswerRegisterResult result = facade.registerAnswer(followUpQuestionId, "답변", callerId);
 
@@ -145,17 +143,14 @@ class FollowUpAnswerFacadeTest {
         FollowUpAnswer answer = FollowUpAnswer.create(followUpQuestionId, "답변");
         ReflectionTestUtils.setField(answer, "id", UUID.randomUUID());
         ownedSession.complete();
-        when(followUpAnswerPersistenceService.completeWithAnswer(
-                ownedSession.getId(), followUpQuestionId, "답변", ownedSession.getSubmissionId(), ownedSession.getProblemId()
-        )).thenReturn(new FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult(answer, ownedSession));
+        when(followUpAnswerPersistenceService.completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변"))
+                .thenReturn(new FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult(answer, ownedSession));
         org.mockito.Mockito.doThrow(new RuntimeException("AI 호출 실패"))
                 .when(feedbackGenerationFacade).generateFeedback(any(), any(), any(), any());
 
-        assertThatCode(() -> facade.registerAnswer(followUpQuestionId, "답변", callerId))
-                .doesNotThrowAnyException();
-
         FollowUpAnswerFacade.FollowUpAnswerRegisterResult result =
                 facade.registerAnswer(followUpQuestionId, "답변", callerId);
+
         assertThat(result.followUpAnswer()).isSameAs(answer);
         assertThat(result.coachingSessionStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
     }

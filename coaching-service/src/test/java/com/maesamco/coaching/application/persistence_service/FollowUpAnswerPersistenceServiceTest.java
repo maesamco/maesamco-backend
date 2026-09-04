@@ -129,8 +129,7 @@ class FollowUpAnswerPersistenceServiceTest {
         // when
         FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult result =
                 followUpAnswerPersistenceService.completeWithAnswer(
-                        fixture.session().getId(), fixture.followUpQuestion().getId(), "답변 내용",
-                        fixture.session().getSubmissionId(), fixture.session().getProblemId()
+                        fixture.session().getId(), fixture.followUpQuestion().getId(), "답변 내용"
                 );
 
         entityManager.clear();
@@ -174,8 +173,7 @@ class FollowUpAnswerPersistenceServiceTest {
 
         // when & then
         assertThatThrownBy(() -> followUpAnswerPersistenceService.completeWithAnswer(
-                fixture.session().getId(), fixture.followUpQuestion().getId(), "나중에 도착한 답변",
-                fixture.session().getSubmissionId(), fixture.session().getProblemId()
+                fixture.session().getId(), fixture.followUpQuestion().getId(), "나중에 도착한 답변"
         )).isInstanceOfSatisfying(BusinessException.class, e ->
                 assertThat(e.getErrorCode()).isEqualTo(ErrorCode.FOLLOW_UP_ANSWER_ALREADY_EXISTS)
         );
@@ -202,8 +200,7 @@ class FollowUpAnswerPersistenceServiceTest {
 
         // when & then
         assertThatThrownBy(() -> followUpAnswerPersistenceService.completeWithAnswer(
-                nonExistentSessionId, fixture.followUpQuestion().getId(), "답변 내용",
-                fixture.session().getSubmissionId(), fixture.session().getProblemId()
+                nonExistentSessionId, fixture.followUpQuestion().getId(), "답변 내용"
         )).isInstanceOfSatisfying(BusinessException.class, e ->
                 assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COACHING_SESSION_NOT_FOUND)
         );

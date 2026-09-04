@@ -58,12 +58,9 @@ public class FollowUpAnswerPersistenceService {
      *                          트랜잭션 안에서 다시 조회한다(팀 컨벤션 406행).
      * @param followUpQuestionId 답변 대상 역질문 ID
      * @param answerText 답변 내용
-     * @param submissionId Outbox 이벤트 payload용(서비스 기능 요약 [2]-7절 스키마)
-     * @param problemId Outbux 이벤트 payload용
      */
     public FollowUpAnswerCompletionResult completeWithAnswer(
-            UUID coachingSessionId, UUID followUpQuestionId, String answerText,
-            UUID submissionId, UUID problemId
+            UUID coachingSessionId, UUID followUpQuestionId, String answerText
     ) {
         CoachingSession session = coachingSessionRepository.findById(coachingSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COACHING_SESSION_NOT_FOUND));
@@ -78,7 +75,7 @@ public class FollowUpAnswerPersistenceService {
         coachingEventOutboxRepository.save(CoachingEventOutbox.create(
                 completedSession.getId(),
                 COACHING_COMPLETED_EVENT_TYPE,
-                buildCoachingCompletedPayload(completedSession, submissionId, problemId)
+                buildCoachingCompletedPayload(completedSession)
         ));
 
         return new FollowUpAnswerCompletionResult(answer, completedSession);
@@ -88,13 +85,19 @@ public class FollowUpAnswerPersistenceService {
      * 서비스 기능 요약 [2]-7절 스키마 그대로 — coachingId/userId/submissionId/problemId/
      * completedAt. weakConcepts는 2026-09-02 정정으로 제외(피드백이 best-effort라 발행
      * 시점에 아직 확정 안 됐을 수 있음).
+     *
+     * submissionId/problemId는 Facade가 트랜잭션 밖에서 미리 읽어둔 값이 아니라, 이
+     * 트랜잭션 안에서 다시 조회한 completedSession에서 뽑는다 — problemId는
+     * updatable=false라 어차피 안 바뀌지만, submissionId는 advanceToSubmission()으로
+     * 갈아탈 수 있는 값이라 자칫 Facade의 낡은 스냅샷을 그대로 흘려보내면 이 트랜잭션이
+     * 실제로 커밋하는 값과 어긋날 수 있다.
      */
-    private JsonNode buildCoachingCompletedPayload(CoachingSession session, UUID submissionId, UUID problemId) {
+    private JsonNode buildCoachingCompletedPayload(CoachingSession session) {
         ObjectNode payload = JSON_MAPPER.createObjectNode();
         payload.put("coachingId", session.getId().toString());
         payload.put("userId", session.getUserId().toString());
-        payload.put("submissionId", submissionId.toString());
-        payload.put("problemId", problemId.toString());
+        payload.put("submissionId", session.getSubmissionId().toString());
+        payload.put("problemId", session.getProblemId().toString());
         payload.put("completedAt", session.getCompletedAt().toString());
         return payload;
     }
