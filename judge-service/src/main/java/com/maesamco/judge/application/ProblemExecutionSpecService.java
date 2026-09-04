@@ -1,11 +1,9 @@
-package com.maesamco.judge.application.service;
+package com.maesamco.judge.application;
 
+import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
-import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
-import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,34 +21,23 @@ public class ProblemExecutionSpecService {
     private final JsonMapper jsonMapper;
 
     @Transactional
-    public void saveIfAbsent(ProblemPublishedEvent event) {
+    public void saveIfAbsent(ProblemExecutionSpecSaveCommand command) {
         if (problemExecutionSpecRepository.existsByProblemIdAndProblemVersionId(
-                event.problemId(), event.problemVersionId())) {
+                command.problemId(), command.problemVersionId())) {
             log.info("[Judge] ProblemPublished 중복 소비 감지 — 스킵. eventId={}, problemId={}, problemVersionId={}",
-                    event.eventId(), event.problemId(), event.problemVersionId());
+                    command.eventId(), command.problemId(), command.problemVersionId());
             return;
         }
 
-        if (event.publishedAt() == null) {
-            throw new InvalidProblemPublishedEventException(
-                    "publishedAt 누락. eventId=" + event.eventId());
-        }
-
-        if (event.timeLimit() <= 0 || event.memoryLimit() <= 0) {
-            throw new InvalidProblemPublishedEventException(
-                    "timeLimit/memoryLimit이 유효하지 않음. eventId=" + event.eventId()
-                            + ", timeLimit=" + event.timeLimit() + ", memoryLimit=" + event.memoryLimit());
-        }
-
         ProblemExecutionSpec spec = ProblemExecutionSpec.fromPublishedEvent(
-                event.problemId(),
-                event.problemVersionId(),
-                toSubmissionLanguage(event.language()),
-                event.starterCode(),
-                writeTestCasesAsJson(event),
-                event.timeLimit(),
-                event.memoryLimit(),
-                event.publishedAt()
+                command.problemId(),
+                command.problemVersionId(),
+                toSubmissionLanguage(command.language()),
+                command.starterCode(),
+                writeTestCasesAsJson(command),
+                command.timeLimitMs(),
+                command.memoryLimitMb(),
+                command.publishedAt()
         );
 
         try {
@@ -58,7 +45,7 @@ public class ProblemExecutionSpecService {
         } catch (DataIntegrityViolationException e) {
             log.info("[Judge] ProblemPublished 저장 경합으로 UNIQUE 충돌 — 이미 처리된 것으로 간주. "
                             + "eventId={}, problemId={}, problemVersionId={}",
-                    event.eventId(), event.problemId(), event.problemVersionId());
+                    command.eventId(), command.problemId(), command.problemVersionId());
         }
     }
 
@@ -66,11 +53,11 @@ public class ProblemExecutionSpecService {
         return SubmissionLanguage.valueOf(language);
     }
 
-    private String writeTestCasesAsJson(ProblemPublishedEvent event) {
+    private String writeTestCasesAsJson(ProblemExecutionSpecSaveCommand command) {
         try {
-            return jsonMapper.writeValueAsString(event.testCases());
+            return jsonMapper.writeValueAsString(command.testCases());
         } catch (JacksonException e) {
-            throw new IllegalStateException("testCases 직렬화 실패. eventId=" + event.eventId(), e);
+            throw new IllegalStateException("testCases 직렬화 실패. eventId=" + command.eventId(), e);
         }
     }
 }

@@ -1,6 +1,6 @@
 package com.maesamco.judge.infrastructure.messaging.consumer;
 
-import com.maesamco.judge.application.service.ProblemExecutionSpecService;
+import com.maesamco.judge.application.ProblemExecutionSpecService;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

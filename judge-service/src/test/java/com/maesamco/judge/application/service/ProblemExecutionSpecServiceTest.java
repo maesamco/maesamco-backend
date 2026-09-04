@@ -1,8 +1,9 @@
 package com.maesamco.judge.application.service;
 
+import com.maesamco.judge.application.ProblemExecutionSpecService;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
-import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
+import com.maesamco.judge.application.exception.InvalidProblemPublishedEventException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

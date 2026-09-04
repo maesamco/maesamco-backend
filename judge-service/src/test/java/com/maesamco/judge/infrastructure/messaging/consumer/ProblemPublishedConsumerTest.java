@@ -7,7 +7,7 @@ import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.maesamco.judge.application.service.ProblemExecutionSpecService;
+import com.maesamco.judge.application.ProblemExecutionSpecService;
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
