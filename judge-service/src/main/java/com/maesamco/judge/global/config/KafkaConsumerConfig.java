@@ -1,6 +1,7 @@
 package com.maesamco.judge.global.config;
 
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer;
+import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +77,9 @@ public class KafkaConsumerConfig {
 
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(problemPublishedDltKafkaTemplate);
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
-        errorHandler.addNotRetryableExceptions(ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException.class);
+        errorHandler.addNotRetryableExceptions(
+                ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException.class,
+                InvalidProblemPublishedEventException.class);
         factory.setCommonErrorHandler(errorHandler);
 
         return factory;
