@@ -21,6 +21,10 @@ import java.util.UUID;
  * 별개의 리소스 루트(/follow-up-questions/{followUpQuestionId})라 클래스 레벨
  * @RequestMapping을 공유할 수 없어 별도 컨트롤러로 둔다(Spring이 클래스/메서드 레벨
  * @RequestMapping을 이어붙이지, 절대경로로 덮어쓰지 않는다).
+ *
+ * TODO(#99): api-gateway RateLimitFilter에 이 경로(/api/v1/coaching/follow-up-questions/**)
+ * 룰이 아직 없다 — 성공 시 LLM 호출(AI 종합 피드백 생성)까지 트리거하는데도 힌트/설명
+ * 엔드포인트와 달리 Rate Limit 보호가 빠져있다.
  */
 @RestController
 @RequestMapping("/api/v1/coaching/follow-up-questions/{followUpQuestionId}/answers")
