@@ -36,6 +36,12 @@ public class ProblemExecutionSpecService {
                     "publishedAt 누락. eventId=" + event.eventId());
         }
 
+        if (event.timeLimit() <= 0 || event.memoryLimit() <= 0) {
+            throw new InvalidProblemPublishedEventException(
+                    "timeLimit/memoryLimit이 유효하지 않음. eventId=" + event.eventId()
+                            + ", timeLimit=" + event.timeLimit() + ", memoryLimit=" + event.memoryLimit());
+        }
+
         ProblemExecutionSpec spec = ProblemExecutionSpec.fromPublishedEvent(
                 event.problemId(),
                 event.problemVersionId(),

@@ -1,6 +1,5 @@
-package com.maesamco.judge.domain.service;
+package com.maesamco.judge.application.service;
 
-import com.maesamco.judge.application.service.ProblemExecutionSpecService;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
@@ -150,5 +149,41 @@ class ProblemExecutionSpecServiceTest {
                     .isInstanceOf(IllegalArgumentException.class);
             verify(problemExecutionSpecRepository, never()).save(any());
         }
+    }
+
+    @Test
+    @DisplayName("timeLimit이 0 이하인 이벤트는 잘못된 이벤트로 간주해 예외를 던진다")
+    void throwsWhenTimeLimitNotPositive() {
+        // given
+        ProblemPublishedEvent event = new ProblemPublishedEvent(
+                UUID.randomUUID(), "ProblemPublished", 1, Instant.now(),
+                UUID.randomUUID(), UUID.randomUUID(), "JAVA", null,
+                List.of(), 0, 128, Instant.now()   // timeLimit = 0
+        );
+        given(problemExecutionSpecRepository.existsByProblemIdAndProblemVersionId(
+                event.problemId(), event.problemVersionId())).willReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> problemExecutionSpecService.saveIfAbsent(event))
+                .isInstanceOf(InvalidProblemPublishedEventException.class);
+        verify(problemExecutionSpecRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("memoryLimit이 0 이하인 이벤트는 잘못된 이벤트로 간주해 예외를 던진다")
+    void throwsWhenMemoryLimitNotPositive() {
+        // given
+        ProblemPublishedEvent event = new ProblemPublishedEvent(
+                UUID.randomUUID(), "ProblemPublished", 1, Instant.now(),
+                UUID.randomUUID(), UUID.randomUUID(), "JAVA", null,
+                List.of(), 1000, -1, Instant.now()   // memoryLimit = -1
+        );
+        given(problemExecutionSpecRepository.existsByProblemIdAndProblemVersionId(
+                event.problemId(), event.problemVersionId())).willReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> problemExecutionSpecService.saveIfAbsent(event))
+                .isInstanceOf(InvalidProblemPublishedEventException.class);
+        verify(problemExecutionSpecRepository, never()).saveAndFlush(any());
     }
 }
