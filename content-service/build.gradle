@@ -33,7 +33,6 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // Flyway — 이슈 #10, 기본 비활성화(application.yml spring.flyway.enabled: false). db/migration의 V1 검토 후 서비스별로 활성화
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     implementation 'org.springframework.boot:spring-boot-flyway'
@@ -66,4 +65,5 @@ dependencyManagement {
 dependencies {
     // 문제/일일퀴즈 생성 또는 힌트·역질문·피드백 생성용 — Spring AI (11절: 벤더 확정 시 아래 starter만 교체)
     implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
 }
