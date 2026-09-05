@@ -1,9 +1,12 @@
-package com.maesamco.content.dailyquiz.application.command;
+package com.maesamco.content.dailyquiz.domain;
 
 import java.util.List;
 import java.util.Objects;
 
-public record DailyQuizConceptSelectionCommand(
+/**
+ * Daily Quiz 개념 슬롯 선정에 사용할 후보 데이터입니다.
+ */
+public record DailyQuizConceptCandidates(
         // 정식 문제 풀이 이력 존재 여부
         boolean hasProblemProgress,
         // 현재 오답 상태인 문제들의 개념
@@ -14,7 +17,7 @@ public record DailyQuizConceptSelectionCommand(
         List<String> interestConcepts
 ) {
 
-    public DailyQuizConceptSelectionCommand {
+    public DailyQuizConceptCandidates {
         wrongConcepts = List.copyOf(
                 Objects.requireNonNull(wrongConcepts, "오답 개념 목록은 필수입니다.")
         );
@@ -33,11 +36,11 @@ public record DailyQuizConceptSelectionCommand(
         }
     }
 
-    public static DailyQuizConceptSelectionCommand withLearningHistory(
+    public static DailyQuizConceptCandidates fromProblemProgress(
             List<String> wrongConcepts,
             List<String> solvedConcepts
     ) {
-        return new DailyQuizConceptSelectionCommand(
+        return new DailyQuizConceptCandidates(
                 true,
                 wrongConcepts,
                 solvedConcepts,
@@ -45,10 +48,10 @@ public record DailyQuizConceptSelectionCommand(
         );
     }
 
-    public static DailyQuizConceptSelectionCommand forNewUser(
+    public static DailyQuizConceptCandidates fromInterests(
             List<String> interestConcepts
     ) {
-        return new DailyQuizConceptSelectionCommand(
+        return new DailyQuizConceptCandidates(
                 false,
                 List.of(),
                 List.of(),
