@@ -12,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
 
@@ -70,4 +71,44 @@ public class Problem extends BaseEntity {
     // default = 1이고, problem이 수정될 때 currentVersionNo++;
     @Column(name = "current_version_no", nullable = false)
     private Integer currentVersionNo = 1;
+
+    public static Problem create(
+            String title,
+            ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,
+            String description, String starterCode,
+            Integer runningTimeLimit, Integer runningMemoryLimit, TimerPolicy timerPolicy,
+            ProblemSource source, ProblemStatus problemStatus, Integer version
+    ) {
+        Problem problem = new Problem();
+
+        problem.title = title;
+        problem.language = language;
+        problem.difficulty = difficulty;
+        problem.type = type;
+        problem.description = description;
+        problem.starterCode = starterCode;
+        problem.runningTimeLimit = runningTimeLimit;
+        problem.runningMemoryLimit = runningMemoryLimit;
+        problem.timerPolicy = timerPolicy;
+        problem.source = source;
+        problem.problemStatus = problemStatus;
+        problem.currentVersionNo = version;
+
+        return problem;
+    }
+
+    /* problem 값 변경 */
+    public void changeTitle(String newTitle) { this.title = newTitle; }
+    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
+    public void changeDifficulty(ProblemDifficulty newDifficulty) { this.difficulty = newDifficulty; }
+    public void changeType(ProblemType newType) { this.type = newType; }
+    public void changeDescription(String newDescription) { this.description = newDescription; }
+    public void changeStarterCode(String newStarterCode) { this.starterCode = newStarterCode; }
+    public void changeRunningTimeLimit(Integer newRunningTimeLimit) { this.runningTimeLimit = newRunningTimeLimit; }
+    public void changeRunningMemoryLimit(Integer newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
+    public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
+    public void changeSource(ProblemSource newSource) { this.source = newSource; }
+    public void changeProblemStatus(ProblemStatus newProblemStatus) { this.problemStatus = newProblemStatus; }
+
+    public void increaseVersion() { this.currentVersionNo++; }
 }
