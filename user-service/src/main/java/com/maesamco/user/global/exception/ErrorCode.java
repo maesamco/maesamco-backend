@@ -27,6 +27,14 @@ public enum ErrorCode {
     AUTH_EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "만료된 토큰입니다."),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "무효화된 토큰입니다."),
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    INVALID_CREDENTIALS(
+            HttpStatus.UNAUTHORIZED,
+            "이메일 또는 비밀번호가 올바르지 않습니다."
+    ),
+    USER_NOT_ACTIVE(
+            HttpStatus.FORBIDDEN,
+            "현재 로그인할 수 없는 계정입니다."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(
