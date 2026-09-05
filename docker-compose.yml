@@ -213,6 +213,9 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
     depends_on:
       postgres-user:
         condition: service_healthy
@@ -240,6 +243,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
     depends_on:
       postgres-content:
         condition: service_healthy
@@ -268,6 +272,7 @@ services:
       JUDGE0_BASE_URL: ${JUDGE0_BASE_URL:-http://judge0:2358}
       HMAC_KEY_CONTENT_TO_JUDGE: ${HMAC_KEY_CONTENT_TO_JUDGE}
       HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
     depends_on:
       postgres-judge:
         condition: service_healthy
@@ -298,6 +303,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       HMAC_KEY_CONTENT_TO_COACHING: ${HMAC_KEY_CONTENT_TO_COACHING}
       HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
     depends_on:
       postgres-coaching:
         condition: service_healthy

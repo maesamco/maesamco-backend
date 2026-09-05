@@ -70,3 +70,7 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+rate-limit:
+  submissions:
+    per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:30}
