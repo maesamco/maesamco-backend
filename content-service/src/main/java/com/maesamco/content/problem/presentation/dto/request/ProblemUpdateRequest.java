@@ -18,66 +18,44 @@ import lombok.NoArgsConstructor;
  * <p>PATCH 요청이므로 전달되지 않은 필드는 기존 값을 유지하고,
  * 전달된 필드만 수정합니다.</p>
  *
- * <p>현재 문제 버전 번호는 문제 버전 관리 로직에서 처리하므로
+ * <p>최신 문제 버전 번호는 문제 버전 관리 로직에서 처리하므로
  * 수정 요청으로 직접 전달받지 않습니다.</p>
  */
 @Getter
 @NoArgsConstructor
 public class ProblemUpdateRequest {
 
-    /**
-     * 수정할 문제 제목입니다.
-     */
+    /** 수정할 문제 제목입니다. */
     @Size(max = 100)
     private String title;
 
-    /**
-     * 수정할 문제 언어입니다.
-     */
+    /** 수정할 문제 언어입니다. */
     private ProgrammingLanguage language;
 
-    /**
-     * 수정할 문제 난이도입니다.
-     */
+    /** 수정할 문제 난이도입니다. */
     private ProblemDifficulty difficulty;
 
-    /**
-     * 수정할 문제 유형입니다.
-     */
+    /** 수정할 문제 유형입니다. */
     private ProblemType type;
 
-    /**
-     * 수정할 문제 설명입니다.
-     */
+    /** 수정할 문제 설명입니다. */
     private String description;
 
-    /**
-     * 수정할 문제 풀이 시작 코드입니다.
-     */
+    /** 수정할 문제 풀이 시작 코드입니다. */
     private String starterCode;
 
-    /**
-     * 수정할 코드 실행 시간 제한입니다.
-     */
+    /** 수정할 코드 실행 시간 제한입니다. */
     private RunningTimeLimit runningTimeLimit;
 
-    /**
-     * 수정할 코드 실행 메모리 제한입니다.
-     */
+    /** 수정할 코드 실행 메모리 제한입니다. */
     private RunningMemoryLimit runningMemoryLimit;
 
-    /**
-     * 수정할 문제 풀이 타이머 정책입니다.
-     */
+    /** 수정할 문제 풀이 타이머 정책입니다. */
     private TimerPolicy timerPolicy;
 
-    /**
-     * 수정할 문제 출처입니다.
-     */
+    /** 수정할 문제 출처입니다. */
     private ProblemSource source;
 
-    /**
-     * 수정할 문제 상태입니다.
-     */
+    /** 수정할 문제 상태입니다. */
     private ProblemStatus problemStatus;
 }

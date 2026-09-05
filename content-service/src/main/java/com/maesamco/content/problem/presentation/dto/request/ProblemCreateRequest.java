@@ -1,12 +1,6 @@
 package com.maesamco.content.problem.presentation.dto.request;
 
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
-import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,7 +10,7 @@ import lombok.NoArgsConstructor;
 /**
  * 문제 생성 요청 정보를 전달합니다.
  *
- * <p>문제 상태와 현재 버전 번호는 클라이언트로부터 입력받지 않고,
+ * <p>최신 버전 번호는 클라이언트로부터 입력받지 않고,
  * 문제 생성 시 서버에서 기본값을 설정합니다.</p>
  */
 @Getter
@@ -62,4 +56,8 @@ public class ProblemCreateRequest {
     /** 문제 출처 */
     @NotNull
     private ProblemSource source;
+
+    /** 문제 상태 */
+    @NotNull
+    private ProblemStatus problemStatus;
 }

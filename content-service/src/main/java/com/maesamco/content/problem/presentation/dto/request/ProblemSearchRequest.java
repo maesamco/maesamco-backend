@@ -21,29 +21,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ProblemSearchRequest {
 
-    /**
-     * 문제 언어 검색 조건입니다.
-     */
+    /** 문제 언어 검색 조건입니다. */
     private ProgrammingLanguage language;
 
-    /**
-     * 문제 난이도 검색 조건입니다.
-     */
+    /** 문제 난이도 검색 조건입니다. */
     private ProblemDifficulty difficulty;
 
-    /**
-     * 문제 유형 검색 조건입니다.
-     */
+    /** 문제 유형 검색 조건입니다. */
     private ProblemType type;
 
-    /**
-     * 문제 상태 검색 조건입니다.
-     */
+    /** 문제 상태 검색 조건입니다. */
     private ProblemStatus problemStatus;
 
-    /**
-     * 문제 출처 검색 조건입니다.
-     */
+    /** 문제 출처 검색 조건입니다. */
     private ProblemSource source;
 
     /**
