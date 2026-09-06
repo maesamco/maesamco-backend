@@ -80,17 +80,17 @@ public class ProblemService {
         // problemVersionRepository.save(snapshot);
 
         // 수정 요청이 있는 값들만 수정
-        if (request.getTitle() != null) problem.changeTitle(request.getTitle());
-        if (request.getLanguage() != null) problem.changeLanguage(request.getLanguage());
-        if (request.getDifficulty() != null) problem.changeDifficulty(request.getDifficulty());
-        if (request.getType() != null) problem.changeType(request.getType());
-        if (request.getDescription() != null) problem.changeDescription(request.getDescription());
-        if (request.getStarterCode() != null) problem.changeStarterCode(request.getStarterCode());
-        if (request.getRunningTimeLimit() != null) problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
-        if (request.getRunningMemoryLimit() != null) problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
-        if (request.getTimerPolicy() != null) problem.changeTimerPolicy(request.getTimerPolicy());
-        if (request.getSource() != null) problem.changeSource(request.getSource());
-        if (request.getProblemStatus() != null) problem.changeProblemStatus(request.getProblemStatus());
+        if (request.getTitle() != null)                 problem.changeTitle(request.getTitle());
+        if (request.getLanguage() != null)              problem.changeLanguage(request.getLanguage());
+        if (request.getDifficulty() != null)            problem.changeDifficulty(request.getDifficulty());
+        if (request.getType() != null)                  problem.changeType(request.getType());
+        if (request.getDescription() != null)           problem.changeDescription(request.getDescription());
+        if (request.getStarterCode() != null)           problem.changeStarterCode(request.getStarterCode());
+        if (request.getRunningTimeLimit() != null)      problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
+        if (request.getRunningMemoryLimit() != null)    problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
+        if (request.getTimerPolicy() != null)           problem.changeTimerPolicy(request.getTimerPolicy());
+        if (request.getSource() != null)                problem.changeSource(request.getSource());
+        if (request.getProblemStatus() != null)         problem.changeProblemStatus(request.getProblemStatus());
         problem.increaseVersion();
 
         return ProblemResponse.from(problem);
