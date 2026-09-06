@@ -49,6 +49,8 @@ internal:
   hmac:
     keys:
       coaching-service: ${HMAC_KEY_COACHING_TO_CONTENT}
+    outbound:
+      user-service: ${HMAC_KEY_CONTENT_TO_USER}
 
 eureka:
   client:

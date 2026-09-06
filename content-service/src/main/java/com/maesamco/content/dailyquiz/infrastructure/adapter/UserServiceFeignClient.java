@@ -10,7 +10,11 @@ import java.util.UUID;
 /**
  * User Service의 Feign Client
  */
-@FeignClient(name = "user-service", path = "/internal/v1")
+@FeignClient(
+        name = "user-service",
+        path = "/internal/v1",
+        configuration = UserServiceFeignConfig.class
+)
 public interface UserServiceFeignClient {
 
     @GetMapping("/users/{userId}")
