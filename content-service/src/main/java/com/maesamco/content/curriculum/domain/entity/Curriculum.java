@@ -2,6 +2,7 @@ package com.maesamco.content.curriculum.domain.entity;
 
 import com.maesamco.content.curriculum.domain.enums.ProgrammingLanguage;
 import com.maesamco.content.global.common.BaseEntity;
+import com.maesamco.content.problem.domain.enums.*;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,34 +22,32 @@ public class Curriculum extends BaseEntity {
     @Column(name = "curriculum_id", updatable = false, nullable = false)
     private UUID id;
 
+    /** 커리큘럼 제목 */
+    @Column(name = "title", length = 100, nullable = false)
+    private String title;
+
     /** 프로그래밍 언어 */
     @Enumerated(EnumType.STRING)
     @Column(name = "language", length = 20, nullable = false)
     private ProgrammingLanguage language;
 
-    /** 커리큘럼 제목 */
-    @Column(name = "title", length = 100, nullable = false)
-    private String title;
-
     /** 커리큘럼 표시 순서 */
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
 
-    private Curriculum(ProgrammingLanguage language, String title, Integer displayOrder) {
-        this.language = language;
+    private Curriculum(String title, ProgrammingLanguage language, Integer displayOrder) {
         this.title = title;
+        this.language = language;
         this.displayOrder = displayOrder;
     }
 
     /** 커리큘럼 생성 */
-    public static Curriculum create(ProgrammingLanguage language, String title, Integer displayOrder) {
-        return new Curriculum(language, title, displayOrder);
+    public static Curriculum create(String title, ProgrammingLanguage language, Integer displayOrder) {
+        return new Curriculum(title, language, displayOrder);
     }
 
     /** 커리큘럼 수정 */
-    public void update(ProgrammingLanguage language, String title, Integer displayOrder) {
-        this.language = language;
-        this.title = title;
-        this.displayOrder = displayOrder;
-    }
+    public void changeTitle(String newTitle) { this.title = newTitle; }
+    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
+    public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
 }

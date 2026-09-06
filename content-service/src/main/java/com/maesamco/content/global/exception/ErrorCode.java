@@ -47,6 +47,10 @@ public enum ErrorCode {
 
     /* 여기서부터 따로 작성 */
 
+    /* Curriculum */
+    /** 요청한 커리큘럼을 찾을 수 없는 경우입니다. */
+    CURRICULUM_NOT_FOUND(HttpStatus.NOT_FOUND, "커리큘럼을 찾을 수 없습니다."),
+
     /* Problem */
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
@@ -54,6 +58,8 @@ public enum ErrorCode {
     PROBLEM_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 문제입니다."),
     /** 허용되지 않은 문제 상태 변경을 요청한 경우입니다. */
     INVALID_PROBLEM_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "허용되지 않은 문제 상태 변경입니다.");
+
+
 
     private final HttpStatus status;
     private final String message;
