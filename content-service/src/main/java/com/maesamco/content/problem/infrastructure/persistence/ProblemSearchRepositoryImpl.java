@@ -7,12 +7,14 @@ import com.maesamco.content.problem.presentation.dto.request.ProblemSearchReques
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -64,16 +66,15 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        Long total = queryFactory
+        JPAQuery<Long> countQuery = queryFactory
                 .select(problem.count())
                 .from(problem)
-                .where(conditions)
-                .fetchOne();
+                .where(conditions);
 
-        return new PageImpl<>(
+        return PageableExecutionUtils.getPage(
                 problems,
                 pageable,
-                total != null ? total : 0L
+                countQuery::fetchOne
         );
     }
 
