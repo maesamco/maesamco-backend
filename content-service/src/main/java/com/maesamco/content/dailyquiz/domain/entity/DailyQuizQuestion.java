@@ -47,9 +47,11 @@ import java.util.stream.IntStream;
 @EntityListeners(AuditingEntityListener.class)
 public class DailyQuizQuestion {
 
+    private static final int MAX_QUESTION_TEXT_LENGTH = 1_000;
     private static final int MAX_RESPONSE_LENGTH = 200;
     private static final int MAX_CONCEPT_TAG_LENGTH = 50;
-    private static final int MIN_MULTIPLE_CHOICE_OPTIONS = 2;
+    private static final int MULTIPLE_CHOICE_OPTION_COUNT = 4;
+    private static final String FILL_IN_BLANK_MARKER = "___";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -199,7 +201,7 @@ public class DailyQuizQuestion {
             List<String> conceptTags
     ) {
         DailyQuizProblemType validatedProblemType = requireProblemType(problemType);
-        String validatedQuestionText = requireText(questionText, "문제 지문");
+        String validatedQuestionText = validateQuestionText(validatedProblemType, questionText);
         String validatedAnswer = requireText(answer, "정답", MAX_RESPONSE_LENGTH);
         List<String> validatedChoices = validateChoices(
                 validatedProblemType,
@@ -208,7 +210,8 @@ public class DailyQuizQuestion {
         );
         List<String> validatedAllowedAnswers = validateAllowedAnswers(
                 validatedProblemType,
-                allowedAnswerVariants
+                allowedAnswerVariants,
+                validatedAnswer
         );
         List<String> validatedConceptTags = validateConceptTags(conceptTags);
 
@@ -251,6 +254,27 @@ public class DailyQuizQuestion {
         return validatedValue;
     }
 
+    private static String validateQuestionText(
+            DailyQuizProblemType problemType,
+            String questionText
+    ) {
+        String validatedQuestionText = requireText(
+                questionText,
+                "문제 지문",
+                MAX_QUESTION_TEXT_LENGTH
+        );
+
+        if (problemType == DailyQuizProblemType.FILL_IN_BLANK
+                && countOccurrences(validatedQuestionText, FILL_IN_BLANK_MARKER) != 1) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "빈칸형 문제에는 " + FILL_IN_BLANK_MARKER + "가 정확히 한 번 있어야 합니다."
+            );
+        }
+
+        return validatedQuestionText;
+    }
+
     private static List<String> validateChoices(
             DailyQuizProblemType problemType,
             List<String> choices,
@@ -261,9 +285,9 @@ public class DailyQuizQuestion {
             return null;
         }
 
-        if (choices == null || choices.size() < MIN_MULTIPLE_CHOICE_OPTIONS) {
+        if (choices == null || choices.size() != MULTIPLE_CHOICE_OPTION_COUNT) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE,
-                    "객관식 문제는 선택지가 " + MIN_MULTIPLE_CHOICE_OPTIONS + "개 이상 필요합니다.");
+                    "객관식 문제는 선택지가 정확히 " + MULTIPLE_CHOICE_OPTION_COUNT + "개 필요합니다.");
         }
 
         List<String> validatedChoices = validateTextList(choices, "선택지", MAX_RESPONSE_LENGTH);
@@ -277,7 +301,8 @@ public class DailyQuizQuestion {
 
     private static List<String> validateAllowedAnswers(
             DailyQuizProblemType problemType,
-            List<String> allowedAnswerVariants
+            List<String> allowedAnswerVariants,
+            String answer
     ) {
         if (problemType != DailyQuizProblemType.SHORT_ANSWER) {
             requireEmptyList(allowedAnswerVariants, "허용 답안 표현은 단답형 문제에서만 사용할 수 있습니다.");
@@ -294,7 +319,27 @@ public class DailyQuizQuestion {
                 MAX_RESPONSE_LENGTH
         );
         requireNoDuplicates(validatedVariants, "허용 답안 표현은 중복될 수 없습니다.");
+
+        if (validatedVariants.contains(answer)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "대표 정답을 허용 답안 표현에 중복해서 넣을 수 없습니다."
+            );
+        }
+
         return validatedVariants;
+    }
+
+    private static int countOccurrences(String text, String target) {
+        int count = 0;
+        int fromIndex = 0;
+
+        while ((fromIndex = text.indexOf(target, fromIndex)) >= 0) {
+            count++;
+            fromIndex += target.length();
+        }
+
+        return count;
     }
 
     private static List<String> validateConceptTags(List<String> conceptTags) {
