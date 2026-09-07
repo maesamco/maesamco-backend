@@ -11,6 +11,7 @@ import com.maesamco.content.unit.presentation.dto.response.UnitResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -51,9 +52,9 @@ public class UnitController {
     ) {
         UnitCreateResponse response = unitService.createUnit(request);
 
-        return ResponseEntity.ok(
-                SuccessResponse.success(response)
-        );
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(SuccessResponse.success(response));
     }
 
     /**
