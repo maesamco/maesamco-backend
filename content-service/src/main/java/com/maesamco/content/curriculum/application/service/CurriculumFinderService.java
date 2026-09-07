@@ -21,7 +21,7 @@ public class CurriculumFinderService implements CurriculumFinder {
     @Override
     @Transactional(readOnly = true)
     public Curriculum findById(UUID curriculumId) {
-        return curriculumRepository.findByIdAndDeletedAtIsNull(curriculumId)
+        return curriculumRepository.findById(curriculumId)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.CURRICULUM_NOT_FOUND)
                 );
