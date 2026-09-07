@@ -19,12 +19,25 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
     }
 
     @Override
-    public List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags) {
+    public List<DailyQuizQuestion> findActiveByAnyConcepts(
+            List<String> conceptTags,
+            int limitPerConcept
+    ) {
         if (conceptTags.isEmpty()) {
             return List.of();
         }
 
+        if (limitPerConcept < 1) {
+            throw new IllegalArgumentException(
+                    "개념별 후보 제한 수는 1개 이상이어야 합니다."
+            );
+        }
+
         String[] conceptTagArray = conceptTags.toArray(String[]::new);
-        return springDataRepository.findActiveByAnyConceptTags(conceptTagArray);
+
+        return springDataRepository.findActiveByAnyConceptTags(
+                conceptTagArray,
+                limitPerConcept
+        );
     }
 }
