@@ -58,8 +58,7 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
                 difficultyEq(problem, request),
                 typeEq(problem, request),
                 sourceEq(problem, request),
-                problem.problemStatus.eq(ProblemStatus.PUBLISHED),
-                problem.deletedAt.isNull()
+                problem.problemStatus.eq(ProblemStatus.PUBLISHED)
         };
 
         List<Problem> problems = queryFactory
