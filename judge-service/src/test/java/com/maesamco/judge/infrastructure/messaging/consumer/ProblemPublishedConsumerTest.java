@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.ProblemExecutionSpecService;
+import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
@@ -64,11 +65,12 @@ class ProblemPublishedConsumerTest {
     void delegatesToServiceWhenEventVersionSupported() {
         // given
         ProblemPublishedEvent event = eventWithVersion(1);
-        willDoNothing().given(problemExecutionSpecService).saveIfAbsent(event);
+        ProblemExecutionSpecSaveCommand expectedCommand = ProblemExecutionSpecSaveCommand.from(event);
+        willDoNothing().given(problemExecutionSpecService).saveIfAbsent(expectedCommand);
 
         // when / then
         assertThatCode(() -> problemPublishedConsumer.consume(event))
                 .doesNotThrowAnyException();
-        verify(problemExecutionSpecService).saveIfAbsent(event);
+        verify(problemExecutionSpecService).saveIfAbsent(expectedCommand);
     }
 }
