@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.presentation.dto.request;
 
+import org.openapitools.jackson.nullable.JsonNullable;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
@@ -42,7 +43,7 @@ public class ProblemUpdateRequest {
     private String description;
 
     /** 수정할 문제 풀이 시작 코드입니다. */
-    private String starterCode;
+    private JsonNullable<String> starterCode = JsonNullable.undefined();
 
     /** 수정할 코드 실행 시간 제한입니다. */
     private RunningTimeLimit runningTimeLimit;

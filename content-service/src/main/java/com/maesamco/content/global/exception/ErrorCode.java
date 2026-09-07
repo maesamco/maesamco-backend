@@ -39,14 +39,6 @@ public enum ErrorCode {
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
     INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
-
-
-
-
-
-
-
-
     /* 여기서부터 따로 작성 */
 
     /* Curriculum */
@@ -63,11 +55,7 @@ public enum ErrorCode {
 
     /* Problem */
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
-    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
-    /** 이미 삭제된 문제를 다시 삭제하거나 접근하려는 경우입니다. */
-    PROBLEM_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 문제입니다."),
-    /** 허용되지 않은 문제 상태 변경을 요청한 경우입니다. */
-    INVALID_PROBLEM_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "허용되지 않은 문제 상태 변경입니다.");
+    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다.");
 
 
 

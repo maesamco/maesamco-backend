@@ -16,5 +16,5 @@ public enum TimerPolicy {
     APPLY300,
 
     /** 타이머 적용 안 함 */
-    NOTAPPLY_TimePolicy
+    NOT_APPLY_TIMEPOLICY
 }

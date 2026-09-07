@@ -2,16 +2,19 @@ package com.maesamco.content.problem.infrastructure.persistence;
 
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.QProblem;
+import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
+import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemSearchRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.support.PageableExecutionUtils;
@@ -55,6 +58,7 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
                 difficultyEq(problem, request),
                 typeEq(problem, request),
                 sourceEq(problem, request),
+                problem.problemStatus.eq(ProblemStatus.PUBLISHED),
                 problem.deletedAt.isNull()
         };
 
@@ -129,6 +133,9 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
             orderSpecifiers.add(problem.createdAt.desc()); // 정렬 조건이 없다면 생성일 기준으로 내림차순 정렬 (최신순)
         }
 
+        // tie-breaker 도입: 동일한 정렬 값을 가진 행의 순서를 고정해 페이징 결과를 안정적으로 유지
+        orderSpecifiers.add(problem.id.desc());
+
         return orderSpecifiers.toArray(OrderSpecifier<?>[]::new);
     }
 
@@ -137,12 +144,23 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
         return switch (property) {
             case "title"        -> new OrderSpecifier<>(direction, problem.title);
             case "language"     -> new OrderSpecifier<>(direction, problem.language);
-            case "difficulty"   -> new OrderSpecifier<>(direction, problem.difficulty);
+            case "difficulty"   -> createDifficultyOrderSpecifier(problem, direction); // enum 이름 값이 아닌, (EASY → MEDIUM → HARD) 기준으로 정렬
             case "type"         -> new OrderSpecifier<>(direction, problem.type);
             case "source"       -> new OrderSpecifier<>(direction, problem.source);
             case "createdAt"    -> new OrderSpecifier<>(direction, problem.createdAt);
             case "updatedAt"    -> new OrderSpecifier<>(direction, problem.updatedAt);
             default -> null;
         };
+    }
+
+    /** enum */
+    private OrderSpecifier<Integer> createDifficultyOrderSpecifier(QProblem problem, Order direction) {
+        NumberExpression<Integer> difficultyOrder = new CaseBuilder()
+                .when(problem.difficulty.eq(ProblemDifficulty.EASY)).then(1)
+                .when(problem.difficulty.eq(ProblemDifficulty.MEDIUM)).then(2)
+                .when(problem.difficulty.eq(ProblemDifficulty.HARD)).then(3)
+                .otherwise(999);
+
+        return new OrderSpecifier<>(direction, difficultyOrder);
     }
 }
