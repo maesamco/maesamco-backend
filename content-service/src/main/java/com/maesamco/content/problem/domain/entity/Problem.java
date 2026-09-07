@@ -12,7 +12,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
 
