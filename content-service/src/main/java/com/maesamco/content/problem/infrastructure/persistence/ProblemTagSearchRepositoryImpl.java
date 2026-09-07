@@ -56,4 +56,23 @@ public class ProblemTagSearchRepositoryImpl implements ProblemTagSearchRepositor
                 countQuery::fetchOne
         );
     }
+
+    @Override
+    public List<Tag> findAllTagsByProblemId(UUID problemId) {
+
+        QProblemTag problemTag = QProblemTag.problemTag;
+        QTag tag = QTag.tag;
+
+        return queryFactory
+                .select(tag)
+                .from(problemTag)
+                .join(tag)
+                .on(problemTag.tagId.eq(tag.id))
+                .where(problemTag.problemId.eq(problemId))
+                .orderBy(
+                        tag.createdAt.desc(),
+                        tag.id.desc()
+                )
+                .fetch();
+    }
 }
