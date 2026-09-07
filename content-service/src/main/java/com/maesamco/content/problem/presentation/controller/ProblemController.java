@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -45,6 +47,7 @@ public class ProblemController {
      * @param request 문제 생성 요청 정보
      * @return 생성된 문제 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
             @Valid @RequestBody ProblemCreateRequest request
@@ -136,6 +139,7 @@ public class ProblemController {
      * @param request 문제 수정 요청 정보
      * @return 수정된 문제 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(
             @PathVariable UUID problemId,
@@ -161,10 +165,11 @@ public class ProblemController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<Void>> deleteProblem(
             @PathVariable UUID problemId,
-            @RequestHeader("X-User-Id") UUID userId
+            @AuthenticationPrincipal UUID userId
     ) {
         problemService.deleteProblem(problemId, userId);
 
