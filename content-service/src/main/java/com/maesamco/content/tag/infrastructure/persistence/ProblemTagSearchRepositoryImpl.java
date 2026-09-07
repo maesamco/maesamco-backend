@@ -31,10 +31,10 @@ public class ProblemTagSearchRepositoryImpl implements ProblemTagSearchRepositor
         // 특정 problemId에 연결되어 있는 태그들을 p_problem_tags와 p_tags를 Join해서 조회한다.
         List<Tag> tags = queryFactory
                 .select(tag)
-                .from(problemTag)
-                .join(tag)
-                .on(problemTag.tagId.eq(tag.id))
-                .where(problemTag.problemId.eq(problemId))
+                .from(problemTag) // p_problem_tags 테이블을 가지고
+                .join(tag) // p_tags 테이블과 JOIN
+                .on(problemTag.tagId.eq(tag.id)) // problem_tag.tag_id = tag.id 조건으로 JOIN
+                .where(problemTag.problemId.eq(problemId)) // 특정 problemId에 연결된 태그만 조회
                 .orderBy(
                         tag.createdAt.desc(),
                         tag.id.desc()
