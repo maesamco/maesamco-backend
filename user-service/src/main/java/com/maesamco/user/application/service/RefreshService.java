@@ -13,13 +13,14 @@ import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
+import com.maesamco.user.global.security.TokenExpirationCalculator;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
  * Refresh Token을 검증하고 새로운 Access Token 및 Refresh Token을
@@ -31,6 +32,7 @@ import java.util.Objects;
  * <p>Rotation 과정에서도 최초 인증 세션의 절대 만료 시각을 유지하여
  * Refresh 요청만으로 세션 수명이 계속 연장되지 않도록 합니다.</p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshService {
@@ -120,12 +122,16 @@ public class RefreshService {
                         newRefreshTokenHash
                 );
 
-        validateRotationResult(rotationResult);
+        validateRotationResult(
+                rotationResult,
+                user.getId(),
+                authSession.sessionId()
+        );
 
         Instant now = clock.instant();
 
         long accessTokenExpiresIn =
-                calculateExpiresInSeconds(
+                TokenExpirationCalculator.remainingSeconds(
                         now,
                         issuedTokens.accessTokenExpiresAt()
                 );
@@ -197,10 +203,18 @@ public class RefreshService {
      * Redis에서 수행한 원자적 Refresh Token Rotation 결과를
      * 인증 오류로 변환합니다.
      *
+     * <p>이미 Rotation된 Refresh Token이 다시 사용된 경우에는
+     * 보안 이벤트 추적을 위해 사용자와 세션 식별자를 WARN 로그에 기록합니다.
+     * Refresh Token 원문과 hash는 기록하지 않습니다.</p>
+     *
      * @param rotationResult Redis Rotation 결과
+     * @param userId 인증 세션 사용자 ID
+     * @param sessionId 인증 세션 ID
      */
     private void validateRotationResult(
-            AuthSessionRotationResult rotationResult
+            AuthSessionRotationResult rotationResult,
+            UUID userId,
+            UUID sessionId
     ) {
         Objects.requireNonNull(
                 rotationResult,
@@ -217,43 +231,17 @@ public class RefreshService {
                             ErrorCode.AUTH_TOKEN_REVOKED
                     );
 
-            case TOKEN_REUSED ->
-                    throw new BusinessException(
-                            ErrorCode.AUTH_REFRESH_TOKEN_REUSED
-                    );
+            case TOKEN_REUSED -> {
+                log.warn(
+                        "Refresh Token 재사용 감지. userId={}, sessionId={}",
+                        userId,
+                        sessionId
+                );
+
+                throw new BusinessException(
+                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED
+                );
+            }
         }
-    }
-
-    /**
-     * Access Token 만료 시각을 현재 시각 기준
-     * 남은 초 단위로 변환합니다.
-     *
-     * <p>밀리초 단위의 일부 시간이 남아 있는 경우
-     * 로그인과 동일하게 초 단위로 올림 처리합니다.</p>
-     *
-     * @param now 현재 시각
-     * @param expiresAt Access Token 만료 시각
-     * @return Access Token 만료까지 남은 시간(초)
-     */
-    private long calculateExpiresInSeconds(
-            Instant now,
-            Instant expiresAt
-    ) {
-        Objects.requireNonNull(
-                expiresAt,
-                "Access Token 만료 시각은 필수입니다."
-        );
-
-        long remainingMillis =
-                Duration.between(
-                        now,
-                        expiresAt
-                ).toMillis();
-
-        if (remainingMillis <= 0) {
-            return 0;
-        }
-
-        return (remainingMillis + 999L) / 1000L;
     }
 }
