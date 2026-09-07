@@ -132,6 +132,30 @@ class AiFeedbackApiControllerTest {
     }
 
     @Test
+    @DisplayName("재검증(PR #111) — 세션이 아직 완료되지 않았으면 조회는 404(AI_FEEDBACK_NOT_STARTED)를 반환한다")
+    void getFeedback_sessionNotCompleted_returns404NotStarted() throws Exception {
+        when(aiFeedbackQueryService.getFeedback(submissionId, userId))
+                .thenThrow(new BusinessException(ErrorCode.AI_FEEDBACK_NOT_STARTED));
+
+        mockMvc.perform(get("/api/v1/coaching/submissions/{submissionId}/feedback", submissionId)
+                        .with(asUser(userId)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("AI_FEEDBACK_NOT_STARTED"));
+    }
+
+    @Test
+    @DisplayName("재검증(PR #111) — 재시도 예산이 소진됐으면 조회도 409(AI_FEEDBACK_RETRY_LIMIT_EXCEEDED)를 반환한다")
+    void getFeedback_retryExhausted_returns409() throws Exception {
+        when(aiFeedbackQueryService.getFeedback(submissionId, userId))
+                .thenThrow(new BusinessException(ErrorCode.AI_FEEDBACK_RETRY_LIMIT_EXCEEDED));
+
+        mockMvc.perform(get("/api/v1/coaching/submissions/{submissionId}/feedback", submissionId)
+                        .with(asUser(userId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("AI_FEEDBACK_RETRY_LIMIT_EXCEEDED"));
+    }
+
+    @Test
     @DisplayName("재시도에 성공하면 200과 함께 새 피드백을 반환한다")
     void retryFeedback_success_returns200() throws Exception {
         AiFeedback feedback = feedback();
@@ -178,5 +202,17 @@ class AiFeedbackApiControllerTest {
                         .with(asUser(userId)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("AI_FEEDBACK_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("재검증(PR #111) — 동시 재시도 요청이 락을 못 얻으면 409(AI_FEEDBACK_RETRY_IN_PROGRESS)를 반환한다")
+    void retryFeedback_alreadyInProgress_returns409() throws Exception {
+        when(aiFeedbackRetryFacade.retryFeedback(submissionId, userId))
+                .thenThrow(new BusinessException(ErrorCode.AI_FEEDBACK_RETRY_IN_PROGRESS));
+
+        mockMvc.perform(post("/api/v1/coaching/submissions/{submissionId}/feedback/retry", submissionId)
+                        .with(asUser(userId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("AI_FEEDBACK_RETRY_IN_PROGRESS"));
     }
 }

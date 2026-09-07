@@ -32,7 +32,8 @@ public class AiCallHistoryRepositoryImpl implements AiCallHistoryRepository {
     }
 
     @Override
-    public long countByCoachingSessionIdAndPurpose(UUID coachingSessionId, AiCallPurpose purpose) {
-        return springDataAiCallHistoryRepository.countByCoachingSessionIdAndPurpose(coachingSessionId, purpose);
+    public long countRealAttemptsByCoachingSessionIdAndPurpose(UUID coachingSessionId, AiCallPurpose purpose) {
+        return springDataAiCallHistoryRepository
+                .countByCoachingSessionIdAndPurposeAndRequestStatusNot(coachingSessionId, purpose, "SKIPPED");
     }
 }

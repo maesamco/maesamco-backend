@@ -56,13 +56,13 @@ public class GeminiModelAdapter implements AiModelPort {
     }
 
     /**
-     * ClaudeModelAdapter.generateFallback()과 동일한 이유.
+     * ClaudeModelAdapter.generateFallback()과 동일한 이유(circuitOpen 표시 포함).
      */
     @SuppressWarnings("unused")
     AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
         if (t instanceof AiModelCallException aiModelCallException) {
             throw aiModelCallException;
         }
-        throw new AiModelCallException("Gemini 호출이 차단되었습니다(circuit open).", t);
+        throw new AiModelCallException("Gemini 호출이 차단되었습니다(circuit open).", t, true);
     }
 }

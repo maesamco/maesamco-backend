@@ -1,7 +1,10 @@
 package com.maesamco.coaching.application.query_service;
 
+import com.maesamco.coaching.application.facade.AiFeedbackRetryFacade;
+import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
+import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.AiFeedbackRepository;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
@@ -25,21 +28,43 @@ public class AiFeedbackQueryService {
 
     private final CoachingSessionRepository coachingSessionRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
+    private final AiCallHistoryRepository aiCallHistoryRepository;
 
     public AiFeedbackQueryService(
             CoachingSessionRepository coachingSessionRepository,
-            AiFeedbackRepository aiFeedbackRepository
+            AiFeedbackRepository aiFeedbackRepository,
+            AiCallHistoryRepository aiCallHistoryRepository
     ) {
         this.coachingSessionRepository = coachingSessionRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
+        this.aiCallHistoryRepository = aiCallHistoryRepository;
     }
 
+    /**
+     * 재검증(PR #111, 외부 AI 리뷰) — "세션 미완료"/"완료됐지만 아직 없음"/"재시도 예산
+     * 소진"을 전부 같은 AI_FEEDBACK_NOT_FOUND(404)로 응답하면, 클라이언트가 폴링을
+     * 계속할지 재시도 버튼을 보여줄지 구분할 방법이 없었다. 세션 완료 여부와 재시도 예산
+     * 소진 여부는 클라이언트 판단에 바로 쓸 수 있는 정보라 별도 코드로 분리한다 — "생성
+     * 진행 중"과 "실패했지만 재시도 가능"의 구분은 PENDING 이력 마커가 있어야 가능해서
+     * (지금은 성공/실패가 끝난 뒤에만 이력을 남김) 이번엔 손대지 않았다.
+     */
     @Transactional(readOnly = true)
     public AiFeedback getFeedback(UUID submissionId, UUID callerId) {
         CoachingSession session = findOwnedSession(submissionId, callerId);
 
+        if (!session.isCompleted()) {
+            throw new BusinessException(ErrorCode.AI_FEEDBACK_NOT_STARTED);
+        }
+
         return aiFeedbackRepository.findByCoachingSessionId(session.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND));
+                .orElseThrow(() -> {
+                    long attemptCount = aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(
+                            session.getId(), AiCallPurpose.FEEDBACK
+                    );
+                    return attemptCount >= AiFeedbackRetryFacade.MAX_ATTEMPTS
+                            ? new BusinessException(ErrorCode.AI_FEEDBACK_RETRY_LIMIT_EXCEEDED)
+                            : new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND);
+                });
     }
 
     /**

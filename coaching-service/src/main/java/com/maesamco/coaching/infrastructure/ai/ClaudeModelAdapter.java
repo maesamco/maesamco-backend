@@ -67,6 +67,9 @@ public class ClaudeModelAdapter implements AiModelPort {
         if (t instanceof AiModelCallException aiModelCallException) {
             throw aiModelCallException;
         }
-        throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t);
+        // 재검증(PR #111) — 여기로 오는 건 서킷이 열려 실제 호출 자체가 없었던 경우라
+        // circuitOpen=true로 표시한다. FeedbackGenerationFacade가 이걸 실제 실패와 구분해서
+        // 재시도 예산을 소모하지 않도록 처리한다.
+        throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t, true);
     }
 }

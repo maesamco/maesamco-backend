@@ -11,5 +11,7 @@ interface SpringDataAiCallHistoryRepository extends JpaRepository<AiCallHistory,
 
     List<AiCallHistory> findByCoachingSessionIdOrderByCalledAtAsc(UUID coachingSessionId);
 
-    long countByCoachingSessionIdAndPurpose(UUID coachingSessionId, AiCallPurpose purpose);
+    long countByCoachingSessionIdAndPurposeAndRequestStatusNot(
+            UUID coachingSessionId, AiCallPurpose purpose, String excludedRequestStatus
+    );
 }

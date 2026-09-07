@@ -1,7 +1,10 @@
 package com.maesamco.coaching.application.query_service;
 
+import com.maesamco.coaching.application.facade.AiFeedbackRetryFacade;
+import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
+import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.AiFeedbackRepository;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
@@ -32,6 +35,8 @@ class AiFeedbackQueryServiceTest {
     private CoachingSessionRepository coachingSessionRepository;
     @Mock
     private AiFeedbackRepository aiFeedbackRepository;
+    @Mock
+    private AiCallHistoryRepository aiCallHistoryRepository;
 
     private AiFeedbackQueryService queryService;
 
@@ -41,10 +46,19 @@ class AiFeedbackQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        queryService = new AiFeedbackQueryService(coachingSessionRepository, aiFeedbackRepository);
+        queryService = new AiFeedbackQueryService(coachingSessionRepository, aiFeedbackRepository, aiCallHistoryRepository);
     }
 
+    /** 완료된 세션 — 대부분의 테스트가 "완료 이후" 시나리오(피드백 있음/없음)를 다룬다. */
     private CoachingSession session(UUID owner) {
+        CoachingSession session = CoachingSession.create(submissionId, owner, problemId, 1);
+        ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
+        session.complete();
+        return session;
+    }
+
+    /** 재검증(PR #111) — AI_FEEDBACK_NOT_STARTED 검증용, 완료 전(status=IN_PROGRESS) 세션. */
+    private CoachingSession inProgressSession(UUID owner) {
         CoachingSession session = CoachingSession.create(submissionId, owner, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
         return session;
@@ -81,11 +95,40 @@ class AiFeedbackQueryServiceTest {
         CoachingSession session = session(callerId);
         when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
+        when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
+                .thenReturn(1L);
 
         assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_FEEDBACK_NOT_FOUND);
+    }
+
+    /** 재검증(PR #111, 외부 AI 리뷰) — 세션이 아직 완료 전이면 재시도 예산과 무관하게 항상 이 코드다. */
+    @Test
+    void 세션이_아직_완료되지_않았으면_AI_FEEDBACK_NOT_STARTED() {
+        CoachingSession session = inProgressSession(callerId);
+        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_FEEDBACK_NOT_STARTED);
+    }
+
+    /** 재검증(PR #111, 외부 AI 리뷰) — 재시도 예산(4회)까지 소진됐으면 별도 코드로 구분한다. */
+    @Test
+    void 재시도_예산이_소진됐으면_AI_FEEDBACK_RETRY_LIMIT_EXCEEDED() {
+        CoachingSession session = session(callerId);
+        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
+        when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
+                .thenReturn(AiFeedbackRetryFacade.MAX_ATTEMPTS);
+
+        assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_FEEDBACK_RETRY_LIMIT_EXCEEDED);
     }
 
     @Test
