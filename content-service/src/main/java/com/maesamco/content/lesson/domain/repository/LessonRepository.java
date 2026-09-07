@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface LessonRepository extends JpaRepository<Lesson, UUID>, LessonSearchRepository {
 
     Optional<Lesson> findByIdAndDeletedAtIsNull(UUID lessonId);
+
+    long countByUnitIdAndDeletedAtIsNull(UUID unitId);
 }

@@ -1,11 +1,9 @@
 package com.maesamco.content.lesson.domain.entity;
 
 import com.maesamco.content.global.common.BaseEntity;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.unit.domain.entity.Unit;
+import com.maesamco.content.lesson.domain.enums.ProgrammingLanguage;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -56,17 +54,17 @@ public class Lesson extends BaseEntity {
     }
 
     /** 레슨 제목을 수정합니다. */
-    public void updateTitle(String title) { this.title = title; }
+    public void changeTitle(String title) { this.title = title; }
 
     /** 레슨 설명을 수정합니다. */
-    public void updateDescription(String description) { this.description = description; }
+    public void changeDescription(String description) { this.description = description; }
 
     /** 레슨 학습 내용을 수정합니다. */
-    public void updateContent(String content) { this.content = content; }
+    public void changeContent(String content) { this.content = content; }
 
     /** 레슨 언어를 수정합니다. */
-    public void updateLanguage(ProgrammingLanguage language) { this.language = language; }
+    public void changeLanguage(ProgrammingLanguage language) { this.language = language; }
 
     /** 레슨 배치 순서를 수정합니다. */
-    public void updateDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+    public void changeDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
 }

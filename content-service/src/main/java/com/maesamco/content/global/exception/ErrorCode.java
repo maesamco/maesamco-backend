@@ -1,5 +1,6 @@
 package com.maesamco.content.global.exception;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
  *  - 다른 사용자의 리소스에 접근하는 경우 별도 코드를 만들지 않고
  *    존재하지 않는 리소스와 동일하게 404 + {DOMAIN}_NOT_FOUND 로 응답한다.
  */
+@Getter
 public enum ErrorCode {
 
     // ===== common =====
@@ -55,6 +57,10 @@ public enum ErrorCode {
     /** 요청한 유닛을 찾을 수 없는 경우입니다. */
     UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "유닛을 찾을 수 없습니다."),
 
+    /* Lesson */
+    /** 요청한 레슨을 찾을 수 없는 경우입니다. */
+    LESSON_NOT_FOUND(HttpStatus.NOT_FOUND, "레슨을 찾을 수 없습니다."),
+
     /* Problem */
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
@@ -73,11 +79,4 @@ public enum ErrorCode {
         this.message = message;
     }
 
-    public HttpStatus getStatus() {
-        return status;
-    }
-
-    public String getMessage() {
-        return message;
-    }
 }
