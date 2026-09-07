@@ -8,7 +8,4 @@ import java.util.UUID;
 public interface ProblemFinder {
 
     Problem getProblem(UUID problemId);
-
-    /** 문제 존재 여부를 ID를 통해 확인 */
-    void findProblemById(UUID problemId);
 }
