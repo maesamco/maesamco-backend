@@ -61,6 +61,12 @@ public enum ErrorCode {
     TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "태그를 찾을 수 없습니다."),
     TAG_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 태그 이름입니다."),
 
+    /* Problem Tag */
+    /** 이미 등록된 문제-태그 연결인 경우입니다. */
+    PROBLEM_TAG_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 문제에 등록된 태그입니다."),
+    /** 문제-태그 연결을 찾을 수 없는 경우입니다. */
+    PROBLEM_TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "문제에 등록된 태그를 찾을 수 없습니다."),
+
     /* Testcase */
     /** 요청한 테스트케이스를 찾을 수 없는 경우입니다. */
     TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND,"테스트케이스를 찾을 수 없습니다."),
