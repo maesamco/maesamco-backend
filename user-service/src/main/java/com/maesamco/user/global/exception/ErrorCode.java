@@ -49,6 +49,10 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 사용 중인 닉네임입니다."
     ),
+    SIGNUP_AUTO_LOGIN_FAILED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "회원가입은 완료되었지만 자동 로그인에 실패했습니다. 로그인해주세요."
+    ),
     GAMIFICATION_STATE_CONFLICT(
             HttpStatus.CONFLICT,
             "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
@@ -75,6 +79,7 @@ public enum ErrorCode {
             HttpStatus.UNAUTHORIZED,
             "내부 호출 요청이 만료되었습니다(재전송 의심)."
     );
+
     // ===== judge =====
     // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     // IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
