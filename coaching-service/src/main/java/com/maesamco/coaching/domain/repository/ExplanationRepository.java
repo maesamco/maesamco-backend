@@ -10,4 +10,6 @@ public interface ExplanationRepository {
     Explanation save(Explanation explanation);
 
     Optional<Explanation> findBySubmissionId(UUID submissionId);
+
+    Optional<Explanation> findById(UUID id);
 }
