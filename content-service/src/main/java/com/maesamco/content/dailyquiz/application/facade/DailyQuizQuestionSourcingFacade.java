@@ -1,5 +1,7 @@
 package com.maesamco.content.dailyquiz.application.facade;
 
+import com.maesamco.content.aigeneration.application.AiGenerationHistoryRecorder;
+import com.maesamco.content.aigeneration.domain.entity.AiGenerationPurpose;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationResult;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
 import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
@@ -36,6 +38,8 @@ public class DailyQuizQuestionSourcingFacade {
     // 생성된 문항을 문제은행에 저장
     private final DailyQuizQuestionRepository questionRepository;
 
+    private final AiGenerationHistoryRecorder historyRecorder;
+
     public DailyQuizQuestionSourcingResult sourceQuestions(ConceptSlots requiredConcepts) {
         if (requiredConcepts == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "개념 슬롯은 필수입니다.");
@@ -58,9 +62,19 @@ public class DailyQuizQuestionSourcingFacade {
             int slotIndex = generatedSlot.getKey();
             GeneratedDailyQuizQuestion generatedQuestion = generatedSlot.getValue();
             DailyQuizQuestion question;
+
+            // AI 응답을 DailyQuizQuestion 도메인 객체로 변환하면서 도메인 규칙을 검증합니다.
             try {
                 question = toDailyQuizQuestion(generatedQuestion);
             } catch (BusinessException exception) {
+                // 도메인 규칙을 통과하지 못한 AI 문항을 실패로 기록하고 다음 슬롯을 처리합니다.
+                historyRecorder.recordFailure(
+                        AiGenerationPurpose.DAILY_QUIZ_GENERATION,
+                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        generatedQuestion.generationMetadata(),
+                        exception
+                );
+
                 // 도메인 규칙을 통과하지 못한 AI 문항만 실패 처리하고 다음 문항 생성을 계속합니다.
                 log.warn(
                         "AI 생성 Daily Quiz 문항 도메인 검증 실패. conceptTags={}, reason={}",
@@ -71,10 +85,26 @@ public class DailyQuizQuestionSourcingFacade {
                 continue;
             }
 
+            // 도메인 검증을 통과한 문항을 저장하고, 발급된 문항 ID와 함께 성공 이력을 기록합니다.
             try {
                 DailyQuizQuestion savedQuestion = questionRepository.save(question);
                 questionsBySlot.put(slotIndex, savedQuestion);
+
+                historyRecorder.recordSuccess(
+                        AiGenerationPurpose.DAILY_QUIZ_GENERATION,
+                        savedQuestion.getId(),
+                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        generatedQuestion.generationMetadata()
+                );
             } catch (DataIntegrityViolationException exception) {
+                // UNIQUE를 포함한 DB 무결성 오류를 실패로 기록합니다.
+                historyRecorder.recordFailure(
+                        AiGenerationPurpose.DAILY_QUIZ_GENERATION,
+                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        generatedQuestion.generationMetadata(),
+                        exception
+                );
+
                 if (!isUniqueViolation(exception)) {
                     // 도메인 검증과 DB 제약의 불일치 가능성이 있으므로 시스템 오류로 전파합니다.
                     log.error(
@@ -95,6 +125,14 @@ public class DailyQuizQuestionSourcingFacade {
                         exception.getMessage()
                 );
                 failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
+            } catch (RuntimeException exception) {
+                historyRecorder.recordFailure(
+                        AiGenerationPurpose.DAILY_QUIZ_GENERATION,
+                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        generatedQuestion.generationMetadata(),
+                        exception
+                );
+                throw exception;
             }
         }
 
