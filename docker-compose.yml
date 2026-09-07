@@ -187,6 +187,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       EUREKA_URL: http://eureka-server:8761/eureka/
+      # JMeter 부하 테스트용 — 테스트 직전에만 .env에서 넉넉한 값으로 올렸다가 끝나면 지우면 됨.
+      # 안 채우면 기본값(분당 30회) 그대로 적용되어 평소엔 안전함(리뷰 반영 — 실제 컨테이너에
+      # 값이 전달 안 되고 있던 걸 발견해 수정).
+      RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
     depends_on:
       - eureka-server
       - redis
