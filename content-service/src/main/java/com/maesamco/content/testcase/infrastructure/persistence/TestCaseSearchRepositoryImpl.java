@@ -2,7 +2,9 @@ package com.maesamco.content.testcase.infrastructure.persistence;
 
 import com.maesamco.content.testcase.domain.entity.QTestCase;
 import com.maesamco.content.testcase.domain.entity.TestCase;
+import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
 import com.maesamco.content.testcase.domain.repository.TestCaseSearchRepository;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +27,18 @@ public class TestCaseSearchRepositoryImpl implements TestCaseSearchRepository {
     public Page<TestCase> searchTestCases(UUID problemId, Pageable pageable) {
         QTestCase testCase = QTestCase.testCase;
 
+        BooleanExpression[] conditions = {
+                testCase.problemId.eq(problemId),
+                testCase.testCaseStatus.eq(TestCaseStatus.APPROVED)
+        };
+
         List<TestCase> testCases = queryFactory
                 .selectFrom(testCase)
-                .where(testCase.problemId.eq(problemId))
-                .orderBy(testCase.testCaseOrder.asc())
+                .where(conditions)
+                .orderBy(
+                        testCase.testCaseOrder.asc(),
+                        testCase.id.asc() // tie-breaker 도입
+                )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -36,7 +46,7 @@ public class TestCaseSearchRepositoryImpl implements TestCaseSearchRepository {
         JPAQuery<Long> countQuery = queryFactory
                 .select(testCase.count())
                 .from(testCase)
-                .where(testCase.problemId.eq(problemId));
+                .where(conditions);
 
         return PageableExecutionUtils.getPage(
                 testCases,
