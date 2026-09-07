@@ -18,19 +18,25 @@ import java.util.UUID;
  * 2절). Redis 장애 시에는 락 없이 그냥 진행한다(fail-open) — 이 락도 비용/남용 보호용
  * 부가 장치라, Redis가 죽었다고 재시도 핵심 기능까지 막을 이유는 없다.
  *
- * TTL을 30초가 아니라 150초로 넉넉히 잡은 이유: 이 락이 감싸는 구간(재시도 카운트 체크 ~
+ * TTL을 30초가 아니라 240초로 넉넉히 잡은 이유: 이 락이 감싸는 구간(재시도 카운트 체크 ~
  * Judge Service 조회 ~ LLM 호출 ~ 이력 저장)은 힌트 생성 하나보다 훨씬 길다 — Judge Service
- * Feign 호출에 타임아웃 설정이 없어 기본값(연결 10초/읽기 60초)이 그대로 적용되고, Anthropic
- * 쪽도 최대 재시도 2회 × 타임아웃 30초로 최악의 경우 약 60초가 걸릴 수 있다(둘을 더하면
- * 최악의 경우 약 130초). TTL이 이 구간보다 짧으면 아직 진행 중인데 락이 먼저 풀려 보호
- * 목적 자체가 무의미해진다.
+ * Feign 호출에 타임아웃 설정이 없어 기본값(연결 10초/읽기 60초, 최악 70초)이 그대로 적용된다.
+ *
+ * 재검증(PR #111) — 애초 "최대 재시도 2회 × 타임아웃 30초로 최악 약 60초"라던 계산이
+ * 틀렸었다. Anthropic Java SDK 소스(RetryingHttpClient.kt) 확인 결과 spring.ai.anthropic
+ * .max-retries=2는 "최초 1회 + 재시도 2회"라 실제로는 최대 3회 시도가 나갈 수 있고, 시도당
+ * 타임아웃(30초)이 매번 새로 적용된다 — 지수 백오프(회당 최대 8초)까지 더하면 LLM 쪽만으로도
+ * 최악 약 90~100초가 걸린다. 여기에 Judge Service 70초를 더하면 최악의 경우 약 160~170초로,
+ * 기존 TTL(150초)보다 실제로 더 길 수 있었다(락이 먼저 풀려 보호 목적이 무의미해지는 상황).
+ * 240초로 올려 여유를 두되, 재시도/타임아웃 설정값이 나중에 또 바뀔 수 있으므로 이 숫자를
+ * 다시 계산해야 한다는 걸 여기 남겨둔다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RedisAiFeedbackRetryLockAdapter implements AiFeedbackRetryLockPort {
 
-    private static final Duration LOCK_TTL = Duration.ofSeconds(150);
+    private static final Duration LOCK_TTL = Duration.ofSeconds(240);
 
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<Long> unlockScript = RedisScript.of(

@@ -3,6 +3,7 @@ package com.maesamco.coaching.infrastructure.ai;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -58,18 +59,28 @@ public class ClaudeModelAdapter implements AiModelPort {
     /**
      * JudgeServiceAdapter.getSubmissionFallback()과 동일한 이유 — generate()가 이미
      * AiModelCallException으로 분류해서 던진 경우(서킷이 닫혀 있어 실제로 호출까지 됐던
-     * 경우)는 그대로 다시 던진다. 서킷이 열려 호출 자체가 차단된 경우(CallNotPermittedException
-     * 등)만 새로 AiModelCallException으로 감싼다 — AiModelPort 호출자는 항상 이 예외
-     * 타입 하나만 알면 되므로 계약이 그대로 유지된다.
+     * 경우)는 그대로 다시 던진다. 서킷이 열려 호출 자체가 차단된 경우(CallNotPermittedException)만
+     * 새로 AiModelCallException(circuitOpen=true)으로 감싼다.
+     *
+     * 재검증(PR #111) — CircuitBreaker의 fallbackMethod는 서킷 상태와 무관하게 generate()가
+     * 던지는 모든 예외를 가로챈다. 그래서 generate()의 응답 파싱 단계(위 주석, PR #70)에서
+     * NPE 등 우리 코드 버그가 나도 여기로 들어오는데, CallNotPermittedException이 아닌
+     * RuntimeException은 여기서 삼키지 않고 그대로 다시 던져야 "파싱 버그는 500 안전망으로
+     * 간다"는 PR #70의 원래 의도가 지켜진다 — circuitOpen=true로 잘못 표시하면
+     * FeedbackGenerationFacade가 실제 버그로 인한 실패를 SKIPPED로 기록해 재시도 예산
+     * 계산에서 숨겨버린다.
      */
     @SuppressWarnings("unused")
     AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
         if (t instanceof AiModelCallException aiModelCallException) {
             throw aiModelCallException;
         }
-        // 재검증(PR #111) — 여기로 오는 건 서킷이 열려 실제 호출 자체가 없었던 경우라
-        // circuitOpen=true로 표시한다. FeedbackGenerationFacade가 이걸 실제 실패와 구분해서
-        // 재시도 예산을 소모하지 않도록 처리한다.
-        throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t, true);
+        if (t instanceof CallNotPermittedException) {
+            throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t, true);
+        }
+        if (t instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        throw new AiModelCallException("Claude 호출 중 예기치 못한 오류가 발생했습니다.", t);
     }
 }
