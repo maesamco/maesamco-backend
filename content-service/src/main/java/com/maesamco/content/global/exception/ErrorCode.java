@@ -51,6 +51,10 @@ public enum ErrorCode {
     /** 요청한 커리큘럼을 찾을 수 없는 경우입니다. */
     CURRICULUM_NOT_FOUND(HttpStatus.NOT_FOUND, "커리큘럼을 찾을 수 없습니다."),
 
+    /* Unit */
+    /** 요청한 유닛을 찾을 수 없는 경우입니다. */
+    UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "유닛을 찾을 수 없습니다."),
+
     /* Problem */
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
