@@ -58,18 +58,10 @@ public class TestCase extends BaseEntity {
         return new TestCase(problemId, input, expectedOutput, isPublic, testCaseOrder, TestCaseStatus.APPROVED);
     }
 
-    /** 테스트케이스 입력값을 수정합니다. */
+    /** 테스트케이스 수정 */
     public void changeInput(String input) { this.input = input; }
-
-    /** 테스트케이스 기대 출력값을 수정합니다. */
     public void changeExpectedOutput(String expectedOutput) { this.expectedOutput = expectedOutput; }
-
-    /** 테스트케이스 공개 여부를 수정합니다. */
     public void changeIsPublic(Boolean isPublic) { this.isPublic = isPublic; }
-
-    /** 테스트케이스 실행 순서를 수정합니다. */
     public void changeTestCaseOrder(Integer testCaseOrder) { this.testCaseOrder = testCaseOrder; }
-
-    /** 테스트케이스 상태를 수정합니다. */
     public void changeTestCaseStatus(TestCaseStatus testCaseStatus) { this.testCaseStatus = testCaseStatus; }
 }
