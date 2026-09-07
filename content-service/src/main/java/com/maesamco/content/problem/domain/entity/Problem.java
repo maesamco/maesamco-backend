@@ -1,6 +1,8 @@
 package com.maesamco.content.problem.domain.entity;
 
 import com.maesamco.content.global.common.BaseEntity;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
@@ -15,7 +17,6 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 /** 문제 객체 */
-
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -72,10 +73,17 @@ public class Problem extends BaseEntity {
 
     public static Problem create(
             String title,
-            ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,
-            String description, String starterCode,
-            Integer runningTimeLimit, Integer runningMemoryLimit, TimerPolicy timerPolicy,
-            ProblemSource source, ProblemStatus problemStatus, Integer version
+            ProgrammingLanguage language,
+            ProblemDifficulty difficulty,
+            ProblemType type,
+            String description,
+            String starterCode,
+            Integer runningTimeLimit,
+            Integer runningMemoryLimit,
+            TimerPolicy timerPolicy,
+            ProblemSource source,
+            ProblemStatus problemStatus,
+            Integer version
     ) {
         Problem problem = new Problem();
 
@@ -95,18 +103,68 @@ public class Problem extends BaseEntity {
         return problem;
     }
 
-    /* problem 값 변경 */
-    public void changeTitle(String newTitle) { this.title = newTitle; }
-    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
-    public void changeDifficulty(ProblemDifficulty newDifficulty) { this.difficulty = newDifficulty; }
-    public void changeType(ProblemType newType) { this.type = newType; }
-    public void changeDescription(String newDescription) { this.description = newDescription; }
-    public void changeStarterCode(String newStarterCode) { this.starterCode = newStarterCode; }
-    public void changeRunningTimeLimit(Integer newRunningTimeLimit) { this.runningTimeLimit = newRunningTimeLimit; }
-    public void changeRunningMemoryLimit(Integer newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
-    public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
-    public void changeSource(ProblemSource newSource) { this.source = newSource; }
-    public void changeProblemStatus(ProblemStatus newProblemStatus) { this.problemStatus = newProblemStatus; }
+    /**
+     * 문제 공개 심사를 요청합니다.
+     *
+     * <p>DRAFT 상태의 문제만 관리자 승인 대기 상태로
+     * 전환할 수 있습니다.</p>
+     */
+    public void requestPublicationReview() {
+        if (problemStatus != ProblemStatus.DRAFT) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION
+            );
+        }
 
-    public void increaseVersion() { this.currentVersionNo++; }
+        problemStatus = ProblemStatus.REVIEW_PENDING;
+    }
+
+    /* problem 값 변경 */
+    public void changeTitle(String newTitle) {
+        this.title = newTitle;
+    }
+
+    public void changeLanguage(ProgrammingLanguage newLanguage) {
+        this.language = newLanguage;
+    }
+
+    public void changeDifficulty(ProblemDifficulty newDifficulty) {
+        this.difficulty = newDifficulty;
+    }
+
+    public void changeType(ProblemType newType) {
+        this.type = newType;
+    }
+
+    public void changeDescription(String newDescription) {
+        this.description = newDescription;
+    }
+
+    public void changeStarterCode(String newStarterCode) {
+        this.starterCode = newStarterCode;
+    }
+
+    public void changeRunningTimeLimit(Integer newRunningTimeLimit) {
+        this.runningTimeLimit = newRunningTimeLimit;
+    }
+
+    public void changeRunningMemoryLimit(Integer newRunningMemoryLimit) {
+        this.runningMemoryLimit = newRunningMemoryLimit;
+    }
+
+    public void changeTimerPolicy(TimerPolicy newTimerPolicy) {
+        this.timerPolicy = newTimerPolicy;
+    }
+
+    public void changeSource(ProblemSource newSource) {
+        this.source = newSource;
+    }
+
+    public void changeProblemStatus(ProblemStatus newProblemStatus) {
+        this.problemStatus = newProblemStatus;
+    }
+
+    public void increaseVersion() {
+        this.currentVersionNo++;
+    }
 }

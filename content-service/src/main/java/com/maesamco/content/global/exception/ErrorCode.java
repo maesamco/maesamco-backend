@@ -40,8 +40,18 @@ public enum ErrorCode {
     /* 여기서부터 따로 작성 */
 
     /* Problem */
+
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
-    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다.");
+    PROBLEM_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "문제를 찾을 수 없습니다."
+    ),
+
+    /** 현재 문제 상태에서 허용되지 않는 상태 전이를 요청한 경우입니다. */
+    INVALID_PROBLEM_STATUS_TRANSITION(
+            HttpStatus.CONFLICT,
+            "현재 문제 상태에서는 요청한 상태로 변경할 수 없습니다."
+    );
 
     private final HttpStatus status;
     private final String message;
