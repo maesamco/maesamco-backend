@@ -174,7 +174,7 @@ class RedisAuthSessionStoreTest {
     void rotateRefreshToken_returnsRotated() {
         // given
         when(redisTemplate.execute(
-                any(RedisScript.class),
+                any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH)
@@ -200,7 +200,7 @@ class RedisAuthSessionStoreTest {
     void rotateRefreshToken_returnsSessionNotFound() {
         // given
         when(redisTemplate.execute(
-                any(RedisScript.class),
+                any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH)
@@ -226,7 +226,7 @@ class RedisAuthSessionStoreTest {
     void rotateRefreshToken_returnsTokenReused() {
         // given
         when(redisTemplate.execute(
-                any(RedisScript.class),
+                any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH)
@@ -252,7 +252,7 @@ class RedisAuthSessionStoreTest {
     void rotateRefreshToken_rejectsNullResult() {
         // given
         when(redisTemplate.execute(
-                any(RedisScript.class),
+                any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH)
