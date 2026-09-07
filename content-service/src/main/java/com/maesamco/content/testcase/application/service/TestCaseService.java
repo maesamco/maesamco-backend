@@ -38,7 +38,7 @@ public class TestCaseService {
         int testCaseOrder =
                 testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, request.getIsPublic()) + 1;
 
-        // TODO: 일차적으로 관리자가 테스트케이스를 생성하는 경우만 고려한다.
+        // 관리자가 테스트케이스를 생성하는 경우만 고려한다. TODO: 나중에 테스트케이스 생성 요청 API 만들면 createByUser 함수 사용한다.
         TestCase testCase = TestCase.createByAdmin(
                 problemId,
                 request.getInput(),
