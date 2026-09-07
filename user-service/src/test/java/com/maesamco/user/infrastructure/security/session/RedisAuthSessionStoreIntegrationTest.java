@@ -1,6 +1,7 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSession;
+import com.maesamco.user.application.port.AuthSessionRotationResult;
 import com.maesamco.user.application.port.AuthSessionStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,13 +24,19 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 실제 Redis를 이용해 인증 세션 저장과 TTL을 검증합니다.
+ * 실제 Redis를 이용해 인증 세션 저장, TTL,
+ * Refresh Token Rotation 및 Reuse Detection을 검증합니다.
  */
 @DataRedisTest
 @Testcontainers
@@ -64,6 +71,15 @@ class RedisAuthSessionStoreIntegrationTest {
 
     private static final String SESSION_KEY =
             "session:" + SESSION_ID;
+
+    private static final String ORIGINAL_REFRESH_TOKEN_HASH =
+            "refresh-token-hash-a";
+
+    private static final String ROTATED_REFRESH_TOKEN_HASH =
+            "refresh-token-hash-b";
+
+    private static final String SECOND_ROTATED_REFRESH_TOKEN_HASH =
+            "refresh-token-hash-c";
 
     @Container
     private static final GenericContainer<?> REDIS =
@@ -117,7 +133,7 @@ class RedisAuthSessionStoreIntegrationTest {
                 redisTemplate.opsForValue().get(SESSION_KEY)
         )
                 .contains("\"refreshTokenHash\"")
-                .contains("refresh-token-hash");
+                .contains(ORIGINAL_REFRESH_TOKEN_HASH);
     }
 
     @Test
@@ -143,6 +159,239 @@ class RedisAuthSessionStoreIntegrationTest {
     }
 
     @Test
+    @DisplayName("현재 Refresh Token hash가 일치하면 새로운 hash로 Rotation한다")
+    void rotateRefreshToken_replacesRefreshTokenHash() {
+        // given
+        AuthSession originalSession = createSession();
+        authSessionStore.save(originalSession);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.ROTATED
+                );
+
+        AuthSession rotatedSession =
+                authSessionStore.findBySessionId(SESSION_ID)
+                        .orElseThrow();
+
+        assertThat(rotatedSession.refreshTokenHash())
+                .isEqualTo(ROTATED_REFRESH_TOKEN_HASH);
+
+        assertThat(rotatedSession.sessionId())
+                .isEqualTo(originalSession.sessionId());
+
+        assertThat(rotatedSession.familyId())
+                .isEqualTo(originalSession.familyId());
+
+        assertThat(rotatedSession.userId())
+                .isEqualTo(originalSession.userId());
+
+        assertThat(rotatedSession.createdAt())
+                .isEqualTo(originalSession.createdAt());
+
+        assertThat(rotatedSession.expiresAt())
+                .isEqualTo(originalSession.expiresAt());
+    }
+
+    @Test
+    @DisplayName("Refresh Token Rotation 후에도 기존 Redis TTL을 연장하지 않는다")
+    void rotateRefreshToken_preservesRemainingTtl() {
+        // given
+        authSessionStore.save(createSession());
+
+        Long ttlBeforeRotation =
+                redisTemplate.getExpire(
+                        SESSION_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        Long ttlAfterRotation =
+                redisTemplate.getExpire(
+                        SESSION_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.ROTATED
+                );
+
+        assertThat(ttlBeforeRotation)
+                .isPositive();
+
+        assertThat(ttlAfterRotation)
+                .isPositive();
+
+        assertThat(ttlAfterRotation)
+                .isLessThanOrEqualTo(ttlBeforeRotation);
+
+        assertThat(ttlAfterRotation)
+                .isGreaterThan(
+                        ttlBeforeRotation - 5_000L
+                );
+    }
+
+    @Test
+    @DisplayName("이미 Rotation된 이전 Refresh Token을 재사용하면 세션을 폐기한다")
+    void rotateRefreshToken_reuseDeletesSession() {
+        // given
+        authSessionStore.save(createSession());
+
+        AuthSessionRotationResult firstRotation =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        assertThat(firstRotation)
+                .isEqualTo(
+                        AuthSessionRotationResult.ROTATED
+                );
+
+        // when
+        AuthSessionRotationResult reuseResult =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(reuseResult)
+                .isEqualTo(
+                        AuthSessionRotationResult.TOKEN_REUSED
+                );
+
+        assertThat(
+                authSessionStore.findBySessionId(SESSION_ID)
+        ).isEmpty();
+
+        assertThat(
+                redisTemplate.hasKey(SESSION_KEY)
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 인증 세션을 Rotation하면 SESSION_NOT_FOUND를 반환한다")
+    void rotateRefreshToken_missingSessionReturnsSessionNotFound() {
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.SESSION_NOT_FOUND
+                );
+    }
+
+    @Test
+    @DisplayName("같은 Refresh Token으로 동시에 Rotation하면 하나만 성공하고 재사용 요청이 세션을 폐기한다")
+    void rotateRefreshToken_concurrentRequestsAreAtomic()
+            throws Exception {
+        // given
+        authSessionStore.save(createSession());
+
+        CountDownLatch readyLatch =
+                new CountDownLatch(2);
+
+        CountDownLatch startLatch =
+                new CountDownLatch(1);
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<AuthSessionRotationResult> firstFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        return authSessionStore.rotateRefreshToken(
+                                SESSION_ID,
+                                ORIGINAL_REFRESH_TOKEN_HASH,
+                                ROTATED_REFRESH_TOKEN_HASH
+                        );
+                    });
+
+            Future<AuthSessionRotationResult> secondFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        return authSessionStore.rotateRefreshToken(
+                                SESSION_ID,
+                                ORIGINAL_REFRESH_TOKEN_HASH,
+                                SECOND_ROTATED_REFRESH_TOKEN_HASH
+                        );
+                    });
+
+            assertThat(
+                    readyLatch.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // when
+            startLatch.countDown();
+
+            AuthSessionRotationResult firstResult =
+                    firstFuture.get(
+                            5,
+                            TimeUnit.SECONDS
+                    );
+
+            AuthSessionRotationResult secondResult =
+                    secondFuture.get(
+                            5,
+                            TimeUnit.SECONDS
+                    );
+
+            // then
+            assertThat(
+                    List.of(
+                            firstResult,
+                            secondResult
+                    )
+            )
+                    .containsExactlyInAnyOrder(
+                            AuthSessionRotationResult.ROTATED,
+                            AuthSessionRotationResult.TOKEN_REUSED
+                    );
+
+            assertThat(
+                    authSessionStore.findBySessionId(SESSION_ID)
+            ).isEmpty();
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
     @DisplayName("인증 세션을 실제 Redis에서 삭제한다")
     void delete_removesSessionFromRedis() {
         // given
@@ -165,7 +414,7 @@ class RedisAuthSessionStoreIntegrationTest {
                 SESSION_ID,
                 FAMILY_ID,
                 USER_ID,
-                "refresh-token-hash",
+                ORIGINAL_REFRESH_TOKEN_HASH,
                 NOW,
                 NOW.plus(SESSION_TTL)
         );

@@ -10,11 +10,8 @@ import com.maesamco.user.application.port.RefreshTokenHasher;
 import com.maesamco.user.application.port.TokenIssuer;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.User;
-import com.maesamco.user.domain.entity.UserGamificationState;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
-import com.maesamco.user.domain.repository.UserGamificationStateRepository;
-import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -35,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,7 +38,7 @@ import static org.mockito.Mockito.when;
 /**
  * SignUpService의 회원가입 오케스트레이션을 검증하는 단위 테스트입니다.
  *
- * <p>사용자 생성, 초기 게이미피케이션 상태 생성,
+ * <p>사용자 생성, DB 저장 서비스 호출,
  * 인증 토큰 발급 및 Redis 인증 세션 저장까지의 흐름을 검증합니다.</p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -61,10 +57,7 @@ class SignUpServiceTest {
     private PasswordHasher passwordHasher;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private UserGamificationStateRepository gamificationStateRepository;
+    private SignUpPersistenceService signUpPersistenceService;
 
     @Mock
     private TokenIssuer tokenIssuer;
@@ -82,7 +75,7 @@ class SignUpServiceTest {
     private SignUpService signUpService;
 
     @Test
-    @DisplayName("회원가입하면 사용자와 초기 게이미피케이션 상태 및 인증 세션을 생성한다")
+    @DisplayName("회원가입하면 사용자를 저장하고 인증 세션을 생성한다")
     void signUp() {
         // given
         String rawEmail = " Learner@Example.com ";
@@ -124,19 +117,13 @@ class SignUpServiceTest {
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
 
-        when(userRepository.existsByEmailLookupHash(emailLookupHash))
-                .thenReturn(false);
-
-        when(userRepository.existsByNicknameIgnoreCase("김티암"))
-                .thenReturn(false);
-
         when(emailCipher.encrypt(normalizedEmail))
                 .thenReturn(encryptedEmail);
 
         when(passwordHasher.hash(rawPassword))
                 .thenReturn(passwordHash);
 
-        when(userRepository.save(any(User.class)))
+        when(signUpPersistenceService.saveUser(any(User.class)))
                 .thenAnswer(invocation ->
                         invocation.getArgument(0)
                 );
@@ -166,8 +153,8 @@ class SignUpServiceTest {
         ArgumentCaptor<User> userCaptor =
                 ArgumentCaptor.forClass(User.class);
 
-        verify(userRepository)
-                .save(userCaptor.capture());
+        verify(signUpPersistenceService)
+                .saveUser(userCaptor.capture());
 
         User savedUser = userCaptor.getValue();
 
@@ -189,30 +176,6 @@ class SignUpServiceTest {
                 .isEqualTo(3);
         assertThat(savedUser.getLearningLevel())
                 .isEqualTo(LearningLevel.BEGINNER);
-
-        ArgumentCaptor<UserGamificationState> gamificationCaptor =
-                ArgumentCaptor.forClass(
-                        UserGamificationState.class
-                );
-
-        verify(gamificationStateRepository)
-                .save(gamificationCaptor.capture());
-
-        UserGamificationState gamificationState =
-                gamificationCaptor.getValue();
-
-        assertThat(gamificationState.getUserId())
-                .isEqualTo(savedUser.getId());
-        assertThat(gamificationState.getTotalXp())
-                .isZero();
-        assertThat(gamificationState.getLevel())
-                .isEqualTo(1);
-        assertThat(gamificationState.getCurrentStreak())
-                .isZero();
-        assertThat(gamificationState.getLongestStreak())
-                .isZero();
-        assertThat(gamificationState.getLastActivityDate())
-                .isNull();
 
         ArgumentCaptor<UUID> sessionIdCaptor =
                 ArgumentCaptor.forClass(UUID.class);
@@ -275,8 +238,18 @@ class SignUpServiceTest {
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
 
-        when(userRepository.existsByEmailLookupHash(emailLookupHash))
-                .thenReturn(true);
+        when(emailCipher.encrypt(normalizedEmail))
+                .thenReturn("encrypted-email");
+
+        when(passwordHasher.hash("Abcd1234!"))
+                .thenReturn("argon2-password-hash");
+
+        when(signUpPersistenceService.saveUser(any(User.class)))
+                .thenThrow(
+                        new BusinessException(
+                                ErrorCode.USER_DUPLICATE_EMAIL
+                        )
+                );
 
         // when & then
         assertThatThrownBy(() -> signUpService.signUp(command))
@@ -290,30 +263,14 @@ class SignUpServiceTest {
         verify(emailNormalizer)
                 .normalize(trimmedEmail);
 
-        verify(
-                userRepository,
-                never()
-        ).existsByNicknameIgnoreCase(any());
+        verify(emailCipher)
+                .encrypt(normalizedEmail);
 
-        verify(
-                emailCipher,
-                never()
-        ).encrypt(any());
+        verify(passwordHasher)
+                .hash("Abcd1234!");
 
-        verify(
-                passwordHasher,
-                never()
-        ).hash(any());
-
-        verify(
-                userRepository,
-                never()
-        ).save(any(User.class));
-
-        verify(
-                gamificationStateRepository,
-                never()
-        ).save(any(UserGamificationState.class));
+        verify(signUpPersistenceService)
+                .saveUser(any(User.class));
 
         verify(
                 tokenIssuer,
@@ -327,8 +284,8 @@ class SignUpServiceTest {
     }
 
     @Test
-    @DisplayName("DB 트랜잭션이 롤백되면 생성한 Redis 인증 세션을 삭제한다")
-    void signUp_deletesAuthSessionWhenTransactionRollsBack() {
+    @DisplayName("Redis 인증 세션 저장에 실패하면 자동 로그인 실패 예외를 반환한다")
+    void signUp_autoLoginFailsWhenAuthSessionSaveFails() {
         // given
         String trimmedEmail = "Learner@Example.com";
         String normalizedEmail = "learner@example.com";
@@ -364,19 +321,13 @@ class SignUpServiceTest {
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
 
-        when(userRepository.existsByEmailLookupHash(emailLookupHash))
-                .thenReturn(false);
-
-        when(userRepository.existsByNicknameIgnoreCase("김티암"))
-                .thenReturn(false);
-
         when(emailCipher.encrypt(normalizedEmail))
                 .thenReturn("encrypted-email");
 
         when(passwordHasher.hash("Abcd1234!"))
                 .thenReturn("argon2-password-hash");
 
-        when(userRepository.save(any(User.class)))
+        when(signUpPersistenceService.saveUser(any(User.class)))
                 .thenAnswer(invocation ->
                         invocation.getArgument(0)
                 );
@@ -395,45 +346,33 @@ class SignUpServiceTest {
         when(clock.instant())
                 .thenReturn(now);
 
-        TransactionSynchronizationManager
-                .initSynchronization();
+        doThrow(
+                new IllegalStateException(
+                        "Redis 인증 세션 저장 실패"
+                )
+        ).when(authSessionStore)
+                .save(any(AuthSession.class));
 
-        try {
-            signUpService.signUp(command);
+        // when & then
+        assertThatThrownBy(() -> signUpService.signUp(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception).getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.SIGNUP_AUTO_LOGIN_FAILED
+                );
 
-            ArgumentCaptor<AuthSession> authSessionCaptor =
-                    ArgumentCaptor.forClass(AuthSession.class);
+        verify(signUpPersistenceService)
+                .saveUser(any(User.class));
 
-            verify(authSessionStore)
-                    .save(authSessionCaptor.capture());
+        verify(authSessionStore)
+                .save(any(AuthSession.class));
 
-            UUID sessionId =
-                    authSessionCaptor.getValue().sessionId();
-
-            assertThat(
-                    TransactionSynchronizationManager
-                            .getSynchronizations()
-            ).hasSize(1);
-
-            TransactionSynchronization synchronization =
-                    TransactionSynchronizationManager
-                            .getSynchronizations()
-                            .get(0);
-
-            // when
-            synchronization.afterCompletion(
-                    TransactionSynchronization.STATUS_ROLLED_BACK
-            );
-
-            // then
-            verify(authSessionStore)
-                    .deleteBySessionId(sessionId);
-        } finally {
-            if (TransactionSynchronizationManager
-                    .isSynchronizationActive()) {
-                TransactionSynchronizationManager
-                        .clearSynchronization();
-            }
-        }
+        verify(
+                authSessionStore,
+                never()
+        ).deleteBySessionId(any(UUID.class));
     }
 }
