@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.concurrent.atomic.AtomicReference;
 
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -56,6 +57,77 @@ class JwtAuthenticationFilterTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName(
+            "유효한 Access Token의 세션 식별자와 만료 시각을 "
+                    + "인증 상세 정보에 저장한다"
+    )
+    void validAccessToken_setsAuthenticationDetails()
+            throws Exception {
+        // given
+        Instant now =
+                Instant.ofEpochSecond(
+                        Instant.now().getEpochSecond()
+                );
+
+        Instant issuedAt =
+                now.minusSeconds(60);
+
+        Instant expiresAt =
+                now.plusSeconds(900);
+
+        String accessToken =
+                createAccessToken(
+                        issuedAt,
+                        expiresAt
+                );
+
+        MockHttpServletRequest request =
+                new MockHttpServletRequest();
+
+        request.addHeader(
+                HttpHeaders.AUTHORIZATION,
+                "Bearer " + accessToken
+        );
+
+        MockHttpServletResponse response =
+                new MockHttpServletResponse();
+
+        AtomicReference<Object> authenticationDetails =
+                new AtomicReference<>();
+
+        FilterChain filterChain =
+                (servletRequest, servletResponse) ->
+                        authenticationDetails.set(
+                                SecurityContextHolder
+                                        .getContext()
+                                        .getAuthentication()
+                                        .getDetails()
+                        );
+
+        // when
+        filter.doFilter(
+                request,
+                response,
+                filterChain
+        );
+
+        // then
+        assertThat(authenticationDetails.get())
+                .isEqualTo(
+                        new AccessTokenAuthenticationDetails(
+                                SESSION_ID,
+                                expiresAt
+                        )
+                );
+
+        assertThat(
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+        ).isNull();
     }
 
     @Test
