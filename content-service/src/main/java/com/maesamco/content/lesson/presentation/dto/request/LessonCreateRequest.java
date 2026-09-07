@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
+/** 레슨 생성 요청 DTO */
 @Getter
 @NoArgsConstructor
 public class LessonCreateRequest {
@@ -20,14 +21,13 @@ public class LessonCreateRequest {
     @Size(max = 100)
     private String title;
 
+    @NotBlank
     @Size(max = 100)
     private String description;
 
+    @NotBlank
     private String content;
 
     @NotNull
     private ProgrammingLanguage language;
-
-    @NotNull
-    private Integer displayOrder;
 }
