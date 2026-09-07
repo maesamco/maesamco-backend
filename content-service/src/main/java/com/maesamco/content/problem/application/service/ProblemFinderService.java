@@ -21,7 +21,7 @@ public class ProblemFinderService implements ProblemFinder {
     @Override
     @Transactional(readOnly = true)
     public Problem getProblem(UUID problemId) {
-        return problemRepository.findByIdAndDeletedAtIsNull(problemId)
+        return problemRepository.findById(problemId)
                 .orElseThrow(() ->
                         new BusinessException(ErrorCode.PROBLEM_NOT_FOUND)
                 );
