@@ -1,6 +1,6 @@
 package com.maesamco.content.unit.presentation.dto.response;
 
-import com.maesamco.content.curriculum.domain.enums.ProgrammingLanguage;
+import com.maesamco.content.unit.domain.enums.ProgrammingLanguage;
 import com.maesamco.content.unit.domain.entity.Unit;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
