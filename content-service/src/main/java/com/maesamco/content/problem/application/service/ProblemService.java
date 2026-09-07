@@ -83,19 +83,67 @@ public class ProblemService {
         // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
         // problemVersionRepository.save(snapshot);
 
+        boolean is_modified = false;
+
         // 수정 요청이 있는 값들만 수정
-        if (request.getTitle() != null)                 problem.changeTitle(request.getTitle());
-        if (request.getLanguage() != null)              problem.changeLanguage(request.getLanguage());
-        if (request.getDifficulty() != null)            problem.changeDifficulty(request.getDifficulty());
-        if (request.getType() != null)                  problem.changeType(request.getType());
-        if (request.getDescription() != null)           problem.changeDescription(request.getDescription());
-        if (request.getStarterCode() != null)           problem.changeStarterCode(request.getStarterCode());
-        if (request.getRunningTimeLimit() != null)      problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
-        if (request.getRunningMemoryLimit() != null)    problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
-        if (request.getTimerPolicy() != null)           problem.changeTimerPolicy(request.getTimerPolicy());
-        if (request.getSource() != null)                problem.changeSource(request.getSource());
-        if (request.getProblemStatus() != null)         problem.changeProblemStatus(request.getProblemStatus());
-        problem.increaseVersion();
+        if (request.getTitle() != null) {
+            problem.changeTitle(request.getTitle());
+            is_modified = true;
+        }
+        if (request.getLanguage() != null) {
+            problem.changeLanguage(request.getLanguage());
+            is_modified = true;
+        }
+        if (request.getDifficulty() != null) {
+            problem.changeDifficulty(request.getDifficulty());
+            is_modified = true;
+        }
+        if (request.getType() != null) {
+            problem.changeType(request.getType());
+            is_modified = true;
+        }
+        if (request.getDescription() != null) {
+            problem.changeDescription(request.getDescription());
+            is_modified = true;
+        }
+
+
+        // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
+        if (request.getStarterCode() == null) {
+            throw new IllegalStateException("starterCode JsonNullable must not be null");
+        }
+        // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
+        if (request.getStarterCode().isPresent()) {
+            problem.changeStarterCode(
+                    request.getStarterCode().orElse(null)
+            );
+            is_modified = true;
+        }
+
+        if (request.getRunningTimeLimit() != null) {
+            problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
+            is_modified = true;
+        }
+        if (request.getRunningMemoryLimit() != null) {
+            problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
+            is_modified = true;
+        }
+        if (request.getTimerPolicy() != null) {
+            problem.changeTimerPolicy(request.getTimerPolicy());
+            is_modified = true;
+        }
+        if (request.getSource() != null) {
+            problem.changeSource(request.getSource());
+            is_modified = true;
+        }
+        if (request.getProblemStatus() != null) {
+            problem.changeProblemStatus(request.getProblemStatus());
+            is_modified = true;
+        }
+
+        if (is_modified) {
+            problem.increaseVersion();
+        }
 
         return ProblemResponse.from(problem);
     }
