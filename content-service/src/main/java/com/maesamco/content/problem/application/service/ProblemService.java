@@ -3,6 +3,7 @@ package com.maesamco.content.problem.application.service;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
@@ -45,6 +46,9 @@ public class ProblemService {
                 request.getProblemStatus(),
                 1
         );
+
+        // TODO: 현재의 로직은 관리자가 생성한 문제는 검증을 거치지 않고 발행된다. 나중에 따로 흐름을 추가할 수도 있다.
+        problem.changeProblemStatus(ProblemStatus.PUBLISHED);
 
         Problem savedProblem = problemRepository.save(problem);
 
