@@ -60,7 +60,7 @@ public class Problem extends BaseEntity {
     private TimerPolicy timerPolicy;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false, length = 100)
+    @Column(name = "source", nullable = false, length = 20)
     private ProblemSource source;
 
     @Enumerated(EnumType.STRING)
@@ -117,6 +117,22 @@ public class Problem extends BaseEntity {
         }
 
         problemStatus = ProblemStatus.REVIEW_PENDING;
+    }
+
+    /**
+     * 문제 발행을 승인합니다.
+     *
+     * <p>REVIEW_PENDING 상태의 문제만
+     * PUBLISHED 상태로 전환할 수 있습니다.</p>
+     */
+    public void approvePublication() {
+        if (problemStatus != ProblemStatus.REVIEW_PENDING) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION
+            );
+        }
+
+        problemStatus = ProblemStatus.PUBLISHED;
     }
 
     /* problem 값 변경 */
