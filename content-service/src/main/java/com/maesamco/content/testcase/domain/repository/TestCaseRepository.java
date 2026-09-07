@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /** 테스트케이스 Repository */
-public interface TestCaseRepository extends JpaRepository<TestCase, UUID> {
+public interface TestCaseRepository extends JpaRepository<TestCase, UUID>, TestCaseSearchRepository {
 
     /** 삭제되지 않은 테스트케이스를 조회합니다. */
     @NonNull Optional<TestCase> findById(@NonNull UUID id);
