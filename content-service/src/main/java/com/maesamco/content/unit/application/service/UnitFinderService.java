@@ -21,7 +21,7 @@ public class UnitFinderService implements UnitFinder {
     @Override
     @Transactional(readOnly = true)
     public Unit findById(UUID unitId) {
-        return unitRepository.findByIdAndDeletedAtIsNull(unitId)
+        return unitRepository.findById(unitId)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.UNIT_NOT_FOUND)
                 );

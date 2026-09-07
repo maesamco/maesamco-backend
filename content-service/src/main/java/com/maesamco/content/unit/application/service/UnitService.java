@@ -34,7 +34,7 @@ public class UnitService {
         curriculumFinder.findById(request.getCurriculumId());
 
         int displayOrder = Math.toIntExact(
-                unitRepository.countByCurriculumIdAndDeletedAtIsNull(request.getCurriculumId()) + 1
+                unitRepository.countByCurriculumId(request.getCurriculumId()) + 1
         );
 
         Unit unit = Unit.create(
