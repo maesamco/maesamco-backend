@@ -59,7 +59,7 @@ class SubmissionServiceTest {
     }
 
     private ProblemExecutionSpec spec() {
-        ProblemExecutionSpec spec = mock(ProblemExecutionSpec.class); // 실제 프로젝트 엔티티 생성 방식에 맞게 교체 필요
+        ProblemExecutionSpec spec = mock(ProblemExecutionSpec.class);
         given(spec.getProblemVersionId()).willReturn(problemVersionId);
         return spec;
     }
@@ -73,12 +73,13 @@ class SubmissionServiceTest {
         void savesAndPublishesOutboxOnSuccess() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
+            ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
-                    .willReturn(Optional.of(spec()));
+                    .willReturn(Optional.of(spec));
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command("public class Main {}", "JAVA"));
+            SubmissionCreateResult result = submissionService.submit(command("public class Main {}", "JAVA17"));
 
             // then
             verify(submissionRepository, times(1)).saveAndFlush(any(Submission.class));
@@ -95,7 +96,7 @@ class SubmissionServiceTest {
                     .willReturn(Optional.empty());
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA")))
+            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROBLEM_NOT_FOUND);
             verify(submissionRepository, never()).saveAndFlush(any());
@@ -112,7 +113,7 @@ class SubmissionServiceTest {
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.of(existing));
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command(existing.getCode(), "JAVA"));
+            SubmissionCreateResult result = submissionService.submit(command(existing.getCode(), "JAVA17"));
 
             // then
             assertThat(result.submissionId()).isEqualTo(existing.getId());
@@ -130,7 +131,7 @@ class SubmissionServiceTest {
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.of(existing));
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("다른 코드", "JAVA")))
+            assertThatThrownBy(() -> submissionService.submit(command("다른 코드", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
         }
@@ -140,20 +141,20 @@ class SubmissionServiceTest {
         void retriesOnAttemptNoRaceAndSucceeds() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
+            ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
-                    .willReturn(Optional.of(spec()));
+                    .willReturn(Optional.of(spec));
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId))
-                    .willReturn(0, 1); // 1차 계산 0, 재시도 시 1로 다시 계산됐다고 가정
+                    .willReturn(0, 1);
             given(submissionRepository.findByIdempotencyKey(idempotencyKey))
-                    .willReturn(Optional.empty()); // 재조회에서도 자기 키로는 아무것도 안 나옴(케이스 2)
+                    .willReturn(Optional.empty());
 
-            // 1차 저장 실패 → 2차 저장 성공
             org.mockito.Mockito.doThrow(new DataIntegrityViolationException("unique violation"))
-                    .doNothing()
+                    .doAnswer(invocation -> invocation.getArgument(0))
                     .when(submissionRepository).saveAndFlush(any(Submission.class));
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command("code", "JAVA"));
+            SubmissionCreateResult result = submissionService.submit(command("code", "JAVA17"));
 
             // then
             verify(submissionRepository, times(2)).saveAndFlush(any(Submission.class));
@@ -165,17 +166,18 @@ class SubmissionServiceTest {
         void throwsInternalErrorWhenRetryExhausted() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
+            ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
-                    .willReturn(Optional.of(spec()));
+                    .willReturn(Optional.of(spec));
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
             org.mockito.Mockito.doThrow(new DataIntegrityViolationException("unique violation"))
                     .when(submissionRepository).saveAndFlush(any(Submission.class));
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA")))
+            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INTERNAL_SERVER_ERROR);
-            verify(submissionRepository, times(3)).saveAndFlush(any()); // MAX_SAVE_RETRY=3
+            verify(submissionRepository, times(3)).saveAndFlush(any());
         }
 
         @Test
@@ -183,8 +185,9 @@ class SubmissionServiceTest {
         void throwsWhenLanguageInvalid() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
+            ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
-                    .willReturn(Optional.of(spec()));
+                    .willReturn(Optional.of(spec));
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
 
             // when / then
