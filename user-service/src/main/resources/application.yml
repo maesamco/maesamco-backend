@@ -82,3 +82,11 @@ management:
   otlp:
     tracing:
       endpoint: ${TEMPO_OTLP_URL:http://localhost:4318/v1/traces}
+
+# profile 없이 기본 실행할 때는 API 문서를 비활성화한다.
+# 로컬 통합 테스트에서는 application-dev.yml에서 다시 활성화한다.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
