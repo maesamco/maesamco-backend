@@ -117,6 +117,8 @@ public class TestCaseService {
         }
 
         // test_case_order 값 수정 정책 (우선순위가 제일 높기에 마지막에 실행)
+        // 그리고 만약에 관리자가 수정한 order가 기존 order랑 중복된다고 해도 tie-breaker가 실행되었기에 페이징에는 문제가 없다.
+        // 또한 테스트케이스를 보낼 JudgeService에서는 사실상 집합의 개념으로 테스트케이스를 이용하기에 Order가 중요하지 않게 된다.
         if (request.getTestCaseOrder() != null) {
             testCase.changeTestCaseOrder(request.getTestCaseOrder());
         }
