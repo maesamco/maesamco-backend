@@ -11,7 +11,7 @@ public record SubmissionCreateCommand(
         String language
 ) {
 
-    private static final String DEFAULT_LANGUAGE = "JAVA";
+    private static final String DEFAULT_LANGUAGE = "JAVA17";
 
     public static SubmissionCreateCommand from(UUID userId, String idempotencyKey, SubmissionCreateRequest request) {
         String language = request.language() != null ? request.language() : DEFAULT_LANGUAGE;

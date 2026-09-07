@@ -1,6 +1,7 @@
 package com.maesamco.judge.infrastructure.messaging.consumer;
 
 import com.maesamco.judge.application.ProblemExecutionSpecService;
+import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,7 @@ public class ProblemPublishedConsumer {
         log.info("[Judge] ProblemPublished 수신. eventId={}, problemId={}, problemVersionId={}",
                 event.eventId(), event.problemId(), event.problemVersionId());
 
-        problemExecutionSpecService.saveIfAbsent(event);
+        problemExecutionSpecService.saveIfAbsent(ProblemExecutionSpecSaveCommand.from(event));
     }
 
     public static class UnsupportedProblemPublishedEventVersionException extends RuntimeException {
