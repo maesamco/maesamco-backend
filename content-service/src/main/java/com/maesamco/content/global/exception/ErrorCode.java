@@ -39,22 +39,17 @@ public enum ErrorCode {
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
     INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
-    /* 여기서부터 따로 작성 */
 
     /* Curriculum */
-    /** 요청한 커리큘럼을 찾을 수 없는 경우입니다. */
     CURRICULUM_NOT_FOUND(HttpStatus.NOT_FOUND, "커리큘럼을 찾을 수 없습니다."),
 
     /* Unit */
-    /** 요청한 유닛을 찾을 수 없는 경우입니다. */
     UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "유닛을 찾을 수 없습니다."),
 
     /* Lesson */
-    /** 요청한 레슨을 찾을 수 없는 경우입니다. */
     LESSON_NOT_FOUND(HttpStatus.NOT_FOUND, "레슨을 찾을 수 없습니다."),
 
     /* Problem */
-    /** 요청한 문제를 찾을 수 없는 경우입니다. */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
     STARTER_CODE_NOT_INITIALIZED(HttpStatus.BAD_REQUEST, "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."),
 
@@ -63,18 +58,11 @@ public enum ErrorCode {
     TAG_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 태그 이름입니다."),
 
     /* Problem Tag */
-    /** 이미 등록된 문제-태그 연결인 경우입니다. */
     PROBLEM_TAG_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 문제에 등록된 태그입니다."),
-    /** 문제-태그 연결을 찾을 수 없는 경우입니다. */
     PROBLEM_TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "문제에 등록된 태그를 찾을 수 없습니다."),
 
-    /* Problem Version */
-
-
     /* Testcase */
-    /** 요청한 테스트케이스를 찾을 수 없는 경우입니다. */
     TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND,"테스트케이스를 찾을 수 없습니다."),
-    /** 비공개 테스트케이스에 접근할 권한이 없는 경우입니다. */
     TEST_CASE_ACCESS_DENIED(HttpStatus.FORBIDDEN,"비공개 테스트케이스에 접근할 권한이 없습니다.");
 
     private final HttpStatus status;
