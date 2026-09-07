@@ -8,5 +8,5 @@ import java.util.UUID;
 
 interface SpringDataExplanationRepository extends JpaRepository<Explanation, UUID> {
 
-    Optional<Explanation> findByCoachingSessionId(UUID coachingSessionId);
+    Optional<Explanation> findBySubmissionId(UUID submissionId);
 }

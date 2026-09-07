@@ -1,12 +1,12 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.util.UUID;
 
@@ -15,16 +15,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AiFeedbackTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @Test
     @DisplayName("AI 피드백을 생성하면 필드가 그대로 채워진다")
     void create_setsFields() throws Exception {
         // given
         UUID coachingSessionId = UUID.randomUUID();
-        JsonNode understoodConcepts = objectMapper.readTree("[\"반복문\", \"조건문\"]");
-        JsonNode explanationGaps = objectMapper.readTree("[\"배열 인덱스 경계값\"]");
-        JsonNode weakConcepts = objectMapper.readTree("[\"재귀\"]");
+        JsonNode understoodConcepts = jsonMapper.readTree("[\"반복문\", \"조건문\"]");
+        JsonNode explanationGaps = jsonMapper.readTree("[\"배열 인덱스 경계값\"]");
+        JsonNode weakConcepts = jsonMapper.readTree("[\"재귀\"]");
 
         // when
         AiFeedback aiFeedback = AiFeedback.create(
@@ -45,7 +45,7 @@ class AiFeedbackTest {
     @Test
     @DisplayName("코칭 세션 ID가 null이면 생성할 수 없다")
     void create_throwsWhenCoachingSessionIdIsNull() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode empty = jsonMapper.readTree("[]");
 
         assertThatThrownBy(() -> AiFeedback.create(null, empty, empty, empty, null, null, null))
                 .isInstanceOf(BusinessException.class)
@@ -56,7 +56,7 @@ class AiFeedbackTest {
     @Test
     @DisplayName("이해한 개념이 null이면 생성할 수 없다")
     void create_throwsWhenUnderstoodConceptsIsNull() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode empty = jsonMapper.readTree("[]");
 
         assertThatThrownBy(() ->
                 AiFeedback.create(UUID.randomUUID(), null, empty, empty, null, null, null))
@@ -68,7 +68,7 @@ class AiFeedbackTest {
     @Test
     @DisplayName("설명 부족 부분이 null이면 생성할 수 없다")
     void create_throwsWhenExplanationGapsIsNull() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode empty = jsonMapper.readTree("[]");
 
         assertThatThrownBy(() ->
                 AiFeedback.create(UUID.randomUUID(), empty, null, empty, null, null, null))
@@ -80,7 +80,7 @@ class AiFeedbackTest {
     @Test
     @DisplayName("취약 개념이 null이면 생성할 수 없다")
     void create_throwsWhenWeakConceptsIsNull() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode empty = jsonMapper.readTree("[]");
 
         assertThatThrownBy(() ->
                 AiFeedback.create(UUID.randomUUID(), empty, empty, null, null, null, null))
@@ -92,8 +92,8 @@ class AiFeedbackTest {
     @Test
     @DisplayName("필수 JSONB 필드가 Java null이 아니라 JSON의 null(NullNode)이어도 생성할 수 없다")
     void create_throwsWhenRequiredFieldsAreJsonNull() throws Exception {
-        JsonNode empty = objectMapper.readTree("[]");
-        JsonNode jsonNull = objectMapper.readTree("null");
+        JsonNode empty = jsonMapper.readTree("[]");
+        JsonNode jsonNull = jsonMapper.readTree("null");
 
         assertThatThrownBy(() ->
                 AiFeedback.create(UUID.randomUUID(), jsonNull, empty, empty, null, null, null))
@@ -118,8 +118,8 @@ class AiFeedbackTest {
     @DisplayName("생성 후 원본 JsonNode를 수정해도 엔티티 내부 상태는 바뀌지 않는다")
     void create_isNotAffectedByMutatingOriginalNodeAfterConstruction() throws Exception {
         // given
-        ArrayNode understoodConcepts = (ArrayNode) objectMapper.readTree("[\"반복문\"]");
-        JsonNode empty = objectMapper.readTree("[]");
+        ArrayNode understoodConcepts = (ArrayNode) jsonMapper.readTree("[\"반복문\"]");
+        JsonNode empty = jsonMapper.readTree("[]");
 
         AiFeedback aiFeedback = AiFeedback.create(
                 UUID.randomUUID(), understoodConcepts, empty, empty, null, null, null
@@ -129,22 +129,22 @@ class AiFeedbackTest {
         understoodConcepts.add("조건문");
 
         // then
-        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(jsonMapper.readTree("[\"반복문\"]"));
     }
 
     @Test
     @DisplayName("getter로 반환받은 JsonNode를 수정해도 엔티티 내부 상태는 바뀌지 않는다")
     void getter_returnsDefensiveCopy() throws Exception {
         // given
-        JsonNode empty = objectMapper.readTree("[]");
+        JsonNode empty = jsonMapper.readTree("[]");
         AiFeedback aiFeedback = AiFeedback.create(
-                UUID.randomUUID(), objectMapper.readTree("[\"반복문\"]"), empty, empty, null, null, null
+                UUID.randomUUID(), jsonMapper.readTree("[\"반복문\"]"), empty, empty, null, null, null
         );
 
         // when — getter로 받은 참조를 수정
         ((ArrayNode) aiFeedback.getUnderstoodConcepts()).add("조건문");
 
         // then
-        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(objectMapper.readTree("[\"반복문\"]"));
+        assertThat(aiFeedback.getUnderstoodConcepts()).isEqualTo(jsonMapper.readTree("[\"반복문\"]"));
     }
 }

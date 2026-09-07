@@ -1,7 +1,6 @@
 package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.CoachingSession;
-import com.maesamco.coaching.domain.entity.CoachingSessionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -11,5 +10,5 @@ interface SpringDataCoachingSessionRepository extends JpaRepository<CoachingSess
 
     Optional<CoachingSession> findBySubmissionId(UUID submissionId);
 
-    Optional<CoachingSession> findByUserIdAndProblemIdAndStatus(UUID userId, UUID problemId, CoachingSessionStatus status);
+    Optional<CoachingSession> findByUserIdAndProblemId(UUID userId, UUID problemId);
 }

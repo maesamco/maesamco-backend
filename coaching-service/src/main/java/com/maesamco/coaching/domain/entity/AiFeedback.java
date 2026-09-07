@@ -1,6 +1,5 @@
 package com.maesamco.coaching.domain.entity;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,6 +17,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -33,9 +33,16 @@ import java.util.UUID;
  * JSONB 컬럼은 이 프로젝트에서 이 엔티티가 처음이다. 각 필드의 내부 구조(개념 목록인지, 문제
  * ID 목록인지 등)가 아직 확정되지 않았고 AI 응답을 실제로 파싱하는 로직도 이후 PR의 몫이라,
  * 특정 Java 타입(Map/List/DTO)으로 미리 단정하지 않고 Jackson의 JsonNode로 임의의
- * JSON 트리를 그대로 담는다 — Hibernate 6+가 클래스패스의 Jackson ObjectMapper를 자동으로
- * 사용해 @JdbcTypeCode(SqlTypes.JSON) + JsonNode 조합을 직렬화/역직렬화한다(실제
- * Testcontainers PostgreSQL로 왕복 검증 완료).
+ * JSON 트리를 그대로 담는다 — @JdbcTypeCode(SqlTypes.JSON) + JsonNode 조합을 Hibernate가
+ * 직렬화/역직렬화한다(실제 Testcontainers PostgreSQL로 왕복 검증 완료).
+ *
+ * 2026-09-03, Jackson 3(tools.jackson)로 전환하며 확인된 것: 클래스패스에 Jackson 2/3이
+ * 둘 다 있으면(Spring Boot 4의 spring-boot-starter-jackson이 둘 다 가져옴) Hibernate는
+ * 자동 감지 시 기본적으로 구버전(Jackson 2)의 FormatMapper를 고른다 — Spring MVC의 HTTP
+ * 컨버터 기본값(Jackson 3 우선)과 정반대 방향이라 헷갈리기 쉽다. Jackson 2 매퍼로는
+ * tools.jackson.databind.JsonNode를 역직렬화할 수 없어(InvalidDefinitionException, 실제
+ * 재현함) application.yml에 spring.jpa.properties.hibernate.type.json_format_mapper를
+ * Jackson3JsonFormatMapper로 명시해야 한다(운영/테스트 yml 둘 다).
  *
  * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야
  * Hibernate가 FK를 만든다), Flyway V1 베이스라인(PR #29)이 coaching_session_id →

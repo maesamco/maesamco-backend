@@ -1,7 +1,7 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 COPY . .
-RUN ./gradlew :content-service:bootJar -x test
+RUN sed -i 's/\r$//' gradlew && chmod +x ./gradlew && ./gradlew :content-service:bootJar -x test
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

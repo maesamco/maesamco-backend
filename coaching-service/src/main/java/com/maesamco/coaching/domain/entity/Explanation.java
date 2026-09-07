@@ -29,17 +29,25 @@ import java.util.UUID;
  *
  * MVP는 텍스트만 지원(음성·STT는 MVP 이후).
  *
+ * 🔧 2026-09-03(이슈 #84 결정 2): 유일성 기준을 coaching_session_id에서 submission_id로
+ * 옮겼다. 힌트/스트릭은 "막혔을 때 도와주는" 장치라 문제당 평생 1세션(결정 1)이 맞지만,
+ * 60초 설명은 "이번 제출의 접근 방식을 이해했는가"를 확인하는 장치라 같은 문제를 다른
+ * 접근으로 재도전해 새로 정답 제출할 때마다 별도로 등록할 수 있어야 한다. coachingSessionId는
+ * 이 설명이 어느 세션(문제) 소속인지 추적하는 용도로 컬럼 자체는 남기지만(내부 API #8 등에서
+ * 필요), 더 이상 유일성 기준이 아니다 — 같은 세션에 여러 설명이 존재할 수 있다.
+ *
  * raw UUID 컬럼이라 JPA로는 FK 제약이 DDL에 안 생기지만(@ManyToOne/@JoinColumn이 있어야
- * Hibernate가 FK를 만든다), Flyway V1 베이스라인(PR #29)이 coaching_session_id →
- * p_coaching_sessions.id FK와 UNIQUE(coaching_session_id)를 실제 마이그레이션 스크립트로
- * 갖고 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결).
+ * Hibernate가 FK를 만든다), Flyway V6(이슈 #84 결정 2)가 coaching_session_id →
+ * p_coaching_sessions.id FK와 UNIQUE(submission_id)를 실제 마이그레이션 스크립트로 갖고
+ * 있어 운영 스키마에도 반영돼 있다(이슈 #10 해결). submission_id는 다른 서비스(Judge)의
+ * 리소스라 물리 FK 없이 논리 FK로만 참조한다(팀 컨벤션 16절, 서비스 경계 원칙).
  */
 @Entity
 @Table(
         name = "p_explanations",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_explanations_session",
-                columnNames = {"coaching_session_id"}
+                name = "uk_explanations_submission",
+                columnNames = {"submission_id"}
         )
 )
 @Getter
@@ -54,6 +62,9 @@ public class Explanation {
 
     @Column(name = "coaching_session_id", updatable = false, nullable = false)
     private UUID coachingSessionId;
+
+    @Column(name = "submission_id", updatable = false, nullable = false)
+    private UUID submissionId;
 
     @Column(name = "content", updatable = false, nullable = false, columnDefinition = "TEXT")
     private String content;
@@ -70,14 +81,16 @@ public class Explanation {
     private Instant createdAt;
 
     @Builder
-    private Explanation(UUID coachingSessionId, String content) {
+    private Explanation(UUID coachingSessionId, UUID submissionId, String content) {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
+        this.submissionId = Validate.requireNonNull(submissionId, "제출 ID");
         this.content = Validate.requireText(content, "설명 본문");
     }
 
-    public static Explanation create(UUID coachingSessionId, String content) {
+    public static Explanation create(UUID coachingSessionId, UUID submissionId, String content) {
         return Explanation.builder()
                 .coachingSessionId(coachingSessionId)
+                .submissionId(submissionId)
                 .content(content)
                 .build();
     }

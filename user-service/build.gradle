@@ -34,8 +34,11 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     // Flyway — 이슈 #10, 기본 비활성화(application.yml spring.flyway.enabled: false). db/migration의 V1 검토 후 서비스별로 활성화
+    // spring-boot-flyway(FlywayAutoConfiguration)는 반드시 implementation이어야 한다 —
+    // testImplementation에만 있으면 패키징된 jar/Docker 실행 시 마이그레이션이 조용히 안 됨(리뷰 반영)
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.springframework.boot:spring-boot-flyway'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
