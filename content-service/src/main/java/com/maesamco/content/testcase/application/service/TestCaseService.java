@@ -1,5 +1,7 @@
 package com.maesamco.content.testcase.application.service;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.testcase.application.port.TestCaseFinder;
@@ -30,16 +32,19 @@ public class TestCaseService {
     @Transactional(rollbackFor = Exception.class)
     public TestCaseCreateResponse createTestCase(UUID problemId, TestCaseCreateRequest request) {
 
-        // 특정 문제에 대한 테스트케이스 생성이기에, 문제가 존재해야 한다.
         problemFinder.findProblemById(problemId);
 
-        // TODO: 일차적으로 관리자가 testcase 생성하는 것만 생각한다.
+        // 특정 문자에 대한 공개 또는 비공개 테스트케이스 중 하나의 분류에 대해서 그 중 가장 test_case_order가 큰 값에 + 1을 한다.
+        int testCaseOrder =
+                testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, request.getIsPublic()) + 1;
+
+        // TODO: 일차적으로 관리자가 테스트케이스를 생성하는 경우만 고려한다.
         TestCase testCase = TestCase.createByAdmin(
                 problemId,
                 request.getInput(),
                 request.getExpectedOutput(),
                 request.getIsPublic(),
-                request.getTestCaseOrder()
+                testCaseOrder
         );
 
         TestCase savedTestCase = testCaseRepository.save(testCase);
@@ -56,14 +61,35 @@ public class TestCaseService {
         return TestCaseResponse.from(testCase);
     }
 
-    /** 특정 문제 테스트케이스 목록 조회 */
+    /** 공개 테스트케이스 단건 조회 */
     @Transactional(readOnly = true)
-    public PageResponse<TestCaseResponse> searchTestCases(UUID problemId, Pageable pageable) {
+    public TestCaseResponse getPublicTestCase(UUID testCaseId) {
 
-        // 존재하지 않는 문제에 대한 조회 방지
+        TestCase testCase = testCaseFinder.getTestCase(testCaseId);
+
+        if (!testCase.getIsPublic()) {
+            throw new BusinessException(ErrorCode.TEST_CASE_ACCESS_DENIED);
+        }
+
+        return TestCaseResponse.from(testCase);
+    }
+
+    /** 특정 문제의 공개 테스트케이스 목록 조회 */
+    @Transactional(readOnly = true)
+    public PageResponse<TestCaseResponse> searchTestCasesPublic(UUID problemId, Pageable pageable) {
         problemFinder.findProblemById(problemId);
 
-        Page<TestCase> testCases = testCaseRepository.searchTestCases(problemId, pageable);
+        Page<TestCase> testCases = testCaseRepository.searchTestCases(problemId, true, pageable);
+
+        return PageResponse.from(testCases, TestCaseResponse::from);
+    }
+
+    /** 특정 문제의 공개와 비공개 테스트케이스 목록 전체 조회 */
+    @Transactional(readOnly = true)
+    public PageResponse<TestCaseResponse> searchTestCasesAll(UUID problemId, Pageable pageable) {
+        problemFinder.findProblemById(problemId);
+
+        Page<TestCase> testCases = testCaseRepository.searchTestCasesAll(problemId, pageable);
 
         return PageResponse.from(testCases, TestCaseResponse::from);
     }
@@ -71,13 +97,29 @@ public class TestCaseService {
     /** 테스트케이스 수정 */
     @Transactional(rollbackFor = Exception.class)
     public TestCaseResponse updateTestCase(UUID testCaseId, TestCaseUpdateRequest request) {
-
         TestCase testCase = testCaseFinder.getTestCase(testCaseId);
 
+        // 입력값, 출력값 수정
         if (request.getInput() != null) { testCase.changeInput(request.getInput()); }
         if (request.getExpectedOutput() != null) { testCase.changeExpectedOutput(request.getExpectedOutput()); }
-        if (request.getIsPublic() != null) { testCase.changeIsPublic(request.getIsPublic());}
-        if (request.getTestCaseOrder() != null) { testCase.changeTestCaseOrder(request.getTestCaseOrder());}
+
+        // 공개 / 비공개 수정 정책
+        if (request.getIsPublic() != null &&
+                request.getIsPublic() != testCase.getIsPublic()) {
+
+            // 삭제하지 않고, 공개 여부를 변경하면서 새 그룹의 마지막 순서를 부여한다.
+            // 기존 그룹의 빈 order는 유지하며 별도로 재정렬하지 않는다.
+            // 하나의 문제에 대해서 등록/수정이 많이 일어나지 않기 때문에 정리할 필요가 없을 것으로 예싱한다.
+            int newTestCaseOrder =
+                    testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(testCase.getProblemId(), request.getIsPublic()) + 1;
+            testCase.changeIsPublic(request.getIsPublic());
+            testCase.changeTestCaseOrder(newTestCaseOrder);
+        }
+
+        // test_case_order 값 수정 정책 (우선순위가 제일 높기에 마지막에 실행)
+        if (request.getTestCaseOrder() != null) {
+            testCase.changeTestCaseOrder(request.getTestCaseOrder());
+        }
 
         return TestCaseResponse.from(testCase);
     }

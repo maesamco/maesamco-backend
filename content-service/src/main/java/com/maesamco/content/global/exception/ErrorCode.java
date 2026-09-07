@@ -59,7 +59,9 @@ public enum ErrorCode {
 
     /* Testcase */
     /** 요청한 테스트케이스를 찾을 수 없는 경우입니다. */
-    TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND,"테스트케이스를 찾을 수 없습니다.");
+    TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND,"테스트케이스를 찾을 수 없습니다."),
+    /** 비공개 테스트케이스에 접근할 권한이 없는 경우입니다. */
+    TEST_CASE_ACCESS_DENIED(HttpStatus.FORBIDDEN,"비공개 테스트케이스에 접근할 권한이 없습니다.");
 
     private final HttpStatus status;
     private final String message;

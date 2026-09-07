@@ -30,6 +30,7 @@ public class TestCaseOrderRepositoryImpl implements TestCaseOrderRepository {
                 )
                 .fetchOne();
 
-        return maxOrder == null ? 0 : maxOrder; // 없으면 0을 반환
+        // 상태와 관계없이 해당 그룹의 최대 order를 기준으로 다음 순서를 리턴, 없으면 0을 리턴
+        return maxOrder == null ? 0 : maxOrder;
     }
 }
