@@ -127,13 +127,6 @@ class ProblemExecutionSpecCommandServiceTest {
         }
     }
 
-    /**
-     * publishedAt/timeLimit/memoryLimit 검증은 이제 Service가 아니라
-     * ProblemExecutionSpecSaveCommand.from()에서 일어난다 — 그래서 Service/Repository는
-     * 전혀 필요 없고, Command 팩토리만 단독으로 테스트한다.
-     * (Repository mock을 여기서 쓰면 아무 데도 안 쓰이는 stub 때문에
-     * Mockito strict-stub 모드에서 UnnecessaryStubbingException이 난다.)
-     */
     @Nested
     @DisplayName("ProblemExecutionSpecSaveCommand.from 검증")
     class FromValidation {
