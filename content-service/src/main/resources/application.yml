@@ -62,6 +62,12 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
 
+daily-quiz:
+  batch:
+    cron: "${DAILY_QUIZ_BATCH_CRON:0 0 3 * * *}"
+    zone: ${DAILY_QUIZ_BATCH_ZONE:Asia/Seoul}
+    chunk-size: ${DAILY_QUIZ_BATCH_CHUNK_SIZE:100}
+
 eureka:
   client:
     service-url:
