@@ -9,11 +9,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /** 테스트케이스 Repository */
-public interface TestCaseRepository extends JpaRepository<TestCase, UUID>, TestCaseSearchRepository {
+public interface TestCaseRepository extends JpaRepository<TestCase, UUID>, TestCaseSearchRepository, TestCaseOrderRepository {
 
     /** 삭제되지 않은 테스트케이스를 조회합니다. */
     @NonNull Optional<TestCase> findById(@NonNull UUID id);
-
-    /** 특정 문제의 삭제되지 않은 테스트케이스 목록을 순서대로 조회합니다. */
-    List<TestCase> findAllByProblemIdOrderByTestCaseOrderAsc(UUID problemId);
 }

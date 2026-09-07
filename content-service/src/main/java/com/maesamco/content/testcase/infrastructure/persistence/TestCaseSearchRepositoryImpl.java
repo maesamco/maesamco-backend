@@ -24,7 +24,40 @@ public class TestCaseSearchRepositoryImpl implements TestCaseSearchRepository {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<TestCase> searchTestCases(UUID problemId, Pageable pageable) {
+    public Page<TestCase> searchTestCases(UUID problemId, boolean isPublic, Pageable pageable) {
+        QTestCase testCase = QTestCase.testCase;
+
+        BooleanExpression[] conditions = {
+                testCase.problemId.eq(problemId),
+                testCase.isPublic.eq(isPublic), // 공개 or 비공개 중 택 1
+                testCase.testCaseStatus.eq(TestCaseStatus.APPROVED)
+        };
+
+        List<TestCase> testCases = queryFactory
+                .selectFrom(testCase)
+                .where(conditions)
+                .orderBy(
+                        testCase.testCaseOrder.asc(),
+                        testCase.id.asc() // tie-breaker 도입
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        JPAQuery<Long> countQuery = queryFactory
+                .select(testCase.count())
+                .from(testCase)
+                .where(conditions);
+
+        return PageableExecutionUtils.getPage(
+                testCases,
+                pageable,
+                countQuery::fetchOne
+        );
+    }
+
+    @Override
+    public Page<TestCase> searchTestCasesAll(UUID problemId, Pageable pageable) {
         QTestCase testCase = QTestCase.testCase;
 
         BooleanExpression[] conditions = {
@@ -36,8 +69,9 @@ public class TestCaseSearchRepositoryImpl implements TestCaseSearchRepository {
                 .selectFrom(testCase)
                 .where(conditions)
                 .orderBy(
+                        testCase.isPublic.desc(), // 공개(true) 먼저 오도록
                         testCase.testCaseOrder.asc(),
-                        testCase.id.asc() // tie-breaker 도입
+                        testCase.id.asc() // tie-breaker
                 )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
