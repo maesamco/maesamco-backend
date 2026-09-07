@@ -32,7 +32,7 @@ public class TestCaseService {
     @Transactional(rollbackFor = Exception.class)
     public TestCaseCreateResponse createTestCase(UUID problemId, TestCaseCreateRequest request) {
 
-        problemFinder.findProblemById(problemId);
+        problemFinder.getProblem(problemId);
 
         // 특정 문자에 대한 공개 또는 비공개 테스트케이스 중 하나의 분류에 대해서 그 중 가장 test_case_order가 큰 값에 + 1을 한다.
         int testCaseOrder =
@@ -77,7 +77,7 @@ public class TestCaseService {
     /** 특정 문제의 공개 테스트케이스 목록 조회 */
     @Transactional(readOnly = true)
     public PageResponse<TestCaseResponse> searchTestCasesPublic(UUID problemId, Pageable pageable) {
-        problemFinder.findProblemById(problemId);
+        problemFinder.getProblem(problemId);
 
         Page<TestCase> testCases = testCaseRepository.searchTestCases(problemId, true, pageable);
 
@@ -87,7 +87,7 @@ public class TestCaseService {
     /** 특정 문제의 공개와 비공개 테스트케이스 목록 전체 조회 */
     @Transactional(readOnly = true)
     public PageResponse<TestCaseResponse> searchTestCasesAll(UUID problemId, Pageable pageable) {
-        problemFinder.findProblemById(problemId);
+        problemFinder.getProblem(problemId);
 
         Page<TestCase> testCases = testCaseRepository.searchTestCasesAll(problemId, pageable);
 
