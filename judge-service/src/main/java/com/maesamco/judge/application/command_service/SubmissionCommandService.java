@@ -1,13 +1,11 @@
-package com.maesamco.judge.application;
+package com.maesamco.judge.application.command_service;
 
 import com.maesamco.judge.application.command.SubmissionCreateCommand;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.Submission;
-import com.maesamco.judge.domain.entity.SubmissionEventOutbox;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
-import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
@@ -15,27 +13,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class SubmissionService {
+public class SubmissionCommandService {
 
-    private static final String JUDGE_REQUESTED_EVENT_TYPE = "JudgeRequestedEvent";
     private static final int MAX_SAVE_RETRY = 3;
 
     private final SubmissionRepository submissionRepository;
-    private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
     private final ProblemExecutionSpecRepository  problemExecutionSpecRepository;
-    private final JsonMapper jsonMapper;
+    private final SubmissionSaveExecutor submissionSaveExecutor;
 
-    @Transactional
     public SubmissionCreateResult submit(SubmissionCreateCommand command) {
         //멱등성 체크
         Optional<Submission> existing = submissionRepository.findByIdempotencyKey(command.idempotencyKey());
@@ -57,8 +48,10 @@ public class SubmissionService {
             );
 
             try {
-                submissionRepository.saveAndFlush(submission);
+                submissionSaveExecutor.saveWithOutbox(submission);
             } catch (DataIntegrityViolationException ex) {
+                // 이전 시도의 트랜잭션은 이미 REQUIRES_NEW 경계에서 롤백/종료됐으므로
+                // 여기서의 재조회는 새 트랜잭션에서 안전하게 실행된다.
                 Optional<Submission> racedByKey = submissionRepository.findByIdempotencyKey(command.idempotencyKey());
                 if (racedByKey.isPresent()) {
                     return toIdempotentResult(racedByKey.get(), command);
@@ -67,7 +60,6 @@ public class SubmissionService {
                         attempt, MAX_SAVE_RETRY, command.userId(), command.problemId());
                 continue;
             }
-            publishJudgeRequestedOutbox(submission);
             return SubmissionCreateResult.of(submission.getId(), submission.getStatus());
         }
         throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,
@@ -75,10 +67,11 @@ public class SubmissionService {
     }
 
     private SubmissionCreateResult toIdempotentResult(Submission existing, SubmissionCreateCommand command) {
-        boolean sameBody = existing.getProblemId().equals(command.problemId())
+        boolean sameRequest = existing.getUserId().equals(command.userId())
+                && existing.getProblemId().equals(command.problemId())
                 && existing.getCode().equals(command.code())
                 && existing.getLanguage() == toSubmissionLanguage(command.language());
-        if (!sameBody) {
+        if (!sameRequest) {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
         }
         log.info("[Judge] 동일 Idempotency-Key 재요청 감지 — 기존 제출 반환. submissionId={}", existing.getId());
@@ -92,20 +85,4 @@ public class SubmissionService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "지원하지 않는 language 값입니다: " + language);
         }
     }
-
-    private void publishJudgeRequestedOutbox(Submission submission) {
-        submissionEventOutboxRepository.save(SubmissionEventOutbox.create(
-                submission.getId(), JUDGE_REQUESTED_EVENT_TYPE, writeJudgeRequestedPayload(submission.getId())));
-
-    }
-
-    private String writeJudgeRequestedPayload(UUID submissionId) {
-        try {
-            return jsonMapper.writeValueAsString(new JudgeRequestedPayload(submissionId));
-        } catch (JacksonException ex) {
-            throw new IllegalArgumentException("JudgeRequested payload 직렬화 실패. submissionId=" + submissionId, ex);
-        }
-    }
-
-    private record JudgeRequestedPayload(UUID submissionId) {}
 }

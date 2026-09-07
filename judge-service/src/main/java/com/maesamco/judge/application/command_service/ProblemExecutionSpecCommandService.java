@@ -1,4 +1,4 @@
-package com.maesamco.judge.application;
+package com.maesamco.judge.application.command_service;
 
 import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
@@ -12,10 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
+// 단순 CRUD 도메인(저장만 하고 이후 수정 없음)이라
+// 팀 컨벤션 2절 기준대로 Command/Query로 나누지 않고 Service 하나로 둔다.
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ProblemExecutionSpecService {
+
+public class ProblemExecutionSpecCommandService {
 
     private final ProblemExecutionSpecRepository problemExecutionSpecRepository;
     private final JsonMapper jsonMapper;

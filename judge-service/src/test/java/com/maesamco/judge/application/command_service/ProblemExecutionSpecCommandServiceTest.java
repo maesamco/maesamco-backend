@@ -1,11 +1,10 @@
-package com.maesamco.judge.application.service;
+package com.maesamco.judge.application.command_service;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-import com.maesamco.judge.application.ProblemExecutionSpecService;
 import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.application.exception.InvalidProblemPublishedEventException;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
@@ -27,7 +26,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
-class ProblemExecutionSpecServiceTest {
+class ProblemExecutionSpecCommandServiceTest {
 
     @Mock
     private ProblemExecutionSpecRepository problemExecutionSpecRepository;
@@ -36,7 +35,7 @@ class ProblemExecutionSpecServiceTest {
     private JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @InjectMocks
-    private ProblemExecutionSpecService problemExecutionSpecService;
+    private ProblemExecutionSpecCommandService problemExecutionSpecCommandService;
 
     private ProblemPublishedEvent validEvent() {
         return new ProblemPublishedEvent(
@@ -63,7 +62,7 @@ class ProblemExecutionSpecServiceTest {
                     command.problemId(), command.problemVersionId())).willReturn(true);
 
             // when
-            problemExecutionSpecService.saveIfAbsent(command);
+            problemExecutionSpecCommandService.saveIfAbsent(command);
 
             // then
             verify(problemExecutionSpecRepository, never()).saveAndFlush(any());
@@ -78,7 +77,7 @@ class ProblemExecutionSpecServiceTest {
                     command.problemId(), command.problemVersionId())).willReturn(false);
 
             // when
-            problemExecutionSpecService.saveIfAbsent(command);
+            problemExecutionSpecCommandService.saveIfAbsent(command);
 
             // then
             ArgumentCaptor<ProblemExecutionSpec> captor = ArgumentCaptor.forClass(ProblemExecutionSpec.class);
@@ -104,7 +103,7 @@ class ProblemExecutionSpecServiceTest {
                     .willThrow(new DataIntegrityViolationException("duplicate key"));
 
             // when / then
-            assertThatCode(() -> problemExecutionSpecService.saveIfAbsent(command))
+            assertThatCode(() -> problemExecutionSpecCommandService.saveIfAbsent(command))
                     .doesNotThrowAnyException();
         }
 
@@ -122,7 +121,7 @@ class ProblemExecutionSpecServiceTest {
                     command.problemId(), command.problemVersionId())).willReturn(false);
 
             // when / then
-            assertThatThrownBy(() -> problemExecutionSpecService.saveIfAbsent(command))
+            assertThatThrownBy(() -> problemExecutionSpecCommandService.saveIfAbsent(command))
                     .isInstanceOf(IllegalArgumentException.class);
             verify(problemExecutionSpecRepository, never()).saveAndFlush(any());
         }

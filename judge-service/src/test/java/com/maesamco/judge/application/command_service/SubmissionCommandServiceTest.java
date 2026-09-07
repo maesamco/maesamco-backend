@@ -1,4 +1,4 @@
-package com.maesamco.judge.application.service;
+package com.maesamco.judge.application.command_service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-import com.maesamco.judge.application.SubmissionService;
 import com.maesamco.judge.application.command.SubmissionCreateCommand;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
@@ -14,7 +13,6 @@ import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
-import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
@@ -26,28 +24,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
-class SubmissionServiceTest {
+class SubmissionCommandServiceTest {
 
     @Mock
     private SubmissionRepository submissionRepository;
 
     @Mock
-    private SubmissionEventOutboxRepository submissionEventOutboxRepository;
-
-    @Mock
     private ProblemExecutionSpecRepository problemExecutionSpecRepository;
 
-    @Spy
-    private JsonMapper jsonMapper = JsonMapper.builder().build();
+    @Mock
+    private SubmissionSaveExecutor submissionSaveExecutor;
 
     @InjectMocks
-    private SubmissionService submissionService;
+    private SubmissionCommandService submissionCommandService;
 
     private final UUID userId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
@@ -79,11 +72,10 @@ class SubmissionServiceTest {
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command("public class Main {}", "JAVA17"));
+            SubmissionCreateResult result = submissionCommandService.submit(command("public class Main {}", "JAVA17"));
 
             // then
-            verify(submissionRepository, times(1)).saveAndFlush(any(Submission.class));
-            verify(submissionEventOutboxRepository, times(1)).save(any());
+            verify(submissionSaveExecutor, times(1)).saveWithOutbox(any(Submission.class));
             assertThat(result.status()).isEqualTo(SubmissionStatus.PENDING);
         }
 
@@ -96,10 +88,10 @@ class SubmissionServiceTest {
                     .willReturn(Optional.empty());
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA17")))
+            assertThatThrownBy(() -> submissionCommandService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROBLEM_NOT_FOUND);
-            verify(submissionRepository, never()).saveAndFlush(any());
+            verify(submissionSaveExecutor, never()).saveWithOutbox(any());
         }
 
         @Test
@@ -113,11 +105,11 @@ class SubmissionServiceTest {
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.of(existing));
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command(existing.getCode(), "JAVA17"));
+            SubmissionCreateResult result = submissionCommandService.submit(command(existing.getCode(), "JAVA17"));
 
             // then
             assertThat(result.submissionId()).isEqualTo(existing.getId());
-            verify(submissionRepository, never()).saveAndFlush(any());
+            verify(submissionSaveExecutor, never()).saveWithOutbox(any());
         }
 
         @Test
@@ -131,7 +123,24 @@ class SubmissionServiceTest {
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.of(existing));
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("다른 코드", "JAVA17")))
+            assertThatThrownBy(() -> submissionCommandService.submit(command("다른 코드", "JAVA17")))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
+        }
+
+        @Test
+        @DisplayName("같은 Idempotency-Key + 같은 바디라도 다른 사용자가 보낸 요청이면 IDEMPOTENCY_KEY_CONFLICT를 던진다")
+        void throwsConflictWhenDifferentUserSameKeyAndBody() {
+            // given
+            UUID otherUserId = UUID.randomUUID();
+            Submission existing = Submission.create(
+                    otherUserId, problemId, problemVersionId, 1,
+                    "public class Main {}", SubmissionLanguage.JAVA17, idempotencyKey
+            );
+            given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.of(existing));
+
+            // when / then — command는 userId(본인) 필드를 쓰고, existing은 otherUserId 소유
+            assertThatThrownBy(() -> submissionCommandService.submit(command(existing.getCode(), "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
         }
@@ -149,15 +158,16 @@ class SubmissionServiceTest {
             given(submissionRepository.findByIdempotencyKey(idempotencyKey))
                     .willReturn(Optional.empty());
 
-            org.mockito.Mockito.doThrow(new DataIntegrityViolationException("unique violation"))
-                    .doAnswer(invocation -> invocation.getArgument(0))
-                    .when(submissionRepository).saveAndFlush(any(Submission.class));
+            // saveWithOutbox는 void라 doThrow().doNothing() 그대로 사용 가능
+            doThrow(new DataIntegrityViolationException("unique violation"))
+                    .doNothing()
+                    .when(submissionSaveExecutor).saveWithOutbox(any(Submission.class));
 
             // when
-            SubmissionCreateResult result = submissionService.submit(command("code", "JAVA17"));
+            SubmissionCreateResult result = submissionCommandService.submit(command("code", "JAVA17"));
 
             // then
-            verify(submissionRepository, times(2)).saveAndFlush(any(Submission.class));
+            verify(submissionSaveExecutor, times(2)).saveWithOutbox(any(Submission.class));
             assertThat(result).isNotNull();
         }
 
@@ -170,14 +180,14 @@ class SubmissionServiceTest {
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
                     .willReturn(Optional.of(spec));
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
-            org.mockito.Mockito.doThrow(new DataIntegrityViolationException("unique violation"))
-                    .when(submissionRepository).saveAndFlush(any(Submission.class));
+            doThrow(new DataIntegrityViolationException("unique violation"))
+                    .when(submissionSaveExecutor).saveWithOutbox(any(Submission.class));
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("code", "JAVA17")))
+            assertThatThrownBy(() -> submissionCommandService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INTERNAL_SERVER_ERROR);
-            verify(submissionRepository, times(3)).saveAndFlush(any());
+            verify(submissionSaveExecutor, times(3)).saveWithOutbox(any());
         }
 
         @Test
@@ -191,7 +201,7 @@ class SubmissionServiceTest {
             given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
 
             // when / then
-            assertThatThrownBy(() -> submissionService.submit(command("code", "PYTH0N")))
+            assertThatThrownBy(() -> submissionCommandService.submit(command("code", "PYTH0N")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT_VALUE);
         }
