@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ProblemTagRepository extends JpaRepository<ProblemTag, UUID> {
+public interface ProblemTagRepository extends JpaRepository<ProblemTag, UUID>, ProblemTagSearchRepository {
 
     /** 문제-태그 연결 존재 여부 조회 */
     boolean existsByProblemIdAndTagId(UUID problemId, UUID tagId);
