@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +44,7 @@ public class UnitController {
      * @param request 유닛 생성 요청 정보
      * @return 생성된 유닛 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<UnitCreateResponse>> createUnit(
             @Valid @RequestBody UnitCreateRequest request
@@ -118,6 +120,7 @@ public class UnitController {
      * @param request 유닛 수정 요청 정보
      * @return 수정된 유닛 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<UnitResponse>> updateUnit(
             @PathVariable UUID unitId,
@@ -143,6 +146,7 @@ public class UnitController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<Void>> deleteUnit(
             @PathVariable UUID unitId,

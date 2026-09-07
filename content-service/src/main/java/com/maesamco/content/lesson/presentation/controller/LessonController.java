@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +44,7 @@ public class LessonController {
      * @param request 레슨 생성 요청 정보
      * @return 생성된 레슨 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<LessonCreateResponse>> createLesson(
             @Valid @RequestBody LessonCreateRequest request
@@ -118,6 +120,7 @@ public class LessonController {
      * @param request 레슨 수정 요청 정보
      * @return 수정된 레슨 정보를 포함한 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<LessonResponse>> updateLesson(
             @PathVariable UUID lessonId,
@@ -143,6 +146,7 @@ public class LessonController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<Void>> deleteLesson(
             @PathVariable UUID lessonId,
