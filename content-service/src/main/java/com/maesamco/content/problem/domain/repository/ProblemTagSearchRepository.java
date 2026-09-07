@@ -1,4 +1,4 @@
-package com.maesamco.content.tag.domain.repository;
+package com.maesamco.content.problem.domain.repository;
 
 import com.maesamco.content.tag.domain.entity.Tag;
 import org.springframework.data.domain.Page;

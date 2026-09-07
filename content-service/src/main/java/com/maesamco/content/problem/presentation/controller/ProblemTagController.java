@@ -1,9 +1,9 @@
-package com.maesamco.content.tag.presentation.controller;
+package com.maesamco.content.problem.presentation.controller;
 
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
-import com.maesamco.content.tag.application.service.ProblemTagService;
+import com.maesamco.content.problem.application.service.ProblemTagService;
 import com.maesamco.content.tag.presentation.dto.response.TagResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
