@@ -34,7 +34,7 @@ public class LessonService {
         unitFinder.findById(request.getUnitId());
 
         int displayOrder = Math.toIntExact(
-                lessonRepository.countByUnitIdAndDeletedAtIsNull(request.getUnitId()) + 1
+                lessonRepository.countByUnitId(request.getUnitId()) + 1
         );
 
         Lesson lesson = Lesson.create(

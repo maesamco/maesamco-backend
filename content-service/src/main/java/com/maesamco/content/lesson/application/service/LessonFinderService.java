@@ -19,7 +19,7 @@ public class LessonFinderService implements LessonFinder {
 
     @Override
     public Lesson findLessonById(UUID lessonId) {
-        return lessonRepository.findByIdAndDeletedAtIsNull(lessonId)
+        return lessonRepository.findById(lessonId)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.LESSON_NOT_FOUND)
                 );
