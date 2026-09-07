@@ -42,4 +42,9 @@ public class ExplanationRepositoryImpl implements ExplanationRepository {
     public Optional<Explanation> findBySubmissionId(UUID submissionId) {
         return springDataExplanationRepository.findBySubmissionId(submissionId);
     }
+
+    @Override
+    public Optional<Explanation> findById(UUID id) {
+        return springDataExplanationRepository.findById(id);
+    }
 }
