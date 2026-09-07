@@ -133,6 +133,9 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
             orderSpecifiers.add(problem.createdAt.desc()); // 정렬 조건이 없다면 생성일 기준으로 내림차순 정렬 (최신순)
         }
 
+        // tie-breaker 도입: 동일한 정렬 값을 가진 행의 순서를 고정해 페이징 결과를 안정적으로 유지
+        orderSpecifiers.add(problem.id.desc());
+
         return orderSpecifiers.toArray(OrderSpecifier<?>[]::new);
     }
 
