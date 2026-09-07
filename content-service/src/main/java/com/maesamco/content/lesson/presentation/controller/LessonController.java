@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -145,7 +146,7 @@ public class LessonController {
     @DeleteMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<Void>> deleteLesson(
             @PathVariable UUID lessonId,
-            @RequestHeader("X-User-Id") UUID userId
+            @AuthenticationPrincipal UUID userId
     ) {
         lessonService.deleteLesson(lessonId, userId);
 
