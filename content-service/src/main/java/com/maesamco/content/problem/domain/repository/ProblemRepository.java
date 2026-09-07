@@ -1,6 +1,7 @@
 package com.maesamco.content.problem.domain.repository;
 
 import com.maesamco.content.problem.domain.entity.Problem;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -12,5 +13,5 @@ import java.util.UUID;
  */
 public interface ProblemRepository extends JpaRepository<Problem, UUID>, ProblemSearchRepository {
 
-    Optional<Problem> findByIdAndDeletedAtIsNull(UUID id);
+    @NonNull Optional<Problem> findById(@NonNull UUID id);
 }
