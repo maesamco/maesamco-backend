@@ -2,7 +2,6 @@ package com.maesamco.content.curriculum.domain.entity;
 
 import com.maesamco.content.curriculum.domain.enums.ProgrammingLanguage;
 import com.maesamco.content.global.common.BaseEntity;
-import com.maesamco.content.problem.domain.enums.*;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
