@@ -82,7 +82,6 @@ public class LessonService {
         if (request.getDescription() != null)   { lesson.changeDescription(request.getDescription()); }
         if (request.getContent() != null)       { lesson.changeContent(request.getContent()); }
         if (request.getLanguage() != null)      { lesson.changeLanguage(request.getLanguage()); }
-        if (request.getDisplayOrder() != null)  { lesson.changeDisplayOrder(request.getDisplayOrder()); }
 
         return LessonResponse.from(lesson);
     }

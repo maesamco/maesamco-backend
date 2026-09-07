@@ -48,5 +48,5 @@ public class Curriculum extends BaseEntity {
     /** 커리큘럼 수정 */
     public void changeTitle(String newTitle) { this.title = newTitle; }
     public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
-    public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
+    // public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
 }

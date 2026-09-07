@@ -50,12 +50,8 @@ public class Unit extends BaseEntity {
         return new Unit(curriculumId, title, language, displayOrder);
     }
 
-    /** 유닛 제목 수정 */
+    /** 유닛 수정 */
     public void changeTitle(String newTitle) { this.title = newTitle; }
-
-    /** 프로그래밍 언어 수정 */
     public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
-
-    /** 유닛 표시 순서 수정 */
-    public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
+    // public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
 }

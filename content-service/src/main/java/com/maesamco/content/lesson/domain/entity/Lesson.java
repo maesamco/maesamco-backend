@@ -53,18 +53,10 @@ public class Lesson extends BaseEntity {
         return new Lesson(unitId, title, description, content, language, displayOrder);
     }
 
-    /** 레슨 제목을 수정합니다. */
+    /** 레슨 수정 */
     public void changeTitle(String title) { this.title = title; }
-
-    /** 레슨 설명을 수정합니다. */
     public void changeDescription(String description) { this.description = description; }
-
-    /** 레슨 학습 내용을 수정합니다. */
     public void changeContent(String content) { this.content = content; }
-
-    /** 레슨 언어를 수정합니다. */
     public void changeLanguage(ProgrammingLanguage language) { this.language = language; }
-
-    /** 레슨 배치 순서를 수정합니다. */
-    public void changeDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+    // public void changeDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
 }

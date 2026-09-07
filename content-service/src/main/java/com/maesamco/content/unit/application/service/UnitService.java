@@ -78,7 +78,6 @@ public class UnitService {
 
         if (request.getTitle() != null) { unit.changeTitle(request.getTitle()); }
         if (request.getLanguage() != null) { unit.changeLanguage(request.getLanguage()); }
-        if (request.getDisplayOrder() != null) { unit.changeDisplayOrder(request.getDisplayOrder()); }
 
         return UnitResponse.from(unit);
     }
