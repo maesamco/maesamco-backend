@@ -117,4 +117,11 @@ public class GlobalExceptionHandler {
     private String messageOf(FieldError fe) {
         return fe.getDefaultMessage() == null ? "유효하지 않은 값입니다." : fe.getDefaultMessage();
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("IllegalArgumentException: {}", e.getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
+    }
 }
