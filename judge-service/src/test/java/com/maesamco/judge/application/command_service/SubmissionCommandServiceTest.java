@@ -54,6 +54,7 @@ class SubmissionCommandServiceTest {
     private ProblemExecutionSpec spec() {
         ProblemExecutionSpec spec = mock(ProblemExecutionSpec.class);
         given(spec.getProblemVersionId()).willReturn(problemVersionId);
+        given(spec.getLanguage()).willReturn(SubmissionLanguage.JAVA17);
         return spec;
     }
 
@@ -195,10 +196,8 @@ class SubmissionCommandServiceTest {
         void throwsWhenLanguageInvalid() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
-            ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
-                    .willReturn(Optional.of(spec));
-            given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
+                    .willReturn(Optional.of(mock(ProblemExecutionSpec.class)));
 
             // when / then
             assertThatThrownBy(() -> submissionCommandService.submit(command("code", "PYTH0N")))

@@ -1,8 +1,10 @@
 package com.maesamco.judge.presentation.api_controller;
 
-import com.maesamco.judge.application.SubmissionService;
+import com.maesamco.judge.application.command_service.SubmissionCommandService;
 import com.maesamco.judge.application.command.SubmissionCreateCommand;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
@@ -20,7 +22,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubmissionApiController implements SubmissionApiDocs {
 
-    private final SubmissionService submissionService;
+    private final SubmissionCommandService submissionCommandService;
 
     @Override
     @PostMapping
@@ -29,13 +31,22 @@ public class SubmissionApiController implements SubmissionApiDocs {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody SubmissionCreateRequest request
     ) {
+        requireAuthenticated(userId);
         SubmissionCreateCommand command = SubmissionCreateCommand.from(userId, idempotencyKey, request);
-        SubmissionCreateResult result = submissionService.submit(command);
+        SubmissionCreateResult result = submissionCommandService.submit(command);
 
         SubmissionCreateResponse response = SubmissionCreateResponse.of(result.submissionId(), result.status());
+        HttpStatus status = result.created() ? HttpStatus.ACCEPTED : HttpStatus.OK;
 
         return ResponseEntity
-                .status(HttpStatus.ACCEPTED)
+                .status(status)
                 .body(SuccessResponse.success(response));
+    }
+
+
+    private void requireAuthenticated(UUID userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.AUTH_UNAUTHORIZED);
+        }
     }
 }

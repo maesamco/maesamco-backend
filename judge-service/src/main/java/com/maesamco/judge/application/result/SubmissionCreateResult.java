@@ -5,10 +5,13 @@ import java.util.UUID;
 
 public record SubmissionCreateResult(
         UUID submissionId,
-        SubmissionStatus status
+        SubmissionStatus status,
+        boolean created
 ) {
-
-    public static SubmissionCreateResult of(UUID submissionId, SubmissionStatus status) {
-        return new SubmissionCreateResult(submissionId, status);
+    public static SubmissionCreateResult created(UUID submissionId, SubmissionStatus status) {
+        return new SubmissionCreateResult(submissionId, status, true);
+    }
+    public static SubmissionCreateResult existing(UUID submissionId, SubmissionStatus status) {
+        return new SubmissionCreateResult(submissionId, status, false);
     }
 }

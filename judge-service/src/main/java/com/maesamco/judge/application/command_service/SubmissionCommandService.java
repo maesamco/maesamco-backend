@@ -38,13 +38,20 @@ public class SubmissionCommandService {
                 .findFirstByProblemIdOrderByPublishedAtDesc(command.problemId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
+        SubmissionLanguage requestedLanguage = toSubmissionLanguage(command.language());
+        if (spec.getLanguage() != requestedLanguage) {
+            throw new BusinessException(ErrorCode.LANGUAGE_MISMATCH,
+                    "이 문제는 %s 언어로만 제출할 수 있습니다. 요청 language=%s"
+                            .formatted(spec.getLanguage(), requestedLanguage));
+        }
+
         //저장+경합 재시도 루프
         for (int attempt = 1; attempt <= MAX_SAVE_RETRY; attempt++) {
             int attemptNo = submissionRepository.findMaxAttemptNoByUserIdAndProblemId(
                     command.userId(), command.problemId()) +1;
             Submission submission = Submission.create(
                     command.userId(), command.problemId(), spec.getProblemVersionId(), attemptNo,
-                    command.code(), toSubmissionLanguage(command.language()), command.idempotencyKey()
+                    command.code(), requestedLanguage, command.idempotencyKey()
             );
 
             try {
@@ -60,7 +67,7 @@ public class SubmissionCommandService {
                         attempt, MAX_SAVE_RETRY, command.userId(), command.problemId());
                 continue;
             }
-            return SubmissionCreateResult.of(submission.getId(), submission.getStatus());
+            return SubmissionCreateResult.created(submission.getId(), submission.getStatus());
         }
         throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,
                 "동시 제출 경합으로 인해 접수에 실패했습니다. 다시 시도해주세요.");
@@ -75,7 +82,7 @@ public class SubmissionCommandService {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
         }
         log.info("[Judge] 동일 Idempotency-Key 재요청 감지 — 기존 제출 반환. submissionId={}", existing.getId());
-        return SubmissionCreateResult.of(existing.getId(), existing.getStatus());
+        return SubmissionCreateResult.existing(existing.getId(), existing.getStatus());
     }
 
     private SubmissionLanguage toSubmissionLanguage(String language) {

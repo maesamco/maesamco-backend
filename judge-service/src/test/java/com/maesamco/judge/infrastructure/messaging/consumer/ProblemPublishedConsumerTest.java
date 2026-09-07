@@ -7,7 +7,7 @@ import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.maesamco.judge.application.ProblemExecutionSpecService;
+import com.maesamco.judge.application.command_service.ProblemExecutionSpecCommandService;
 import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
@@ -26,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ProblemPublishedConsumerTest {
 
     @Mock
-    private ProblemExecutionSpecService problemExecutionSpecService;
+    private ProblemExecutionSpecCommandService problemExecutionSpecCommandService;
 
     @InjectMocks
     private ProblemPublishedConsumer problemPublishedConsumer;
@@ -57,7 +57,7 @@ class ProblemPublishedConsumerTest {
         // when / then
         assertThatThrownBy(() -> problemPublishedConsumer.consume(event))
                 .isInstanceOf(UnsupportedProblemPublishedEventVersionException.class);
-        verify(problemExecutionSpecService, never()).saveIfAbsent(any());
+        verify(problemExecutionSpecCommandService, never()).saveIfAbsent(any());
     }
 
     @Test
@@ -66,11 +66,11 @@ class ProblemPublishedConsumerTest {
         // given
         ProblemPublishedEvent event = eventWithVersion(1);
         ProblemExecutionSpecSaveCommand expectedCommand = ProblemExecutionSpecSaveCommand.from(event);
-        willDoNothing().given(problemExecutionSpecService).saveIfAbsent(expectedCommand);
+        willDoNothing().given(problemExecutionSpecCommandService).saveIfAbsent(expectedCommand);
 
         // when / then
         assertThatCode(() -> problemPublishedConsumer.consume(event))
                 .doesNotThrowAnyException();
-        verify(problemExecutionSpecService).saveIfAbsent(expectedCommand);
+        verify(problemExecutionSpecCommandService).saveIfAbsent(expectedCommand);
     }
 }
