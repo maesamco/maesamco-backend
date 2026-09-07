@@ -1,10 +1,14 @@
 package com.maesamco.content.problem.application.service;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
+import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -25,7 +29,7 @@ import java.util.UUID;
 public class ProblemService {
 
     private final ProblemRepository problemRepository;
-    // private final ProblemVersionRepository problemVersionRepository;
+    private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
 
     /** 문제 생성 */
@@ -79,69 +83,71 @@ public class ProblemService {
 
         Problem problem = problemFinder.getProblem(problemId);
 
-        // TODO: 수정하기 전에 version snapshot 남기기
-        // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
-        // problemVersionRepository.save(snapshot);
+        // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
+        if (request.getStarterCode() == null) {
+            throw new BusinessException(ErrorCode.STARTER_CODE_NOT_INITIALIZED);
+        }
 
-        boolean is_modified = false;
+        // TODO: 문제 버전 저장에 대해 얕은 영향은 그대로, 깊은 영향은 kafka에서 다시 수집하고 새로운 버전으로 등록할 지 결정
+        //  [ex) startCode는 바뀌었다고 문제에 지장이 안 가서 문제 버전을 바꾸기 모호할 수 있음]
+        boolean isModified =
+                request.getTitle() != null ||
+                        request.getLanguage() != null ||
+                        request.getDifficulty() != null ||
+                        request.getType() != null ||
+                        request.getDescription() != null ||
+                        request.getStarterCode().isPresent() ||
+                        request.getRunningTimeLimit() != null ||
+                        request.getRunningMemoryLimit() != null ||
+                        request.getTimerPolicy() != null ||
+                        request.getSource() != null ||
+                        request.getProblemStatus() != null;
+
+        if (isModified) {
+            // 수정하기 전에 version snapshot 남기기
+            ProblemVersion snapshot = ProblemVersion.snapshot(problem);
+            problemVersionRepository.save(snapshot);
+        }
 
         // 수정 요청이 있는 값들만 수정
         if (request.getTitle() != null) {
             problem.changeTitle(request.getTitle());
-            is_modified = true;
         }
         if (request.getLanguage() != null) {
             problem.changeLanguage(request.getLanguage());
-            is_modified = true;
         }
         if (request.getDifficulty() != null) {
             problem.changeDifficulty(request.getDifficulty());
-            is_modified = true;
         }
         if (request.getType() != null) {
             problem.changeType(request.getType());
-            is_modified = true;
         }
         if (request.getDescription() != null) {
             problem.changeDescription(request.getDescription());
-            is_modified = true;
-        }
-
-
-        // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
-        if (request.getStarterCode() == null) {
-            throw new IllegalStateException("starterCode JsonNullable must not be null");
         }
         // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
         if (request.getStarterCode().isPresent()) {
             problem.changeStarterCode(
                     request.getStarterCode().orElse(null)
             );
-            is_modified = true;
         }
-
         if (request.getRunningTimeLimit() != null) {
             problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
-            is_modified = true;
         }
         if (request.getRunningMemoryLimit() != null) {
             problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
-            is_modified = true;
         }
         if (request.getTimerPolicy() != null) {
             problem.changeTimerPolicy(request.getTimerPolicy());
-            is_modified = true;
         }
         if (request.getSource() != null) {
             problem.changeSource(request.getSource());
-            is_modified = true;
         }
         if (request.getProblemStatus() != null) {
             problem.changeProblemStatus(request.getProblemStatus());
-            is_modified = true;
         }
 
-        if (is_modified) {
+        if (isModified) {
             problem.increaseVersion();
         }
 
