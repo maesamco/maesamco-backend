@@ -56,6 +56,10 @@ public enum ErrorCode {
     FOLLOW_UP_QUESTION_NOT_FOUND(HttpStatus.NOT_FOUND, "역질문을 찾을 수 없습니다."),
     FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다."),
     AI_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 AI 피드백이 존재합니다."),
+    // 이슈 #52 — 역질문 답변 등록(#51) 시점의 best-effort 생성이 아직 성공하지 못한 상태.
+    AI_FEEDBACK_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 생성된 피드백이 없습니다."),
+    // 이슈 #52 — 세션당 재시도 3회(최초 1회 + 재시도 3회, 총 4회) 소진.
+    AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "AI 피드백 재시도 횟수를 초과했습니다."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
     WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
 
