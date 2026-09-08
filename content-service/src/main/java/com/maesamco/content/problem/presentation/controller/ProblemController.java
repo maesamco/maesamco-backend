@@ -32,7 +32,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/problems")
+@RequestMapping("/api/v1/contents/problems")
 public class ProblemController {
 
     /** 문제 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
