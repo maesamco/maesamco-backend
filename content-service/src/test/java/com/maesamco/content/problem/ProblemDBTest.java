@@ -28,25 +28,54 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(
-        properties = {
-                "eureka.client.enabled=false",
-                "spring.cloud.discovery.enabled=false"
-        }
-)
+@SpringBootTest
 @Testcontainers
 @Transactional
 class ProblemDBTest {
 
     @Container
     @ServiceConnection
-    static final PostgreSQLContainer POSTGRES =
+    static PostgreSQLContainer postgres =
             new PostgreSQLContainer("postgres:17-alpine")
                     .withDatabaseName("content_test")
                     .withUsername("test")
                     .withPassword("test");
+
+    // JWT 임시키 생성
+    private static final KeyPair KEY_PAIR = generateKeyPair();
+
+    @DynamicPropertySource
+    static void properties(DynamicPropertyRegistry registry) {
+        registry.add(
+                "jwt.public-key",
+                () -> Base64.getEncoder()
+                        .encodeToString(KEY_PAIR.getPublic().getEncoded())
+        );
+    }
+
+    private static KeyPair generateKeyPair() {
+        try {
+            KeyPairGenerator generator =
+                    KeyPairGenerator.getInstance("RSA");
+
+            generator.initialize(2048);
+
+            return generator.generateKeyPair();
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     @Autowired
     private ProblemService problemService;
