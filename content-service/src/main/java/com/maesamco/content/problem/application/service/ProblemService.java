@@ -43,12 +43,12 @@ public class ProblemService {
                 request.getRunningMemoryLimit().getMegabytes(),
                 request.getTimerPolicy(),
                 request.getSource(),
-                request.getProblemStatus(),
+                ProblemStatus.DRAFT,
                 1
         );
 
         // TODO: 현재의 로직은 관리자가 생성한 문제는 검증을 거치지 않고 발행된다. 나중에 따로 흐름을 추가할 수도 있다.
-        problem.changeProblemStatus(ProblemStatus.PUBLISHED);
+        problem.changeProblemStatus(ProblemStatus.REVIEW_PENDING);
 
         Problem savedProblem = problemRepository.save(problem);
 
@@ -136,11 +136,6 @@ public class ProblemService {
             problem.changeSource(request.getSource());
             is_modified = true;
         }
-        if (request.getProblemStatus() != null) {
-            problem.changeProblemStatus(request.getProblemStatus());
-            is_modified = true;
-        }
-
         if (is_modified) {
             problem.increaseVersion();
         }
