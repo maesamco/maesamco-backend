@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
+import com.maesamco.user.application.service.LogoutService;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -64,6 +65,9 @@ class AuthApiControllerRefreshTest {
     @Mock
     private RefreshService refreshService;
 
+    @Mock
+    private LogoutService logoutService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -78,6 +82,7 @@ class AuthApiControllerRefreshTest {
                         signUpService,
                         loginService,
                         refreshService,
+                        logoutService,
                         clock
                 );
 
