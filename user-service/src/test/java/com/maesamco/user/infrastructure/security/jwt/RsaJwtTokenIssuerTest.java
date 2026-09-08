@@ -22,7 +22,6 @@ import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
 
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -157,6 +156,99 @@ class RsaJwtTokenIssuerTest {
         assertThat(tokens.refreshTokenExpiresAt())
                 .isEqualTo(
                         ISSUED_AT.plus(REFRESH_TOKEN_TTL)
+                );
+    }
+
+    @Test
+    @DisplayName("Refresh Rotation 시 기존 세션의 절대 만료 시각을 유지한다")
+    void issueRotatedTokens_preservesAbsoluteRefreshExpiration() {
+        // given
+        Instant absoluteRefreshExpiresAt =
+                ISSUED_AT.plus(Duration.ofDays(3));
+
+        // when
+        IssuedTokens tokens = tokenIssuer.issueRotatedTokens(
+                USER_ID,
+                UserRole.USER,
+                SESSION_ID,
+                absoluteRefreshExpiresAt
+        );
+
+        // then
+        Claims accessClaims =
+                parseClaims(
+                        tokens.accessToken(),
+                        ACCESS_KEY_PAIR.getPublic()
+                );
+
+        Claims refreshClaims =
+                parseClaims(
+                        tokens.refreshToken(),
+                        REFRESH_KEY_PAIR.getPublic()
+                );
+
+        assertThat(accessClaims.getIssuedAt().toInstant())
+                .isEqualTo(ISSUED_AT);
+
+        assertThat(accessClaims.getExpiration().toInstant())
+                .isEqualTo(
+                        ISSUED_AT.plus(ACCESS_TOKEN_TTL)
+                );
+
+        assertThat(refreshClaims.getIssuedAt().toInstant())
+                .isEqualTo(ISSUED_AT);
+
+        assertThat(refreshClaims.getExpiration().toInstant())
+                .isEqualTo(absoluteRefreshExpiresAt);
+
+        assertThat(refreshClaims.get("sessionId", String.class))
+                .isEqualTo(SESSION_ID.toString());
+
+        assertThat(tokens.accessTokenExpiresAt())
+                .isEqualTo(
+                        ISSUED_AT.plus(ACCESS_TOKEN_TTL)
+                );
+
+        assertThat(tokens.refreshTokenExpiresAt())
+                .isEqualTo(absoluteRefreshExpiresAt);
+    }
+
+    @Test
+    @DisplayName("이미 만료된 절대 만료 시각으로 Refresh Rotation을 시도하면 거부한다")
+    void issueRotatedTokens_rejectsExpiredAbsoluteExpiration() {
+        // given
+        Instant expiredAt =
+                ISSUED_AT.minusSeconds(1);
+
+        // when & then
+        assertThatThrownBy(() ->
+                tokenIssuer.issueRotatedTokens(
+                        USER_ID,
+                        UserRole.USER,
+                        SESSION_ID,
+                        expiredAt
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Refresh Token 만료 시각은 현재 시각보다 이후여야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("Refresh Rotation의 절대 만료 시각이 없으면 거부한다")
+    void issueRotatedTokens_rejectsNullExpiration() {
+        assertThatThrownBy(() ->
+                tokenIssuer.issueRotatedTokens(
+                        USER_ID,
+                        UserRole.USER,
+                        SESSION_ID,
+                        null
+                )
+        )
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage(
+                        "Refresh Token 만료 시각은 필수입니다."
                 );
     }
 

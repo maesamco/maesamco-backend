@@ -16,6 +16,8 @@ import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserGamificationStateRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.infrastructure.persistence.UserGamificationStateRepositoryImpl;
 import com.maesamco.user.infrastructure.persistence.UserRepositoryImpl;
 import org.junit.jupiter.api.DisplayName;
@@ -43,19 +45,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 회원가입 애플리케이션 서비스의 실제 PostgreSQL 트랜잭션을 검증합니다.
+ * 회원가입 애플리케이션 서비스의 실제 PostgreSQL 연동을 검증합니다.
  *
- * <p>User와 UserGamificationState가 같은 트랜잭션에서 생성되는지 확인하고,
- * 회원가입 처리 중 후속 단계에서 예외가 발생하면 두 데이터가 모두
- * 롤백되는지 검증합니다.</p>
+ * <p>User와 UserGamificationState가 같은 DB 트랜잭션에서 생성되는지 확인하고,
+ * DB 저장 완료 후 JWT 발급과 Redis 인증 세션 저장까지
+ * 회원가입 전체 흐름이 정상적으로 이어지는지 검증합니다.</p>
  *
  * <p>Redis 저장소 자체의 동작은 별도 통합 테스트에서 검증하므로
- * 이 테스트에서는 AuthSessionStore를 Mock으로 사용하여
- * DB 트랜잭션 경계와 보상 처리를 집중적으로 검증합니다.</p>
+ * 이 테스트에서는 AuthSessionStore를 Mock으로 사용합니다.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(
@@ -65,6 +67,7 @@ import static org.mockito.Mockito.when;
         JpaAuditingConfig.class,
         UserRepositoryImpl.class,
         UserGamificationStateRepositoryImpl.class,
+        SignUpPersistenceService.class,
         SignUpService.class
 })
 @Sql(
@@ -272,17 +275,17 @@ class SignUpServiceIntegrationTest {
 
     @Test
     @DisplayName(
-            "인증 세션 저장 중 실패하면 User와 "
-                    + "게이미피케이션 상태를 모두 롤백한다"
+            "인증 세션 저장에 실패해도 User와 "
+                    + "게이미피케이션 상태는 유지한다"
     )
-    void signUp_rollsBackDatabaseWhenAuthSessionSaveFails() {
+    void signUp_keepsDatabaseWhenAuthSessionSaveFails() {
         // given
         String emailLookupHash =
                 "b".repeat(64);
 
         SignUpCommand command =
                 createCommand(
-                        "RollbackUser"
+                        "PersistedUser"
                 );
 
         stubSuccessfulDependencies(
@@ -304,10 +307,15 @@ class SignUpServiceIntegrationTest {
                 () -> signUpService.signUp(command)
         )
                 .isInstanceOf(
-                        IllegalStateException.class
+                        BusinessException.class
                 )
-                .hasMessage(
-                        "Redis 인증 세션 저장 실패"
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.SIGNUP_AUTO_LOGIN_FAILED
                 );
 
         var authSessionCaptor =
@@ -326,16 +334,35 @@ class SignUpServiceIntegrationTest {
         UUID userId =
                 attemptedSession.userId();
 
-        assertThat(
-                userRepository.findById(userId)
-        ).isEmpty();
+        /*
+         * Redis 저장 시점에는 SignUpPersistenceService의
+         * DB 트랜잭션이 이미 커밋된 상태이므로
+         * User와 GamificationState는 유지되어야 합니다.
+         */
+        User savedUser =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow();
 
-        assertThat(
+        assertThat(savedUser.getEmailLookupHash())
+                .isEqualTo(emailLookupHash);
+
+        assertThat(savedUser.getNickname())
+                .isEqualTo("PersistedUser");
+
+        UserGamificationState gamificationState =
                 gamificationStateRepository
                         .findByUserId(userId)
-        ).isEmpty();
+                        .orElseThrow();
 
-        verify(authSessionStore)
+        assertThat(gamificationState.getUserId())
+                .isEqualTo(userId);
+
+        /*
+         * 기존 TransactionSynchronization 기반
+         * Redis 보상 삭제 로직은 더 이상 사용하지 않습니다.
+         */
+        verify(authSessionStore, never())
                 .deleteBySessionId(
                         attemptedSession.sessionId()
                 );
@@ -357,7 +384,7 @@ class SignUpServiceIntegrationTest {
     }
 
     /**
-     * 회원가입 트랜잭션 검증에 필요한 외부 의존성의
+     * 회원가입 통합 테스트에 필요한 외부 의존성의
      * 정상 동작을 구성합니다.
      */
     private void stubSuccessfulDependencies(
