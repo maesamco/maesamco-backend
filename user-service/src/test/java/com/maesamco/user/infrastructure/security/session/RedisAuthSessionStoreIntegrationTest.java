@@ -129,9 +129,6 @@ class RedisAuthSessionStoreIntegrationTest {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    /**
-     * Testcontainers Redis 접속 정보를 Spring에 등록합니다.
-     */
     @DynamicPropertySource
     static void configureRedis(
             DynamicPropertyRegistry registry
@@ -140,6 +137,7 @@ class RedisAuthSessionStoreIntegrationTest {
                 "spring.data.redis.host",
                 REDIS::getHost
         );
+
         registry.add(
                 "spring.data.redis.port",
                 () -> REDIS.getMappedPort(REDIS_PORT)
@@ -452,7 +450,7 @@ class RedisAuthSessionStoreIntegrationTest {
     @Test
     @DisplayName(
             "로그아웃하면 실제 Redis 인증 세션을 삭제하고 "
-                    + "세션 블랙리스트를 등록한다"
+                    + "세션 만료 시각까지 블랙리스트를 유지한다"
     )
     void logout_deletesSessionAndCreatesBlacklist() {
         // given
@@ -497,10 +495,13 @@ class RedisAuthSessionStoreIntegrationTest {
                         TimeUnit.MILLISECONDS
                 );
 
+        long expectedSessionTtlMillis =
+                SESSION_TTL.toMillis();
+
         assertThat(blacklistTtl)
                 .isBetween(
-                        895_000L,
-                        900_000L
+                        expectedSessionTtlMillis - 5_000L,
+                        expectedSessionTtlMillis
                 );
     }
 
@@ -638,9 +639,6 @@ class RedisAuthSessionStoreIntegrationTest {
         ).isFalse();
     }
 
-    /**
-     * 통합 테스트에 사용할 인증 세션을 생성합니다.
-     */
     private AuthSession createSession() {
         return new AuthSession(
                 SESSION_ID,
@@ -652,9 +650,6 @@ class RedisAuthSessionStoreIntegrationTest {
         );
     }
 
-    /**
-     * 동일 사용자의 두 번째 인증 세션을 생성합니다.
-     */
     private AuthSession createSecondSession() {
         return new AuthSession(
                 SECOND_SESSION_ID,
@@ -666,9 +661,6 @@ class RedisAuthSessionStoreIntegrationTest {
         );
     }
 
-    /**
-     * 통합 테스트에서 사용할 고정 시계와 JSON Mapper를 구성합니다.
-     */
     @TestConfiguration(proxyBeanMethods = false)
     static class TestConfig {
 
@@ -700,7 +692,7 @@ class RedisAuthSessionStoreIntegrationTest {
         );
 
         Duration existingBlacklistTtl =
-                Duration.ofSeconds(1800);
+                Duration.ofDays(30);
 
         redisTemplate.opsForValue().set(
                 SESSION_BLACKLIST_KEY,
@@ -735,7 +727,10 @@ class RedisAuthSessionStoreIntegrationTest {
                 );
 
         assertThat(ttlBeforeLogout)
-                .isPositive();
+                .isBetween(
+                        existingBlacklistTtl.toMillis() - 5_000L,
+                        existingBlacklistTtl.toMillis()
+                );
 
         assertThat(ttlAfterLogout)
                 .isPositive();
@@ -745,7 +740,7 @@ class RedisAuthSessionStoreIntegrationTest {
 
         assertThat(ttlAfterLogout)
                 .isGreaterThan(
-                        1_700_000L
+                        ttlBeforeLogout - 5_000L
                 );
 
         assertThat(
