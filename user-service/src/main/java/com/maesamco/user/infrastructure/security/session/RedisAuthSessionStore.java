@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
-
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -26,7 +25,7 @@ import java.util.UUID;
  * <p>Refresh Token Rotation은 Lua Script를 사용해 현재 Refresh Token hash 확인,
  * 새로운 hash로의 교체, 동시 요청 완화 및 재사용 감지를 하나의 원자 연산으로
  * 수행합니다.</p>
- * */
+ */
 @Repository
 public class RedisAuthSessionStore implements AuthSessionStore {
 
