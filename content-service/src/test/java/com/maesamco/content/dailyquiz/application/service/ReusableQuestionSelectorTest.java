@@ -1,5 +1,6 @@
 package com.maesamco.content.dailyquiz.application.service;
 
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -20,7 +21,7 @@ class ReusableQuestionSelectorTest {
         DailyQuizQuestion firstQuestion = question(1, "반복문");
         DailyQuizQuestion secondQuestion = question(2, "반복문");
 
-        QuestionSelection result = selector.select(
+        DailyQuizQuestionSelectionResult result = selector.select(
                 List.of("반복문", "반복문"),
                 List.of(firstQuestion, secondQuestion)
         );
@@ -36,7 +37,7 @@ class ReusableQuestionSelectorTest {
         DailyQuizQuestion multipleConceptQuestion = question(1, "반복문", "조건문");
         DailyQuizQuestion loopQuestion = question(2, "반복문");
 
-        QuestionSelection result = selector.select(
+        DailyQuizQuestionSelectionResult result = selector.select(
                 List.of("반복문", "조건문"),
                 List.of(multipleConceptQuestion, loopQuestion)
         );
@@ -51,7 +52,7 @@ class ReusableQuestionSelectorTest {
     void 하나의_문항을_여러_슬롯에_중복_배정하지_않는다() {
         DailyQuizQuestion multipleConceptQuestion = question(1, "반복문", "조건문");
 
-        QuestionSelection result = selector.select(
+        DailyQuizQuestionSelectionResult result = selector.select(
                 List.of("반복문", "조건문"),
                 List.of(multipleConceptQuestion)
         );

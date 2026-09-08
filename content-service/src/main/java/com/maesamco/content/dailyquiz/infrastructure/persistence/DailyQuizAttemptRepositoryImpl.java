@@ -5,6 +5,9 @@ import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptReposito
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.util.UUID;
+
 @Repository
 @RequiredArgsConstructor
 public class DailyQuizAttemptRepositoryImpl implements DailyQuizAttemptRepository {
@@ -14,5 +17,10 @@ public class DailyQuizAttemptRepositoryImpl implements DailyQuizAttemptRepositor
     @Override
     public DailyQuizAttempt save(DailyQuizAttempt attempt) {
         return springDataRepository.save(attempt);
+    }
+
+    @Override
+    public boolean existsByUserIdAndAttemptDate(UUID userId, LocalDate attemptDate) {
+        return springDataRepository.existsByUserIdAndAttemptDate(userId, attemptDate);
     }
 }
