@@ -179,6 +179,56 @@ class FeedbackGenerationFacadeTest {
         verify(aiCallHistoryRepository).save(argThat(h -> "FAILED".equals(h.getRequestStatus())));
     }
 
+    /**
+     * 재검증(PR #111, 외부 AI 리뷰) — 서킷브레이커가 열려서 실제 LLM 호출 자체가 없었던
+     * 경우(circuitOpen=true)는 "FAILED"가 아니라 "SKIPPED"로 남겨야
+     * AiFeedbackRetryFacade의 재시도 카운트에서 제외된다. 힌트/역질문 생성 쪽 장애로 서킷이
+     * 열렸을 때, 이 사용자의 피드백 재시도 예산이 실제 시도 없이 소모되는 걸 막기 위함.
+     */
+    @Test
+    void 서킷브레이커가_열려서_호출이_차단되면_FAILED_대신_SKIPPED_이력을_남긴다() {
+        stubSubmission();
+        when(aiModelPort.generate(any(), any()))
+                .thenThrow(new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", new RuntimeException(), true));
+
+        assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
+                .doesNotThrowAnyException();
+
+        verifyNoInteractions(feedbackPersistenceService);
+        verify(aiCallHistoryRepository).save(argThat(h -> "SKIPPED".equals(h.getRequestStatus())));
+    }
+
+    /**
+     * 용현님 리뷰(P1) — session.getSubmissionId()가 재도전으로 갈아탄 뒤에도,
+     * explanation.getSubmissionId()(원래 설명이 달렸던 제출)로 조회해야 한다. 이 테스트는
+     * 세션의 submissionId와 explanation의 submissionId를 의도적으로 다르게 둬서, 실제로
+     * explanation 쪽 값으로 조회하는지 확인한다.
+     */
+    @Test
+    void 세션의_최신_submissionId가_아니라_explanation의_submissionId로_제출을_조회한다() {
+        UUID staleExplanationSubmissionId = submissionId;
+        UUID latestSessionSubmissionId = UUID.randomUUID();
+
+        CoachingSession sessionWithNewerSubmission =
+                CoachingSession.create(latestSessionSubmissionId, userId, problemId, 1);
+        ReflectionTestUtils.setField(sessionWithNewerSubmission, "id", session.getId());
+        sessionWithNewerSubmission.complete();
+
+        when(judgeServicePort.getSubmission(staleExplanationSubmissionId)).thenReturn(
+                new SubmissionSnapshot(staleExplanationSubmissionId, userId, problemId, "public class Main {}", "CORRECT", List.of(), 1)
+        );
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
+                "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
+                        + "\"weakConcepts\":[],\"syntaxToImprove\":null,\"recommendedProblems\":null,\"nextDirection\":null}",
+                "claude-sonnet-5", 5
+        ));
+
+        facade.generateFeedback(sessionWithNewerSubmission, explanation, followUpQuestion, followUpAnswer);
+
+        verify(judgeServicePort).getSubmission(staleExplanationSubmissionId);
+        verify(judgeServicePort, never()).getSubmission(latestSessionSubmissionId);
+    }
+
     @Test
     void AI가_빈_응답을_반환해도_예외_없이_종료한다() {
         stubSubmission();
