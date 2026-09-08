@@ -8,7 +8,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -60,10 +59,21 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
      */
     private static final int SUBMISSIONS_PER_MINUTE_DEFAULT = 30;
 
+    /**
+     * ⚠️ Gateway 앞에 신뢰 가능한 리버스 프록시/로드밸런서가 있을 때만, 그 프록시의
+     * IP로 들어온 요청에 한해 Forwarded 헤더를 신뢰한다. 기본값은 빈 목록 —
+     * 지금처럼 프록시가 없는 로컬/현재 배포 상태에선 아무도 신뢰되지 않아
+     * 항상 remoteAddress만 쓰는 것과 동일하게 동작한다(안전한 기본값).
+     * 실제로 프록시를 앞에 두게 되면 코드 수정 없이 이 프로퍼티 값만 채우면 된다.
+     */
+    private final List<String> trustedProxyIps;
+
     public RateLimitFilter(
             ReactiveRedisTemplate<String, Long> redisTemplate,
-            @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute) {
+            @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute,
+            @Value("${rate-limit.trusted-proxy-ips:}") List<String> trustedProxyIps) {
         this.redisTemplate = redisTemplate;
+        this.trustedProxyIps = trustedProxyIps;
         if (submissionsPerMinute != SUBMISSIONS_PER_MINUTE_DEFAULT) {
             log.warn("RATE_LIMIT_SUBMISSIONS_PER_MIN이 기본값({})과 다릅니다. 현재 값: {}회/분. "
                             + "JMeter 부하 테스트용으로 임시로 올린 것이라면 테스트 후 반드시 되돌리세요.",
@@ -123,13 +133,29 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 });
     }
 
-    /** 로그인 전이라 사용자 식별이 안 되는 구간이 많으므로 IP를 우선 식별자로 쓴다. */
+    /**
+     * ⚠️ 클라이언트가 보내는 Forwarded 헤더는 원칙적으로 신뢰하지 않는다 — 검증 없이
+     * 신뢰하면 매 요청마다 이 헤더 값을 무작위로 바꿔서 Redis 키 자체를 매번 새로
+     * 만들 수 있고, 그러면 count > limit 조건이 영원히 성립하지 않아 Rate Limit
+     * 전체가 완전히 무력화된다(단순 사칭보다 심각한 완전 우회 — 이슈 #96 논의 중 발견).
+     *
+     * 예외적으로, 이 요청이 trustedProxyIps에 등록된 신뢰 가능한 리버스 프록시로부터
+     * 직접 온 경우(remoteAddress가 그 목록에 있는 경우)에만 그 프록시가 실어준
+     * Forwarded 헤더를 신뢰한다 — 그 외 모든 경우엔 TCP 연결의 실제 소스 IP만 쓴다.
+     * trustedProxyIps가 비어있으면(기본값) 이 조건은 절대 참이 될 수 없어 항상
+     * remoteAddress만 쓰는 것과 동일하게 동작한다.
+     */
     private String resolveIdentifier(ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst("Forwarded");
-        if (forwardedFor != null) {
-            return forwardedFor;
+        String remoteIp = Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        if (trustedProxyIps.contains(remoteIp)) {
+            String forwardedFor = request.getHeaders().getFirst("Forwarded");
+            if (forwardedFor != null && !forwardedFor.isBlank()) {
+                return forwardedFor;
+            }
         }
-        return Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        return remoteIp;
     }
 
     private Mono<Void> onRateLimited(ServerWebExchange exchange) {

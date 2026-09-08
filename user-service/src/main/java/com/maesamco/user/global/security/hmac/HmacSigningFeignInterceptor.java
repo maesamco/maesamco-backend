@@ -4,6 +4,8 @@ import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import org.springframework.beans.factory.annotation.Value;
 
+import java.util.UUID;
+
 /**
  * /internal/v1/** 를 호출하는 모든 Feign Client에 등록한다.
  * 이 서비스가 "발신자"일 때, 상대(수신) 서비스와 공유하는 키로 서명한다.
@@ -19,7 +21,7 @@ public class HmacSigningFeignInterceptor implements RequestInterceptor {
     private final String secretKeyForTarget;
 
     public HmacSigningFeignInterceptor(@Value("${spring.application.name}") String serviceName,
-                                        String secretKeyForTarget) {
+                                       String secretKeyForTarget) {
         this.serviceName = serviceName;
         this.secretKeyForTarget = secretKeyForTarget;
     }
@@ -27,10 +29,26 @@ public class HmacSigningFeignInterceptor implements RequestInterceptor {
     @Override
     public void apply(RequestTemplate template) {
         long timestamp = System.currentTimeMillis();
-        String signature = HmacSignatureUtil.sign(serviceName, timestamp, secretKeyForTarget);
+        String nonce = UUID.randomUUID().toString();
+        String method = template.method();
+        String path = stripQuery(template.url());
+        String bodyHash = HmacSignatureUtil.hashBody(template.body());
+
+        String signature = HmacSignatureUtil.sign(
+                serviceName, method, path, bodyHash, nonce, timestamp, secretKeyForTarget);
 
         template.header(InternalCallHeaders.SERVICE, serviceName);
         template.header(InternalCallHeaders.TIMESTAMP, String.valueOf(timestamp));
+        template.header(InternalCallHeaders.NONCE, nonce);
         template.header(InternalCallHeaders.SIGNATURE, signature);
+    }
+
+    /**
+     * RequestTemplate.url()은 쿼리스트링까지 포함할 수 있어, 검증 측(서버가 보는
+     * request.getRequestURI())과 동일한 기준으로 맞추기 위해 쿼리스트링은 서명 대상에서 제외한다.
+     */
+    private String stripQuery(String url) {
+        int idx = url.indexOf('?');
+        return idx == -1 ? url : url.substring(0, idx);
     }
 }

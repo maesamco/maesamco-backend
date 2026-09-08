@@ -44,6 +44,20 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
             "/actuator/"
     );
 
+    /**
+     * ⚠️ 문서 경로는 반드시 "정확히 일치"로만 검사한다 — 예전에 path.contains("/v3/api-docs")
+     * 로 되어 있었을 때, "/api/v1/coaching/아무거나/v3/api-docs"처럼 실제 업무 라우팅
+     * (Path=/api/v1/coaching/**)에도 걸리는 경로를 만들면 JWT 인증 자체를 건너뛰면서도
+     * 정상적으로 coaching-service까지 전달될 수 있었다(리뷰로 발견). 문서 경로는 개수가
+     * 고정되어 있으니 패턴 매칭 없이 정확한 값 목록으로만 비교한다.
+     */
+    private static final List<String> DOCS_WHITELIST = List.of(
+            "/user-service/v3/api-docs",
+            "/content-service/v3/api-docs",
+            "/judge-service/v3/api-docs",
+            "/coaching-service/v3/api-docs"
+    );
+
     private static final String RESERVED_HEADER_PREFIX = "X-Internal-";
 
     private final PublicKey jwtPublicKey;
@@ -125,7 +139,7 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isWhitelisted(String path) {
-        if (path.startsWith("/swagger-ui") || path.contains("/v3/api-docs")) {
+        if (path.startsWith("/swagger-ui") || DOCS_WHITELIST.contains(path)) {
             return true;
         }
         return WHITELIST.stream().anyMatch(path::startsWith);

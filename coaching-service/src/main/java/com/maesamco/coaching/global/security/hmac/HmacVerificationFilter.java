@@ -6,9 +6,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
+import java.time.Duration;
 
 /**
  * /internal/v1/** 전용 필터. API Gateway가 이 경로를 외부 라우팅 대상에서
@@ -18,23 +22,31 @@ import java.io.IOException;
  * 이 필터는 /internal/v1/** 경로에만 등록할 것 (SecurityConfig의 필터 체인과
  * 별도로, WebMvcConfigurer의 인터셉터 또는 별도 FilterRegistrationBean으로
  * urlPatterns="/internal/v1/*" 지정 권장).
+ *
+ * ⚠️ 예전엔 서명 대상이 "serviceName:timestamp"뿐이라, 유효한 서명 헤더 하나만
+ * 손에 넣으면 완전히 다른 경로/메서드/바디로 바꿔치기해도 통과했다(리뷰로 발견).
+ * method+path+bodyHash를 서명 검증에 포함시키고, nonce 재사용 여부를 Redis로
+ * 확인해 재전송(같은 요청 반복)까지 막는다.
  */
 @Slf4j
 @RequiredArgsConstructor
 public class HmacVerificationFilter extends OncePerRequestFilter {
 
     private static final long ALLOWED_CLOCK_SKEW_MILLIS = 300_000L; // 300초
+    private static final Duration NONCE_TTL = Duration.ofMillis(ALLOWED_CLOCK_SKEW_MILLIS * 2);
 
     private final InternalServiceKeyProperties keyProperties;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                     FilterChain filterChain) throws ServletException, IOException {
+                                    FilterChain filterChain) throws ServletException, IOException {
         String callerService = request.getHeader(InternalCallHeaders.SERVICE);
         String timestampHeader = request.getHeader(InternalCallHeaders.TIMESTAMP);
+        String nonce = request.getHeader(InternalCallHeaders.NONCE);
         String signature = request.getHeader(InternalCallHeaders.SIGNATURE);
 
-        if (isBlank(callerService) || isBlank(timestampHeader) || isBlank(signature)) {
+        if (isBlank(callerService) || isBlank(timestampHeader) || isBlank(nonce) || isBlank(signature)) {
             reject(response, HttpServletResponse.SC_UNAUTHORIZED, "내부 호출 서명 헤더 누락");
             return;
         }
@@ -62,14 +74,34 @@ public class HmacVerificationFilter extends OncePerRequestFilter {
             return;
         }
 
-        boolean valid = HmacSignatureUtil.verify(callerService, timestamp, expectedKey, signature);
+        // 바디를 여러 번 읽을 수 있게 감싼다 — 여기서 해시를 위해 먼저 읽고,
+        // 이후 필터 체인/컨트롤러는 이 래퍼를 통해 다시 읽는다.
+        ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request, 1024 * 1024); // 내부 API 바디는 보통 작은 JSON이라 1MB로 충분(초과분은 잘림)
+        byte[] body = StreamUtils.copyToByteArray(wrappedRequest.getInputStream());
+        String bodyHash = HmacSignatureUtil.hashBody(body);
+
+        String method = request.getMethod();
+        String path = request.getRequestURI();
+
+        boolean valid = HmacSignatureUtil.verify(
+                callerService, method, path, bodyHash, nonce, timestamp, expectedKey, signature);
         if (!valid) {
             log.warn("내부 호출 서명 불일치: caller={}", callerService);
             reject(response, HttpServletResponse.SC_UNAUTHORIZED, "서명이 유효하지 않음");
             return;
         }
 
-        filterChain.doFilter(request, response);
+        // 서명 검증을 통과한 뒤에만 nonce 재사용 여부를 확인한다 — 유효하지도 않은
+        // 서명으로 nonce 저장소를 채워 정상 요청을 막는(DoS성) 상황을 방지하기 위함.
+        String nonceKey = "hmac-nonce:" + callerService + ":" + nonce;
+        Boolean firstUse = redisTemplate.opsForValue().setIfAbsent(nonceKey, "1", NONCE_TTL);
+        if (Boolean.FALSE.equals(firstUse)) {
+            log.warn("내부 호출 재전송 의심(nonce 재사용): caller={}, nonce={}", callerService, nonce);
+            reject(response, HttpServletResponse.SC_UNAUTHORIZED, "이미 사용된 요청(재전송 의심)");
+            return;
+        }
+
+        filterChain.doFilter(wrappedRequest, response);
     }
 
     private boolean isBlank(String value) {
