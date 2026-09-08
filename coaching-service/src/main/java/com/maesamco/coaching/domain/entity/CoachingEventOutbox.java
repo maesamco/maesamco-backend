@@ -32,10 +32,8 @@ import java.util.UUID;
  * 이 Outbox는 `CoachingCompleted` 전용이 아니라 `CoachingSession` 애그리거트에 대한 발행
  * 대기함이다 — 나중에 다른 코칭 이벤트가 생기면 같은 테이블에 event_type만 늘려서 쓴다.
  *
- * 이슈 #51은 이 엔티티를 만들고 저장하는 것까지만 담당한다(완료 처리와 같은 트랜잭션).
- * 실제로 폴링해서 Kafka에 발행하는 Relay Worker는 이슈 #89에서 별도로 구현한다 —
- * `markPublished()`/`incrementAttemptCount()`는 그때 Relay가 쓸 메서드를 미리 정의해둔
- * 것뿐, 지금은 어디서도 호출되지 않는다.
+ * 이슈 #51이 이 엔티티를 만들고 저장하는 것(완료 처리와 같은 트랜잭션)을 담당했고,
+ * `CoachingEventRelayFacade`(이슈 #89)가 폴링해서 실제로 Kafka에 발행한다.
  *
  * payload는 AiFeedback과 동일한 이유로 JsonNode + `@JdbcTypeCode(SqlTypes.JSON)`을 쓴다
  * (Judge Service는 String + columnDefinition="jsonb"를 쓰지만, coaching-service에선 이미
@@ -106,14 +104,20 @@ public class CoachingEventOutbox {
         return payload.deepCopy();
     }
 
-    /** #89에서 Relay Worker가 Kafka 발행 시도(성공/실패 무관)마다 호출 — 재시도 상한 판단용. */
+    /** Relay Worker가 Kafka 발행 시도(성공/실패 무관)마다 호출 — 재시도 상한 판단용. */
     public void incrementAttemptCount() {
         this.attemptCount = Math.addExact(this.attemptCount, 1);
     }
 
-    /** #89에서 Relay Worker가 Kafka 발행에 성공했을 때 호출. */
+    /** Relay Worker가 Kafka 발행에 성공했을 때 호출. */
     public void markPublished() {
         this.status = OutboxStatus.COMPLETED;
+        this.processedAt = Instant.now();
+    }
+
+    /** Relay Worker가 재시도 상한까지 발행에 실패했을 때 호출 — 더 이상 재시도하지 않는다. */
+    public void markFailed() {
+        this.status = OutboxStatus.FAILED;
         this.processedAt = Instant.now();
     }
 }
