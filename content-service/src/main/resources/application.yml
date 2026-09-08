@@ -52,6 +52,16 @@ internal:
     outbound:
       user-service: ${HMAC_KEY_CONTENT_TO_USER}
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service: # UserFeignAdapter.getInterestConceptIds() — Daily Quiz 콜드스타트 조회
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+
 eureka:
   client:
     service-url:
