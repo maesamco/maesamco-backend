@@ -43,7 +43,9 @@ public enum ErrorCode {
     /** 요청한 문제를 찾을 수 없는 경우입니다. */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
 
-    STARTER_CODE_NOT_INITIALIZED(HttpStatus.BAD_REQUEST, "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다.");
+    STARTER_CODE_NOT_INITIALIZED(HttpStatus.BAD_REQUEST, "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."),
+
+    INVALID_PROBLEM_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "허용되지 않은 문제 상태 변경입니다.");
 
     private final HttpStatus status;
     private final String message;

@@ -1,6 +1,8 @@
 package com.maesamco.content.problem.domain.entity;
 
 import com.maesamco.content.global.common.BaseEntity;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
@@ -106,7 +108,17 @@ public class Problem extends BaseEntity {
     public void changeRunningMemoryLimit(Integer newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
     public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
     public void changeSource(ProblemSource newSource) { this.source = newSource; }
-    public void changeProblemStatus(ProblemStatus newProblemStatus) { this.problemStatus = newProblemStatus; }
+
+    // problem status는 DDD 적용
+    public void approvePublication() {
+
+        if (this.problemStatus != ProblemStatus.REVIEW_PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
+        }
+
+        this.problemStatus = ProblemStatus.PUBLISHED;
+    }
+
 
     public void increaseVersion() { this.currentVersionNo++; }
 }
