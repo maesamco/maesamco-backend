@@ -32,7 +32,7 @@ public class SubmissionEventRelayFacade {
     private final SubmissionEventOutboxPersistenceService submissionEventOutboxPersistenceService;
     private final EventPublisherPort eventPublisherPort;
 
-    @Value("${spring.kafka.topic.judge-requested:judge-requested}")
+    @Value("${spring.kafka.topic.judge-requested}")
     private String judgeRequestedTopic;
 
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
