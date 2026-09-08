@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -166,5 +167,44 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
                 .isInstanceOfSatisfying(BusinessException.class, e ->
                         assertThat(e.getErrorCode()).isEqualTo(ErrorCode.WEAK_CONCEPT_ALREADY_EXISTS)
                 );
+    }
+
+    @Test
+    @DisplayName("이슈 #54 — 개선 안 된 것 우선, 그다음 발견 횟수 높은 순으로 정렬해 조회한다")
+    void findByUserIdOrderByImprovedAscOccurrenceCountDesc_ordersByPriority() {
+        // given — 코칭 서비스 API 명세 7번 API 우선순위: improved=false 우선, 그다음 occurrenceCount desc
+        UUID userId = UUID.randomUUID();
+
+        WeakConcept improved = weakConceptRepository.save(WeakConcept.create(userId, "예외 처리"));
+        improved.markImproved();
+        weakConceptRepository.save(improved);
+
+        WeakConcept lowCount = weakConceptRepository.save(WeakConcept.create(userId, "재귀"));
+
+        WeakConcept highCount = weakConceptRepository.save(WeakConcept.create(userId, "경계값 처리"));
+        highCount.recordOccurrence();
+        highCount.recordOccurrence();
+        weakConceptRepository.save(highCount);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        List<WeakConcept> found = weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDesc(userId);
+
+        // then
+        assertThat(found).extracting(WeakConcept::getConceptTag)
+                .containsExactly("경계값 처리", "재귀", "예외 처리");
+    }
+
+    @Test
+    @DisplayName("취약 개념이 없는 사용자를 조회하면 빈 목록을 반환한다")
+    void findByUserIdOrderByImprovedAscOccurrenceCountDesc_returnsEmpty_whenNoWeakConcepts() {
+        // when
+        List<WeakConcept> found =
+                weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDesc(UUID.randomUUID());
+
+        // then
+        assertThat(found).isEmpty();
     }
 }

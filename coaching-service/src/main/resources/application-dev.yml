@@ -8,3 +8,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+  # /internal/v1/** 는 다른 서비스 전용(HMAC 서명 인증)이라 사용자 클라이언트 대상
+  # Swagger 문서에 노출하지 않는다(팀 컨벤션 19절 — /internal/v1/ 컨트롤러는 Swagger
+  # 노출 대상이 아님). 이슈 #54가 이 서비스 최초의 /internal/v1/** 컨트롤러를 추가하면서
+  # 처음 필요해진 설정이다.
+  paths-to-exclude: /internal/v1/**
