@@ -56,8 +56,4 @@ public class ProblemCreateRequest {
     /** 문제 출처 */
     @NotNull
     private ProblemSource source;
-
-    /** 문제 상태 */
-    @NotNull
-    private ProblemStatus problemStatus;
 }
