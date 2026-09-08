@@ -5,12 +5,13 @@ import com.maesamco.content.dailyquiz.application.port.ProblemProgressConceptPor
 import com.maesamco.content.dailyquiz.application.port.UserInterestConceptPort;
 import com.maesamco.content.dailyquiz.application.query.DailyQuizConceptCandidatesGetQuery;
 import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -33,7 +34,12 @@ public class DailyQuizConceptCandidateQueryService {
     private final ConceptLookupPort conceptLookupPort;
 
     public DailyQuizConceptCandidates get(DailyQuizConceptCandidatesGetQuery query) {
-        Objects.requireNonNull(query, "개념 후보 조회 조건은 필수입니다.");
+        if (query == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "개념 후보 조회 조건은 필수입니다."
+            );
+        }
         boolean hasProblemProgress = problemProgressConceptPort.existsByUserId(query.userId());
 
         // 풀이 이력이 없으면 관심 개념 ID를 조회하고 개념 이름으로 변환합니다.

@@ -1,7 +1,9 @@
 package com.maesamco.content.dailyquiz.application.query;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
+
 import java.time.LocalDate;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -13,8 +15,18 @@ public record DailyQuizConceptCandidatesGetQuery(
 ) {
 
     public DailyQuizConceptCandidatesGetQuery {
-        Objects.requireNonNull(userId, "사용자 ID는 필수입니다.");
-        Objects.requireNonNull(attemptDate, "퀴즈 날짜는 필수입니다.");
+        if (userId == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "사용자 ID는 필수입니다."
+            );
+        }
+        if (attemptDate == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "퀴즈 날짜는 필수입니다."
+            );
+        }
     }
 
     public static DailyQuizConceptCandidatesGetQuery from(UUID userId, LocalDate attemptDate) {
