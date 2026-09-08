@@ -13,7 +13,7 @@ public class SchedulingConfig implements SchedulingConfigurer {
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.setTaskScheduler(taskS());
+        taskRegistrar.setTaskScheduler(outboxRelayTaskScheduler());
     }
 
     @Bean
