@@ -3,6 +3,8 @@ package com.maesamco.coaching.infrastructure.ai;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -29,7 +31,13 @@ public class GeminiModelAdapter implements AiModelPort {
         this.chatModel = chatModel;
     }
 
+    /**
+     * ClaudeModelAdapter.generate()와 동일한 이유(튜터님 피드백) — 두 어댑터는
+     * spring.ai.model.chat 프로퍼티로 상호 배타적으로만 활성화되므로 같은 CircuitBreaker
+     * 인스턴스("ai-model")를 공유해도 무방하다.
+     */
     @Override
+    @CircuitBreaker(name = "ai-model", fallbackMethod = "generateFallback")
     public AiModelResponse generate(String systemPrompt, String userPrompt) {
         // 호출(네트워크) 실패와 응답 파싱 버그를 구분한다(PR #70 리뷰) — ClaudeModelAdapter와
         // 동일한 이유로 catch를 chatModel.call() 하나에만 좁힌다.
@@ -46,5 +54,24 @@ public class GeminiModelAdapter implements AiModelPort {
                 ? null
                 : response.getMetadata().getUsage().getTotalTokens();
         return new AiModelResponse(content, modelName, tokenUsage);
+    }
+
+    /**
+     * ClaudeModelAdapter.generateFallback()과 동일한 이유(재검증, PR #111) — 서킷이 열려
+     * 호출 자체가 차단된 경우(CallNotPermittedException)만 circuitOpen=true로 감싼다.
+     * 그 외 RuntimeException(응답 파싱 버그 등)은 그대로 다시 던져 500 안전망으로 보낸다.
+     */
+    @SuppressWarnings("unused")
+    AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
+        if (t instanceof AiModelCallException aiModelCallException) {
+            throw aiModelCallException;
+        }
+        if (t instanceof CallNotPermittedException) {
+            throw new AiModelCallException("Gemini 호출이 차단되었습니다(circuit open).", t, true);
+        }
+        if (t instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+        throw new AiModelCallException("Gemini 호출 중 예기치 못한 오류가 발생했습니다.", t);
     }
 }
