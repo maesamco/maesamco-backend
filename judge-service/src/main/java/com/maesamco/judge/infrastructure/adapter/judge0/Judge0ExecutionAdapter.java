@@ -1,0 +1,101 @@
+package com.maesamco.judge.infrastructure.adapter.judge0;
+
+import com.maesamco.judge.application.port.JudgeExecutionPort;
+import com.maesamco.judge.application.port.JudgeExecutionRequest;
+import com.maesamco.judge.application.port.JudgeExecutionResult;
+import com.maesamco.judge.application.port.JudgeExecutionStatus;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class Judge0ExecutionAdapter implements JudgeExecutionPort {
+
+    // TODO: 원래 Java 17로 채점해야 하는데, 우리가 쓰는 Judge0 인스턴스에 Java17이 아직 정식으로 등록 안 돼있어서
+    // 임시로 OpenJDK 13(id 62)으로 채점 중.
+    private static final int JAVA_LANGUAGE_ID = 62;
+    private static final String RESULT_FIELDS = "token,status,stdout,stderr,compile_output,time,memory,message";
+
+    private final WebClient judge0WebClient;
+
+    @Override
+    public List<String> submitBatch(List<JudgeExecutionRequest> requests) {
+        List<Judge0SubmissionRequest> submissions = requests.stream()
+                .map(this::toJudge0Request)
+                .toList();
+
+        List<Judge0TokenResponse> responses = judge0WebClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/submissions/batch")
+                        .queryParam("base64_encoded", true)
+                        .build())
+                .bodyValue(Judge0BatchSubmissionRequest.of(submissions))
+                .retrieve()
+                .bodyToMono(new org.springframework.core.ParameterizedTypeReference<List<Judge0TokenResponse>>() {})
+                .block();
+
+        if (responses == null) {
+            // Judge0 응답 자체가 없는 경우 — 로그만 남기고 상위(재시도 로직, 이슈 8번)에서 처리하도록 예외를 던짐
+            log.warn("[Judge] Judge0 batch 제출 응답이 비어있음, 요청 건수={}", requests.size());
+            throw new IllegalStateException("Judge0 batch submission returned no response");
+        }
+
+        return responses.stream()
+                .map(Judge0TokenResponse::token) // 검증 실패 항목은 token이 null
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<JudgeExecutionResult> fetchResults(List<String> tokens) {
+        String joinedTokens = String.join(",", tokens);
+
+        Judge0BatchResultResponse response = judge0WebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/submissions/batch")
+                        .queryParam("tokens", joinedTokens)
+                        .queryParam("base64_encoded", true)
+                        .queryParam("fields", RESULT_FIELDS)
+                        .build())
+                .retrieve()
+                .bodyToMono(Judge0BatchResultResponse.class)
+                .block();
+
+        if (response == null || response.submissions() == null) {
+            log.warn("[Judge] Judge0 batch 조회 응답이 비어있음, 토큰 개수={}", tokens.size());
+            return List.of();
+        }
+
+        return response.submissions().stream()
+                .map(this::toDomainResult)
+                .toList();
+    }
+
+    private Judge0SubmissionRequest toJudge0Request(JudgeExecutionRequest request) {
+        return Judge0SubmissionRequest.of(
+                request.sourceCode(),
+                JAVA_LANGUAGE_ID,
+                request.stdin(),
+                request.expectedOutput(),
+                request.cpuTimeLimitSeconds(),
+                request.memoryLimitKb()
+        );
+    }
+
+    private JudgeExecutionResult toDomainResult(Judge0SubmissionResult result) {
+        return new JudgeExecutionResult(
+                result.token(),
+                JudgeExecutionStatus.fromJudge0Id(result.status().id()),
+                result.stdout(),
+                result.stderr(),
+                result.compileOutput(),
+                null, // time은 Judge0가 문자열("0.012")로 주므로 파싱 로직은 다음 이슈 작업에서 추가하겠습니다.
+                result.memory()
+        );
+    }
+}

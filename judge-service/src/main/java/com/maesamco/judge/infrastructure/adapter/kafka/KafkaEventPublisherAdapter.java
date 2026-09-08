@@ -1,4 +1,4 @@
-package com.maesamco.judge.infrastructure.adapter;
+package com.maesamco.judge.infrastructure.adapter.kafka;
 
 import com.maesamco.judge.application.port.EventPublisherPort;
 import lombok.RequiredArgsConstructor;
