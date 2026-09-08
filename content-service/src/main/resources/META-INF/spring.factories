@@ -1,0 +1,1 @@
+com.maesamco.content.problem.domain.repository.ProblemSearchRepository=com.maesamco.content.problem.infrastructure.persistence.ProblemSearchRepositoryImpl
