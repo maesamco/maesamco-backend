@@ -18,12 +18,22 @@ import java.util.UUID;
  * 발행 성공/실패에 따라 같이 전이시켜야 할 상태가 없다 — 그래서 여기는 Outbox 자체의
  * 상태만 다룬다.
  *
- * PR #120(Judge Service, 이슈 #63) 리뷰에서 발견된 두 가지를 반영했다(용현님, 2026-09-08):
- * (1) Kafka 발행 자체의 실패와 "발행은 성공했지만 완료 표시(DB 후처리)만 실패"한 경우를
- *     같은 재시도 상한으로 묶어 FAILED 종료하면 안 된다 — 후자는 이벤트가 이미 Kafka에
- *     전달됐을 수 있어서, FAILED로 끝내면 "발행 안 됨"이라는 잘못된 신호가 된다.
+ * PR #120(Judge Service, 이슈 #63) 리뷰에서 나온 지적 두 가지를 참고했다(용현님, 2026-09-08).
+ * 다만 (1)은 PR120과 동일한 결론을 낸 게 아니라 독자적으로 다른 정책을 택한 것이므로
+ * 정정해둔다(PR #123 심층 재검토, 2026-09-09 — 처음엔 "PR120 지적을 반영했다"고 서술했으나
+ * 부정확했다):
+ * (1) 용현님의 실제 지적은 "Outbox 종료(FAILED)가 재시도 상한 로직을 공유하는 바람에 엉뚱한
+ *     Submission까지 같이 실패 처리된다"는 **엔티티 간 정합성 문제**였다. Judge의 실제 수정은
+ *     recordFailedAttempt와 recordPostPublishFailure의 카운터·종료 로직을 분리했을 뿐,
+ *     recordPostPublishFailure도 여전히 상한(5회) 도달 시 Outbox를 FAILED로 종료한다
+ *     (Submission만 안 건드림). 반면 Coaching은 recordPostPublishFailure를 상한 없는 무한
+ *     재시도로 만들었다 — CoachingSession엔 Outbox 종료로 같이 잘못될 다른 엔티티가 없어서,
+ *     "이벤트가 이미 Kafka에 전달됐을 수 있으니 FAILED로 잘못 표시하면 안 된다"는 논리만으로
+ *     독자적으로 내린 결정이다. 두 서비스가 지금 같은 시나리오에 다른 정책을 갖고 있다는
+ *     뜻이므로, Judge 쪽 정책이 나중에 바뀔 여지가 있으면 그때 다시 맞출지 논의가 필요하다.
  * (2) 복수 Relay 실행(또는 같은 폴링 배치의 뒤늦은 재시도)이 이미 COMPLETED/FAILED로 끝난
- *     Outbox를 다시 건드리지 않도록, 실패 기록 전에 현재 상태가 PENDING인지 먼저 확인한다.
+ *     Outbox를 다시 건드리지 않도록, 실패 기록 전에 현재 상태가 PENDING인지 먼저 확인한다 —
+ *     이건 PR120의 실제 수정과 동일하다.
  */
 @Service
 @RequiredArgsConstructor

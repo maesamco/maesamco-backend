@@ -1,6 +1,7 @@
 package com.maesamco.coaching.application.facade;
 
 import com.maesamco.coaching.application.persistence_service.CoachingEventOutboxPersistenceService;
+import com.maesamco.coaching.application.port.EventPublishOutcomeUnknownException;
 import com.maesamco.coaching.application.port.EventPublisherPort;
 import com.maesamco.coaching.domain.entity.CoachingEventOutbox;
 import com.maesamco.coaching.domain.entity.OutboxStatus;
@@ -22,6 +23,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -103,6 +105,43 @@ class CoachingEventRelayFacadeTest {
             verify(coachingEventOutboxPersistenceService).markPublished(outbox);
             verify(coachingEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId());
             verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(any());
+        }
+
+        @Test
+        @DisplayName("발행 결과를 확인 못하면(EventPublishOutcomeUnknownException) recordFailedAttempt가 아니라 recordPostPublishFailure로 보낸다")
+        void recordsPostPublishFailureWhenPublishOutcomeUnknown() {
+            CoachingEventOutbox outbox = pendingOutbox();
+            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+                    .willReturn(List.of(outbox));
+            willThrow(new EventPublishOutcomeUnknownException("응답 대기 시간 초과", new java.util.concurrent.TimeoutException()))
+                    .given(eventPublisherPort).publish(anyString(), anyString(), anyString());
+
+            coachingEventRelayFacade.relay();
+
+            verify(coachingEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId());
+            verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(any());
+            verify(coachingEventOutboxPersistenceService, never()).markPublished(any());
+        }
+
+        @Test
+        @DisplayName("배치 중 한 항목의 처리가 예외를 던져도 나머지 항목은 독립적으로 계속 처리한다")
+        void isolatesFailureOfOneItemFromRestOfBatch() {
+            CoachingEventOutbox brokenOutbox = pendingOutbox();
+            CoachingEventOutbox healthyOutbox = pendingOutbox();
+            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+                    .willReturn(List.of(brokenOutbox, healthyOutbox));
+
+            // 첫 번째 outbox는 발행도 실패하고, 그 실패를 기록하려는 recordFailedAttempt 자체도
+            // 예외를 던진다(예: DB 커넥션 풀 고갈) — relayOne() 밖으로 예외가 전파되는 상황을 흉내냄.
+            willThrow(new IllegalStateException("Kafka 발행 실패"))
+                    .given(eventPublisherPort).publish(eq("coaching-completed"), eq(brokenOutbox.getAggregateId().toString()), anyString());
+            willThrow(new RuntimeException("DB 커넥션 풀 고갈"))
+                    .given(coachingEventOutboxPersistenceService).recordFailedAttempt(brokenOutbox);
+
+            coachingEventRelayFacade.relay();
+
+            verify(eventPublisherPort).publish(eq("coaching-completed"), eq(healthyOutbox.getAggregateId().toString()), anyString());
+            verify(coachingEventOutboxPersistenceService).markPublished(healthyOutbox);
         }
     }
 }

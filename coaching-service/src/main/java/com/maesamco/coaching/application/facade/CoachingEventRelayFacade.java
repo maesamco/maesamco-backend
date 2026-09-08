@@ -1,6 +1,7 @@
 package com.maesamco.coaching.application.facade;
 
 import com.maesamco.coaching.application.persistence_service.CoachingEventOutboxPersistenceService;
+import com.maesamco.coaching.application.port.EventPublishOutcomeUnknownException;
 import com.maesamco.coaching.application.port.EventPublisherPort;
 import com.maesamco.coaching.domain.entity.CoachingEventOutbox;
 import com.maesamco.coaching.domain.entity.OutboxStatus;
@@ -47,7 +48,17 @@ public class CoachingEventRelayFacade {
                 coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING);
 
         for (CoachingEventOutbox outbox : pending) {
-            relayOne(outbox);
+            try {
+                relayOne(outbox);
+            } catch (Exception e) {
+                // relayOne() 내부에서 못 잡은 예외(예: recordFailedAttempt/recordPostPublishFailure
+                // 자체가 DB 커넥션 풀 고갈 등으로 실패)가 이 항목 하나 때문에 같은 배치의 나머지
+                // outbox까지 막지 않도록 격리한다. findTop100...OrderByCreatedAtAsc가 오래된 순으로
+                // 뽑으므로, 여기서 격리하지 않으면 이 outbox가 다음 폴링에서도 계속 맨 앞을 차지하며
+                // 뒤의 항목들을 무기한 밀어낼 수 있다(PR #123 심층 재검토, 2026-09-09).
+                log.error("[Coaching] Outbox 처리 중 예상치 못한 예외 — 이 항목만 건너뛰고 나머지 배치는 계속 처리. outboxId={}",
+                        outbox.getId(), e);
+            }
         }
     }
 
@@ -59,6 +70,16 @@ public class CoachingEventRelayFacade {
                     outbox.getAggregateId().toString(),
                     serialize(outbox.getPayload())
             );
+        } catch (EventPublishOutcomeUnknownException e) {
+            // 응답 대기 시간 초과·인터럽트 등으로 실제 전달 여부를 확인 못한 경우 — 이미 전달됐을
+            // 수 있으므로 recordFailedAttempt와 같은 상한으로 FAILED 종료하면 안 된다.
+            // recordPostPublishFailure와 동일한 무한 재시도 경로로 보낸다(PR #123 심층 재검토,
+            // 2026-09-09 — 처음엔 이 경우도 일반 발행 실패와 같이 취급해서, 마지막 재시도에서
+            // 타임아웃이 나면 실제로는 전달된 이벤트를 영구 유실 처리할 위험이 있었다).
+            coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId());
+            log.error("[Coaching] Outbox 발행 결과를 확인하지 못함 — 재시도 대상으로 표시. outboxId={}, eventType={}",
+                    outbox.getId(), outbox.getEventType(), e);
+            return;
         } catch (Exception e) {
             // 1. 발행 실패 — 재시도 상한 안이면 status는 PENDING 그대로 둬서 다음 폴링 주기에 재시도.
             // 2. 상한 소진 시 recordFailedAttempt 내부에서 FAILED로 종료 처리.
