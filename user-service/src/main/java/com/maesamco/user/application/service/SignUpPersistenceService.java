@@ -58,7 +58,8 @@ public class SignUpPersistenceService {
      * 이메일 또는 닉네임이
      * 미삭제 사용자와 중복되는지 확인합니다.
      */
-    private void validateNotDuplicated(
+    @Transactional(readOnly = true)
+    public void validateNotDuplicated(
             String emailLookupHash,
             String nickname
     ) {

@@ -22,8 +22,8 @@ public enum AuthSessionRotationResult {
     /**
      * 세션은 존재하지만 요청한 Refresh Token hash가 현재 저장된 hash와 다릅니다.
      *
-     * <p>이미 Rotation된 이전 Refresh Token의 재사용으로 판단하며,
-     * 보안을 위해 해당 인증 세션도 함께 폐기합니다.</p>
+     * <p>직전 토큰이 grace window 안에 다시 요청된 경우에는 세션을 유지하고,
+     * grace window를 벗어났거나 직전 토큰이 아닌 경우에는 세션을 폐기합니다.</p>
      */
     TOKEN_REUSED
 }

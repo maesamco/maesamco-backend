@@ -64,6 +64,11 @@ public class SignUpService {
         String normalizedNickname =
                 normalizeNickname(command.nickname());
 
+        signUpPersistenceService.validateNotDuplicated(
+                emailLookupHash,
+                normalizedNickname
+        );
+
         String encryptedEmail =
                 emailCipher.encrypt(normalizedEmail);
 

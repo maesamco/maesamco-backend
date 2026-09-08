@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
+
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -23,8 +24,9 @@ import java.util.UUID;
  * 세션 만료 시각까지 남은 시간을 TTL로 설정합니다.</p>
  *
  * <p>Refresh Token Rotation은 Lua Script를 사용해 현재 Refresh Token hash 확인,
- * 새로운 hash로의 교체, 재사용 감지 시 세션 폐기를 하나의 원자 연산으로 수행합니다.</p>
- */
+ * 새로운 hash로의 교체, 동시 요청 완화 및 재사용 감지를 하나의 원자 연산으로
+ * 수행합니다.</p>
+ * */
 @Repository
 public class RedisAuthSessionStore implements AuthSessionStore {
 
@@ -37,11 +39,16 @@ public class RedisAuthSessionStore implements AuthSessionStore {
     /**
      * Refresh Token hash 비교와 교체를 원자적으로 수행하는 Lua Script입니다.
      *
+     * <p>현재 hash와 일치하면 정상적으로 Rotation합니다.
+     * 현재 hash와 다르더라도 직전 hash가 grace window 안에서 다시 요청된 경우에는
+     * 중복 요청으로 판단하여 세션을 유지합니다. Grace window를 벗어난 재사용은
+     * 탈취 가능성이 있는 것으로 판단하여 세션을 삭제합니다.</p>
+     *
      * <p>반환값:</p>
      * <ul>
      *     <li>0: 세션이 존재하지 않거나 유효한 TTL이 없음</li>
      *     <li>1: 정상 Rotation</li>
-     *     <li>2: Refresh Token 재사용 감지 후 세션 삭제</li>
+     *     <li>2: Refresh Token 재사용 감지</li>
      * </ul>
      */
     private static final DefaultRedisScript<Long> ROTATE_REFRESH_TOKEN_SCRIPT =
@@ -54,12 +61,6 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                     end
 
                     local session = cjson.decode(value)
-
-                    if session.refreshTokenHash ~= ARGV[1] then
-                        redis.call('DEL', KEYS[1])
-                        return 2
-                    end
-
                     local ttl = redis.call('PTTL', KEYS[1])
 
                     if ttl <= 0 then
@@ -67,7 +68,46 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                         return 0
                     end
 
-                    session.refreshTokenHash = ARGV[2]
+                    local expectedHash = ARGV[1]
+                    local newHash = ARGV[2]
+                    local nowEpochMillis = tonumber(ARGV[3])
+                    local gracePeriodMillis = tonumber(ARGV[4])
+
+                    if session.refreshTokenHash ~= expectedHash then
+                        local previousHash =
+                            session.previousRefreshTokenHash
+
+                        local rotatedAt =
+                            session.refreshTokenRotatedAtEpochMillis
+
+                        local hasRotationHistory =
+                            previousHash ~= nil
+                            and previousHash ~= cjson.null
+                            and rotatedAt ~= nil
+                            and rotatedAt ~= cjson.null
+
+                        local withinGracePeriod =
+                            hasRotationHistory
+                            and previousHash == expectedHash
+                            and nowEpochMillis >= tonumber(rotatedAt)
+                            and nowEpochMillis - tonumber(rotatedAt)
+                                <= gracePeriodMillis
+
+                        if withinGracePeriod then
+                            return 2
+                        end
+
+                        redis.call('DEL', KEYS[1])
+                        return 2
+                    end
+
+                    session.previousRefreshTokenHash =
+                        session.refreshTokenHash
+
+                    session.refreshTokenHash = newHash
+
+                    session.refreshTokenRotatedAtEpochMillis =
+                        nowEpochMillis
 
                     redis.call(
                         'PSETEX',
@@ -84,6 +124,7 @@ public class RedisAuthSessionStore implements AuthSessionStore {
     private final StringRedisTemplate redisTemplate;
     private final JsonMapper jsonMapper;
     private final Clock clock;
+    private final AuthSessionProperties authSessionProperties;
 
     /**
      * Redis 인증 세션 저장소를 생성합니다.
@@ -91,15 +132,18 @@ public class RedisAuthSessionStore implements AuthSessionStore {
      * @param redisTemplate 문자열 기반 Redis 접근 객체
      * @param jsonMapper 인증 세션 JSON 직렬화 객체
      * @param clock 현재 시각을 제공하는 시계
+     * @param authSessionProperties 인증 세션 설정
      */
     public RedisAuthSessionStore(
             StringRedisTemplate redisTemplate,
             JsonMapper jsonMapper,
-            Clock clock
+            Clock clock,
+            AuthSessionProperties authSessionProperties
     ) {
         this.redisTemplate = redisTemplate;
         this.jsonMapper = jsonMapper;
         this.clock = clock;
+        this.authSessionProperties = authSessionProperties;
     }
 
     /**
@@ -157,8 +201,9 @@ public class RedisAuthSessionStore implements AuthSessionStore {
      * 현재 Refresh Token hash가 Redis 세션에 저장된 hash와 일치할 때만
      * 새로운 hash로 원자적으로 교체합니다.
      *
-     * <p>hash가 일치하지 않으면 이미 Rotation된 Refresh Token이 다시 사용된
-     * 것으로 판단하며, 같은 Lua Script 안에서 해당 세션까지 즉시 삭제합니다.</p>
+     * <p>hash가 일치하지 않더라도 직전 Refresh Token이 grace window 안에
+     * 다시 요청된 경우에는 세션을 유지합니다. Grace window를 벗어났거나
+     * 직전 토큰이 아닌 경우에는 같은 Lua Script 안에서 세션을 삭제합니다.</p>
      *
      * <p>정상 Rotation 시 기존 Redis PTTL을 그대로 사용하므로 Refresh 요청으로
      * 인증 세션의 절대 만료시간이 연장되지 않습니다.</p>
@@ -188,7 +233,13 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                 ROTATE_REFRESH_TOKEN_SCRIPT,
                 List.of(createKey(sessionId)),
                 expectedRefreshTokenHash,
-                newRefreshTokenHash
+                newRefreshTokenHash,
+                Long.toString(clock.millis()),
+                Long.toString(
+                        authSessionProperties
+                                .refreshTokenRotationGracePeriod()
+                                .toMillis()
+                )
         );
 
         if (result == null) {

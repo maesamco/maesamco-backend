@@ -54,6 +54,9 @@ class RedisAuthSessionStoreIntegrationTest {
     private static final Duration SESSION_TTL =
             Duration.ofDays(14);
 
+    private static final Duration ROTATION_GRACE_PERIOD =
+            Duration.ofSeconds(5);
+
     private static final UUID SESSION_ID =
             UUID.fromString(
                     "11111111-1111-1111-1111-111111111111"
@@ -250,28 +253,69 @@ class RedisAuthSessionStoreIntegrationTest {
     }
 
     @Test
-    @DisplayName("이미 Rotation된 이전 Refresh Token을 재사용하면 세션을 폐기한다")
-    void rotateRefreshToken_reuseDeletesSession() {
+    @DisplayName("grace window가 지난 이전 Refresh Token을 재사용하면 세션을 폐기한다")
+    void rotateRefreshToken_previousTokenOutsideGraceDeletesSession() {
         // given
-        authSessionStore.save(createSession());
+        AuthSession rotatedSession = new AuthSession(
+                SESSION_ID,
+                FAMILY_ID,
+                USER_ID,
+                ROTATED_REFRESH_TOKEN_HASH,
+                NOW,
+                NOW.plus(SESSION_TTL),
+                ORIGINAL_REFRESH_TOKEN_HASH,
+                NOW.minus(ROTATION_GRACE_PERIOD)
+                        .minusMillis(1)
+                        .toEpochMilli()
+        );
 
-        AuthSessionRotationResult firstRotation =
-                authSessionStore.rotateRefreshToken(
-                        SESSION_ID,
-                        ORIGINAL_REFRESH_TOKEN_HASH,
-                        ROTATED_REFRESH_TOKEN_HASH
-                );
-
-        assertThat(firstRotation)
-                .isEqualTo(
-                        AuthSessionRotationResult.ROTATED
-                );
+        authSessionStore.save(rotatedSession);
 
         // when
         AuthSessionRotationResult reuseResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
                         ORIGINAL_REFRESH_TOKEN_HASH,
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(reuseResult)
+                .isEqualTo(
+                        AuthSessionRotationResult.TOKEN_REUSED
+                );
+
+        assertThat(
+                authSessionStore.findBySessionId(SESSION_ID)
+        ).isEmpty();
+
+        assertThat(
+                redisTemplate.hasKey(SESSION_KEY)
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName("grace window 안에서도 직전 토큰이 아닌 Refresh Token이면 세션을 폐기한다")
+    void rotateRefreshToken_unrelatedTokenWithinGraceDeletesSession() {
+        // given
+        AuthSession rotatedSession = new AuthSession(
+                SESSION_ID,
+                FAMILY_ID,
+                USER_ID,
+                ROTATED_REFRESH_TOKEN_HASH,
+                NOW,
+                NOW.plus(SESSION_TTL),
+                ORIGINAL_REFRESH_TOKEN_HASH,
+                NOW.toEpochMilli()
+        );
+
+        authSessionStore.save(rotatedSession);
+
+        // when
+        AuthSessionRotationResult reuseResult =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        "unrelated-refresh-token-hash",
                         SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
 
@@ -309,7 +353,7 @@ class RedisAuthSessionStoreIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 Refresh Token으로 동시에 Rotation하면 하나만 성공하고 재사용 요청이 세션을 폐기한다")
+    @DisplayName("같은 Refresh Token으로 동시에 Rotation하면 하나만 성공하고 정상 세션은 유지한다")
     void rotateRefreshToken_concurrentRequestsAreAtomic()
             throws Exception {
         // given
@@ -385,7 +429,7 @@ class RedisAuthSessionStoreIntegrationTest {
 
             assertThat(
                     authSessionStore.findBySessionId(SESSION_ID)
-            ).isEmpty();
+            ).isPresent();
         } finally {
             executorService.shutdownNow();
         }
@@ -431,6 +475,13 @@ class RedisAuthSessionStoreIntegrationTest {
             return Clock.fixed(
                     NOW,
                     ZoneOffset.UTC
+            );
+        }
+
+        @Bean
+        AuthSessionProperties testAuthSessionProperties() {
+            return new AuthSessionProperties(
+                    Duration.ofSeconds(5)
             );
         }
 

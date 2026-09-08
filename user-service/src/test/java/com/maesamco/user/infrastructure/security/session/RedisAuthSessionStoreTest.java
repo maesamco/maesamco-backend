@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.script.RedisScript;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -41,6 +40,17 @@ class RedisAuthSessionStoreTest {
 
     private static final Duration SESSION_TTL =
             Duration.ofDays(14);
+
+    private static final Duration ROTATION_GRACE_PERIOD =
+            Duration.ofSeconds(5);
+
+    private static final String NOW_EPOCH_MILLIS =
+            Long.toString(NOW.toEpochMilli());
+
+    private static final String ROTATION_GRACE_PERIOD_MILLIS =
+            Long.toString(
+                    ROTATION_GRACE_PERIOD.toMillis()
+            );
 
     private static final UUID SESSION_ID =
             UUID.fromString(
@@ -91,7 +101,10 @@ class RedisAuthSessionStoreTest {
         authSessionStore = new RedisAuthSessionStore(
                 redisTemplate,
                 jsonMapper,
-                clock
+                clock,
+                new AuthSessionProperties(
+                        ROTATION_GRACE_PERIOD
+                )
         );
 
         authSession = new AuthSession(
@@ -177,7 +190,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(1L);
 
         // when
@@ -203,7 +218,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(0L);
 
         // when
@@ -229,7 +246,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(2L);
 
         // when
@@ -255,7 +274,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(null);
 
         // when & then

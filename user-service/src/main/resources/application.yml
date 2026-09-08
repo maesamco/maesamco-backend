@@ -46,6 +46,9 @@ security:
     encryption-key: ${EMAIL_ENCRYPTION_KEY}
     lookup-hmac-key: ${EMAIL_LOOKUP_HMAC_KEY}
 
+  auth-session:
+    refresh-token-rotation-grace-period: ${AUTH_SESSION_REFRESH_TOKEN_ROTATION_GRACE_PERIOD:5s}
+
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
   private-key: ${JWT_PRIVATE_KEY}
