@@ -24,7 +24,6 @@ import java.util.UUID;
 public class ProblemTagService {
 
     private final ProblemTagRepository problemTagRepository;
-    private final ProblemTagSearchRepository problemTagSearchRepository;
     private final ProblemFinder problemFinder;
     private final TagFinder tagFinder;
 
@@ -33,7 +32,7 @@ public class ProblemTagService {
     public PageResponse<TagResponse> searchProblemTags(UUID problemId, Pageable pageable) {
         problemFinder.getProblem(problemId);
 
-        Page<Tag> tags = problemTagSearchRepository.searchTagsByProblemId(problemId, pageable);
+        Page<Tag> tags = problemTagRepository.searchTagsByProblemId(problemId, pageable);
 
         return PageResponse.from(tags, TagResponse::from);
     }
