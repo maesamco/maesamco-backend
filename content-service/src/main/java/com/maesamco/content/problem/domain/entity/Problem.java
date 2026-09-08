@@ -75,7 +75,7 @@ public class Problem extends BaseEntity {
             ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,
             String description, String starterCode,
             Integer runningTimeLimit, Integer runningMemoryLimit, TimerPolicy timerPolicy,
-            ProblemSource source, ProblemStatus problemStatus, Integer version
+            ProblemSource source, ProblemStatus problemStatus
     ) {
         Problem problem = new Problem();
 
@@ -90,7 +90,7 @@ public class Problem extends BaseEntity {
         problem.timerPolicy = timerPolicy;
         problem.source = source;
         problem.problemStatus = problemStatus;
-        problem.currentVersionNo = version;
+        problem.currentVersionNo = 1;
 
         return problem;
     }
