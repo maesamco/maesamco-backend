@@ -109,9 +109,16 @@ public class Problem extends BaseEntity {
     public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
     public void changeSource(ProblemSource newSource) { this.source = newSource; }
 
-    // problem status는 DDD 적용
-    public void approvePublication() {
+    public void setProblemStatusDraft() {
+        this.problemStatus = ProblemStatus.DRAFT;
+    }
+    public void setProblemStatusReviewPending() {
+        this.problemStatus = ProblemStatus.REVIEW_PENDING;
+    }
 
+    // problem status 전환 과정은 DDD 적용
+    // 1. REVIEW_PENDING -> PUBLISHED
+    public void approvePublication() {
         if (this.problemStatus != ProblemStatus.REVIEW_PENDING) {
             throw new BusinessException(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
         }
