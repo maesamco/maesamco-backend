@@ -1,15 +1,15 @@
 package com.maesamco.content.global.config;
 
-import com.fasterxml.jackson.databind.Module;
-import org.openapitools.jackson.nullable.JsonNullableModule;
+import org.openapitools.jackson.nullable.JsonNullableJackson3Module;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.JacksonModule;
 
 @Configuration
 public class JacksonConfig {
 
     @Bean
-    public Module jsonNullableModule() {
-        return new JsonNullableModule();
+    public JacksonModule jsonNullableModule() {
+        return new JsonNullableJackson3Module();
     }
 }
