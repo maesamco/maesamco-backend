@@ -1,5 +1,7 @@
 package com.maesamco.content.problem.application.service;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
@@ -43,8 +45,7 @@ public class ProblemService {
                 request.getRunningMemoryLimit().getMegabytes(),
                 request.getTimerPolicy(),
                 request.getSource(),
-                ProblemStatus.DRAFT,
-                1
+                ProblemStatus.DRAFT
         );
 
         // TODO: 현재의 로직은 관리자가 생성한 문제는 검증을 거치지 않고 발행된다. 나중에 따로 흐름을 추가할 수도 있다.
@@ -110,7 +111,7 @@ public class ProblemService {
 
         // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
         if (request.getStarterCode() == null) {
-            throw new IllegalStateException("starterCode JsonNullable must not be null");
+            throw new BusinessException(ErrorCode.STARTER_CODE_NOT_INITIALIZED);
         }
         // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
         if (request.getStarterCode().isPresent()) {
