@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,5 +42,15 @@ public class ExplanationRepositoryImpl implements ExplanationRepository {
     @Override
     public Optional<Explanation> findBySubmissionId(UUID submissionId) {
         return springDataExplanationRepository.findBySubmissionId(submissionId);
+    }
+
+    @Override
+    public Optional<Explanation> findById(UUID id) {
+        return springDataExplanationRepository.findById(id);
+    }
+
+    @Override
+    public List<Explanation> findByCoachingSessionId(UUID coachingSessionId) {
+        return springDataExplanationRepository.findByCoachingSessionId(coachingSessionId);
     }
 }

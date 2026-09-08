@@ -81,7 +81,7 @@ services:
     image: redis:7
     container_name: redis
     ports:
-      - "6379:6379"
+      - "6500:6379"   # 6379가 Windows 예약 포트 범위(6319~6418)에 걸려서 호스트 노출만 6500으로 변경(컨테이너 내부는 그대로 6379)
 
   # ================= Kafka (KRaft 모드, Apache 공식 이미지) + Kafka-UI =================
   # ⚠️ bitnami/kafka가 Docker Hub에서 태그 접근이 안 돼서(Broadcom 인수 이후
@@ -122,7 +122,7 @@ services:
       start_period: 30s
 
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: provectuslabs/kafka-ui:v0.7.2
     container_name: kafka-ui
     ports:
       - "8085:8080"   # 포트 확정 — 게이트웨이_인프라_API명세서.md 9절/10-1절 참고
@@ -145,7 +145,7 @@ services:
 
   # ================= 모니터링 =================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     container_name: prometheus
     ports:
       - "9090:9090"
@@ -153,7 +153,7 @@ services:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.0.8
     container_name: grafana
     ports:
       - "4000:3000"   # 3000/3001 모두 Windows 예약 포트 범위(2832~3031)에 걸려서 4000으로 변경(컨테이너 내부는 그대로 3000)
@@ -187,6 +187,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       EUREKA_URL: http://eureka-server:8761/eureka/
+      # JMeter 부하 테스트용 — 테스트 직전에만 .env에서 넉넉한 값으로 올렸다가 끝나면 지우면 됨.
+      # 안 채우면 기본값(분당 30회) 그대로 적용되어 평소엔 안전함(리뷰 반영 — 실제 컨테이너에
+      # 값이 전달 안 되고 있던 걸 발견해 수정).
+      RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
     depends_on:
       - eureka-server
       - redis
@@ -213,6 +217,9 @@ services:
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
     depends_on:
       postgres-user:
         condition: service_healthy
@@ -240,6 +247,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
     depends_on:
       postgres-content:
         condition: service_healthy
@@ -268,6 +276,7 @@ services:
       JUDGE0_BASE_URL: ${JUDGE0_BASE_URL:-http://judge0:2358}
       HMAC_KEY_CONTENT_TO_JUDGE: ${HMAC_KEY_CONTENT_TO_JUDGE}
       HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
     depends_on:
       postgres-judge:
         condition: service_healthy
@@ -298,6 +307,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       HMAC_KEY_CONTENT_TO_COACHING: ${HMAC_KEY_CONTENT_TO_COACHING}
       HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
     depends_on:
       postgres-coaching:
         condition: service_healthy

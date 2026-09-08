@@ -1,6 +1,7 @@
 package com.maesamco.coaching.infrastructure.persistence;
 
 import com.maesamco.coaching.domain.entity.AiCallHistory;
+import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -28,5 +29,11 @@ public class AiCallHistoryRepositoryImpl implements AiCallHistoryRepository {
     @Override
     public List<AiCallHistory> findByCoachingSessionIdOrderByCalledAtAsc(UUID coachingSessionId) {
         return springDataAiCallHistoryRepository.findByCoachingSessionIdOrderByCalledAtAsc(coachingSessionId);
+    }
+
+    @Override
+    public long countRealAttemptsByCoachingSessionIdAndPurpose(UUID coachingSessionId, AiCallPurpose purpose) {
+        return springDataAiCallHistoryRepository
+                .countByCoachingSessionIdAndPurposeAndRequestStatusNot(coachingSessionId, purpose, "SKIPPED");
     }
 }

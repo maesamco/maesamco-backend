@@ -1,6 +1,7 @@
 package com.maesamco.judge.infrastructure.messaging.consumer;
 
-import com.maesamco.judge.application.service.ProblemExecutionSpecService;
+import com.maesamco.judge.application.command_service.ProblemExecutionSpecCommandService;
+import com.maesamco.judge.application.command.ProblemExecutionSpecSaveCommand;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,7 @@ public class ProblemPublishedConsumer {
 
     private static final int SUPPORTED_EVENT_VERSION = 1;
 
-    private final ProblemExecutionSpecService problemExecutionSpecService;
+    private final ProblemExecutionSpecCommandService problemExecutionSpecCommandService;
 
     @KafkaListener(
             topics = "${spring.kafka.topic.problem-published:problem-published}",
@@ -38,7 +39,7 @@ public class ProblemPublishedConsumer {
         log.info("[Judge] ProblemPublished 수신. eventId={}, problemId={}, problemVersionId={}",
                 event.eventId(), event.problemId(), event.problemVersionId());
 
-        problemExecutionSpecService.saveIfAbsent(event);
+        problemExecutionSpecCommandService.saveIfAbsent(ProblemExecutionSpecSaveCommand.from(event));
     }
 
     public static class UnsupportedProblemPublishedEventVersionException extends RuntimeException {

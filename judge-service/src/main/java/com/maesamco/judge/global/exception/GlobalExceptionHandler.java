@@ -11,6 +11,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -56,6 +57,7 @@ public class GlobalExceptionHandler {
     // 파라미터 누락 / 타입 불일치 / 지원하지 않는 메서드
     @ExceptionHandler({
             MissingServletRequestParameterException.class,
+            MissingRequestHeaderException.class,
             MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception e) {
@@ -116,5 +118,12 @@ public class GlobalExceptionHandler {
 
     private String messageOf(FieldError fe) {
         return fe.getDefaultMessage() == null ? "유효하지 않은 값입니다." : fe.getDefaultMessage();
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("IllegalArgumentException: {}", e.getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
     }
 }
