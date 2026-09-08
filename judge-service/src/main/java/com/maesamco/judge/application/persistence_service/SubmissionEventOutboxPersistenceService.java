@@ -1,6 +1,7 @@
 package com.maesamco.judge.application.persistence_service;
 
 import com.maesamco.judge.domain.entity.FailureCode;
+import com.maesamco.judge.domain.entity.OutboxStatus;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionEventOutbox;
 import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class SubmissionEventOutboxPersistenceService {
 
     private static final int MAX_RELAY_ATTEMPTS = 5;
+    private static final int MAX_POST_PUBLISH_FAILURE_ATTEMPTS = 5;
 
     private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
     private final SubmissionRepository submissionRepository;
@@ -43,20 +45,12 @@ public class SubmissionEventOutboxPersistenceService {
     // Kafka 발행 자체가 실패했을 때 호출
     @Transactional
     public void recordFailedAttempt(SubmissionEventOutbox outbox) {
-        recordFailedAttemptInternal(outbox);
-    }
+        if (outbox.getStatus() != OutboxStatus.PENDING) {
+            log.warn("[Judge] 이미 종료 상태({})인 Outbox에 대한 recordFailedAttempt 호출을 건너뜀. outboxId={}",
+                    outbox.getStatus(), outbox.getId());
+            return;
+        }
 
-    // Kafka 발행은 성공했으나, markPublished()의 DB 후처리가 실패했을 때 호출.
-    // 전달받은 outbox 자바 객체를 쓰지 않고 id로 DB에서 다시 읽어옵니다.
-    @Transactional
-    public void recordPostPublishFailure(UUID outboxId) {
-        SubmissionEventOutbox freshOutbox = submissionEventOutboxRepository.findById(outboxId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
-        recordFailedAttemptInternal(freshOutbox);
-    }
-
-    private void recordFailedAttemptInternal(SubmissionEventOutbox outbox) {
         outbox.incrementAttemptCount();
 
         if (outbox.getAttemptCount() >= MAX_RELAY_ATTEMPTS) {
@@ -67,11 +61,48 @@ public class SubmissionEventOutboxPersistenceService {
                     MAX_RELAY_ATTEMPTS, outbox.getId(), outbox.getEventType());
             return;
         }
+
         submissionEventOutboxRepository.save(outbox);
+    }
+
+    // Kafka 발행은 성공했으나, markPublished()의 DB 후처리가 실패했을 때 호출.
+    // 전달받은 outbox 자바 객체를 쓰지 않고 id로 DB에서 다시 읽어옵니다.
+    @Transactional
+    public void recordPostPublishFailure(UUID outboxId) {
+        SubmissionEventOutbox freshOutbox = submissionEventOutboxRepository.findById(outboxId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
+
+        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
+            log.warn("[Judge] 이미 종료 상태({})인 Outbox에 대한 recordPostPublishFailure 호출을 건너뜀. "
+                    + "outboxId={}", freshOutbox.getStatus(), freshOutbox.getId());
+            return;
+        }
+
+        freshOutbox.incrementAttemptCount();
+
+        if (freshOutbox.getAttemptCount() >= MAX_POST_PUBLISH_FAILURE_ATTEMPTS) {
+            freshOutbox.markFailed();
+            submissionEventOutboxRepository.save(freshOutbox);
+            log.error("[Judge] Kafka 발행은 성공했으나 DB 후처리(Outbox 완료/Submission 전이)가 {}회 "
+                            + "연속 실패 — Submission 상태는 변경하지 않고 Outbox만 종료 처리. "
+                            + "수동 확인 또는 reconciliation 필요. outboxId={}, eventType={}, aggregateId={}",
+                    MAX_POST_PUBLISH_FAILURE_ATTEMPTS, freshOutbox.getId(), freshOutbox.getEventType(),
+                    freshOutbox.getAggregateId());
+            return;
+        }
+
+        submissionEventOutboxRepository.save(freshOutbox);
     }
 
     @Transactional
     public void markUnsupportedEventType(SubmissionEventOutbox outbox) {
+        if (outbox.getStatus() != OutboxStatus.PENDING) {
+            log.warn("[Judge] 이미 종료 상태({})인 Outbox에 대한 markUnsupportedEventType 호출을 건너뜀. "
+                    + "outboxId={}", outbox.getStatus(), outbox.getId());
+            return;
+        }
+
         outbox.markFailed();
         submissionEventOutboxRepository.save(outbox);
         markSubmissionFailed(outbox, FailureCode.INTERNAL_SYSTEM_ERROR);

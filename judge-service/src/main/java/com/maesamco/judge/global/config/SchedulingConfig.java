@@ -17,11 +17,10 @@ public class SchedulingConfig implements SchedulingConfigurer {
     }
 
     @Bean
-    public ThreadPoolTaskScheduler taskS() {
+    public ThreadPoolTaskScheduler outboxRelayTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(SCHEDULER_POOL_SIZE);
         scheduler.setThreadNamePrefix("Scheduled-task-");
-        scheduler.initialize();
         return scheduler;
     }
 }
