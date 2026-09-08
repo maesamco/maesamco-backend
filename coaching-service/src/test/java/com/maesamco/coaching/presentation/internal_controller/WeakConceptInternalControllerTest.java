@@ -75,9 +75,10 @@ class WeakConceptInternalControllerTest {
     }
 
     @Test
-    @DisplayName("userId 형식이 잘못되면 400을 반환한다")
+    @DisplayName("userId 형식이 잘못되면 400(INVALID_INPUT_VALUE)을 반환한다")
     void getWeakConcepts_invalidUserId_returns400() throws Exception {
         mockMvc.perform(get("/internal/v1/users/{userId}/weak-concepts", "not-a-uuid"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT_VALUE"));
     }
 }
