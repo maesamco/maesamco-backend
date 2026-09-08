@@ -139,7 +139,11 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isWhitelisted(String path) {
-        if (path.startsWith("/swagger-ui") || DOCS_WHITELIST.contains(path)) {
+        // ⚠️ P1 리뷰 반영: 트레일링 슬래시 없이 startsWith만 쓰면 "/swagger-uiXXX"처럼
+        // 우연히 이 문자열로 시작하는 업무 경로가 생겼을 때 JWT 검증을 우회할 수 있다
+        // (이번 PR이 /v3/api-docs에서 고친 것과 정확히 같은 유형의 문제).
+        // 정확히 "/swagger-ui" 자신이거나 그 하위 경로("/swagger-ui/...")일 때만 허용한다.
+        if (path.equals("/swagger-ui") || path.startsWith("/swagger-ui/") || DOCS_WHITELIST.contains(path)) {
             return true;
         }
         return WHITELIST.stream().anyMatch(path::startsWith);

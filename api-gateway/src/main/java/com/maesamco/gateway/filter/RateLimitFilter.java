@@ -141,21 +141,56 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
      *
      * 예외적으로, 이 요청이 trustedProxyIps에 등록된 신뢰 가능한 리버스 프록시로부터
      * 직접 온 경우(remoteAddress가 그 목록에 있는 경우)에만 그 프록시가 실어준
-     * Forwarded 헤더를 신뢰한다 — 그 외 모든 경우엔 TCP 연결의 실제 소스 IP만 쓴다.
+     * 클라이언트 IP 헤더를 신뢰한다 — 그 외 모든 경우엔 TCP 연결의 실제 소스 IP만 쓴다.
      * trustedProxyIps가 비어있으면(기본값) 이 조건은 절대 참이 될 수 없어 항상
      * remoteAddress만 쓰는 것과 동일하게 동작한다.
+     *
+     * ⚠️ P4 리뷰 반영 — 표준 Forwarded(RFC 7239) 헤더만 보면, AWS ALB나 흔한 nginx
+     * 기본 설정처럼 실무에서 X-Forwarded-For만 보내고 Forwarded는 안 보내는 프록시가
+     * 많아 트러스트 기능이 조용히 한 번도 발동 안 할 수 있다(안전한 방향의 실패이긴
+     * 하지만 실효성이 없음). X-Forwarded-For를 우선 확인하고, 없으면 Forwarded도
+     * 확인하도록 둘 다 지원한다.
      */
     private String resolveIdentifier(ServerHttpRequest request) {
         String remoteIp = Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
 
         if (trustedProxyIps.contains(remoteIp)) {
-            String forwardedFor = request.getHeaders().getFirst("Forwarded");
-            if (forwardedFor != null && !forwardedFor.isBlank()) {
-                return forwardedFor;
+            String clientIp = extractClientIp(request);
+            if (clientIp != null) {
+                return clientIp;
             }
         }
 
         return remoteIp;
+    }
+
+    /**
+     * X-Forwarded-For(콤마 구분, 맨 앞이 원본 클라이언트)를 우선 확인하고,
+     * 없으면 Forwarded(RFC 7239, for= 파라미터)를 확인한다. 둘 다 없으면 null.
+     */
+    private String extractClientIp(ServerHttpRequest request) {
+        String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String forwarded = request.getHeaders().getFirst("Forwarded");
+        if (forwarded != null && !forwarded.isBlank()) {
+            // 여러 홉이 콤마로 이어질 수 있어(for=1.1.1.1;proto=http, for=2.2.2.2),
+            // 맨 앞 홉의 for= 값만 뽑는다. 완전한 RFC 7239 파서는 아니고 단순 파싱이다.
+            String firstHop = forwarded.split(",")[0];
+            for (String part : firstHop.split(";")) {
+                String trimmed = part.trim();
+                if (trimmed.toLowerCase().startsWith("for=")) {
+                    String value = trimmed.substring(4).replace("\"", "");
+                    if (!value.isBlank()) {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private Mono<Void> onRateLimited(ServerWebExchange exchange) {
