@@ -126,6 +126,11 @@ public class SignUpService {
             );
         }
 
+        log.info(
+                "회원가입이 완료되었습니다. userId={}",
+                savedUser.getId()
+        );
+
         long accessTokenExpiresIn =
                 TokenExpirationCalculator.remainingSeconds(
                         now,
