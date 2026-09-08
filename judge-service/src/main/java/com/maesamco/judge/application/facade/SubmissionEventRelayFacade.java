@@ -46,26 +46,40 @@ public class SubmissionEventRelayFacade {
     }
 
     private void relayOne(SubmissionEventOutbox outbox) {
+        // 토픽 분기
         String topic = resolveTopic(outbox.getEventType());
         if (topic == null) {
-            // 아직 처리할 줄 모르는 event_type — 무한 재시도로 큐를 막지 않도록 스킵.
+            // 아직 처리할 줄 모르는 event_type — 재시도해도 결과가 달라지지 않는 영구적 실패이므로
+            // 상한 소진을 기다리지 않고 즉시 FAILED로 종료해서 PENDING 큐를 막지 않도록 합니다.
             // 추후 작업에서 SubmissionJudged를 추가할 때 여기도 채워질 예정입니다!! (TODO).
-            log.error("[Judge] Outbox Relay가 모르는 event_type={} outboxId={} — 스킵",
-                    outbox.getEventType(), outbox.getId());
+            submissionEventOutboxPersistenceService.markUnsupportedEventType(outbox);
             return;
         }
 
+        // Kafka 발행 시도
         try {
             eventPublisherPort.publish(topic, outbox.getAggregateId().toString(), outbox.getPayload());
+        } catch (Exception e) {
+            // 1. 발행 실패 — 재시도 상한 안이면 status는 PENDING 그대로 둬서 다음 폴링 주기에 재시도.
+            // 2. 상한 소진 시 recordFailedAttempt 내부에서 FAILED로 종료 처리.
+            // 재시도로 인한 중복 발행 가능성은 Worker 쪽 멱등 처리로 대응.
+            submissionEventOutboxPersistenceService.recordFailedAttempt(outbox);
+            if (outbox.getStatus() != OutboxStatus.FAILED) {
+                log.error("[Judge] Outbox 발행 실패 — 다음 폴링에서 재시도. outboxId={}, eventType={}, attemptCount={}",
+                        outbox.getId(), outbox.getEventType(), outbox.getAttemptCount(), e);
+            }
+            return;
+        }
+        // 발행 자체는 성공하여 상태 전이 + DB 저장 시도
+        try {
             submissionEventOutboxPersistenceService.markPublished(outbox);
             log.info("[Judge] Outbox 발행 성공. outboxId={}, eventType={}, aggregateId={}",
                     outbox.getId(), outbox.getEventType(), outbox.getAggregateId());
         } catch (Exception e) {
-            // 발행 실패 — status는 PENDING 그대로 둬서 다음 폴링 주기에 재시도.
-            // 재시도로 인한 중복 발행 가능성은 Worker 쪽 멱등 처리로 대응.
-            submissionEventOutboxPersistenceService.recordFailedAttempt(outbox);
-            log.error("[Judge] Outbox 발행 실패 — 다음 폴링에서 재시도. outboxId={}, eventType={}, attemptCount={}",
-                    outbox.getId(), outbox.getEventType(), outbox.getAttemptCount(), e);
+            submissionEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId());
+            log.error("[Judge] Kafka 발행은 성공했으나 후처리(Outbox 완료/Submission 전이) 실패 — "
+                            + "재시도 대상으로 표시. outboxId={}, eventType={}",
+                    outbox.getId(), outbox.getEventType(), e);
         }
     }
 
