@@ -8,6 +8,7 @@ import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+// import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -20,6 +21,7 @@ import java.util.UUID;
  * TODO: ProblemProgressQueryRepository와 ConceptRepository가 병합되면
  * 임시 Port 주입을 실제 Repository 주입으로 교체하고 @Service로 등록합니다.
  */
+// @Service
 @RequiredArgsConstructor
 public class DailyQuizConceptCandidateQueryService {
 

@@ -2,6 +2,7 @@ package com.maesamco.content.dailyquiz.infrastructure.scheduler;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+// import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * daily-quiz.batch 설정을 DailyQuizBatchProperties에 바인딩하고
@@ -9,5 +10,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(DailyQuizBatchProperties.class)
+// @EnableScheduling
 public class DailyQuizBatchConfig {
 }

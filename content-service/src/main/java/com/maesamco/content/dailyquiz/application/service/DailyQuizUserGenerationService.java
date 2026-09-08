@@ -7,6 +7,7 @@ import com.maesamco.content.dailyquiz.application.query_service.DailyQuizConcept
 import com.maesamco.content.dailyquiz.application.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
 import lombok.RequiredArgsConstructor;
+// import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import java.util.UUID;
  * TODO: ProblemProgressConceptPort와 ConceptLookupPort의 실제 구현이 병합되면
  * DailyQuizConceptCandidateQueryService와 이 클래스를 Spring Bean으로 등록합니다.
  */
+// @Service
 @RequiredArgsConstructor
 public class DailyQuizUserGenerationService {
 
