@@ -13,11 +13,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,6 +33,7 @@ class ProblemEventOutboxRelayServiceTest {
 
     private static final int BATCH_SIZE = 50;
     private static final long PUBLISH_TIMEOUT_MILLIS = 5_000L;
+    private static final int MAX_PAYLOAD_BYTES = 900_000;
 
     @Mock
     private ProblemEventOutboxRepository outboxRepository;
@@ -51,7 +54,8 @@ class ProblemEventOutboxRelayServiceTest {
                         kafkaProducer,
                         statusService,
                         BATCH_SIZE,
-                        PUBLISH_TIMEOUT_MILLIS
+                        PUBLISH_TIMEOUT_MILLIS,
+                        MAX_PAYLOAD_BYTES
                 );
     }
 
@@ -317,7 +321,8 @@ class ProblemEventOutboxRelayServiceTest {
                         kafkaProducer,
                         statusService,
                         BATCH_SIZE,
-                        1L
+                        1L,
+                        MAX_PAYLOAD_BYTES
                 );
 
         UUID outboxId =
@@ -468,21 +473,107 @@ class ProblemEventOutboxRelayServiceTest {
         );
     }
 
+    @Test
+    @DisplayName(
+            "UTF-8 payload가 최대 크기를 초과하면 Kafka로 발행하지 않고 실패를 기록한다"
+    )
+    void relayPendingOutboxes_recordsFailureWithoutPublishing_whenPayloadIsTooLarge() {
+        // given
+        UUID outboxId =
+                UUID.randomUUID();
+
+        UUID problemId =
+                UUID.randomUUID();
+
+        String oversizedPayload =
+                """
+                {
+                  "eventType": "PROBLEM_PUBLISHED",
+                  "padding": "%s"
+                }
+                """.formatted(
+                        "가".repeat(300_000)
+                );
+
+        assertThat(
+                oversizedPayload.getBytes(
+                        StandardCharsets.UTF_8
+                ).length
+        ).isGreaterThan(
+                MAX_PAYLOAD_BYTES
+        );
+
+        ProblemEventOutbox outbox =
+                createPendingOutbox(
+                        outboxId,
+                        problemId,
+                        Instant.parse(
+                                "2026-09-08T00:00:00Z"
+                        ),
+                        oversizedPayload
+                );
+
+        when(
+                outboxRepository.findAllByStatusOrderByOccurredAtAsc(
+                        eq(ProblemEventOutboxStatus.PENDING),
+                        any()
+                )
+        ).thenReturn(
+                List.of(outbox)
+        );
+
+        // when
+        relayService.relayPendingOutboxes();
+
+        // then
+        verify(
+                kafkaProducer,
+                never()
+        ).publish(
+                any(),
+                anyString()
+        );
+
+        verify(statusService).recordFailure(
+                outboxId,
+                "EVENT_PAYLOAD_TOO_LARGE"
+        );
+
+        verify(statusService, never()).markPublished(
+                eq(outboxId),
+                any()
+        );
+    }
+
     private ProblemEventOutbox createPendingOutbox(
             UUID outboxId,
             UUID problemId,
             Instant occurredAt
+    ) {
+        return createPendingOutbox(
+                outboxId,
+                problemId,
+                occurredAt,
+                """
+                {
+                  "eventType": "PROBLEM_PUBLISHED"
+                }
+                """
+        );
+    }
+
+    private ProblemEventOutbox createPendingOutbox(
+            UUID outboxId,
+            UUID problemId,
+            Instant occurredAt,
+            String payload
     ) {
         ProblemEventOutbox outbox =
                 ProblemEventOutbox.createPending(
                         UUID.randomUUID(),
                         problemId,
                         1,
-                        """
-                        {
-                          "eventType": "PROBLEM_PUBLISHED"
-                        }
-                        """,
+                        payload,
                         occurredAt
                 );
 

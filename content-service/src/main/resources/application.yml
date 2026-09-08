@@ -57,6 +57,9 @@ outbox:
       # Kafka ACK를 기다리는 최대 시간입니다.
       publish-timeout-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
 
+      # Kafka 발행 전 허용할 직렬화 payload의 최대 UTF-8 바이트 크기입니다.
+      max-payload-bytes: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_MAX_PAYLOAD_BYTES:900000}
+
       # 이전 Relay 실행이 끝난 뒤 다음 실행까지 기다리는 시간입니다.
       fixed-delay-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_FIXED_DELAY_MS:1000}
 

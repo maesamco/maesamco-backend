@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -31,12 +32,16 @@ import java.util.concurrent.TimeoutException;
 @Service
 public class ProblemEventOutboxRelayService {
 
+    private static final String PAYLOAD_TOO_LARGE_ERROR =
+            "EVENT_PAYLOAD_TOO_LARGE";
+
     private final ProblemEventOutboxRepository outboxRepository;
     private final ProblemPublishedKafkaProducer kafkaProducer;
     private final ProblemEventOutboxStatusService statusService;
 
     private final int batchSize;
     private final long publishTimeoutMillis;
+    private final int maxPayloadBytes;
 
     public ProblemEventOutboxRelayService(
             ProblemEventOutboxRepository outboxRepository,
@@ -49,13 +54,18 @@ public class ProblemEventOutboxRelayService {
             @Value(
                     "${outbox.problem-published.relay.publish-timeout-ms:5000}"
             )
-            long publishTimeoutMillis
+            long publishTimeoutMillis,
+            @Value(
+                    "${outbox.problem-published.relay.max-payload-bytes:900000}"
+            )
+            int maxPayloadBytes
     ) {
         this.outboxRepository = outboxRepository;
         this.kafkaProducer = kafkaProducer;
         this.statusService = statusService;
         this.batchSize = batchSize;
         this.publishTimeoutMillis = publishTimeoutMillis;
+        this.maxPayloadBytes = maxPayloadBytes;
     }
 
     /**
@@ -91,6 +101,17 @@ public class ProblemEventOutboxRelayService {
     private boolean relayOne(
             ProblemEventOutbox outbox
     ) {
+        if (isPayloadTooLarge(
+                outbox.getPayload()
+        )) {
+            recordFailureSafely(
+                    outbox,
+                    PAYLOAD_TOO_LARGE_ERROR
+            );
+
+            return true;
+        }
+
         try {
             CompletableFuture<SendResult<String, String>>
                     publishFuture =
@@ -144,6 +165,18 @@ public class ProblemEventOutboxRelayService {
         );
 
         return true;
+    }
+
+    /**
+     * Kafka 메시지 제한보다 충분한 여유를 두기 위해
+     * 직렬화된 JSON payload를 UTF-8 byte 기준으로 검사합니다.
+     */
+    private boolean isPayloadTooLarge(
+            String payload
+    ) {
+        return payload.getBytes(
+                StandardCharsets.UTF_8
+        ).length > maxPayloadBytes;
     }
 
     /**
