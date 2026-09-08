@@ -116,6 +116,7 @@ public class Problem extends BaseEntity {
         this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
+    // TODO: 추후에 작성
     // problem status 전환 과정은 DDD 적용
     // 1. REVIEW_PENDING -> PUBLISHED
     public void approvePublication() {
