@@ -82,10 +82,9 @@ class SubmissionEventRelayFacadeTest {
         }
 
         @Test
-        @DisplayName("알 수 없는 event_type이면 발행을 시도하지 않고 스킵한다")
-        void skipsUnknownEventType() {
+        @DisplayName("알 수 없는 event_type이면 발행을 시도하지 않고 즉시 markUnsupportedEventType으로 종료 처리한다")
+        void marksUnsupportedEventTypeWithoutPublishing() {
             SubmissionEventOutbox outbox = pendingOutbox("SubmissionJudged"); // 이슈 9 몫, 아직 미지원
-
             given(submissionEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
                     .willReturn(List.of(outbox));
 
@@ -93,6 +92,24 @@ class SubmissionEventRelayFacadeTest {
 
             verify(eventPublisherPort, never()).publish(anyString(), anyString(), anyString());
             verify(submissionEventOutboxPersistenceService, never()).markPublished(any());
+            verify(submissionEventOutboxPersistenceService, never()).recordFailedAttempt(any());
+            verify(submissionEventOutboxPersistenceService).markUnsupportedEventType(outbox);
+        }
+
+        @Test
+        @DisplayName("발행은 성공했지만 markPublished 후처리가 실패하면 recordPostPublishFailure로 넘긴다")
+        void recordsPostPublishFailureWhenMarkPublishedFails() {
+            SubmissionEventOutbox outbox = pendingOutbox("JudgeRequested");
+            given(submissionEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+                    .willReturn(List.of(outbox));
+            willThrow(new RuntimeException("DB 후처리 실패"))
+                    .given(submissionEventOutboxPersistenceService).markPublished(outbox);
+
+            submissionEventRelayFacade.relay();
+
+            verify(eventPublisherPort).publish("judge-requested", outbox.getAggregateId().toString(), outbox.getPayload());
+            verify(submissionEventOutboxPersistenceService).markPublished(outbox);
+            verify(submissionEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId());
             verify(submissionEventOutboxPersistenceService, never()).recordFailedAttempt(any());
         }
     }
