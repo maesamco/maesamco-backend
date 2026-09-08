@@ -56,7 +56,4 @@ public class ProblemUpdateRequest {
 
     /** 수정할 문제 출처입니다. */
     private ProblemSource source;
-
-    /** 수정할 문제 상태입니다. */
-    private ProblemStatus problemStatus;
 }
