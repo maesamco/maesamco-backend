@@ -42,12 +42,12 @@ public class DailyQuizConceptCandidateQueryService {
         }
         boolean hasProblemProgress = problemProgressConceptPort.existsByUserId(query.userId());
 
-        // 풀이 이력이 없으면 관심 개념 ID를 조회하고 개념 이름으로 변환합니다.
+        // 풀이 이력이 없으면 관심 개념 ID를 조회하고 Daily Quiz 개념 태그로 변환합니다.
         if (!hasProblemProgress) {
             List<UUID> interestConceptIds = userInterestConceptPort.getInterestConceptIds(query.userId());
-            List<String> conceptNames = conceptLookupPort.getConceptNames(interestConceptIds);
+            List<String> conceptTags = conceptLookupPort.getConceptTags(interestConceptIds);
 
-            return DailyQuizConceptCandidates.fromInterests(conceptNames);
+            return DailyQuizConceptCandidates.fromInterests(conceptTags);
         }
 
         // 풀이 이력이 있으면 WRONG 개념을 조회합니다.
