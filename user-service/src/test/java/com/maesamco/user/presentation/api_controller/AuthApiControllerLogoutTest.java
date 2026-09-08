@@ -5,6 +5,8 @@ import com.maesamco.user.application.service.LogoutCommand;
 import com.maesamco.user.application.service.LogoutService;
 import com.maesamco.user.application.service.RefreshService;
 import com.maesamco.user.application.service.SignUpService;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
 import com.maesamco.user.global.security.AccessTokenAuthenticationDetails;
 import org.junit.jupiter.api.BeforeEach;
@@ -287,6 +289,63 @@ class AuthApiControllerLogoutTest {
                 );
 
         verifyNoInteractions(logoutService);
+    }
+
+    @Test
+    @DisplayName(
+            "만료된 Access Token으로 로그아웃하면 "
+                    + "401 AUTH_EXPIRED_TOKEN을 반환하고 Cookie를 삭제하지 않는다"
+    )
+    void logout_expiredAccessToken() throws Exception {
+        // given
+        UsernamePasswordAuthenticationToken authentication =
+                createAuthentication(
+                        new AccessTokenAuthenticationDetails(
+                                SESSION_ID,
+                                NOW
+                        )
+                );
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.AUTH_EXPIRED_TOKEN
+                )
+        )
+                .when(logoutService)
+                .logout(any());
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/logout")
+                                .principal(authentication)
+                )
+                .andExpect(
+                        status().isUnauthorized()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "AUTH_EXPIRED_TOKEN"
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
+
+        verify(logoutService)
+                .logout(
+                        new LogoutCommand(
+                                USER_ID,
+                                SESSION_ID,
+                                NOW
+                        )
+                );
     }
 
     @Test

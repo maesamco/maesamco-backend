@@ -1,6 +1,8 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSession;
+import com.maesamco.user.application.port.AuthSessionLogoutResult;
+import com.maesamco.user.application.port.AuthSessionLogoutStore;
 import com.maesamco.user.application.port.AuthSessionRotationResult;
 import com.maesamco.user.application.port.AuthSessionStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,8 +21,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import tools.jackson.databind.json.JsonMapper;
-import com.maesamco.user.application.port.AuthSessionLogoutResult;
-import com.maesamco.user.application.port.AuthSessionLogoutStore;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -77,11 +77,27 @@ class RedisAuthSessionStoreIntegrationTest {
                     "44444444-4444-4444-4444-444444444444"
             );
 
+    private static final UUID SECOND_SESSION_ID =
+            UUID.fromString(
+                    "55555555-5555-5555-5555-555555555555"
+            );
+
+    private static final UUID SECOND_FAMILY_ID =
+            UUID.fromString(
+                    "66666666-6666-6666-6666-666666666666"
+            );
+
     private static final String SESSION_KEY =
             "session:" + SESSION_ID;
 
     private static final String SESSION_BLACKLIST_KEY =
             SESSION_KEY + ":blacklisted";
+
+    private static final String SECOND_SESSION_KEY =
+            "session:" + SECOND_SESSION_ID;
+
+    private static final String SECOND_SESSION_BLACKLIST_KEY =
+            SECOND_SESSION_KEY + ":blacklisted";
 
     private static final Instant ACCESS_TOKEN_EXPIRES_AT =
             NOW.plusSeconds(900);
@@ -94,6 +110,9 @@ class RedisAuthSessionStoreIntegrationTest {
 
     private static final String SECOND_ROTATED_REFRESH_TOKEN_HASH =
             "refresh-token-hash-c";
+
+    private static final String SECOND_SESSION_REFRESH_TOKEN_HASH =
+            "refresh-token-hash-second-session";
 
     @Container
     private static final GenericContainer<?> REDIS =
@@ -132,7 +151,9 @@ class RedisAuthSessionStoreIntegrationTest {
         redisTemplate.delete(
                 List.of(
                         SESSION_KEY,
-                        SESSION_BLACKLIST_KEY
+                        SESSION_BLACKLIST_KEY,
+                        SECOND_SESSION_KEY,
+                        SECOND_SESSION_BLACKLIST_KEY
                 )
         );
     }
@@ -485,6 +506,67 @@ class RedisAuthSessionStoreIntegrationTest {
 
     @Test
     @DisplayName(
+            "현재 세션을 로그아웃해도 "
+                    + "동일 사용자의 다른 인증 세션은 유지한다"
+    )
+    void logout_keepsOtherSessionOfSameUser() {
+        // given
+        AuthSession currentSession =
+                createSession();
+
+        AuthSession otherSession =
+                createSecondSession();
+
+        authSessionStore.save(currentSession);
+        authSessionStore.save(otherSession);
+
+        // when
+        AuthSessionLogoutResult result =
+                authSessionLogoutStore.logout(
+                        USER_ID,
+                        SESSION_ID,
+                        ACCESS_TOKEN_EXPIRES_AT
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionLogoutResult.LOGGED_OUT
+                );
+
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SESSION_ID
+                )
+        ).isEmpty();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SESSION_BLACKLIST_KEY
+                )
+        ).isTrue();
+
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SECOND_SESSION_ID
+                )
+        ).contains(otherSession);
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SECOND_SESSION_KEY
+                )
+        ).isTrue();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SECOND_SESSION_BLACKLIST_KEY
+                )
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName(
             "인증 세션이 이미 없어도 실제 Redis에 "
                     + "세션 블랙리스트를 등록한다"
     )
@@ -571,6 +653,20 @@ class RedisAuthSessionStoreIntegrationTest {
     }
 
     /**
+     * 동일 사용자의 두 번째 인증 세션을 생성합니다.
+     */
+    private AuthSession createSecondSession() {
+        return new AuthSession(
+                SECOND_SESSION_ID,
+                SECOND_FAMILY_ID,
+                USER_ID,
+                SECOND_SESSION_REFRESH_TOKEN_HASH,
+                NOW,
+                NOW.plus(SESSION_TTL)
+        );
+    }
+
+    /**
      * 통합 테스트에서 사용할 고정 시계와 JSON Mapper를 구성합니다.
      */
     @TestConfiguration(proxyBeanMethods = false)
@@ -590,5 +686,72 @@ class RedisAuthSessionStoreIntegrationTest {
                     .findAndAddModules()
                     .build();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "기존 세션 블랙리스트 TTL이 더 길면 "
+                    + "로그아웃 시 TTL을 단축하지 않는다"
+    )
+    void logout_doesNotShortenExistingBlacklistTtl() {
+        // given
+        authSessionStore.save(
+                createSession()
+        );
+
+        Duration existingBlacklistTtl =
+                Duration.ofSeconds(1800);
+
+        redisTemplate.opsForValue().set(
+                SESSION_BLACKLIST_KEY,
+                "1",
+                existingBlacklistTtl
+        );
+
+        Long ttlBeforeLogout =
+                redisTemplate.getExpire(
+                        SESSION_BLACKLIST_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        // when
+        AuthSessionLogoutResult result =
+                authSessionLogoutStore.logout(
+                        USER_ID,
+                        SESSION_ID,
+                        ACCESS_TOKEN_EXPIRES_AT
+                );
+
+        Long ttlAfterLogout =
+                redisTemplate.getExpire(
+                        SESSION_BLACKLIST_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionLogoutResult.LOGGED_OUT
+                );
+
+        assertThat(ttlBeforeLogout)
+                .isPositive();
+
+        assertThat(ttlAfterLogout)
+                .isPositive();
+
+        assertThat(ttlAfterLogout)
+                .isLessThanOrEqualTo(ttlBeforeLogout);
+
+        assertThat(ttlAfterLogout)
+                .isGreaterThan(
+                        1_700_000L
+                );
+
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SESSION_ID
+                )
+        ).isEmpty();
     }
 }

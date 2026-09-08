@@ -2,6 +2,8 @@ package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSessionLogoutResult;
 import com.maesamco.user.application.port.AuthSessionLogoutStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -176,8 +178,8 @@ public class RedisAuthSessionLogoutStore
                 ).toMillis();
 
         if (ttlMillis <= 0) {
-            throw new IllegalArgumentException(
-                    "만료된 Access Token은 로그아웃할 수 없습니다."
+            throw new BusinessException(
+                    ErrorCode.AUTH_EXPIRED_TOKEN
             );
         }
 

@@ -2,6 +2,8 @@ package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSessionLogoutResult;
 import com.maesamco.user.application.port.AuthSessionLogoutStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -215,7 +217,8 @@ class RedisAuthSessionLogoutStoreTest {
 
     @Test
     @DisplayName(
-            "이미 만료된 Access Token이면 Redis를 호출하지 않는다"
+            "이미 만료된 Access Token이면 "
+                    + "AUTH_EXPIRED_TOKEN으로 실패하고 Redis를 호출하지 않는다"
     )
     void logout_expiredAccessToken() {
         // when & then
@@ -226,11 +229,22 @@ class RedisAuthSessionLogoutStoreTest {
                         NOW
                 )
         )
-                .isInstanceOf(
-                        IllegalArgumentException.class
-                )
-                .hasMessage(
-                        "만료된 Access Token은 로그아웃할 수 없습니다."
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(
+                                    exception.getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.AUTH_EXPIRED_TOKEN
+                            );
+
+                            assertThat(
+                                    exception.getMessage()
+                            ).isEqualTo(
+                                    ErrorCode.AUTH_EXPIRED_TOKEN
+                                            .getMessage()
+                            );
+                        }
                 );
 
         verifyNoInteractions(redisTemplate);
