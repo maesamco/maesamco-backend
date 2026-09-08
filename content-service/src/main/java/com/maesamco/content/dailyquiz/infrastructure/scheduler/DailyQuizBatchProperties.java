@@ -1,8 +1,11 @@
 package com.maesamco.content.dailyquiz.infrastructure.scheduler;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.scheduling.support.CronExpression;
 
+import java.time.DateTimeException;
 import java.time.ZoneId;
 
 /**
@@ -19,22 +22,34 @@ public record DailyQuizBatchProperties(
 ) {
     public DailyQuizBatchProperties {
         if (cron == null || cron.isBlank()) {
-            throw new IllegalArgumentException("Daily Quiz 배치 cron은 필수입니다.");
+            throw invalidInput("Daily Quiz 배치 cron은 필수입니다.");
         }
-        CronExpression.parse(cron);
+        try {
+            CronExpression.parse(cron);
+        } catch (IllegalArgumentException exception) {
+            throw invalidInput("Daily Quiz 배치 cron 형식이 올바르지 않습니다.");
+        }
 
         if (zone == null || zone.isBlank()) {
-            throw new IllegalArgumentException("Daily Quiz 배치 timezone은 필수입니다.");
+            throw invalidInput("Daily Quiz 배치 timezone은 필수입니다.");
         }
-        zone = ZoneId.of(zone).getId();
+        try {
+            zone = ZoneId.of(zone).getId();
+        } catch (DateTimeException exception) {
+            throw invalidInput("Daily Quiz 배치 timezone이 올바르지 않습니다.");
+        }
 
         if (chunkSize < 1) {
-            throw new IllegalArgumentException("Daily Quiz 배치 chunk size는 1 이상이어야 합니다.");
+            throw invalidInput("Daily Quiz 배치 chunk size는 1 이상이어야 합니다.");
         }
 
         if (chunkSize > 1000) {
-            throw new IllegalArgumentException("Daily Quiz 배치 chunk size는 1000 이하여야 합니다.");
+            throw invalidInput("Daily Quiz 배치 chunk size는 1000 이하여야 합니다.");
         }
+    }
+
+    private static BusinessException invalidInput(String message) {
+        return new BusinessException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
     public ZoneId zoneId() {

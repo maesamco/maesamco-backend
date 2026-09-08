@@ -3,6 +3,8 @@ package com.maesamco.content.dailyquiz.application.service;
 import com.maesamco.content.dailyquiz.application.port.DailyQuizTargetUserPort;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizTargetUserPage;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 // import org.springframework.stereotype.Service;
@@ -28,10 +30,16 @@ public class DailyQuizBatchExecutionService {
 
     public void execute(LocalDate attemptDate, int chunkSize) {
         // attemptDate와 chunkSize를 검증합니다.
-        Objects.requireNonNull(attemptDate, "퀴즈 날짜는 필수입니다.");
+        if (attemptDate == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "퀴즈 날짜는 필수입니다."
+            );
+        }
 
         if (chunkSize < 1 || chunkSize > 1000) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
                     "Daily Quiz 배치 chunk size는 1 이상 1000 이하여야 합니다."
             );
         }
