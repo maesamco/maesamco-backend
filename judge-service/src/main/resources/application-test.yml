@@ -1,0 +1,28 @@
+jwt:
+  public-key: |
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAua4T9Ie8i/C2Gqai9ZeN
+    WxyJ2XzrgCcY4jGlQSb19TnuyjF/oaFwqZVzUwfp8LUWf20VX6vWCwJSTYOaF2Qk
+    4MhD0PDpgAkXHD3rDrRpriYMtU34+Lj4CzRU0Z3A194KK+3DBj3gWo5ThnfHN0Jp
+    jviFn3E/fjJvLkyNJsEpppaJybUkO4rTI4Ha0qQGlWIyfVFAtWkE5urLQk4+mCPT
+    dHtPE42Ie8hxE22VqskBDK7oINPA6l6bd6mPIvhg+6hx/FeWxD+6fh4NngB2BYKB
+    SecdjjHOFaXXpfhiCWij1dvC4NUIIX5buPsXcQGOo7LyUjPXCTpvV99g9Hjn2e/z
+    WQIDAQAB
+    -----END PUBLIC KEY-----
+
+internal:
+  hmac:
+    keys:
+      content-service: local-dev-hmac-content-to-judge
+      coaching-service: local-dev-hmac-coaching-to-judge
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+spring:
+  kafka:
+    listener:
+      auto-startup: false

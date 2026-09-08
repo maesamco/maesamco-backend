@@ -38,7 +38,7 @@ public class Submission extends BaseEntity {
     private static final Set<SubmissionStatus> TERMINAL_STATUSES =
             EnumSet.of(SubmissionStatus.COMPLETED, SubmissionStatus.FAILED);
 
-    private static final int MAX_CODE_BYTES = 100 * 1024; // 100KB
+    public static final int MAX_CODE_BYTES = 100 * 1024; // 100KB
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
     @Id
