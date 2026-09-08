@@ -76,11 +76,18 @@ internal:
       content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
     outbound:
       judge-service: ${HMAC_KEY_COACHING_TO_JUDGE:} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
+      content-service: ${HMAC_KEY_COACHING_TO_CONTENT:} # 이 서비스가 Content에게 보낼 때 서명하는 키(ContentServiceFeignConfig, 이슈 #62)
 
 resilience4j:
   circuitbreaker:
     instances:
       judge-service: # JudgeServiceAdapter.getSubmission() — 힌트 생성 핵심 경로 호출(팀 컨벤션 2절)
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      content-service: # ContentServiceAdapter.getProblem() — 힌트/설명/피드백 프롬프트 품질용 조회(이슈 #62)
         sliding-window-size: 10
         minimum-number-of-calls: 5
         failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것
