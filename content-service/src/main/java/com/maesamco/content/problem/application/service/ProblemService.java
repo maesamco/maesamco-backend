@@ -41,8 +41,8 @@ public class ProblemService {
                 request.getType(),
                 request.getDescription(),
                 request.getStarterCode(),
-                request.getRunningTimeLimit().getSeconds(),
-                request.getRunningMemoryLimit().getMegabytes(),
+                request.getRunningTimeLimit(),
+                request.getRunningMemoryLimit(),
                 request.getTimerPolicy(),
                 request.getSource(),
                 ProblemStatus.DRAFT
@@ -122,11 +122,11 @@ public class ProblemService {
         }
 
         if (request.getRunningTimeLimit() != null) {
-            problem.changeRunningTimeLimit(request.getRunningTimeLimit().getSeconds());
+            problem.changeRunningTimeLimit(request.getRunningTimeLimit());
             is_modified = true;
         }
         if (request.getRunningMemoryLimit() != null) {
-            problem.changeRunningMemoryLimit(request.getRunningMemoryLimit().getMegabytes());
+            problem.changeRunningMemoryLimit(request.getRunningMemoryLimit());
             is_modified = true;
         }
         if (request.getTimerPolicy() != null) {

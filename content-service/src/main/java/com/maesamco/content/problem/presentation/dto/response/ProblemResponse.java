@@ -1,12 +1,7 @@
 package com.maesamco.content.problem.presentation.dto.response;
 
 import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -28,8 +23,8 @@ public class ProblemResponse {
     private final ProblemType type;
     private final String description;
     private final String starterCode;
-    private final Integer runningTimeLimit;
-    private final Integer runningMemoryLimit;
+    private final RunningTimeLimit runningTimeLimit;
+    private final RunningMemoryLimit runningMemoryLimit;
     private final TimerPolicy timerPolicy;
     private final ProblemSource source;
     private final ProblemStatus problemStatus;
