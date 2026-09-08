@@ -9,12 +9,13 @@ import com.maesamco.content.dailyquiz.application.service.DailyQuizConceptSlotSe
 import com.maesamco.content.dailyquiz.domain.ConceptSlots;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,7 +36,12 @@ public class DailyQuizSetGenerationFacade {
     public DailyQuizSetGenerationResult generate(
             DailyQuizSetGenerationCommand command
     ) {
-        Objects.requireNonNull(command, "Daily Quiz 세트 생성 요청은 필수입니다.");
+        if (command == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Daily Quiz 세트 생성 요청은 필수입니다."
+            );
+        }
 
         // 오늘 세트가 이미 존재하면 ALREADY_EXISTS를 반환합니다.
         if (attemptRepository.existsByUserIdAndAttemptDate(command.userId(), command.attemptDate())) {

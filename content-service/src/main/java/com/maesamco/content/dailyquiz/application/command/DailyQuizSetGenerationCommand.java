@@ -1,9 +1,10 @@
 package com.maesamco.content.dailyquiz.application.command;
 
 import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 
 import java.time.LocalDate;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -16,9 +17,19 @@ public record DailyQuizSetGenerationCommand(
 ) {
 
     public DailyQuizSetGenerationCommand {
-        Objects.requireNonNull(userId, "사용자 ID는 필수입니다.");
-        Objects.requireNonNull(attemptDate, "퀴즈 날짜는 필수입니다.");
-        Objects.requireNonNull(conceptCandidates, "개념 선정 후보는 필수입니다.");
+        if (userId == null) {
+            throw invalidInput("사용자 ID는 필수입니다.");
+        }
+        if (attemptDate == null) {
+            throw invalidInput("퀴즈 날짜는 필수입니다.");
+        }
+        if (conceptCandidates == null) {
+            throw invalidInput("개념 선정 후보는 필수입니다.");
+        }
+    }
+
+    private static BusinessException invalidInput(String message) {
+        return new BusinessException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
     public static DailyQuizSetGenerationCommand from(

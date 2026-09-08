@@ -6,11 +6,12 @@ import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttempt;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptItem;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -25,7 +26,12 @@ public class DailyQuizSetPersistenceService {
     private final DailyQuizAttemptItemRepository attemptItemRepository;
 
     public DailyQuizSetGenerationResult create(DailyQuizSetCreateCommand command) {
-        Objects.requireNonNull(command, "Daily Quiz 세트 생성 요청은 필수입니다.");
+        if (command == null) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Daily Quiz 세트 생성 요청은 필수입니다."
+            );
+        }
 
         int totalCount = command.questionIds().size();
 

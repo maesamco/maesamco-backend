@@ -1,5 +1,8 @@
 package com.maesamco.content.dailyquiz.application.result;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
+
 import java.util.UUID;
 
 import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MINIMUM_QUESTION_COUNT;
@@ -13,10 +16,10 @@ public record DailyQuizSetGenerationResult(
 
     public DailyQuizSetGenerationResult {
         if (status == null) {
-            throw new IllegalArgumentException("Daily Quiz 세트 생성 상태는 필수입니다.");
+            throw invalidInput("Daily Quiz 세트 생성 상태는 필수입니다.");
         }
         if (questionCount < 0 || questionCount > TARGET_QUESTION_COUNT) {
-            throw new IllegalArgumentException(
+            throw invalidInput(
                     "확보한 문항 수는 0개 이상 " + TARGET_QUESTION_COUNT + "개 이하여야 합니다."
             );
         }
@@ -67,10 +70,10 @@ public record DailyQuizSetGenerationResult(
 
     private static void validateCreated(UUID attemptId, int questionCount) {
         if (attemptId == null) {
-            throw new IllegalArgumentException("생성된 Daily Quiz 세트 ID는 필수입니다.");
+            throw invalidInput("생성된 Daily Quiz 세트 ID는 필수입니다.");
         }
         if (questionCount < MINIMUM_QUESTION_COUNT) {
-            throw new IllegalArgumentException(
+            throw invalidInput(
                     "생성된 Daily Quiz 세트는 최소 " + MINIMUM_QUESTION_COUNT + "개의 문항이 필요합니다."
             );
         }
@@ -82,7 +85,7 @@ public record DailyQuizSetGenerationResult(
             DailyQuizSetGenerationStatus status
     ) {
         if (attemptId != null || questionCount != 0) {
-            throw new IllegalArgumentException(
+            throw invalidInput(
                     status + " 상태에는 생성된 세트 ID나 확보한 문항 수가 있을 수 없습니다."
             );
         }
@@ -90,12 +93,16 @@ public record DailyQuizSetGenerationResult(
 
     private static void validateInsufficientQuestions(UUID attemptId, int questionCount) {
         if (attemptId != null) {
-            throw new IllegalArgumentException("최소 문항 미달 상태에는 생성된 세트 ID가 있을 수 없습니다.");
+            throw invalidInput("최소 문항 미달 상태에는 생성된 세트 ID가 있을 수 없습니다.");
         }
         if (questionCount >= MINIMUM_QUESTION_COUNT) {
-            throw new IllegalArgumentException(
+            throw invalidInput(
                     "최소 문항 미달 상태의 문항 수는 " + MINIMUM_QUESTION_COUNT + "개 미만이어야 합니다."
             );
         }
+    }
+
+    private static BusinessException invalidInput(String message) {
+        return new BusinessException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 }

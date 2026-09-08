@@ -1,7 +1,9 @@
 package com.maesamco.content.dailyquiz.domain;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
+
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Daily Quiz 개념 슬롯 선정에 사용할 후보 데이터입니다.
@@ -18,22 +20,39 @@ public record DailyQuizConceptCandidates(
 ) {
 
     public DailyQuizConceptCandidates {
-        wrongConcepts = List.copyOf(
-                Objects.requireNonNull(wrongConcepts, "오답 개념 목록은 필수입니다.")
-        );
-        solvedConcepts = List.copyOf(
-                Objects.requireNonNull(solvedConcepts, "정답 개념 목록은 필수입니다.")
-        );
-        interestConcepts = List.copyOf(
-                Objects.requireNonNull(interestConcepts, "관심 개념 목록은 필수입니다.")
-        );
+        if (wrongConcepts == null) {
+            throw invalidInput("오답 개념 목록은 필수입니다.");
+        }
+        if (solvedConcepts == null) {
+            throw invalidInput("정답 개념 목록은 필수입니다.");
+        }
+        if (interestConcepts == null) {
+            throw invalidInput("관심 개념 목록은 필수입니다.");
+        }
+        if (wrongConcepts.contains(null)) {
+            throw invalidInput("오답 개념은 비어 있을 수 없습니다.");
+        }
+        if (solvedConcepts.contains(null)) {
+            throw invalidInput("정답 개념은 비어 있을 수 없습니다.");
+        }
+        if (interestConcepts.contains(null)) {
+            throw invalidInput("관심 개념은 비어 있을 수 없습니다.");
+        }
+
+        wrongConcepts = List.copyOf(wrongConcepts);
+        solvedConcepts = List.copyOf(solvedConcepts);
+        interestConcepts = List.copyOf(interestConcepts);
 
         if (hasProblemProgress && !interestConcepts.isEmpty()) {
-            throw new IllegalArgumentException("풀이 이력이 있는 사용자는 관심 개념을 사용할 수 없습니다.");
+            throw invalidInput("풀이 이력이 있는 사용자는 관심 개념을 사용할 수 없습니다.");
         }
         if (!hasProblemProgress && (!wrongConcepts.isEmpty() || !solvedConcepts.isEmpty())) {
-            throw new IllegalArgumentException("풀이 이력이 없는 사용자는 오답 또는 정답 개념을 사용할 수 없습니다.");
+            throw invalidInput("풀이 이력이 없는 사용자는 오답 또는 정답 개념을 사용할 수 없습니다.");
         }
+    }
+
+    private static BusinessException invalidInput(String message) {
+        return new BusinessException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
     public static DailyQuizConceptCandidates fromProblemProgress(
