@@ -22,7 +22,7 @@ import java.util.UUID;
  * {@code session:{sessionId}:blacklisted} 등록을 하나의
  * 원자 연산으로 실행합니다.</p>
  *
- * <p>블랙리스트는 Access Token의 남은 유효시간 동안 유지되며,
+ * <p>블랙리스트는 Access Token과 인증 세션 중 더 긴 남은 유효시간 동안 유지되며,
  * 기존 블랙리스트의 TTL이 더 길다면 TTL을 단축하지 않습니다.</p>
  */
 @Repository
@@ -67,6 +67,15 @@ public class RedisAuthSessionLogoutStore
                     end
 
                     local requestedTtlMillis = tonumber(ARGV[2])
+                    local sessionTtlMillis = redis.call(
+                        'PTTL',
+                        KEYS[1]
+                    )
+
+                    if sessionTtlMillis > requestedTtlMillis then
+                        requestedTtlMillis = sessionTtlMillis
+                    end
+
                     local currentTtlMillis = redis.call(
                         'PTTL',
                         KEYS[2]
