@@ -670,7 +670,51 @@ class RefreshServiceTest {
 
     @Test
     @DisplayName(
-            "이미 사용된 Refresh Token이면 "
+            "grace window 안에서 직전 Refresh Token이 다시 요청되면 "
+                    + "AUTH_REFRESH_TOKEN_REUSED를 반환한다"
+    )
+    void refresh_previousTokenWithinGrace() {
+        // given
+        User user = createActiveUser();
+
+        prepareRotation(
+                user,
+                AuthSessionRotationResult
+                        .PREVIOUS_TOKEN_WITHIN_GRACE
+        );
+
+        RefreshCommand command =
+                new RefreshCommand(
+                        RAW_REFRESH_TOKEN
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> refreshService.refresh(command)
+        )
+                .isInstanceOf(
+                        BusinessException.class
+                )
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED
+                );
+
+        verify(authSessionStore)
+                .rotateRefreshToken(
+                        SESSION_ID,
+                        OLD_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "실제 Refresh Token 재사용이 감지되면 "
                     + "AUTH_REFRESH_TOKEN_REUSED를 반환한다"
     )
     void refresh_reusedToken() {

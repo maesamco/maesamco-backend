@@ -294,6 +294,96 @@ class RedisAuthSessionStoreIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "grace window 안에서 직전 Refresh Token이 다시 요청되면 "
+                    + "세션과 현재 hash를 유지한다"
+    )
+    void rotateRefreshToken_previousTokenWithinGracePreservesSession() {
+        // given
+        AuthSession rotatedSession = new AuthSession(
+                SESSION_ID,
+                FAMILY_ID,
+                USER_ID,
+                ROTATED_REFRESH_TOKEN_HASH,
+                NOW,
+                NOW.plus(SESSION_TTL),
+                ORIGINAL_REFRESH_TOKEN_HASH,
+                NOW.minus(ROTATION_GRACE_PERIOD)
+                        .plusMillis(1)
+                        .toEpochMilli()
+        );
+
+        authSessionStore.save(rotatedSession);
+
+        // when
+        AuthSessionRotationResult previousTokenResult =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        AuthSession preservedSession =
+                authSessionStore
+                        .findBySessionId(SESSION_ID)
+                        .orElseThrow();
+
+        // then
+        assertThat(previousTokenResult)
+                .isEqualTo(
+                        AuthSessionRotationResult
+                                .PREVIOUS_TOKEN_WITHIN_GRACE
+                );
+
+        assertThat(preservedSession.refreshTokenHash())
+                .isEqualTo(
+                        ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        assertThat(
+                preservedSession.previousRefreshTokenHash()
+        ).isEqualTo(
+                ORIGINAL_REFRESH_TOKEN_HASH
+        );
+
+        assertThat(
+                redisTemplate.hasKey(SESSION_KEY)
+        ).isTrue();
+
+        // when
+        AuthSessionRotationResult latestTokenResult =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        ROTATED_REFRESH_TOKEN_HASH,
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        AuthSession subsequentlyRotatedSession =
+                authSessionStore
+                        .findBySessionId(SESSION_ID)
+                        .orElseThrow();
+
+        // then
+        assertThat(latestTokenResult)
+                .isEqualTo(
+                        AuthSessionRotationResult.ROTATED
+                );
+
+        assertThat(
+                subsequentlyRotatedSession.refreshTokenHash()
+        ).isEqualTo(
+                SECOND_ROTATED_REFRESH_TOKEN_HASH
+        );
+
+        assertThat(
+                subsequentlyRotatedSession
+                        .previousRefreshTokenHash()
+        ).isEqualTo(
+                ROTATED_REFRESH_TOKEN_HASH
+        );
+    }
+
+    @Test
     @DisplayName("grace window가 지난 이전 Refresh Token을 재사용하면 세션을 폐기한다")
     void rotateRefreshToken_previousTokenOutsideGraceDeletesSession() {
         // given
@@ -465,7 +555,8 @@ class RedisAuthSessionStoreIntegrationTest {
             )
                     .containsExactlyInAnyOrder(
                             AuthSessionRotationResult.ROTATED,
-                            AuthSessionRotationResult.TOKEN_REUSED
+                            AuthSessionRotationResult
+                                    .PREVIOUS_TOKEN_WITHIN_GRACE
                     );
 
             assertThat(

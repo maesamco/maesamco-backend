@@ -33,21 +33,26 @@ public class RedisAuthSessionStore implements AuthSessionStore {
 
     private static final long ROTATION_SESSION_NOT_FOUND = 0L;
     private static final long ROTATION_SUCCESS = 1L;
-    private static final long ROTATION_TOKEN_REUSED = 2L;
+
+    private static final long
+            ROTATION_PREVIOUS_TOKEN_WITHIN_GRACE = 2L;
+
+    private static final long ROTATION_TOKEN_REUSED = 3L;
 
     /**
      * Refresh Token hash 비교와 교체를 원자적으로 수행하는 Lua Script입니다.
      *
      * <p>현재 hash와 일치하면 정상적으로 Rotation합니다.
      * 현재 hash와 다르더라도 직전 hash가 grace window 안에서 다시 요청된 경우에는
-     * 중복 요청으로 판단하여 세션을 유지합니다. Grace window를 벗어난 재사용은
-     * 탈취 가능성이 있는 것으로 판단하여 세션을 삭제합니다.</p>
+     * 중복 요청으로 판단하여 세션을 유지합니다. Grace window를 벗어난 재사용이나
+     * 직전 토큰과 무관한 토큰이 사용되면 세션을 삭제합니다.</p>
      *
      * <p>반환값:</p>
      * <ul>
      *     <li>0: 세션이 존재하지 않거나 유효한 TTL이 없음</li>
      *     <li>1: 정상 Rotation</li>
-     *     <li>2: Refresh Token 재사용 감지</li>
+     *     <li>2: grace window 안의 직전 토큰 재요청</li>
+     *     <li>3: Refresh Token 재사용 감지 및 세션 폐기</li>
      * </ul>
      */
     private static final DefaultRedisScript<Long> ROTATE_REFRESH_TOKEN_SCRIPT =
@@ -97,7 +102,7 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                         end
 
                         redis.call('DEL', KEYS[1])
-                        return 2
+                        return 3
                     end
 
                     session.previousRefreshTokenHash =
@@ -253,6 +258,11 @@ public class RedisAuthSessionStore implements AuthSessionStore {
 
         if (result == ROTATION_SESSION_NOT_FOUND) {
             return AuthSessionRotationResult.SESSION_NOT_FOUND;
+        }
+
+        if (result == ROTATION_PREVIOUS_TOKEN_WITHIN_GRACE) {
+            return AuthSessionRotationResult
+                    .PREVIOUS_TOKEN_WITHIN_GRACE;
         }
 
         if (result == ROTATION_TOKEN_REUSED) {

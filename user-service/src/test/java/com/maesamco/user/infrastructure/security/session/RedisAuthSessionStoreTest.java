@@ -239,8 +239,11 @@ class RedisAuthSessionStoreTest {
     }
 
     @Test
-    @DisplayName("이전 Refresh Token 재사용이 감지되면 TOKEN_REUSED를 반환한다")
-    void rotateRefreshToken_returnsTokenReused() {
+    @DisplayName(
+            "grace window 안의 직전 Refresh Token이면 "
+                    + "PREVIOUS_TOKEN_WITHIN_GRACE를 반환한다"
+    )
+    void rotateRefreshToken_returnsPreviousTokenWithinGrace() {
         // given
         when(redisTemplate.execute(
                 any(),
@@ -250,6 +253,35 @@ class RedisAuthSessionStoreTest {
                 eq(NOW_EPOCH_MILLIS),
                 eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(2L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult
+                                .PREVIOUS_TOKEN_WITHIN_GRACE
+                );
+    }
+
+    @Test
+    @DisplayName("Refresh Token 재사용이 감지되면 TOKEN_REUSED를 반환한다")
+    void rotateRefreshToken_returnsTokenReused() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(3L);
 
         // when
         AuthSessionRotationResult result =
