@@ -4,11 +4,11 @@ import com.maesamco.content.aigeneration.application.AiGenerationHistoryRecorder
 import com.maesamco.content.aigeneration.domain.entity.AiGenerationPurpose;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationResult;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
-import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSourcingResult;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionGenerationService;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionReuseService;
-import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourcingResult;
-import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
+import com.maesamco.content.dailyquiz.domain.ConceptSlots;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -45,7 +45,7 @@ public class DailyQuizQuestionSourcingFacade {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "개념 슬롯은 필수입니다.");
         }
 
-        QuestionSelection selection = reuseService.selectReusableQuestions(requiredConcepts.values());
+        DailyQuizQuestionSelectionResult selection = reuseService.selectReusableQuestions(requiredConcepts.values());
 
         DailyQuizQuestionGenerationResult generationResult =
                 generationService.generateMissingQuestions(selection.missingConceptsBySlot());

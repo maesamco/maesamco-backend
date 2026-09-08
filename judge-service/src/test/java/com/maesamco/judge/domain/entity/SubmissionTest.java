@@ -20,7 +20,7 @@ class SubmissionTest {
     void setUp() {
         pendingSubmission = Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                1, "public class Main {}", SubmissionLanguage.JAVA,
+                1, "public class Main {}", SubmissionLanguage.JAVA17,
                 UUID.randomUUID().toString()
         );
     }
@@ -261,7 +261,7 @@ class SubmissionTest {
         void create_fail_nullUserId() {
             assertThatThrownBy(() -> Submission.create(
                     null, UUID.randomUUID(), UUID.randomUUID(),
-                    1, "code", SubmissionLanguage.JAVA, UUID.randomUUID().toString()
+                    1, "code", SubmissionLanguage.JAVA17, UUID.randomUUID().toString()
             )).isInstanceOf(NullPointerException.class);
         }
 
@@ -270,7 +270,7 @@ class SubmissionTest {
         void create_fail_nonPositiveAttemptNo() {
             assertThatThrownBy(() -> Submission.create(
                     UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                    0, "code", SubmissionLanguage.JAVA, UUID.randomUUID().toString()
+                    0, "code", SubmissionLanguage.JAVA17, UUID.randomUUID().toString()
             )).isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -281,7 +281,7 @@ class SubmissionTest {
 
             assertThatThrownBy(() -> Submission.create(
                     UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                    1, oversizedCode, SubmissionLanguage.JAVA, UUID.randomUUID().toString()
+                    1, oversizedCode, SubmissionLanguage.JAVA17, UUID.randomUUID().toString()
             )).isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -290,7 +290,7 @@ class SubmissionTest {
         void create_fail_blankIdempotencyKey() {
             assertThatThrownBy(() -> Submission.create(
                     UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                    1, "code", SubmissionLanguage.JAVA, "   "
+                    1, "code", SubmissionLanguage.JAVA17, "   "
             )).isInstanceOf(IllegalArgumentException.class);
         }
     }

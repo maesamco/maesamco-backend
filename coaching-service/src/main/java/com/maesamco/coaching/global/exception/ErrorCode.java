@@ -56,6 +56,22 @@ public enum ErrorCode {
     FOLLOW_UP_QUESTION_NOT_FOUND(HttpStatus.NOT_FOUND, "역질문을 찾을 수 없습니다."),
     FOLLOW_UP_ANSWER_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 역질문에 대한 답변이 존재합니다."),
     AI_FEEDBACK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 코칭 세션에 대한 AI 피드백이 존재합니다."),
+    // 이슈 #52 — 역질문 답변 등록(#51) 시점의 best-effort 생성이 아직 성공하지 못한 상태
+    // (세션은 완료됐고 재시도 예산도 남아있음 — 생성이 진행 중이거나, 실패했지만 아직
+    // 재시도해볼 수 있는 상태 둘 다 이 코드로 응답한다. 이 둘을 세분화하려면 생성 "시작"
+    // 시점의 PENDING 마커가 있어야 하는데, 지금은 성공/실패가 끝난 뒤에만 이력을 남겨서
+    // 구분할 수 없다 — PR #111 재검증에서 확인된 별도 개선 과제).
+    AI_FEEDBACK_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 생성된 피드백이 없습니다."),
+    // PR #111 재검증(외부 AI 리뷰) — "세션이 아직 완료 안 됨"과 "완료됐지만 피드백이 아직
+    // 없음"을 같은 404로 뭉개면 클라이언트가 폴링할지 재시도 버튼을 보여줄지 구분할 수
+    // 없다. 코칭이 끝나야 피드백 생성 자체가 시작되므로 별도 코드로 분리한다.
+    AI_FEEDBACK_NOT_STARTED(HttpStatus.NOT_FOUND, "아직 코칭 세션이 완료되지 않아 피드백 생성이 시작되지 않았습니다."),
+    // 이슈 #52 — 세션당 재시도 3회(최초 1회 + 재시도 3회, 총 4회) 소진.
+    AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "AI 피드백 재시도 횟수를 초과했습니다."),
+    // PR #111 재검증(외부 AI 리뷰) — 같은 세션에 대한 재시도 요청이 이미 처리 중일 때
+    // (Redis 락 획득 실패) 응답. 락 없이 진행하면 동시 요청이 전부 재시도 예산을 소모할
+    // 수 있어 추가했다.
+    AI_FEEDBACK_RETRY_IN_PROGRESS(HttpStatus.CONFLICT, "이미 AI 피드백 재시도가 진행 중입니다. 잠시 후 다시 시도해주세요."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
     WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
 

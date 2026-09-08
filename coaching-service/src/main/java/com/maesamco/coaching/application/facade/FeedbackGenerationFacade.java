@@ -78,7 +78,13 @@ public class FeedbackGenerationFacade {
         try {
             SubmissionSnapshot submission;
             try {
-                submission = judgeServicePort.getSubmission(session.getSubmissionId());
+                // 용현님 리뷰(P1) — session.getSubmissionId()는 advanceToSubmission()이
+                // 재도전마다 최신 제출로 덮어쓰는 필드라, 세션 완료 이후 같은 문제를 다시
+                // 제출한 상태에서 재시도를 호출하면 "학습자가 설명한 코드(explanation이
+                // 실제로 가리키는 제출)"와 "여기서 조회하는 제출(세션의 최신 제출)"이 서로
+                // 어긋날 수 있다. explanation은 그 자체로 submissionId를 갖고 있으므로
+                // (uk_explanations_submission) 그걸 그대로 써야 항상 일치한다.
+                submission = judgeServicePort.getSubmission(explanation.getSubmissionId());
             } catch (RuntimeException e) {
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
@@ -93,9 +99,13 @@ public class FeedbackGenerationFacade {
                         buildSystemPrompt(), buildUserPrompt(submission, explanation, followUpQuestion, followUpAnswer)
                 );
             } catch (AiModelCallException e) {
+                // 재검증(PR #111) — 서킷브레이커(ai-model)가 힌트/역질문 생성 실패로 열려서
+                // 실제 LLM 호출 자체가 차단된 경우(circuitOpen)는 "FAILED"가 아니라
+                // "SKIPPED"로 남긴다. AiFeedbackRetryFacade의 재시도 횟수 카운트가 SKIPPED를
+                // 제외하므로, 무관한 기능의 장애로 이 사용자의 재시도 예산이 소모되지 않는다.
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
-                        "FAILED", null, null, e.getMessage(), 0
+                        e.isCircuitOpen() ? "SKIPPED" : "FAILED", null, null, e.getMessage(), 0
                 ));
                 return;
             }

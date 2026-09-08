@@ -1,4 +1,4 @@
-package com.maesamco.content.dailyquiz.application.service;
+package com.maesamco.content.dailyquiz.domain;
 
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
