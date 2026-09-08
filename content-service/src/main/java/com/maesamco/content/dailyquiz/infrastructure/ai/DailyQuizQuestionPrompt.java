@@ -5,6 +5,9 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class DailyQuizQuestionPrompt {
+
+    static final String VERSION = "v1";
+
     static final String SYSTEM_PROMPT = """
             너는 Java 학습자를 위한 Daily Quiz 문항 생성기다.
             다음 규칙을 모두 지켜 문항 한 개를 생성한다.

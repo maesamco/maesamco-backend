@@ -1,7 +1,7 @@
 package com.maesamco.judge.global.config;
 
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer;
-import com.maesamco.judge.infrastructure.messaging.event.InvalidProblemPublishedEventException;
+import com.maesamco.judge.application.exception.InvalidProblemPublishedEventException;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
 import java.util.HashMap;
 import java.util.Map;

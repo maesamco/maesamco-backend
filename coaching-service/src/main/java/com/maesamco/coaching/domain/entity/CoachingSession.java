@@ -139,10 +139,12 @@ public class CoachingSession {
      * 이전 제출에 대해 뒤늦게 설명을 등록)이므로 예외로 막지 않고 조용히 무시한다.
      * 호출자(CoachingSessionFinder)는 반환값이 true일 때만 save()한다.
      *
-     * ⚠️ complete()와 동일하게 낙관적 락 없이 값을 바로 덮어쓴다(PR #70 리뷰). 같은 세션에
-     * 서로 다른 submissionId로 두 힌트 요청이 짧은 시간 안에 동시에 들어오면, 나중에
-     * flush되는 쪽이 조용히 덮어써서 하나가 유실될 수 있다. 발생 가능성은 낮지만
-     * complete()/recordOccurrence()와 같은 계열의 문제라 같이 트래킹할 것.
+     * ⚠️ 낙관적 락 없이 값을 바로 덮어쓴다(PR #70 리뷰). 같은 세션에 서로 다른
+     * submissionId로 두 힌트 요청이 짧은 시간 안에 동시에 들어오면, 나중에 flush되는
+     * 쪽이 조용히 덮어써서 하나가 유실될 수 있다. 발생 가능성은 낮지만
+     * recordOccurrence()와 같은 계열의 문제라 같이 트래킹할 것 — complete()는 이슈 #51의
+     * FollowUpAnswerPersistenceService 트랜잭션(UNIQUE(follow_up_question_id) 제약)으로
+     * 이미 해결됐지만, 이 메서드는 그런 UNIQUE 가드가 없어 별도로 남아 있다.
      *
      * TODO: 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
      */
@@ -158,12 +160,20 @@ public class CoachingSession {
     /**
      * 역질문 답변까지 완료된 시점에 호출 — 스트릭 반영 기준(서비스 기능 요약 [1]-4절).
      *
-     * ⚠️ 낙관적 락 없이 상태를 확인 후 변경한다(check-then-act). 같은 세션에 대해 짧은 시간 안에
-     * 두 번 호출되는 경로(예: 클라이언트 재시도)가 생기면 완료 처리가 중복될 수 있다 — 이 메서드를
-     * 호출하는 Service/Facade를 만들 때 멱등 처리 여부를 함께 고려할 것.
+     * 낙관적 락(@Version) 없이 상태를 확인 후 변경한다(check-then-act). 이슈 #51의
+     * FollowUpAnswerPersistenceService가 이 메서드 호출을 FollowUpAnswer 저장과 한
+     * 트랜잭션으로 묶어서, **같은** 역질문에 대한 동시 답변은 안전하다(FollowUpAnswer의
+     * UNIQUE(follow_up_question_id) 제약으로 한쪽이 저장 단계에서 롤백되므로 이 완료
+     * 처리까지 도달 못 함).
      *
-     * TODO: 역질문 답변 처리 Service/Facade 구현 시 위 동시성 문제(멱등 처리 또는 낙관적 락)
-     *       해결 방안 확정하고 이 TODO 제거.
+     * 다만 한 세션에 서로 다른 역질문이 여러 개 쌓일 수 있어서(재도전 시 새 설명 등록,
+     * 이슈 #84), **서로 다른** 역질문 두 개를 순차적으로(며칠 뒤라도) 또는 거의 동시에
+     * 답하는 경우는 이 UNIQUE 제약으로 안 막힌다 — 이미 COMPLETED인 세션에 다른 역질문의
+     * 답변이 들어오면 이 메서드가 예외를 던지는데, 순차 재진입 케이스는
+     * FollowUpAnswerPersistenceService.completeSessionIfNeeded()가 이 메서드 호출 자체를
+     * 건너뛰어 해소했다(PR #98 자가 리뷰, 용현님 P1). 두 요청이 진짜 거의 동시에 들어와서
+     * 둘 다 이 세션을 COMPLETED 이전 상태로 읽는 레이스까지는 여전히 미해결 —
+     * advanceToSubmission()과 함께 @Version 도입 시 같이 해결할 것.
      */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {

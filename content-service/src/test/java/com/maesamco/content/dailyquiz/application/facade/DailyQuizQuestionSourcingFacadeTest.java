@@ -1,13 +1,15 @@
 package com.maesamco.content.dailyquiz.application.facade;
 
+import com.maesamco.content.aigeneration.application.AiGenerationHistoryRecorder;
+import com.maesamco.content.aigeneration.application.AiGenerationMetadata;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationException;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.dailyquiz.application.generation.GeneratedDailyQuizQuestion;
-import com.maesamco.content.dailyquiz.application.service.ConceptSlots;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSourcingResult;
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionGenerationService;
 import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionReuseService;
-import com.maesamco.content.dailyquiz.application.service.DailyQuizQuestionSourcingResult;
-import com.maesamco.content.dailyquiz.application.service.QuestionSelection;
+import com.maesamco.content.dailyquiz.domain.ConceptSlots;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import com.maesamco.content.dailyquiz.domain.repository.DailyQuizQuestionRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,16 +55,20 @@ class DailyQuizQuestionSourcingFacadeTest {
     @Mock
     private DailyQuizQuestionRepository questionRepository;
 
+    @Mock
+    private AiGenerationHistoryRecorder historyRecorder;
+
     private DailyQuizQuestionSourcingFacade sourcingFacade;
 
     @BeforeEach
     void setUp() {
         DailyQuizQuestionGenerationService generationService =
-                new DailyQuizQuestionGenerationService(questionGenerator);
+                new DailyQuizQuestionGenerationService(questionGenerator, historyRecorder);
         sourcingFacade = new DailyQuizQuestionSourcingFacade(
                 reuseService,
                 generationService,
-                questionRepository
+                questionRepository,
+                historyRecorder
         );
     }
 
@@ -74,7 +81,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion stringQuestion = question(4, STRING);
         DailyQuizQuestion methodQuestion = question(5, METHOD);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(
                                 0, loopQuestion,
                                 1, conditionQuestion,
@@ -107,7 +114,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion),
                         Map.of(2, ARRAY, 3, STRING, 4, METHOD)
                 ));
@@ -130,7 +137,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         ConceptSlots conceptSlots = conceptSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion),
                         Map.of(1, CONDITION, 2, ARRAY, 3, STRING, 4, METHOD)
                 ));
@@ -155,7 +162,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));
@@ -180,7 +187,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));
@@ -208,7 +215,7 @@ class DailyQuizQuestionSourcingFacadeTest {
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         when(reuseService.selectReusableQuestions(conceptSlots.values()))
-                .thenReturn(new QuestionSelection(
+                .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
                         Map.of(3, STRING, 4, METHOD)
                 ));
@@ -247,7 +254,8 @@ class DailyQuizQuestionSourcingFacadeTest {
                 null,
                 "정답",
                 null,
-                List.of(conceptTag)
+                List.of(conceptTag),
+                generationMetadata()
         );
     }
 
@@ -258,14 +266,26 @@ class DailyQuizQuestionSourcingFacadeTest {
                 null,
                 " ",
                 null,
-                List.of(conceptTag)
+                List.of(conceptTag),
+                generationMetadata()
         );
     }
 
     private DailyQuizQuestionGenerationException generationFailure(String conceptTag) {
         return new DailyQuizQuestionGenerationException(
                 conceptTag,
+                generationMetadata(),
                 new IllegalStateException("테스트 AI 생성 실패")
+        );
+    }
+
+    private AiGenerationMetadata generationMetadata() {
+        return new AiGenerationMetadata(
+                "test-model",
+                "v1",
+                Instant.parse("2026-09-04T00:00:00Z"),
+                100,
+                30
         );
     }
 

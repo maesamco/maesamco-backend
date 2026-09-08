@@ -1,5 +1,7 @@
 package com.maesamco.content.dailyquiz.application.service;
 
+import com.maesamco.content.aigeneration.application.AiGenerationHistoryRecorder;
+import com.maesamco.content.aigeneration.domain.entity.AiGenerationPurpose;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationException;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerationResult;
 import com.maesamco.content.dailyquiz.application.generation.DailyQuizQuestionGenerator;
@@ -18,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class DailyQuizQuestionGenerationService {
 
     private final DailyQuizQuestionGenerator questionGenerator;
+    private final AiGenerationHistoryRecorder historyRecorder;
 
     public DailyQuizQuestionGenerationResult generateMissingQuestions(
             Map<Integer, String> missingConceptsBySlot
@@ -31,6 +34,8 @@ public class DailyQuizQuestionGenerationService {
             int slotIndex = missingSlot.getKey();
             String concept = missingSlot.getValue();
             long startedAtNanos = System.nanoTime();
+
+            // 슬롯 하나에 대해 AI를 호출하고 구조화 응답 검증까지 성공한 문항만 결과에 담습니다.
             try {
                 GeneratedDailyQuizQuestion generatedQuestion = questionGenerator.generate(concept);
 
@@ -42,14 +47,22 @@ public class DailyQuizQuestionGenerationService {
                         elapsedMillis(startedAtNanos)
                 );
             } catch (DailyQuizQuestionGenerationException exception) {
+                // 외부 AI 호출 또는 응답 변환·검증 실패를 기록하고 다음 슬롯 생성을 계속합니다.
                 log.warn(
                         "Daily Quiz AI 문항 생성 실패. slotIndex={}, conceptTag={}, elapsedMs={}",
                         slotIndex,
                         concept,
-                        elapsedMillis(startedAtNanos),
+                        exception.getGenerationMetadata().responseTimeMs(),
                         exception
                 );
                 failedConceptsBySlot.put(slotIndex, concept);
+
+                historyRecorder.recordFailure(
+                        AiGenerationPurpose.DAILY_QUIZ_GENERATION,
+                        Map.of("conceptTag", concept),
+                        exception.getGenerationMetadata(),
+                        exception
+                );
             }
         }
 

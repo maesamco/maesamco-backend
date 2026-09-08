@@ -1,5 +1,6 @@
 package com.maesamco.content.dailyquiz.application.service;
 
+import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Component
 public class ReusableQuestionSelector {
 
-    public QuestionSelection select(
+    public DailyQuizQuestionSelectionResult select(
             List<String> requiredConcepts,
             List<DailyQuizQuestion> candidates
     ) {
@@ -50,7 +51,7 @@ public class ReusableQuestionSelector {
             }
         }
 
-        return new QuestionSelection(selectedQuestionsBySlot, missingConceptsBySlot);
+        return new DailyQuizQuestionSelectionResult(selectedQuestionsBySlot, missingConceptsBySlot);
     }
 
     private boolean tryAssign(

@@ -26,7 +26,19 @@ public enum ErrorCode {
     AUTH_INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
     AUTH_EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "만료된 토큰입니다."),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "무효화된 토큰입니다."),
+    AUTH_REFRESH_TOKEN_REUSED(
+            HttpStatus.UNAUTHORIZED,
+            "Refresh Token 재사용이 감지되었습니다. 다시 로그인해주세요."
+    ),
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    INVALID_CREDENTIALS(
+            HttpStatus.UNAUTHORIZED,
+            "이메일 또는 비밀번호가 올바르지 않습니다."
+    ),
+    USER_NOT_ACTIVE(
+            HttpStatus.FORBIDDEN,
+            "현재 로그인할 수 없는 계정입니다."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(
@@ -36,6 +48,10 @@ public enum ErrorCode {
     USER_DUPLICATE_NICKNAME(
             HttpStatus.CONFLICT,
             "이미 사용 중인 닉네임입니다."
+    ),
+    SIGNUP_AUTO_LOGIN_FAILED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "회원가입은 완료되었지만 자동 로그인에 실패했습니다. 로그인해주세요."
     ),
     GAMIFICATION_STATE_CONFLICT(
             HttpStatus.CONFLICT,
@@ -63,6 +79,7 @@ public enum ErrorCode {
             HttpStatus.UNAUTHORIZED,
             "내부 호출 요청이 만료되었습니다(재전송 의심)."
     );
+
     // ===== judge =====
     // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     // IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
