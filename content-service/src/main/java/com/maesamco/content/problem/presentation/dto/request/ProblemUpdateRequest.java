@@ -43,7 +43,8 @@ public class ProblemUpdateRequest {
     private String description;
 
     /** 수정할 문제 풀이 시작 코드입니다. */
-    private JsonNullable<String> starterCode = JsonNullable.undefined();
+    private JsonNullable<@Size(max = 10_000, message = "스타터 코드는 최대 10,000자까지 입력할 수 있습니다.")String>
+            starterCode = JsonNullable.undefined();
 
     /** 수정할 코드 실행 시간 제한입니다. */
     private RunningTimeLimit runningTimeLimit;

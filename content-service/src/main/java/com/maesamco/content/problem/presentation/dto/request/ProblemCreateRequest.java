@@ -36,9 +36,11 @@ public class ProblemCreateRequest {
 
     /** 문제 설명 */
     @NotBlank
+    @Size(max = 10_000, message = "문제 설명은 최대 10,000자까지 입력할 수 있습니다.")
     private String description;
 
     /** 문제 풀이 시작 코드 */
+    @Size(max = 10_000, message = "스타터 코드는 최대 10,000자까지 입력할 수 있습니다.")
     private String starterCode;
 
     /** 코드 실행 시간 제한 */
