@@ -1,6 +1,6 @@
 package com.maesamco.judge.infrastructure.messaging.consumer;
 
-import com.maesamco.judge.application.command_service.JudgeExecutionCommandService;
+import com.maesamco.judge.application.facade.JudgeExecutionFacade;
 import com.maesamco.judge.infrastructure.messaging.event.JudgeRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class JudgeRequestedConsumer {
 
-    private final JudgeExecutionCommandService judgeExecutionCommandService;
+    private final JudgeExecutionFacade  judgeExecutionFacade;
 
     @KafkaListener(
             topics = "${spring.kafka.topic.judge-requested}",
@@ -20,6 +20,6 @@ public class JudgeRequestedConsumer {
     )
     public void consume(JudgeRequestedEvent event) {
         log.info("[Judge] JudgeRequested 수신 eventId={}, submissionId={}", event.eventId(), event.submissionId());
-        judgeExecutionCommandService.execute(event.submissionId());
+        judgeExecutionFacade.execute(event.submissionId());
     }
 }
