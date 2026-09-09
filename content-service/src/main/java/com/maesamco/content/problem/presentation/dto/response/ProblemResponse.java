@@ -27,8 +27,6 @@ public class ProblemResponse {
     private final RunningMemoryLimit runningMemoryLimit;
     private final TimerPolicy timerPolicy;
     private final ProblemSource source;
-    private final ProblemStatus problemStatus;
-    private final Integer currentVersionNo;
 
     public static ProblemResponse from(Problem problem) {
         return new ProblemResponse(
@@ -42,9 +40,7 @@ public class ProblemResponse {
                 problem.getRunningTimeLimit(),
                 problem.getRunningMemoryLimit(),
                 problem.getTimerPolicy(),
-                problem.getSource(),
-                problem.getProblemStatus(),
-                problem.getCurrentVersionNo()
+                problem.getSource()
         );
     }
 }
