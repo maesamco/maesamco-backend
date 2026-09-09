@@ -1,7 +1,9 @@
 package com.maesamco.coaching.infrastructure.feign;
 
+import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.security.hmac.HmacSigningFeignInterceptor;
 import feign.RequestInterceptor;
+import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 
@@ -26,5 +28,21 @@ public class JudgeServiceFeignConfig {
             @Value("${internal.hmac.outbound.judge-service}") String secretKeyForJudge
     ) {
         return new HmacSigningFeignInterceptor(serviceName, secretKeyForJudge);
+    }
+
+    /**
+     * 모든 404를 "제출 없음"으로 단정하지 않는다(PR #127 리뷰, 용현님 지적 —
+     * ContentServiceErrorDecoder와 동일한 결함이 여기 남아있었음) — Judge Service의
+     * 컨트롤러가 아직 배포 안 됐거나 경로/버전이 안 맞아도 404가 오는데, 이런 경우까지
+     * SUBMISSION_NOT_FOUND로 오분류하면 CircuitBreakerIgnorableFailureConfig의 ignore
+     * 정책과 결합돼 실제 장애가 실패율에 전혀 안 잡힌다. Judge Service도 이 프로젝트
+     * 공통 에러 포맷(게이트웨이 및 인증 보안 설계 9절)을 쓰고, 컨트롤러 자체가 없는
+     * 경우엔 NoResourceFoundException이 잡혀서 ENTITY_NOT_FOUND로 내려온다(judge-
+     * service GlobalExceptionHandler 확인) — 이 값과 다른 code가 와야만 진짜 "제출
+     * 없음"으로 본다.
+     */
+    @Bean
+    public ErrorDecoder judgeServiceErrorDecoder() {
+        return new JudgeServiceErrorDecoder(ErrorCode.SUBMISSION_NOT_FOUND, ErrorCode.FEIGN_CLIENT_ERROR);
     }
 }

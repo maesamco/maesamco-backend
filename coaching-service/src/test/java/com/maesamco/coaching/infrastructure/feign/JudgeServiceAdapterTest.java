@@ -5,9 +5,6 @@ import com.maesamco.coaching.global.config.CircuitBreakerIgnorableFailureConfig;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
-import feign.FeignException;
-import feign.Request;
-import feign.Request.HttpMethod;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -28,8 +25,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration;
 import org.springframework.ai.model.google.genai.autoconfigure.chat.GoogleGenAiChatAutoConfiguration;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -103,13 +98,18 @@ class JudgeServiceAdapterTest {
         assertThat(AopUtils.isAopProxy(judgeServiceAdapter)).isTrue();
     }
 
+    /**
+     * SUBMISSION_NOT_FOUND는 이제 JudgeServiceErrorDecoder(HTTP 계층)가 판단해서
+     * BusinessException으로 던진다(PR #127 리뷰, 용현님 지적) — feignClient를 목으로
+     * 대체하는 이 테스트는 디코더를 거치지 않으므로, 디코더가 이미 분류를 마친 뒤의
+     * 상태(BusinessException 직접 던짐)를 그대로 재현해 어댑터/서킷브레이커 쪽 전파
+     * 로직만 검증한다. 디코더 자체의 분류 로직은 JudgeServiceErrorDecoderTest가 검증한다.
+     */
     @Test
     void 서킷이_닫혀있으면_SUBMISSION_NOT_FOUND가_그대로_전파된다() {
         UUID submissionId = UUID.randomUUID();
-        Request request = Request.create(HttpMethod.GET, "/internal/v1/submissions/" + submissionId,
-                Collections.emptyMap(), null, StandardCharsets.UTF_8);
         when(feignClient.getSubmission(submissionId))
-                .thenThrow(new FeignException.NotFound("not found", request, null, null));
+                .thenThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
         assertThatThrownBy(() -> judgeServiceAdapter.getSubmission(submissionId))
                 .isInstanceOf(BusinessException.class)

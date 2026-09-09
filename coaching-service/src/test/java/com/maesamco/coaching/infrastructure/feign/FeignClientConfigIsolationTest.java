@@ -96,14 +96,16 @@ class FeignClientConfigIsolationTest {
     }
 
     @Test
-    void content_클라이언트만_전용_ErrorDecoder를_갖고_judge는_없다() {
-        // judge-service는 전용 ErrorDecoder를 등록하지 않으므로 스프링 빈 자체가 없다
-        // (Feign이 내부적으로 쓰는 ErrorDecoder.Default는 코드에 하드코딩된 값일 뿐,
-        // 조회 가능한 빈으로 등록되지 않는다) — null이 곧 "오염되지 않았다"는 증거다.
+    void judge와_content_클라이언트는_각자_자기_ErrorDecoder만_갖는다() {
+        // JudgeServiceAdapter도 ContentServiceAdapter와 동일한 구조적 결함(PR #127 리뷰,
+        // 용현님 지적)을 갖고 있어 JudgeServiceErrorDecoder를 추가했다 — 이제 judge도
+        // 전용 ErrorDecoder를 갖는다. child ApplicationContext 격리가 유지되는지(서로
+        // 다른 타입/인스턴스인지)만 여기서 확인한다.
         ErrorDecoder judgeDecoder = feignClientFactory.getInstance("judge-service", ErrorDecoder.class);
         ErrorDecoder contentDecoder = feignClientFactory.getInstance("content-service", ErrorDecoder.class);
 
+        assertThat(judgeDecoder).isInstanceOf(JudgeServiceErrorDecoder.class);
         assertThat(contentDecoder).isInstanceOf(ContentServiceErrorDecoder.class);
-        assertThat(judgeDecoder).isNull();
+        assertThat(judgeDecoder).isNotSameAs(contentDecoder);
     }
 }
