@@ -112,9 +112,7 @@ public class ProblemService {
 
         // 관리자가 조회했던 버전과 현재 DB 버전이 다르면
         // 오래된 데이터를 기준으로 한 수정 요청이므로 거부한다.
-        if (request.getLockVersion() == null
-                || !request.getLockVersion()
-                .equals(problem.getLockVersion())) {
+        if (!request.getLockVersion().equals(problem.getLockVersion())) {
             throw new BusinessException(
                     ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
             );
