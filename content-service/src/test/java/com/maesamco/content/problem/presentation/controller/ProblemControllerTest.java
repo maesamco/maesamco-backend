@@ -13,6 +13,7 @@ import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateReques
 import com.maesamco.content.problem.presentation.dto.response.ProblemCreateResponse;
 import com.maesamco.content.problem.presentation.dto.response.ProblemResponse;
 import com.maesamco.content.problem.presentation.dto.response.ProblemSearchItemResponse;
+import com.maesamco.content.problem.presentation.dto.response.ProblemShortResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -264,7 +265,7 @@ class ProblemControllerTest {
     }
 
     @Test
-    @DisplayName("문제를 단건 조회하면 200과 문제 상세 정보를 반환한다")
+    @DisplayName("문제를 단건 조회하면 200과 공개 문제 상세 정보를 반환한다")
     void getProblem_returns200() throws Exception {
         // given
         Problem problem = createProblem(
@@ -279,9 +280,9 @@ class ProblemControllerTest {
                 ProblemStatus.PUBLISHED
         );
 
-        when(problemService.getProblem(problemId))
+        when(problemService.getProblemForUser(problemId))
                 .thenReturn(
-                        ProblemResponse.from(problem)
+                        ProblemShortResponse.from(problem)
                 );
 
         // when & then
@@ -310,12 +311,16 @@ class ProblemControllerTest {
                                 .value("MEDIUM")
                 )
                 .andExpect(
+                        jsonPath("$.data.type")
+                                .value("CODE")
+                )
+                .andExpect(
                         jsonPath("$.data.timerPolicy")
                                 .value("APPLY120")
                 )
                 .andExpect(
-                        jsonPath("$.data.problemStatus")
-                                .value("PUBLISHED")
+                        jsonPath("$.data.source")
+                                .value("HUMAN_AUTHORED")
                 );
     }
 
@@ -323,7 +328,7 @@ class ProblemControllerTest {
     @DisplayName("존재하지 않는 문제를 조회하면 404를 반환한다")
     void getProblem_notFound_returns404() throws Exception {
         // given
-        when(problemService.getProblem(problemId))
+        when(problemService.getProblemForUser(problemId))
                 .thenThrow(
                         new BusinessException(
                                 ErrorCode.PROBLEM_NOT_FOUND

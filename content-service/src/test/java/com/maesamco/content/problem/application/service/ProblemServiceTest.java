@@ -122,7 +122,7 @@ class ProblemServiceTest {
 
         // when
         ProblemResponse response =
-                problemService.getProblem(problemId);
+                problemService.getProblemForAdmin(problemId);
 
         // then
         assertThat(response.getId()).isEqualTo(problemId);
