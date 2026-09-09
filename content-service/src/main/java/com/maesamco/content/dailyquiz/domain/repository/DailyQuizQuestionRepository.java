@@ -8,5 +8,5 @@ public interface DailyQuizQuestionRepository {
 
     DailyQuizQuestion save(DailyQuizQuestion question);
 
-    List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags, int limitPerConcept);
+    List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags);
 }

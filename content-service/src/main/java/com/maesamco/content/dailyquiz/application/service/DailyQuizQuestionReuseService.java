@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.REUSABLE_CANDIDATE_LIMIT_PER_CONCEPT;
-
 @Service
 @RequiredArgsConstructor
 public class DailyQuizQuestionReuseService {
@@ -18,10 +16,7 @@ public class DailyQuizQuestionReuseService {
     private final ReusableQuestionSelector questionSelector;
 
     public DailyQuizQuestionSelectionResult selectReusableQuestions(List<String> requiredConcepts) {
-        List<DailyQuizQuestion> candidates = questionRepository.findActiveByAnyConcepts(
-                requiredConcepts,
-                REUSABLE_CANDIDATE_LIMIT_PER_CONCEPT
-        );
+        List<DailyQuizQuestion> candidates = questionRepository.findActiveByAnyConcepts(requiredConcepts);
         return questionSelector.select(requiredConcepts, candidates);
     }
 }

@@ -10,7 +10,6 @@ public final class DailyQuizPolicy {
 
     public static final int TARGET_QUESTION_COUNT = 5;
     public static final int MINIMUM_QUESTION_COUNT = 3;
-    public static final int REUSABLE_CANDIDATE_LIMIT_PER_CONCEPT = 10;
 
     private DailyQuizPolicy() {
     }
