@@ -2,6 +2,7 @@ package com.maesamco.judge.infrastructure.persistence;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -36,13 +37,13 @@ public class PendingJudge0Execution {
     private String judge0Token;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     private PendingJudge0Execution(UUID submissionId, UUID testCaseId, String judge0Token) {
         this.submissionId = submissionId;
         this.testCaseId = testCaseId;
         this.judge0Token = judge0Token;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = Instant.now();
     }
 
     public static PendingJudge0Execution create(UUID submissionId, UUID testCaseId, String judge0Token) {

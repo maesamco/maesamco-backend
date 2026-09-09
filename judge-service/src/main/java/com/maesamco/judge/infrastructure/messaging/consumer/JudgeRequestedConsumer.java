@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class JudgeRequestedConsumer {
 
+    private static final int SUPPORTED_EVENT_VERSION = 1;
+
     private final JudgeExecutionFacade judgeExecutionFacade;
 
     @KafkaListener(
@@ -20,7 +22,19 @@ public class JudgeRequestedConsumer {
             containerFactory = "judgeRequestedKafkaListenerContainerFactory"
     )
     public void consume(JudgeRequestedEvent event) {
+        if (event.eventVersion() != SUPPORTED_EVENT_VERSION) {
+            log.warn("[Judge] 처리 불가능한 JudgeRequested eventVersion={} — 무시. eventId={}, submissionId={}",
+                    event.eventVersion(), event.eventId(), event.submissionId());
+            throw new UnsupportedJudgeRequestedEventVersionException(
+                    "지원하지 않는 eventVersion=" + event.eventVersion() + ", eventId=" + event.eventId()
+            );
+        }
         log.info("[Judge] JudgeRequested 수신 eventId={}, submissionId={}", event.eventId(), event.submissionId());
         judgeExecutionFacade.execute(event.submissionId());
+    }
+    public static class UnsupportedJudgeRequestedEventVersionException extends RuntimeException {
+        UnsupportedJudgeRequestedEventVersionException(String message) {
+            super(message);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.maesamco.judge.global.config;
 
 import com.maesamco.judge.application.exception.InvalidProblemPublishedEventException;
+import com.maesamco.judge.infrastructure.messaging.consumer.JudgeRequestedConsumer;
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer;
 import com.maesamco.judge.infrastructure.messaging.event.JudgeRequestedEvent;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
@@ -77,7 +78,10 @@ public class KafkaConsumerConfig {
             ConsumerFactory<String, JudgeRequestedEvent> judgeRequestedConsumerFactory,
             KafkaTemplate<Object, Object> judgeRequestedDltKafkaTemplate
     ) {
-        return createContainerFactory(judgeRequestedConsumerFactory, judgeRequestedDltKafkaTemplate);
+        return createContainerFactory(
+                judgeRequestedConsumerFactory,
+                judgeRequestedDltKafkaTemplate,
+                JudgeRequestedConsumer.UnsupportedJudgeRequestedEventVersionException.class);
     }
 
     // ===== 공통 빌더 =====
