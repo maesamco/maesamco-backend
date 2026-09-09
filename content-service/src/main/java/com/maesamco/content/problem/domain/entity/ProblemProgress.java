@@ -10,10 +10,28 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/** 문제 풀이 진행 엔티티 */
+/**
+ * 문제 풀이 진행 엔티티입니다.
+ *
+ * <p>현재는 문제 풀이 이력 기능을 위한 도메인 모델과
+ * 데이터베이스 제약만 준비되어 있습니다.</p>
+ *
+ * <p>Repository·Service·Controller 및 사용자용 API는
+ * 문제 풀이 이력 기능 구현 시 후속 작업으로 추가합니다.</p>
+ */
 @Entity
 @Getter
-@Table(name = "p_problem_progress")
+@Table(
+        name = "p_problem_progress",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {
+                                "user_id",
+                                "problem_id"
+                        }
+                )
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProblemProgress {
 

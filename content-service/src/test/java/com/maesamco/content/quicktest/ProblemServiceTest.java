@@ -5,6 +5,7 @@ import com.maesamco.content.problem.application.service.ProblemService;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.domain.enums.*;
+import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
 import com.maesamco.content.problem.presentation.dto.response.ProblemResponse;
@@ -21,10 +22,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProblemServiceTest {
+
+    @Mock
+    private ProblemRepository problemRepository;
 
     @Mock
     private ProblemFinder problemFinder;
@@ -35,70 +41,122 @@ class ProblemServiceTest {
     @InjectMocks
     private ProblemService problemService;
 
-
     @Test
-    @DisplayName("문제 단건 조회 시 문제 정보를 반환한다.")
+    @DisplayName(
+            "관리자 문제 단건 조회 시 문제 정보를 반환한다"
+    )
     void getProblem_success() {
-
         // given
         UUID problemId = UUID.randomUUID();
 
         Problem problem = mock(Problem.class);
 
-        when(problemFinder.getProblem(problemId)).thenReturn(problem);
-        when(problem.getId()).thenReturn(problemId);
-        when(problem.getTitle()).thenReturn("두 수의 합");
-        when(problem.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
-        when(problem.getDifficulty()).thenReturn(ProblemDifficulty.EASY);
-        when(problem.getType()).thenReturn(ProblemType.CODE);
-        when(problem.getDescription()).thenReturn("두 정수를 입력받아 두 수의 합을 출력하세요.");
-        when(problem.getStarterCode()).thenReturn("public class Main {\n}");
-        when(problem.getRunningTimeLimit()).thenReturn(1000);
-        when(problem.getRunningMemoryLimit()).thenReturn(128);
-        when(problem.getTimerPolicy()).thenReturn(TimerPolicy.NOT_APPLY_TIMEPOLICY);
-        when(problem.getSource()).thenReturn(ProblemSource.HUMAN_AUTHORED);
-        when(problem.getProblemStatus()).thenReturn(ProblemStatus.DRAFT);
-        when(problem.getCurrentVersionNo()).thenReturn(1);
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        when(problem.getId())
+                .thenReturn(problemId);
+
+        when(problem.getTitle())
+                .thenReturn("두 수의 합");
+
+        when(problem.getLanguage())
+                .thenReturn(ProgrammingLanguage.JAVA);
+
+        when(problem.getDifficulty())
+                .thenReturn(ProblemDifficulty.EASY);
+
+        when(problem.getType())
+                .thenReturn(ProblemType.CODE);
+
+        when(problem.getDescription())
+                .thenReturn(
+                        "두 정수를 입력받아 두 수의 합을 출력하세요."
+                );
+
+        when(problem.getStarterCode())
+                .thenReturn("public class Main {\n}");
+
+        when(problem.getRunningTimeLimit())
+                .thenReturn(RunningTimeLimit.SECOND_1);
+
+        when(problem.getRunningMemoryLimit())
+                .thenReturn(RunningMemoryLimit.MB_128);
+
+        when(problem.getTimerPolicy())
+                .thenReturn(
+                        TimerPolicy.NOT_APPLY_TIMEPOLICY
+                );
+
+        when(problem.getSource())
+                .thenReturn(ProblemSource.HUMAN_AUTHORED);
+
+        when(problem.getProblemStatus())
+                .thenReturn(ProblemStatus.DRAFT);
+
+        when(problem.getCurrentVersionNo())
+                .thenReturn(1);
+
+        when(problem.getLockVersion())
+                .thenReturn(0L);
 
         // when
-        ProblemResponse response = problemService.getProblem(problemId);
+        ProblemResponse response =
+                problemService.getProblemForAdmin(problemId);
 
         // then
-        assertThat(response.getId()).isEqualTo(problemId);
-        assertThat(response.getTitle()).isEqualTo("두 수의 합");
-        assertThat(response.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
-        assertThat(response.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
-        assertThat(response.getType()).isEqualTo(ProblemType.CODE);
-        assertThat(response.getDescription()).isEqualTo("두 정수를 입력받아 두 수의 합을 출력하세요.");
-        assertThat(response.getStarterCode()).isEqualTo("public class Main {\n}");
-        assertThat(response.getRunningTimeLimit()).isEqualTo(1000);
-        assertThat(response.getRunningMemoryLimit()).isEqualTo(128);
-        assertThat(response.getTimerPolicy()).isEqualTo(TimerPolicy.NOT_APPLY_TIMEPOLICY);
-        assertThat(response.getSource()).isEqualTo(ProblemSource.HUMAN_AUTHORED);
-        assertThat(response.getProblemStatus()).isEqualTo(ProblemStatus.DRAFT);
-        assertThat(response.getCurrentVersionNo()).isEqualTo(1);
+        assertThat(response.getId())
+                .isEqualTo(problemId);
 
-        System.out.println("===== 문제 단건 조회 결과 =====");
-        System.out.println("problemId = " + response.getId());
-        System.out.println("title = " + response.getTitle());
-        System.out.println("language = " + response.getLanguage());
-        System.out.println("difficulty = " + response.getDifficulty());
-        System.out.println("type = " + response.getType());
-        System.out.println("description = " + response.getDescription());
-        System.out.println("starterCode = " + response.getStarterCode());
-        System.out.println("runningTimeLimit = " + response.getRunningTimeLimit());
-        System.out.println("runningMemoryLimit = " + response.getRunningMemoryLimit());
-        System.out.println("timerPolicy = " + response.getTimerPolicy());
-        System.out.println("source = " + response.getSource());
-        System.out.println("problemStatus = " + response.getProblemStatus());
-        System.out.println("currentVersionNo = " + response.getCurrentVersionNo());
+        assertThat(response.getTitle())
+                .isEqualTo("두 수의 합");
+
+        assertThat(response.getLanguage())
+                .isEqualTo(ProgrammingLanguage.JAVA);
+
+        assertThat(response.getDifficulty())
+                .isEqualTo(ProblemDifficulty.EASY);
+
+        assertThat(response.getType())
+                .isEqualTo(ProblemType.CODE);
+
+        assertThat(response.getDescription())
+                .isEqualTo(
+                        "두 정수를 입력받아 두 수의 합을 출력하세요."
+                );
+
+        assertThat(response.getStarterCode())
+                .isEqualTo("public class Main {\n}");
+
+        assertThat(response.getRunningTimeLimit())
+                .isEqualTo(RunningTimeLimit.SECOND_1);
+
+        assertThat(response.getRunningMemoryLimit())
+                .isEqualTo(RunningMemoryLimit.MB_128);
+
+        assertThat(response.getTimerPolicy())
+                .isEqualTo(
+                        TimerPolicy.NOT_APPLY_TIMEPOLICY
+                );
+
+        assertThat(response.getSource())
+                .isEqualTo(ProblemSource.HUMAN_AUTHORED);
+
+        assertThat(response.getProblemStatus())
+                .isEqualTo(ProblemStatus.DRAFT);
+
+        assertThat(response.getCurrentVersionNo())
+                .isEqualTo(1);
+
+        assertThat(response.getLockVersion())
+                .isEqualTo(0L);
     }
 
-
     @Test
-    @DisplayName("문제 정보를 수정한다.")
+    @DisplayName(
+            "문제 정보를 수정하면 수정된 상태의 버전 스냅샷을 저장한다"
+    )
     void updateProblem_success() {
-
         // given
         UUID problemId = UUID.randomUUID();
 
@@ -109,78 +167,115 @@ class ProblemServiceTest {
                 ProblemType.CODE,
                 "두 정수를 입력받아 두 수의 합을 출력하세요.",
                 "public class Main {\n}",
-                RunningTimeLimit.SECOND_1.getSeconds(),
-                RunningMemoryLimit.MB_128.getMegabytes(),
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
                 TimerPolicy.NOT_APPLY_TIMEPOLICY,
                 ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.PUBLISHED,
-                1
+                ProblemStatus.PUBLISHED
         );
 
-        ProblemUpdateRequest request = mock(ProblemUpdateRequest.class);
+        ReflectionTestUtils.setField(
+                problem,
+                "id",
+                problemId
+        );
 
-        when(problemFinder.getProblem(problemId)).thenReturn(problem);
-        when(request.getTitle()).thenReturn("세 수의 합");
-        when(request.getDifficulty()).thenReturn(ProblemDifficulty.MEDIUM);
-        when(request.getStarterCode()).thenReturn(JsonNullable.undefined());
+        ReflectionTestUtils.setField(
+                problem,
+                "lockVersion",
+                0L
+        );
 
-        // 수정 전
-        System.out.println("===== 문제 수정 전 =====");
-        System.out.println("title = " + problem.getTitle());
-        System.out.println("language = " + problem.getLanguage());
-        System.out.println("difficulty = " + problem.getDifficulty());
-        System.out.println("type = " + problem.getType());
-        System.out.println("description = " + problem.getDescription());
-        System.out.println("starterCode = " + problem.getStarterCode());
-        System.out.println("runningTimeLimit = " + problem.getRunningTimeLimit());
-        System.out.println("runningMemoryLimit = " + problem.getRunningMemoryLimit());
-        System.out.println("timerPolicy = " + problem.getTimerPolicy());
-        System.out.println("source = " + problem.getSource());
-        System.out.println("problemStatus = " + problem.getProblemStatus());
-        System.out.println("currentVersionNo = " + problem.getCurrentVersionNo());
+        ProblemUpdateRequest request =
+                mock(ProblemUpdateRequest.class);
 
-        // JPA 저장을 하지 않는 단위 테스트이므로 ID 직접 주입
-        ReflectionTestUtils.setField(problem, "id", problemId);
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        when(request.getLockVersion())
+                .thenReturn(0L);
+
+        when(request.getTitle())
+                .thenReturn("세 수의 합");
+
+        when(request.getDifficulty())
+                .thenReturn(ProblemDifficulty.MEDIUM);
+
+        when(request.getStarterCode())
+                .thenReturn(JsonNullable.undefined());
 
         // when
-        problemService.updateProblem(problemId, request);
+        ProblemResponse response =
+                problemService.updateProblem(
+                        problemId,
+                        request
+                );
 
         // then
-        assertThat(problem.getTitle()).isEqualTo("세 수의 합");
-        assertThat(problem.getDifficulty()).isEqualTo(ProblemDifficulty.MEDIUM);
+        assertThat(response.getTitle())
+                .isEqualTo("세 수의 합");
 
-        assertThat(problem.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
-        assertThat(problem.getType()).isEqualTo(ProblemType.CODE);
-        assertThat(problem.getDescription())
-                .isEqualTo("두 정수를 입력받아 두 수의 합을 출력하세요.");
+        assertThat(response.getDifficulty())
+                .isEqualTo(ProblemDifficulty.MEDIUM);
 
-        System.out.println();
-        System.out.println("===== 문제 수정 후 =====");
-        System.out.println("title = " + problem.getTitle());
-        System.out.println("language = " + problem.getLanguage());
-        System.out.println("difficulty = " + problem.getDifficulty());
-        System.out.println("type = " + problem.getType());
-        System.out.println("description = " + problem.getDescription());
-        System.out.println("starterCode = " + problem.getStarterCode());
-        System.out.println("runningTimeLimit = " + problem.getRunningTimeLimit());
-        System.out.println("runningMemoryLimit = " + problem.getRunningMemoryLimit());
-        System.out.println("timerPolicy = " + problem.getTimerPolicy());
-        System.out.println("source = " + problem.getSource());
-        System.out.println("problemStatus = " + problem.getProblemStatus());
-        System.out.println("currentVersionNo = " + problem.getCurrentVersionNo());
+        assertThat(response.getLanguage())
+                .isEqualTo(ProgrammingLanguage.JAVA);
 
+        assertThat(response.getType())
+                .isEqualTo(ProblemType.CODE);
+
+        assertThat(response.getDescription())
+                .isEqualTo(
+                        "두 정수를 입력받아 두 수의 합을 출력하세요."
+                );
+
+        assertThat(response.getCurrentVersionNo())
+                .isEqualTo(2);
+
+        verify(problemRepository)
+                .flush();
 
         ArgumentCaptor<ProblemVersion> versionCaptor =
                 ArgumentCaptor.forClass(ProblemVersion.class);
 
-        verify(problemVersionRepository).save(versionCaptor.capture());
+        verify(problemVersionRepository)
+                .save(versionCaptor.capture());
 
-        ProblemVersion savedVersion = versionCaptor.getValue();
+        ProblemVersion savedVersion =
+                versionCaptor.getValue();
 
-        System.out.println();
-        System.out.println("===== 생성된 문제 버전 =====");
-        System.out.println("problemId = " + savedVersion.getProblemId());
-        System.out.println("versionNo = " + savedVersion.getVersionNo());
-        System.out.println("contentSnapshot = " + savedVersion.getProblemSnapshot());
+        assertThat(savedVersion.getProblemId())
+                .isEqualTo(problemId);
+
+        assertThat(savedVersion.getVersionNo())
+                .isEqualTo(2);
+
+        assertThat(
+                savedVersion.getProblemSnapshot()
+                        .get("title")
+                        .asText()
+        )
+                .isEqualTo("세 수의 합");
+
+        assertThat(
+                savedVersion.getProblemSnapshot()
+                        .get("difficulty")
+                        .asText()
+        )
+                .isEqualTo(ProblemDifficulty.MEDIUM.name());
+
+        assertThat(
+                savedVersion.getProblemSnapshot()
+                        .get("runningTimeLimit")
+                        .asText()
+        )
+                .isEqualTo(RunningTimeLimit.SECOND_1.name());
+
+        assertThat(
+                savedVersion.getProblemSnapshot()
+                        .get("runningMemoryLimit")
+                        .asText()
+        )
+                .isEqualTo(RunningMemoryLimit.MB_128.name());
     }
 }

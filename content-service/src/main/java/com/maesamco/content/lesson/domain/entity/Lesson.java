@@ -58,5 +58,7 @@ public class Lesson extends BaseEntity {
     public void changeDescription(String description) { this.description = description; }
     public void changeContent(String content) { this.content = content; }
     public void changeLanguage(ProgrammingLanguage language) { this.language = language; }
-    // public void changeDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+    public void changeDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
+    }
 }

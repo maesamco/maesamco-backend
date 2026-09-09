@@ -7,6 +7,7 @@ import com.maesamco.content.problem.domain.enums.ProblemType;
 import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 문제 목록 조회 시 사용하는 검색 조건을 전달합니다.
@@ -18,6 +19,7 @@ import lombok.NoArgsConstructor;
  * Spring Data JPA의 Pageable 객체로 변환하여 사용합니다.</p>
  */
 @Getter
+@Setter
 @NoArgsConstructor
 public class ProblemSearchRequest {
 

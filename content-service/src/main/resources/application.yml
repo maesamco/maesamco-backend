@@ -21,7 +21,7 @@ spring:
     password: ${DB_PASSWORD}
   flyway:
     # 신규·기존 DB의 Flyway 전환 경로를 통합 테스트에서 검증한 뒤 활성화합니다.
-    enabled: false
+    enabled: true
     schemas: content_schema
   jpa:
     hibernate:
@@ -49,6 +49,18 @@ internal:
   hmac:
     keys:
       coaching-service: ${HMAC_KEY_COACHING_TO_CONTENT}
+    outbound:
+      user-service: ${HMAC_KEY_CONTENT_TO_USER}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service: # UserFeignAdapter.getInterestConceptIds() — Daily Quiz 콜드스타트 조회
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
 
 eureka:
   client:

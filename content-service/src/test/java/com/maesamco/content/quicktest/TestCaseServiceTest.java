@@ -9,11 +9,13 @@ import com.maesamco.content.testcase.domain.entity.TestCase;
 import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
 import com.maesamco.content.testcase.domain.repository.TestCaseRepository;
 import com.maesamco.content.testcase.presentation.dto.request.TestCaseCreateRequest;
+import com.maesamco.content.testcase.presentation.dto.request.TestCaseUpdateRequest;
 import com.maesamco.content.testcase.presentation.dto.response.TestCaseResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -260,4 +262,120 @@ class TestCaseServiceTest {
         }
     }
 
+    @Test
+    @DisplayName("테스트케이스 생성 시 문제 행을 먼저 잠근 뒤 순번을 계산한다.")
+    void createTestCase_locksProblemBeforeCalculatingOrder() {
+
+        // given
+        UUID problemId = UUID.randomUUID();
+
+        TestCaseCreateRequest request =
+                mock(TestCaseCreateRequest.class);
+
+        when(request.getInput())
+                .thenReturn("1 2");
+
+        when(request.getExpectedOutput())
+                .thenReturn("3");
+
+        when(request.getIsPublic())
+                .thenReturn(true);
+
+        when(testCaseRepository
+                .findMaxTestCaseOrderByProblemIdAndIsPublic(
+                        problemId,
+                        true
+                ))
+                .thenReturn(3);
+
+        when(testCaseRepository.save(any(TestCase.class)))
+                .thenAnswer(invocation ->
+                        invocation.getArgument(0)
+                );
+
+        // when
+        testCaseService.createTestCase(
+                problemId,
+                request
+        );
+
+        // then
+        InOrder inOrder =
+                inOrder(
+                        problemFinder,
+                        testCaseRepository
+                );
+
+        inOrder.verify(problemFinder)
+                .getProblemForUpdate(problemId);
+
+        inOrder.verify(testCaseRepository)
+                .findMaxTestCaseOrderByProblemIdAndIsPublic(
+                        problemId,
+                        true
+                );
+
+        verify(testCaseRepository)
+                .save(any(TestCase.class));
+    }
+
+    @Test
+    @DisplayName("테스트케이스 공개 여부 전환 시 문제 행을 먼저 잠근 뒤 순번을 계산한다.")
+    void updateTestCase_visibilityChange_locksProblemBeforeCalculatingOrder() {
+
+        // given
+        UUID testCaseId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+
+        TestCase testCase = mock(TestCase.class);
+        TestCaseUpdateRequest request =
+                mock(TestCaseUpdateRequest.class);
+
+        when(testCaseFinder.getTestCase(testCaseId))
+                .thenReturn(testCase);
+
+        when(testCase.getProblemId())
+                .thenReturn(problemId);
+
+        when(testCase.getIsPublic())
+                .thenReturn(false);
+
+        when(request.getIsPublic())
+                .thenReturn(true);
+
+        when(testCaseRepository
+                .findMaxTestCaseOrderByProblemIdAndIsPublic(
+                        problemId,
+                        true
+                ))
+                .thenReturn(4);
+
+        // when
+        testCaseService.updateTestCase(
+                testCaseId,
+                request
+        );
+
+        // then
+        InOrder inOrder =
+                inOrder(
+                        problemFinder,
+                        testCaseRepository
+                );
+
+        inOrder.verify(problemFinder)
+                .getProblemForUpdate(problemId);
+
+        inOrder.verify(testCaseRepository)
+                .findMaxTestCaseOrderByProblemIdAndIsPublic(
+                        problemId,
+                        true
+                );
+
+        verify(testCase)
+                .changeIsPublic(true);
+
+        verify(testCase)
+                .changeTestCaseOrder(5);
+    }
 }

@@ -32,7 +32,7 @@ public class TestCaseService {
     @Transactional(rollbackFor = Exception.class)
     public TestCaseCreateResponse createTestCase(UUID problemId, TestCaseCreateRequest request) {
 
-        problemFinder.getProblem(problemId);
+        problemFinder.getProblemForUpdate(problemId);
 
         // 특정 문자에 대한 공개 또는 비공개 테스트케이스 중 하나의 분류에 대해서 그 중 가장 test_case_order가 큰 값에 + 1을 한다.
         int testCaseOrder =
@@ -107,11 +107,18 @@ public class TestCaseService {
         if (request.getIsPublic() != null &&
                 request.getIsPublic() != testCase.getIsPublic()) {
 
+            problemFinder.getProblemForUpdate(
+                    testCase.getProblemId()
+            );
+
             // 삭제하지 않고, 공개 여부를 변경하면서 새 그룹의 마지막 순서를 부여한다.
             // 기존 그룹의 빈 order는 유지하며 별도로 재정렬하지 않는다.
             // 하나의 문제에 대해서 등록/수정이 많이 일어나지 않기 때문에 정리할 필요가 없을 것으로 예싱한다.
             int newTestCaseOrder =
-                    testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(testCase.getProblemId(), request.getIsPublic()) + 1;
+                    testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(
+                            testCase.getProblemId(),
+                            request.getIsPublic()
+                    ) + 1;
             testCase.changeIsPublic(request.getIsPublic());
             testCase.changeTestCaseOrder(newTestCaseOrder);
         }

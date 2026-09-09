@@ -20,6 +20,8 @@ public class ReusableQuestionSelector {
             List<String> requiredConcepts,
             List<DailyQuizQuestion> candidates
     ) {
+        // MVP에서는 날짜가 다르면 동일 문항의 반복 출제를 허용하고, 결정적인 선택 결과를 위해 UUID 순으로 정렬합니다.
+        // TODO: 이후 최근 3일간 출제된 문항을 제외하거나 출제 빈도가 낮은 문항을 우선하도록 개선합니다.
         List<DailyQuizQuestion> sortedCandidates = candidates.stream()
                 .sorted(Comparator.comparing(DailyQuizQuestion::getId))
                 .toList();

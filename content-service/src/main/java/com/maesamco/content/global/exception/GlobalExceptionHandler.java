@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
@@ -104,6 +105,15 @@ public class GlobalExceptionHandler {
         log.warn("NoResourceFoundException: {}", e.getMessage());
         return ResponseEntity.status(ErrorCode.ENTITY_NOT_FOUND.getStatus())
                 .body(ErrorResponse.from(ErrorCode.ENTITY_NOT_FOUND));
+    }
+
+    // Enum 필드 역직렬화 실패 시 400 대신 500 응답
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
+        log.warn("HttpMessageNotReadableException: {}", e.getMessage());
+
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, "요청 본문의 형식 또는 값이 올바르지 않습니다."));
     }
 
     // 최종 안전망

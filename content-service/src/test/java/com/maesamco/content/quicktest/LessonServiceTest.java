@@ -71,27 +71,37 @@ class LessonServiceTest {
 
 
     @Test
-    @DisplayName("레슨의 제목을 수정한다.")
+    @DisplayName("레슨의 제목과 표시 순서를 수정한다.")
     void updateLesson_success() {
 
         // given
         UUID lessonId = UUID.randomUUID();
 
         Lesson lesson = mock(Lesson.class);
-        LessonUpdateRequest request = mock(LessonUpdateRequest.class);
+        LessonUpdateRequest request =
+                mock(LessonUpdateRequest.class);
 
-        when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
-        when(request.getTitle()).thenReturn("수정된 변수와 자료형");
+        when(lessonFinder.findLessonById(lessonId))
+                .thenReturn(lesson);
+
+        when(request.getTitle())
+                .thenReturn("수정된 변수와 자료형");
+
+        when(request.getDisplayOrder())
+                .thenReturn(2);
 
         // when
-        lessonService.updateLesson(lessonId, request);
+        lessonService.updateLesson(
+                lessonId,
+                request
+        );
 
         // then
-        verify(lesson).changeTitle("수정된 변수와 자료형");
+        verify(lesson)
+                .changeTitle("수정된 변수와 자료형");
 
-        System.out.println("===== 레슨 수정 결과 =====");
-        System.out.println("lessonId = " + lessonId);
-        System.out.println("변경된 title = " + request.getTitle());
+        verify(lesson)
+                .changeDisplayOrder(2);
     }
 
 

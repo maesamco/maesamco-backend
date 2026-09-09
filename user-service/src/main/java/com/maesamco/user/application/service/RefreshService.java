@@ -52,8 +52,9 @@ public class RefreshService {
      *
      * <p>새로운 Refresh Token을 발급한 뒤 Redis Lua Script가
      * 기존 Refresh Token hash와 현재 저장된 hash를 원자적으로 비교합니다.
-     * 이미 Rotation된 이전 Refresh Token이 다시 사용된 경우 해당 인증
-     * 세션을 폐기하고 재로그인을 요구합니다.</p>
+     * 직전 Refresh Token이 grace window 안에 다시 요청되면 세션은 유지하지만
+     * 해당 요청은 거부합니다. Grace window를 벗어난 재사용이나 직전 토큰과
+     * 무관한 토큰이 사용되면 인증 세션을 폐기하고 재로그인을 요구합니다.</p>
      *
      * @param command Refresh Token 재발급 입력값
      * @return 새 Access Token과 Refresh Token 발급 정보
@@ -203,8 +204,9 @@ public class RefreshService {
      * Redis에서 수행한 원자적 Refresh Token Rotation 결과를
      * 인증 오류로 변환합니다.
      *
-     * <p>이미 Rotation된 Refresh Token이 다시 사용된 경우에는
-     * 보안 이벤트 추적을 위해 사용자와 세션 식별자를 WARN 로그에 기록합니다.
+     * <p>grace window 안에서 직전 Refresh Token이 다시 요청되면
+     * 세션을 유지하고 DEBUG 로그를 남깁니다. 실제 재사용으로 판단해
+     * 세션을 폐기한 경우에만 보안 이벤트 추적을 위한 WARN 로그를 남깁니다.
      * Refresh Token 원문과 hash는 기록하지 않습니다.</p>
      *
      * @param rotationResult Redis Rotation 결과
@@ -230,6 +232,20 @@ public class RefreshService {
                     throw new BusinessException(
                             ErrorCode.AUTH_TOKEN_REVOKED
                     );
+
+            case PREVIOUS_TOKEN_WITHIN_GRACE -> {
+                log.debug(
+                        "grace window 안에서 직전 Refresh Token이 "
+                                + "다시 요청되었습니다. "
+                                + "userId={}, sessionId={}",
+                        userId,
+                        sessionId
+                );
+
+                throw new BusinessException(
+                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED
+                );
+            }
 
             case TOKEN_REUSED -> {
                 log.warn(

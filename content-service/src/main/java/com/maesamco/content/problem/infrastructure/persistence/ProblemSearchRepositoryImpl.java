@@ -58,7 +58,7 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
                 difficultyEq(problem, request),
                 typeEq(problem, request),
                 sourceEq(problem, request),
-                problem.problemStatus.eq(ProblemStatus.PUBLISHED)
+                statusEq(problem, request)
         };
 
         List<Problem> problems = queryFactory
@@ -106,6 +106,12 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
         if (request == null || request.getSource() == null) { return null; }
 
         return problem.source.eq(request.getSource());
+    }
+    /** 문제 상태 일치 조건을 생성합니다. */
+    private BooleanExpression statusEq(QProblem problem, ProblemSearchRequest request) {
+        if (request == null || request.getProblemStatus() == null) { return null; }
+
+        return problem.problemStatus.eq(request.getProblemStatus());
     }
 
     /**

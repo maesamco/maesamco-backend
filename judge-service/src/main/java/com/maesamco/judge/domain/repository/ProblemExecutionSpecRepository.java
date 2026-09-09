@@ -11,4 +11,6 @@ public interface ProblemExecutionSpecRepository extends JpaRepository<ProblemExe
     boolean existsByProblemIdAndProblemVersionId(UUID problemId, UUID problemVersionId);
 
     Optional<ProblemExecutionSpec> findFirstByProblemIdOrderByPublishedAtDesc(UUID problemId);
+
+    Optional<ProblemExecutionSpec> findByProblemIdAndProblemVersionId(UUID problemId, UUID problemVersionId);
 }
