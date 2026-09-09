@@ -69,6 +69,12 @@ public class Problem extends BaseEntity {
     @Column(name = "current_version_no", nullable = false)
     private Integer currentVersionNo = 1;
 
+    // JPA 낙관적 락 버전입니다.
+    // 문제 콘텐츠 버전(currentVersionNo)과는 별도로 관리합니다.
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
+
     public static Problem create(
             String title,
             ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,

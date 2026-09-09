@@ -15,28 +15,28 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.List;
-import java.util.UUID;
-
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Testcontainers
@@ -247,5 +247,76 @@ class ProblemDBTest {
 
         assertThat(updatedProblem.getCurrentVersionNo())
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("같은 문제의 오래된 버전을 수정하면 낙관적 락 예외가 발생한다")
+    void updateProblem_withStaleVersion_throwsOptimisticLockingFailure() {
+
+        // given
+        Problem problem = Problem.create(
+                "동시성 테스트 문제",
+                ProgrammingLanguage.JAVA,
+                ProblemDifficulty.EASY,
+                ProblemType.CODE,
+                "문제 설명",
+                "public class Main {}",
+                RunningTimeLimit.values()[0],
+                RunningMemoryLimit.values()[0],
+                TimerPolicy.APPLY60,
+                ProblemSource.HUMAN_AUTHORED,
+                ProblemStatus.REVIEW_PENDING
+        );
+
+        Problem savedProblem =
+                problemRepository.saveAndFlush(problem);
+
+        UUID problemId = savedProblem.getId();
+
+        entityManager.clear();
+
+        /*
+         * 같은 DB row를 동일한 lockVersion으로 두 번 읽어
+         * 서로 독립된 stale 객체를 만든다.
+         */
+        Problem firstProblem =
+                problemRepository.findById(problemId)
+                        .orElseThrow();
+
+        entityManager.detach(firstProblem);
+
+        Problem secondProblem =
+                problemRepository.findById(problemId)
+                        .orElseThrow();
+
+        entityManager.detach(secondProblem);
+
+        assertThat(firstProblem.getLockVersion())
+                .isEqualTo(0L);
+
+        assertThat(secondProblem.getLockVersion())
+                .isEqualTo(0L);
+
+        // 첫 번째 수정은 정상 반영
+        firstProblem.changeTitle("첫 번째 수정");
+
+        Problem firstUpdated =
+                problemRepository.saveAndFlush(firstProblem);
+
+        assertThat(firstUpdated.getLockVersion())
+                .isEqualTo(1L);
+
+        entityManager.clear();
+
+        // 두 번째 객체는 여전히 lockVersion = 0인 stale 상태
+        secondProblem.changeDescription("두 번째 수정");
+
+        // when & then
+        assertThatThrownBy(
+                () -> problemRepository.saveAndFlush(secondProblem)
+        )
+                .isInstanceOf(
+                        ObjectOptimisticLockingFailureException.class
+                );
     }
 }
