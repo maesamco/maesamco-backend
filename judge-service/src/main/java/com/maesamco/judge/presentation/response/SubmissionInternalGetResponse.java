@@ -1,5 +1,6 @@
 package com.maesamco.judge.presentation.response;
 
+import com.maesamco.judge.application.result.SubmissionGetResult;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
@@ -21,34 +22,21 @@ public record SubmissionInternalGetResponse(
     public record FailedTestSummary(boolean isPublic, String errorType) {
     }
 
-    public static SubmissionInternalGetResponse of(Submission submission, List<SubmissionTestResult> failedResults) {
-        boolean isCompleted = submission.getStatus() == SubmissionStatus.COMPLETED;
-
-        String result = isCompleted && submission.getResult() != null
-                ? submission.getResult().name()
-                : null;
-
-        List<FailedTestSummary> summaries = failedResults.stream()
-                .map(r -> new FailedTestSummary(
-                        r.isPublic(),
-                        r.getErrorType() != null ? r.getErrorType().name() : null
-                ))
+    public static SubmissionInternalGetResponse from(SubmissionGetResult result) {
+        List<FailedTestSummary> summaries = result.failedTestSummary().stream()
+                .map(f -> new FailedTestSummary(f.isPublic(), f.errorType()))
                 .toList();
 
-        String failureCode = submission.getFailureCode() != null
-                ? submission.getFailureCode().name()
-                : null;
-
         return new SubmissionInternalGetResponse(
-                submission.getId(),
-                submission.getUserId(),
-                submission.getProblemId(),
-                submission.getCode(),
-                submission.getStatus().name(),
-                result,
-                failureCode,
+                result.submissionId(),
+                result.userId(),
+                result.problemId(),
+                result.code(),
+                result.status().name(),
+                result.result() != null ? result.result().name() : null,
+                result.failureCode() != null ? result.failureCode().name() : null,
                 summaries,
-                submission.getAttemptNo()
+                result.attemptNo()
         );
     }
 }
