@@ -61,6 +61,11 @@ class ProblemDBTest {
                 () -> Base64.getEncoder()
                         .encodeToString(KEY_PAIR.getPublic().getEncoded())
         );
+
+        registry.add(
+                "internal.hmac.keys.coaching-service",
+                () -> "test-hmac-key-for-coaching-content"
+        );
     }
 
     private static KeyPair generateKeyPair() {
