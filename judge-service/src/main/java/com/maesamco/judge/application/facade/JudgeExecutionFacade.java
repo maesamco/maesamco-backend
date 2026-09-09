@@ -45,6 +45,13 @@ public class JudgeExecutionFacade {
             return;
         }
 
+        // Judge0에 빈 batch 보내고 나서 사후처리하지 않고, 애초에 무의미한 외부 호출 자체를 안하도록 검증.
+        if (testCases.isEmpty()) {
+            log.error("[Judge] 실행 명세에 테스트케이스가 없음 — Judge0 호출 없이 FAILED 처리. submissionId={}", submissionId);
+            markFailedSafely(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            return;
+        }
+
         List<String> tokens;
         try {
             List<JudgeExecutionRequest> requests = testCases.stream()

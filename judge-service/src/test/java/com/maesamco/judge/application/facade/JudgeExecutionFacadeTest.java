@@ -112,6 +112,24 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
+        @DisplayName("테스트케이스가 빈 배열이면 Judge0를 호출하지 않고 INTERNAL_SYSTEM_ERROR로 FAILED 처리한다")
+        void marksFailedWhenTestCasesEmpty() {
+            UUID submissionId = UUID.randomUUID();
+            ProblemExecutionSpec spec = specWithTestCases("[]");
+            JudgeExecutionPreparation preparation =
+                    new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willReturn(Optional.of(preparation));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(judgeExecutionPort, never()).submitBatch(any());
+            verify(judgeExecutionPersistenceService, never())
+                    .savePendingExecutions(any(), any(), any());
+        }
+
+        @Test
         @DisplayName("Judge0 응답 개수가 요청 개수와 다르면 예외를 전파하지 않고 JUDGE0_RESPONSE_FAILURE로 FAILED 처리한다")
         void marksFailedWhenTokenCountMismatches() {
             UUID submissionId = UUID.randomUUID();
