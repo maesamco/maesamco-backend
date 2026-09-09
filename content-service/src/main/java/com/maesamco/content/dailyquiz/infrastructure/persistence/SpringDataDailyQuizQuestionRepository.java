@@ -22,7 +22,7 @@ interface SpringDataDailyQuizQuestionRepository extends JpaRepository<DailyQuizQ
                         SELECT candidate.*
                         FROM content_schema.p_daily_quiz_questions candidate
                         WHERE candidate.status = 'ACTIVE'
-                          AND jsonb_exists(candidate.concept_tags, rc.concept_tag)
+                          AND candidate.concept_tags @> jsonb_build_array(rc.concept_tag)
                         ORDER BY candidate.id
                         LIMIT :limitPerConcept
                     ) q
