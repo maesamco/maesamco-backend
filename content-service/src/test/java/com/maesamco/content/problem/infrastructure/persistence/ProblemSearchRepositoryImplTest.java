@@ -234,13 +234,60 @@ class ProblemSearchRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("지원하지 않는 문제 유형으로 검색하면 빈 페이지를 반환한다")
-    void searchProblems_filtersByType() {
+    @DisplayName("문제 유형과 언어, 난이도 조건에 일치하는 문제만 반환한다")
+    void searchProblems_filtersByTypeLanguageAndDifficulty() {
         // given
+        Problem javaEasyProblem = Problem.create(
+                "Java Easy",
+                ProgrammingLanguage.JAVA,
+                ProblemDifficulty.EASY,
+                ProblemType.CODE,
+                "description",
+                null,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
+                TimerPolicy.NOT_APPLY_TIMEPOLICY,
+                ProblemSource.HUMAN_AUTHORED,
+                ProblemStatus.PUBLISHED
+        );
+
+        Problem pythonEasyProblem = Problem.create(
+                "Python Easy",
+                ProgrammingLanguage.PYTHON,
+                ProblemDifficulty.EASY,
+                ProblemType.CODE,
+                "description",
+                null,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
+                TimerPolicy.NOT_APPLY_TIMEPOLICY,
+                ProblemSource.HUMAN_AUTHORED,
+                ProblemStatus.PUBLISHED
+        );
+
+        Problem javaHardProblem = Problem.create(
+                "Java Hard",
+                ProgrammingLanguage.JAVA,
+                ProblemDifficulty.HARD,
+                ProblemType.CODE,
+                "description",
+                null,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
+                TimerPolicy.NOT_APPLY_TIMEPOLICY,
+                ProblemSource.HUMAN_AUTHORED,
+                ProblemStatus.PUBLISHED
+        );
+
+        entityManager.persist(javaEasyProblem);
+        entityManager.persist(pythonEasyProblem);
+        entityManager.persist(javaHardProblem);
+
         ProblemSearchRequest request =
                 requestWith(
-                        "type",
-                        ProblemType.SHORT_ANSWER
+                        ProblemType.CODE,
+                        ProgrammingLanguage.JAVA,
+                        ProblemDifficulty.EASY
                 );
 
         Pageable pageable = PageRequest.of(0, 20);
@@ -253,8 +300,14 @@ class ProblemSearchRepositoryImplTest {
                 );
 
         // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isZero();
+        assertThat(result.getContent())
+                .contains(javaEasyProblem);
+
+        assertThat(result.getContent())
+                .doesNotContain(
+                        pythonEasyProblem,
+                        javaHardProblem
+                );
     }
 
     @Test
@@ -656,6 +709,35 @@ class ProblemSearchRepositoryImplTest {
                 request,
                 fieldName,
                 value
+        );
+
+        return request;
+    }
+
+    private ProblemSearchRequest requestWith(
+            ProblemType type,
+            ProgrammingLanguage language,
+            ProblemDifficulty difficulty
+    ) {
+        ProblemSearchRequest request =
+                new ProblemSearchRequest();
+
+        ReflectionTestUtils.setField(
+                request,
+                "type",
+                type
+        );
+
+        ReflectionTestUtils.setField(
+                request,
+                "language",
+                language
+        );
+
+        ReflectionTestUtils.setField(
+                request,
+                "difficulty",
+                difficulty
         );
 
         return request;
