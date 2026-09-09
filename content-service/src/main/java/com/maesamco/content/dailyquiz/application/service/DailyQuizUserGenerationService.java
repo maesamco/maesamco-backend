@@ -1,11 +1,14 @@
 package com.maesamco.content.dailyquiz.application.service;
 
 import com.maesamco.content.dailyquiz.application.command.DailyQuizSetGenerationCommand;
+import com.maesamco.content.dailyquiz.application.exception.DailyQuizUserProcessingException;
 import com.maesamco.content.dailyquiz.application.facade.DailyQuizSetGenerationFacade;
 import com.maesamco.content.dailyquiz.application.query.DailyQuizConceptCandidatesGetQuery;
 import com.maesamco.content.dailyquiz.application.query_service.DailyQuizConceptCandidateQueryService;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 // import org.springframework.stereotype.Service;
 
@@ -30,8 +33,16 @@ public class DailyQuizUserGenerationService {
         DailyQuizConceptCandidatesGetQuery query =
                 DailyQuizConceptCandidatesGetQuery.from(userId, attemptDate);
 
-        // conceptCandidateQueryService를 호출해 사용자의 개념 후보를 조회합니다.
-        DailyQuizConceptCandidates conceptCandidates = conceptCandidateQueryService.get(query);
+        // 특정 사용자의 개념 후보 데이터가 도메인 계약을 위반하면 사용자 단위 예외로 변환합니다.
+        DailyQuizConceptCandidates conceptCandidates;
+        try {
+            conceptCandidates = conceptCandidateQueryService.get(query);
+        } catch (BusinessException exception) {
+            if (exception.getErrorCode() != ErrorCode.INVALID_INPUT_VALUE) {
+                throw exception;
+            }
+            throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
+        }
 
         // 사용자 ID, 날짜, 개념 후보로 DailyQuizSetGenerationCommand를 생성합니다.
         DailyQuizSetGenerationCommand command = DailyQuizSetGenerationCommand.from(

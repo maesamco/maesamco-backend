@@ -1,5 +1,6 @@
 package com.maesamco.content.dailyquiz.application.service;
 
+import com.maesamco.content.dailyquiz.application.exception.DailyQuizUserProcessingException;
 import com.maesamco.content.dailyquiz.application.port.DailyQuizTargetUserPort;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizTargetUserPage;
@@ -83,9 +84,10 @@ public class DailyQuizBatchExecutionService {
                             result.status(),
                             result.questionCount()
                     );
-                } catch (RuntimeException exception) {
+                } catch (DailyQuizUserProcessingException exception) {
                     log.error(
-                            "Daily Quiz 사용자별 생성 실패. userId={}, attemptDate={}",
+                            "Daily Quiz 사용자 데이터 처리 실패. 다음 사용자를 처리합니다. "
+                                    + "userId={}, attemptDate={}",
                             userId,
                             attemptDate,
                             exception
