@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
@@ -114,6 +115,15 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
                 .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, "요청 본문의 형식 또는 값이 올바르지 않습니다."));
+    }
+
+    // 낙관적 락 충돌 발생 시 409 응답
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException e) {
+        log.warn("ObjectOptimisticLockingFailureException: {}", e.getMessage());
+
+        return ResponseEntity.status(ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY.getStatus())
+                .body(ErrorResponse.from(ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY));
     }
 
     // 최종 안전망
