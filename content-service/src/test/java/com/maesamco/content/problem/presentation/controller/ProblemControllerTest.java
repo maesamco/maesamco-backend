@@ -638,6 +638,33 @@ class ProblemControllerTest {
     }
 
     @Test
+    @DisplayName("starterCode가 10,000자를 초과하면 400을 반환한다")
+    void updateProblem_starterCodeTooLong_returns400() throws Exception {
+        // given
+        String oversizedStarterCode = "a".repeat(10_001);
+
+        String json = """
+            {
+                "starterCode": "%s"
+            }
+            """.formatted(oversizedStarterCode);
+
+        // when & then
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(asAdmin(adminId))
+                                .contentType("application/json")
+                                .content(json)
+                )
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(problemService);
+    }
+
+    @Test
     @DisplayName("ADMIN이 아닌 사용자가 문제를 수정하면 403을 반환한다")
     void updateProblem_nonAdmin_returns403()
             throws Exception {
