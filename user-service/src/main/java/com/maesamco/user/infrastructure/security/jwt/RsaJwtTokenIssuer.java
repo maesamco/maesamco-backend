@@ -20,7 +20,11 @@ import java.util.UUID;
  * 서로 다른 RSA 개인키로 Access Token과 Refresh Token을 발급합니다.
  *
  * <p>두 토큰에는 동일한 사용자 및 세션 식별자가 포함되며,
- * 각 토큰은 별도의 JWT ID를 가집니다.</p>
+ * 각 토큰에는 무작위 JWT ID를 포함합니다.</p>
+ *
+ * <p>JWT ID는 서버 측 조회 키로 사용하지 않지만, 동일한 사용자·세션과
+ * 초 단위 발급 시각으로 토큰을 연속 발급하더라도 서로 다른 토큰 문자열과
+ * 해시가 생성되도록 하는 nonce 역할을 합니다.</p>
  *
  * <p>신규 인증 세션에서는 설정된 Refresh Token TTL을 기준으로
  * 만료 시각을 계산하고, Refresh Token Rotation에서는 기존 인증
