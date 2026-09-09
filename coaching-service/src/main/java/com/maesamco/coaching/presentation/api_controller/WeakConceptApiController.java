@@ -4,6 +4,7 @@ import com.maesamco.coaching.application.query_service.WeakConceptQueryService;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Weak Concept", description = "취약 개념 조회 API")
 @RestController
 @RequestMapping("/api/v1/coaching/weak-concepts")
 public class WeakConceptApiController implements WeakConceptApiDocs {
