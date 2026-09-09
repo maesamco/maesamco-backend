@@ -76,8 +76,8 @@ class SubmissionQueryServiceTest {
         }
 
         @Test
-        @DisplayName("채점 중인 제출은 result와 failedTestSummary가 null이고 테스트 결과 조회를 하지 않는다")
-        void returnsNullResultWhenNotCompleted() {
+        @DisplayName("채점 중인 제출은 result가 null이고 failedTestSummary는 빈 리스트이며, 테스트 결과 조회를 하지 않는다")
+        void returnsNullResultAndEmptyFailedTestsWhenNotCompleted() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
             submission.markQueued();
@@ -90,16 +90,16 @@ class SubmissionQueryServiceTest {
 
             assertThat(response.status()).isEqualTo(SubmissionStatus.RUNNING.name());
             assertThat(response.result()).isNull();
-            assertThat(response.failedTestSummary()).isNull();
+            assertThat(response.failedTestSummary()).isEmpty();
             verify(submissionTestResultRepository, never()).findBySubmissionIdAndPassedFalse(any());
         }
 
         @Test
-        @DisplayName("실패로 종료된 제출은 failureCode를 함께 반환하고 result는 null이다")
+        @DisplayName("실패로 종료된 제출은 failureCode를 함께 반환하고 result는 null이며, 테스트 결과 조회를 하지 않는다")
         void returnsFailureCodeWhenFailed() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
-            submission.markFailed(FailureCode.JUDGE0_RESPONSE_FAILURE); // TODO: 실제 '실패 종료' 도메인 메서드명 확인 필요
+            submission.markFailed(FailureCode.JUDGE0_RESPONSE_FAILURE);
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -109,6 +109,7 @@ class SubmissionQueryServiceTest {
             assertThat(response.status()).isEqualTo(SubmissionStatus.FAILED.name());
             assertThat(response.failureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE.name());
             assertThat(response.result()).isNull();
+            verify(submissionTestResultRepository, never()).findBySubmissionIdAndPassedFalse(any());
         }
 
         @Test

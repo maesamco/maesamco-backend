@@ -28,14 +28,12 @@ public record SubmissionInternalGetResponse(
                 ? submission.getResult().name()
                 : null;
 
-        List<FailedTestSummary> summaries = isCompleted
-                ? failedResults.stream()
+        List<FailedTestSummary> summaries = failedResults.stream()
                 .map(r -> new FailedTestSummary(
                         r.isPublic(),
                         r.getErrorType() != null ? r.getErrorType().name() : null
                 ))
-                .toList()
-                : null;
+                .toList();
 
         String failureCode = submission.getFailureCode() != null
                 ? submission.getFailureCode().name()
