@@ -28,8 +28,8 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       properties:
-        delivery.timeout.ms: 3000
-        request.timeout.ms: 2000
+        delivery.timeout.ms: 5000
+        request.timeout.ms: 3000
     topic:
       problem-published: problem-published-events
       judge-requested: judge-requested-events
@@ -42,7 +42,7 @@ spring:
 outbox:
   relay:
     fixed-delay-ms: 1000
-    publish-timeout-ms: 3000
+    publish-timeout-ms: 5000
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -87,6 +87,6 @@ springdoc:
     enabled: false
 
 judge0:
-  base-url: ${JUDGE0_BASE_URL:http://192.168.219.110:2358}
+  base-url: ${JUDGE0_BASE_URL}
   connect-timeout-ms: 3000
   response-timeout-ms: 5000

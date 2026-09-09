@@ -3,6 +3,8 @@ package com.maesamco.judge.infrastructure.adapter.judge0;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -26,8 +28,14 @@ public record Judge0SubmissionRequest(
             int memoryLimitKb
     ) {
         return new Judge0SubmissionRequest(
-                sourceCode, languageId, stdin, expectedOutput,
+                encode(sourceCode), languageId, encode(stdin), encode(expectedOutput),
                 cpuTimeLimitSeconds, memoryLimitKb
         );
+    }
+    static String encode(String value) {
+        if (value == null) {
+            return null;
+        }
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }

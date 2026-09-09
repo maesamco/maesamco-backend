@@ -1,5 +1,7 @@
 package com.maesamco.judge.application.persistence_service;
 
+import com.maesamco.judge.application.command.ExecutionTestCase;
+import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
@@ -7,7 +9,6 @@ import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 import java.util.ArrayList;
@@ -54,12 +55,16 @@ public class JudgeExecutionPersistenceService {
 
     // Judge0 배치 제출이 끝난 뒤 호출 — 토큰별로 PendingJudge0Execution을 저장.
     @Transactional
-    public void savePendingExecutions(UUID submissionId, List<TestCaseItem> testCases, List<String> tokens) {
+    public void savePendingExecutions(UUID submissionId, List<ExecutionTestCase> testCases, List<String> tokens) {
         List<PendingJudge0Execution> pendingExecutions = new ArrayList<>();
         for (int i = 0; i < testCases.size(); i++) {
             String token = tokens.get(i);
             if (token == null) {
-                log.warn("[Judge] Judge0 토큰 누락 submissionId={}, testCaseId={}", submissionId, testCases.get(i).testCaseId());
+                // Judge0가 이 테스트케이스에 대해서만 개별적으로 토큰 발급을 실패시킨 경우 —
+                // 이 테스트케이스는 PendingJudge0Execution에 저장되지 않아 결과 집계(이슈 9)에서
+                // 누락된다. 부분 성공을 어떻게 다룰지는 이슈 #142 에서 결정 필요 (요청 개수 대비
+                // 실제 저장된 개수를 대조해서 감지하는 방식 등).
+                log.error("[Judge] Judge0 토큰 누락 submissionId={}, testCaseId={}", submissionId, testCases.get(i).testCaseId());
                 continue;
             }
             pendingExecutions.add(PendingJudge0Execution.create(submissionId, testCases.get(i).testCaseId(), token));
@@ -68,5 +73,12 @@ public class JudgeExecutionPersistenceService {
     }
 
     public record JudgeExecutionPreparation(UUID submissionId, String code, ProblemExecutionSpec spec) {
+    }
+
+    @Transactional
+    public void markFailed(UUID submissionId, FailureCode failureCode) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+        submission.markFailed(failureCode);
     }
 }

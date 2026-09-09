@@ -38,9 +38,6 @@ class RsaRefreshTokenVerifierTest {
                     "22222222-2222-2222-2222-222222222222"
             );
 
-    private static final String TOKEN_ID =
-            "33333333-3333-3333-3333-333333333333";
-
     private static final KeyPair REFRESH_KEY_PAIR =
             generateKeyPair();
 
@@ -65,7 +62,6 @@ class RsaRefreshTokenVerifierTest {
         String refreshToken = createToken(
                 USER_ID.toString(),
                 SESSION_ID.toString(),
-                TOKEN_ID,
                 TokenType.REFRESH,
                 NOW.minusSeconds(60),
                 expiresAt,
@@ -83,9 +79,6 @@ class RsaRefreshTokenVerifierTest {
         assertThat(verifiedToken.sessionId())
                 .isEqualTo(SESSION_ID);
 
-        assertThat(verifiedToken.tokenId())
-                .isEqualTo(TOKEN_ID);
-
         assertThat(verifiedToken.expiresAt())
                 .isEqualTo(expiresAt);
     }
@@ -97,7 +90,6 @@ class RsaRefreshTokenVerifierTest {
         String token = createToken(
                 USER_ID.toString(),
                 SESSION_ID.toString(),
-                TOKEN_ID,
                 TokenType.ACCESS,
                 NOW.minusSeconds(60),
                 NOW.plusSeconds(3600),
@@ -118,7 +110,6 @@ class RsaRefreshTokenVerifierTest {
         String token = createToken(
                 USER_ID.toString(),
                 SESSION_ID.toString(),
-                TOKEN_ID,
                 TokenType.REFRESH,
                 NOW.minusSeconds(7200),
                 NOW.minusSeconds(3600),
@@ -139,7 +130,6 @@ class RsaRefreshTokenVerifierTest {
         String token = createToken(
                 USER_ID.toString(),
                 SESSION_ID.toString(),
-                TOKEN_ID,
                 TokenType.REFRESH,
                 NOW.minusSeconds(60),
                 NOW.plusSeconds(3600),
@@ -169,7 +159,6 @@ class RsaRefreshTokenVerifierTest {
         String token = createToken(
                 "invalid-user-id",
                 SESSION_ID.toString(),
-                TOKEN_ID,
                 TokenType.REFRESH,
                 NOW.minusSeconds(60),
                 NOW.plusSeconds(3600),
@@ -188,7 +177,6 @@ class RsaRefreshTokenVerifierTest {
      *
      * @param subject 사용자 식별자
      * @param sessionId 세션 식별자
-     * @param tokenId JWT ID
      * @param tokenType 토큰 타입
      * @param issuedAt 발급 시각
      * @param expiresAt 만료 시각
@@ -198,14 +186,12 @@ class RsaRefreshTokenVerifierTest {
     private String createToken(
             String subject,
             String sessionId,
-            String tokenId,
             TokenType tokenType,
             Instant issuedAt,
             Instant expiresAt,
             KeyPair keyPair
     ) {
         return Jwts.builder()
-                .id(tokenId)
                 .subject(subject)
                 .claim(
                         "tokenType",
