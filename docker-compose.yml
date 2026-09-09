@@ -191,6 +191,9 @@ services:
       # 안 채우면 기본값(분당 30회) 그대로 적용되어 평소엔 안전함(리뷰 반영 — 실제 컨테이너에
       # 값이 전달 안 되고 있던 걸 발견해 수정).
       RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
+      # 배포 시 Gateway 앞에 신뢰 가능한 리버스 프록시를 두게 되면 그 IP를 콤마로 구분해 채운다.
+      # 비워두면(기본값) Forwarded 헤더를 아무도 신뢰하지 않아 항상 안전하다.
+      RATE_LIMIT_TRUSTED_PROXY_IPS: ${RATE_LIMIT_TRUSTED_PROXY_IPS:-}
     depends_on:
       - eureka-server
       - redis
