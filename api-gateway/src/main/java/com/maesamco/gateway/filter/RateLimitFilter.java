@@ -8,7 +8,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -60,10 +59,21 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
      */
     private static final int SUBMISSIONS_PER_MINUTE_DEFAULT = 30;
 
+    /**
+     * ⚠️ Gateway 앞에 신뢰 가능한 리버스 프록시/로드밸런서가 있을 때만, 그 프록시의
+     * IP로 들어온 요청에 한해 Forwarded 헤더를 신뢰한다. 기본값은 빈 목록 —
+     * 지금처럼 프록시가 없는 로컬/현재 배포 상태에선 아무도 신뢰되지 않아
+     * 항상 remoteAddress만 쓰는 것과 동일하게 동작한다(안전한 기본값).
+     * 실제로 프록시를 앞에 두게 되면 코드 수정 없이 이 프로퍼티 값만 채우면 된다.
+     */
+    private final List<String> trustedProxyIps;
+
     public RateLimitFilter(
             ReactiveRedisTemplate<String, Long> redisTemplate,
-            @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute) {
+            @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute,
+            @Value("${rate-limit.trusted-proxy-ips:}") List<String> trustedProxyIps) {
         this.redisTemplate = redisTemplate;
+        this.trustedProxyIps = trustedProxyIps;
         if (submissionsPerMinute != SUBMISSIONS_PER_MINUTE_DEFAULT) {
             log.warn("RATE_LIMIT_SUBMISSIONS_PER_MIN이 기본값({})과 다릅니다. 현재 값: {}회/분. "
                             + "JMeter 부하 테스트용으로 임시로 올린 것이라면 테스트 후 반드시 되돌리세요.",
@@ -139,13 +149,64 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 });
     }
 
-    /** 로그인 전이라 사용자 식별이 안 되는 구간이 많으므로 IP를 우선 식별자로 쓴다. */
+    /**
+     * ⚠️ 클라이언트가 보내는 Forwarded 헤더는 원칙적으로 신뢰하지 않는다 — 검증 없이
+     * 신뢰하면 매 요청마다 이 헤더 값을 무작위로 바꿔서 Redis 키 자체를 매번 새로
+     * 만들 수 있고, 그러면 count > limit 조건이 영원히 성립하지 않아 Rate Limit
+     * 전체가 완전히 무력화된다(단순 사칭보다 심각한 완전 우회 — 이슈 #96 논의 중 발견).
+     *
+     * 예외적으로, 이 요청이 trustedProxyIps에 등록된 신뢰 가능한 리버스 프록시로부터
+     * 직접 온 경우(remoteAddress가 그 목록에 있는 경우)에만 그 프록시가 실어준
+     * 클라이언트 IP 헤더를 신뢰한다 — 그 외 모든 경우엔 TCP 연결의 실제 소스 IP만 쓴다.
+     * trustedProxyIps가 비어있으면(기본값) 이 조건은 절대 참이 될 수 없어 항상
+     * remoteAddress만 쓰는 것과 동일하게 동작한다.
+     *
+     * ⚠️ P4 리뷰 반영 — 표준 Forwarded(RFC 7239) 헤더만 보면, AWS ALB나 흔한 nginx
+     * 기본 설정처럼 실무에서 X-Forwarded-For만 보내고 Forwarded는 안 보내는 프록시가
+     * 많아 트러스트 기능이 조용히 한 번도 발동 안 할 수 있다(안전한 방향의 실패이긴
+     * 하지만 실효성이 없음). X-Forwarded-For를 우선 확인하고, 없으면 Forwarded도
+     * 확인하도록 둘 다 지원한다.
+     */
     private String resolveIdentifier(ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst("Forwarded");
-        if (forwardedFor != null) {
-            return forwardedFor;
+        String remoteIp = Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        if (trustedProxyIps.contains(remoteIp)) {
+            String clientIp = extractClientIp(request);
+            if (clientIp != null) {
+                return clientIp;
+            }
         }
-        return Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        return remoteIp;
+    }
+
+    /**
+     * X-Forwarded-For(콤마 구분, 맨 앞이 원본 클라이언트)를 우선 확인하고,
+     * 없으면 Forwarded(RFC 7239, for= 파라미터)를 확인한다. 둘 다 없으면 null.
+     */
+    private String extractClientIp(ServerHttpRequest request) {
+        String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String forwarded = request.getHeaders().getFirst("Forwarded");
+        if (forwarded != null && !forwarded.isBlank()) {
+            // 여러 홉이 콤마로 이어질 수 있어(for=1.1.1.1;proto=http, for=2.2.2.2),
+            // 맨 앞 홉의 for= 값만 뽑는다. 완전한 RFC 7239 파서는 아니고 단순 파싱이다.
+            String firstHop = forwarded.split(",")[0];
+            for (String part : firstHop.split(";")) {
+                String trimmed = part.trim();
+                if (trimmed.toLowerCase().startsWith("for=")) {
+                    String value = trimmed.substring(4).replace("\"", "");
+                    if (!value.isBlank()) {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private Mono<Void> onRateLimited(ServerWebExchange exchange) {

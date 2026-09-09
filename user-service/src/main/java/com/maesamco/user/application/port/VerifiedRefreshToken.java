@@ -12,13 +12,11 @@ import java.util.UUID;
  *
  * @param userId Refresh Token 소유자 식별자
  * @param sessionId 인증 세션 식별자
- * @param tokenId JWT ID(jti)
  * @param expiresAt Refresh Token 만료 시각
  */
 public record VerifiedRefreshToken(
         UUID userId,
         UUID sessionId,
-        String tokenId,
         Instant expiresAt
 ) {
 
@@ -35,18 +33,8 @@ public record VerifiedRefreshToken(
                 "세션 식별자는 필수입니다."
         );
         Objects.requireNonNull(
-                tokenId,
-                "토큰 식별자는 필수입니다."
-        );
-        Objects.requireNonNull(
                 expiresAt,
                 "토큰 만료 시각은 필수입니다."
         );
-
-        if (tokenId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "토큰 식별자는 비어 있을 수 없습니다."
-            );
-        }
     }
 }
