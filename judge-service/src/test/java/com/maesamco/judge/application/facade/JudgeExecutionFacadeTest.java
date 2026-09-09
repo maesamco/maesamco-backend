@@ -10,13 +10,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.maesamco.judge.application.command.ExecutionTestCase;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService.JudgeExecutionPreparation;
 import com.maesamco.judge.application.port.JudgeExecutionPort;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -62,8 +62,8 @@ class JudgeExecutionFacadeTest {
         void submitsAndSavesTokens() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1),
-                    new TestCaseItem(UUID.randomUUID(), false, "1 1", "2", 2)
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1),
+                    new ExecutionTestCase(UUID.randomUUID(), false, "1 1", "2", 2)
             ));
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
@@ -74,7 +74,7 @@ class JudgeExecutionFacadeTest {
 
             judgeExecutionFacade.execute(submissionId);
 
-            ArgumentCaptor<List<TestCaseItem>> testCasesCaptor = ArgumentCaptor.forClass(List.class);
+            ArgumentCaptor<List<ExecutionTestCase>> testCasesCaptor = ArgumentCaptor.forClass(List.class);
             verify(judgeExecutionPersistenceService).savePendingExecutions(
                     eq(submissionId), testCasesCaptor.capture(), eq(List.of("token-1", "token-2")));
             assertThat(testCasesCaptor.getValue()).hasSize(2);
@@ -134,8 +134,8 @@ class JudgeExecutionFacadeTest {
         void marksFailedWhenTokenCountMismatches() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1),
-                    new TestCaseItem(UUID.randomUUID(), false, "1 1", "2", 2)
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1),
+                    new ExecutionTestCase(UUID.randomUUID(), false, "1 1", "2", 2)
             ));
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
@@ -156,7 +156,7 @@ class JudgeExecutionFacadeTest {
         void marksFailedWhenJudge0SubmitThrows() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1)
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1)
             ));
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
@@ -176,7 +176,7 @@ class JudgeExecutionFacadeTest {
         void marksFailedWhenSavePendingExecutionsThrows() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1)
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1)
             ));
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =

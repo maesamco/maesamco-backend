@@ -87,6 +87,6 @@ springdoc:
     enabled: false
 
 judge0:
-  base-url: ${JUDGE0_BASE_URL:http://192.168.219.110:2358}
+  base-url: ${JUDGE0_BASE_URL}
   connect-timeout-ms: 3000
   response-timeout-ms: 5000

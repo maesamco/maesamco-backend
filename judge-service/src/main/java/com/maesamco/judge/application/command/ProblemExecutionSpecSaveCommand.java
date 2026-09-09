@@ -13,7 +13,7 @@ public record ProblemExecutionSpecSaveCommand(
         UUID problemVersionId,
         String language,
         String starterCode,
-        List<ProblemPublishedEvent.TestCaseItem> testCases,
+        List<ExecutionTestCase> testCases,
         int timeLimitMs,
         int memoryLimitMb,
         Instant publishedAt
@@ -34,10 +34,18 @@ public record ProblemExecutionSpecSaveCommand(
                 event.problemVersionId(),
                 event.language(),
                 event.starterCode(),
-                event.testCases(),
+                toExecutionTestCases(event.testCases()),
                 event.timeLimit(),
                 event.memoryLimit(),
                 event.publishedAt()
         );
+    }
+
+    private static List<ExecutionTestCase> toExecutionTestCases(
+            List<ProblemPublishedEvent.TestCaseItem> testCases) {
+        return testCases.stream()
+                .map(tc -> new ExecutionTestCase(
+                        tc.testCaseId(), tc.isPublic(), tc.input(), tc.expectedOutput(), tc.displayOrder()))
+                .toList();
     }
 }

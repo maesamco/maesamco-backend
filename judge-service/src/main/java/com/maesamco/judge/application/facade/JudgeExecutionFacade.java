@@ -1,11 +1,11 @@
 package com.maesamco.judge.application.facade;
 
+import com.maesamco.judge.application.command.ExecutionTestCase;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService.JudgeExecutionPreparation;
 import com.maesamco.judge.application.port.JudgeExecutionPort;
 import com.maesamco.judge.application.port.JudgeExecutionRequest;
 import com.maesamco.judge.domain.entity.FailureCode;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,7 +36,7 @@ public class JudgeExecutionFacade {
 
         JudgeExecutionPreparation prep = preparation.get();
 
-        List<TestCaseItem> testCases;
+        List<ExecutionTestCase> testCases;
         try {
             testCases = parseTestCases(prep.spec().getTestCases());
         } catch (Exception e) {
@@ -91,9 +91,9 @@ public class JudgeExecutionFacade {
         }
     }
 
-    private List<TestCaseItem> parseTestCases(String testCasesJson) {
+    private List<ExecutionTestCase> parseTestCases(String testCasesJson) {
         try {
-            return jsonMapper.readValue(testCasesJson, new TypeReference<List<TestCaseItem>>() {});
+            return jsonMapper.readValue(testCasesJson, new TypeReference<List<ExecutionTestCase>>() {});
         } catch (Exception e) {
             throw new IllegalStateException("testCases JSON 파싱 실패", e);
         }

@@ -1,5 +1,6 @@
 package com.maesamco.judge.application.persistence_service;
 
+import com.maesamco.judge.application.command.ExecutionTestCase;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.Submission;
@@ -8,7 +9,6 @@ import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public class JudgeExecutionPersistenceService {
 
     // Judge0 배치 제출이 끝난 뒤 호출 — 토큰별로 PendingJudge0Execution을 저장.
     @Transactional
-    public void savePendingExecutions(UUID submissionId, List<TestCaseItem> testCases, List<String> tokens) {
+    public void savePendingExecutions(UUID submissionId, List<ExecutionTestCase> testCases, List<String> tokens) {
         List<PendingJudge0Execution> pendingExecutions = new ArrayList<>();
         for (int i = 0; i < testCases.size(); i++) {
             String token = tokens.get(i);

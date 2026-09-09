@@ -7,13 +7,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.maesamco.judge.application.command.ExecutionTestCase;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService.JudgeExecutionPreparation;
 import com.maesamco.judge.domain.entity.*;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
-import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent.TestCaseItem;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 import java.time.Instant;
@@ -130,9 +130,9 @@ class JudgeExecutionPersistenceServiceTest {
         @DisplayName("토큰별로 PendingJudge0Execution을 저장한다")
         void savesAllTokens() {
             UUID submissionId = UUID.randomUUID();
-            List<TestCaseItem> testCases = List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1),
-                    new TestCaseItem(UUID.randomUUID(), false, "1 1", "2", 2)
+            List<ExecutionTestCase> testCases = List.of(
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1),
+                    new ExecutionTestCase(UUID.randomUUID(), false, "1 1", "2", 2)
             );
 
             judgeExecutionPersistenceService.savePendingExecutions(
@@ -147,9 +147,9 @@ class JudgeExecutionPersistenceServiceTest {
         @DisplayName("토큰이 null인 테스트케이스는 저장하지 않고 건너뛴다")
         void skipsNullTokens() {
             UUID submissionId = UUID.randomUUID();
-            List<TestCaseItem> testCases = List.of(
-                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1),
-                    new TestCaseItem(UUID.randomUUID(), true, "1 1", "2", 2)
+            List<ExecutionTestCase> testCases = List.of(
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1),
+                    new ExecutionTestCase(UUID.randomUUID(), true, "1 1", "2", 2)
             );
 
             judgeExecutionPersistenceService.savePendingExecutions(
