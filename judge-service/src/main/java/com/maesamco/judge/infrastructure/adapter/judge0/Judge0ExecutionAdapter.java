@@ -24,6 +24,16 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
 
     private final WebClient judge0WebClient;
 
+    /**
+     * Judge0 batch 제출 — 응답으로 오는 토큰 리스트는 요청 순서와 같다고 가정.
+     *
+     * ⚠️ 주의: Judge0 공식 문서(https://ce.judge0.com/)에는 POST /submissions/batch
+     * 응답 순서가 요청 순서와 일치한다는 게 명시적으로 문서화돼있지 않음. 다만 Judge0가
+     * 응답에 "이 토큰이 몇 번째 요청에 대한 거다"라는 상관관계 필드를 별도로 주지 않기 때문에,
+     * 순서 매칭 외에는 요청-응답을 짝지을 방법이 없는 상황. 즉 이 API를 배치로 쓰는 이상
+     * 사실상 암묵적으로 의존할 수밖에 없는 가정임. 만약 향후 이 가정이 깨지는 게
+     * 확인되면(순서가 안 맞는 사례 발견), 배치 대신 건별 제출로 전환하는 것을 검토할 예정
+     */
     @Override
     public List<String> submitBatch(List<JudgeExecutionRequest> requests) {
         List<Judge0SubmissionRequest> submissions = requests.stream()

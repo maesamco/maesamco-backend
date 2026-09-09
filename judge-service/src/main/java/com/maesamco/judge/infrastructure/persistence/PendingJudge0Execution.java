@@ -15,8 +15,8 @@ import org.hibernate.annotations.UuidGenerator;
  */
 @Entity
 @Table(name = "p_pending_judge0_executions",
-        indexes = @Index(name = "idx_pending_judge0_executions_created_at", columnList = "created_at")
-)
+        indexes = @Index(name = "idx_pending_judge0_executions_created_at", columnList = "created_at"),
+        uniqueConstraints = @UniqueConstraint(columnNames = {"submission_id", "test_case_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PendingJudge0Execution {

@@ -60,7 +60,11 @@ public class JudgeExecutionPersistenceService {
         for (int i = 0; i < testCases.size(); i++) {
             String token = tokens.get(i);
             if (token == null) {
-                log.warn("[Judge] Judge0 토큰 누락 submissionId={}, testCaseId={}", submissionId, testCases.get(i).testCaseId());
+                // Judge0가 이 테스트케이스에 대해서만 개별적으로 토큰 발급을 실패시킨 경우 —
+                // 이 테스트케이스는 PendingJudge0Execution에 저장되지 않아 결과 집계(이슈 9)에서
+                // 누락된다. 부분 성공을 어떻게 다룰지는 이슈 #142 에서 결정 필요 (요청 개수 대비
+                // 실제 저장된 개수를 대조해서 감지하는 방식 등).
+                log.error("[Judge] Judge0 토큰 누락 submissionId={}, testCaseId={}", submissionId, testCases.get(i).testCaseId());
                 continue;
             }
             pendingExecutions.add(PendingJudge0Execution.create(submissionId, testCases.get(i).testCaseId(), token));
