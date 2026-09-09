@@ -91,11 +91,19 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
         return new JudgeExecutionResult(
                 result.token(),
                 JudgeExecutionStatus.fromJudge0Id(result.status().id()),
-                result.stdout(),
-                result.stderr(),
-                result.compileOutput(),
+                decode(result.stdout()),
+                decode(result.stderr()),
+                decode(result.compileOutput()),
                 null, // time은 Judge0가 문자열("0.012")로 주므로 파싱 로직은 다음 이슈 작업에서 추가하겠습니다.
                 result.memory()
         );
     }
+
+    static String decode(String base64Value) {
+        if (base64Value == null) {
+            return null;
+        }
+        return new String(java.util.Base64.getDecoder().decode(base64Value), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
 }
