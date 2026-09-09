@@ -83,4 +83,9 @@ public class SubmissionEventOutbox {
         this.status = OutboxStatus.COMPLETED;
         this.processedAt = Instant.now();
     }
+
+    public void markFailed() {
+        this.status = OutboxStatus.FAILED;
+        this.processedAt = Instant.now();
+    }
 }

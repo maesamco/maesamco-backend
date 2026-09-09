@@ -199,7 +199,8 @@ public class Submission extends BaseEntity {
         }
         Objects.requireNonNull(failureCode, "failureCode는 null일 수 없습니다.");
         transition(SubmissionStatus.FAILED,
-                EnumSet.of(SubmissionStatus.QUEUED, SubmissionStatus.RUNNING, SubmissionStatus.RETRY_WAIT));
+                EnumSet.of(SubmissionStatus.PENDING, SubmissionStatus.QUEUED,
+                        SubmissionStatus.RUNNING, SubmissionStatus.RETRY_WAIT));
         this.failureCode = failureCode;
         this.result = null;
         this.judgedAt = Instant.now();
