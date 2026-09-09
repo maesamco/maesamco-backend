@@ -191,15 +191,7 @@ public class ProblemService {
              * 응답을 생성하기 전에 UPDATE를 실행하여
              * JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
              */
-            try {
-                problemRepository.flush();
-            } catch (
-                    ObjectOptimisticLockingFailureException exception
-            ) {
-                throw new BusinessException(
-                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
-                );
-            }
+            problemRepository.flush();
         }
 
         return ProblemResponse.from(problem);
@@ -212,5 +204,8 @@ public class ProblemService {
         Problem problem = problemFinder.getProblem(problemId);
 
         problem.softDelete(userId);
+
+        problemRepository.flush(); // 현재 영속성 컨텍스트에 쌓여 있는 변경사항을 즉시 DB SQL로 반영시킨다
+        // Update 실행, @Version의 lock_version 조건 검사
     }
 }

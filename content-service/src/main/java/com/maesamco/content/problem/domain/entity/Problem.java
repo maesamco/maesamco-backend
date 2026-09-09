@@ -124,7 +124,7 @@ public class Problem extends BaseEntity {
         this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
-    // TODO: 추후에 작성
+    // TODO: 추후에 작성 -> Content 다른 도메인을 import 할 수 있어야 해결이 가능합니다.
     // problem status 전환 과정은 DDD 적용
     // 1. REVIEW_PENDING -> PUBLISHED
     public void approvePublication() {
