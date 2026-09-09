@@ -80,7 +80,7 @@ public class ProblemService {
 
         Problem problem = problemFinder.getProblem(problemId);
 
-        // TODO: 수정하기 전에 version snapshot 남기기
+        // TODO: 수정하기 전에 version snapshot 남기기 (다른 브랜치에서 작업한 것과 merge해야 활성화할 수 있음)
         // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
         // problemVersionRepository.save(snapshot);
 
