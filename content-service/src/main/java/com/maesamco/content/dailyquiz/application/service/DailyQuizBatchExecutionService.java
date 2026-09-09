@@ -10,7 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 // import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.maesamco.content.dailyquiz.domain.DailyQuizBatchPolicy.MAX_BATCH_CHUNK_SIZE;
@@ -50,7 +51,7 @@ public class DailyQuizBatchExecutionService {
 
         // 첫 페이지 조회를 위해 cursor를 null로 초기화합니다.
         UUID cursor = null;
-
+        Set<UUID> visitedCursors = new HashSet<>();
 
         // cursor와 chunkSize로 대상 사용자 페이지를 반복 조회합니다.
         while (true) {
@@ -101,14 +102,16 @@ public class DailyQuizBatchExecutionService {
                 return;
             }
 
-            // 다음 cursor가 현재 cursor와 같으면 무한 반복 방지를 위해 배치를 종료합니다.
+            // 이미 방문한 cursor가 다시 나오면 순환으로 판단해 무한 반복을 방지합니다.
             UUID nextCursor = page.nextCursor();
 
-            if (Objects.equals(cursor, nextCursor)) {
+            if (!visitedCursors.add(nextCursor)) {
                 log.error(
-                        "Daily Quiz 대상 사용자 cursor가 갱신되지 않아 배치를 종료합니다. attemptDate={}, cursor={}",
+                        "Daily Quiz 대상 사용자 cursor가 순환하여 배치를 종료합니다. "
+                                + "attemptDate={}, currentCursor={}, nextCursor={}",
                         attemptDate,
-                        cursor
+                        cursor,
+                        nextCursor
                 );
                 return;
             }
