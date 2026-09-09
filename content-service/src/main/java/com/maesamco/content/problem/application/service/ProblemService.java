@@ -13,6 +13,7 @@ import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateReques
 import com.maesamco.content.problem.presentation.dto.response.ProblemCreateResponse;
 import com.maesamco.content.problem.presentation.dto.response.ProblemResponse;
 import com.maesamco.content.problem.presentation.dto.response.ProblemSearchItemResponse;
+import com.maesamco.content.problem.presentation.dto.response.ProblemShortResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,13 +57,27 @@ public class ProblemService {
         return ProblemCreateResponse.from(savedProblem);
     }
 
-    /** 문제 단건 조회 */
+    /** 관리자 문제 단건 조회 */
     @Transactional(readOnly = true)
-    public ProblemResponse getProblem(UUID problemId) {
+    public ProblemResponse getProblemForAdmin(UUID problemId) {
 
         Problem problem = problemFinder.getProblem(problemId);
 
         return ProblemResponse.from(problem);
+    }
+
+    /** 사용자 문제 단건 조회 */
+    @Transactional(readOnly = true)
+    public ProblemShortResponse getProblemForUser(UUID problemId) {
+
+        Problem problem = problemFinder.getProblem(problemId);
+
+        // 사용자는 발행된 문제만 조회 가능
+        if (problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_PUBLISHED);
+        }
+
+        return ProblemShortResponse.from(problem);
     }
 
     /** 문제 검색 */

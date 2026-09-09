@@ -1,8 +1,9 @@
+
 package com.maesamco.content.problem.presentation.dto.response;
 
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.enums.*;
-import lombok.AccessLevel;
+        import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -10,11 +11,11 @@ import java.util.UUID;
 
 /**
  * 문제 단건 조회 응답 DTO
- * <p>[문제 클릭했을 때 관리자가 상세 화면에 보여줄 정보]</p>
+ * <p>[문제 클릭했을 때 사용자에게 상세 화면에 보여줄 정보]</p>
  */
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ProblemResponse {
+public class ProblemShortResponse {
 
     private final UUID id;
     private final String title;
@@ -27,11 +28,9 @@ public class ProblemResponse {
     private final RunningMemoryLimit runningMemoryLimit;
     private final TimerPolicy timerPolicy;
     private final ProblemSource source;
-    private final ProblemStatus problemStatus;
-    private final Integer currentVersionNo;
 
-    public static ProblemResponse from(Problem problem) {
-        return new ProblemResponse(
+    public static ProblemShortResponse from(Problem problem) {
+        return new ProblemShortResponse(
                 problem.getId(),
                 problem.getTitle(),
                 problem.getLanguage(),
@@ -42,9 +41,7 @@ public class ProblemResponse {
                 problem.getRunningTimeLimit(),
                 problem.getRunningMemoryLimit(),
                 problem.getTimerPolicy(),
-                problem.getSource(),
-                problem.getProblemStatus(),
-                problem.getCurrentVersionNo()
+                problem.getSource()
         );
     }
 }
