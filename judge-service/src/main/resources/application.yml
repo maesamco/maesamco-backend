@@ -26,6 +26,10 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      properties:
+        delivery.timeout.ms: 3000
+        request.timeout.ms: 2000
     topic:
       problem-published: problem-published-events
       judge-requested: judge-requested-events
