@@ -13,6 +13,9 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizBatchPolicy.MAX_BATCH_CHUNK_SIZE;
+import static com.maesamco.content.dailyquiz.domain.DailyQuizBatchPolicy.MIN_BATCH_CHUNK_SIZE;
+
 /**
  * User Service의 대상 사용자 페이지를 cursor 방식으로 순회하며
  * 사용자별 Daily Quiz 생성을 순차 실행하는 서비스
@@ -37,10 +40,11 @@ public class DailyQuizBatchExecutionService {
             );
         }
 
-        if (chunkSize < 1 || chunkSize > 1000) {
+        if (chunkSize < MIN_BATCH_CHUNK_SIZE || chunkSize > MAX_BATCH_CHUNK_SIZE) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "Daily Quiz 배치 chunk size는 1 이상 1000 이하여야 합니다."
+                    "Daily Quiz 배치 chunk size는 %d 이상 %d 이하여야 합니다."
+                            .formatted(MIN_BATCH_CHUNK_SIZE, MAX_BATCH_CHUNK_SIZE)
             );
         }
 

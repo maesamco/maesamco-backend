@@ -8,6 +8,9 @@ import org.springframework.scheduling.support.CronExpression;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizBatchPolicy.MAX_BATCH_CHUNK_SIZE;
+import static com.maesamco.content.dailyquiz.domain.DailyQuizBatchPolicy.MIN_BATCH_CHUNK_SIZE;
+
 /**
  * Daily Quiz 배치 실행에 필요한 설정값입니다.
  */
@@ -39,12 +42,18 @@ public record DailyQuizBatchProperties(
             throw invalidInput("Daily Quiz 배치 timezone이 올바르지 않습니다.");
         }
 
-        if (chunkSize < 1) {
-            throw invalidInput("Daily Quiz 배치 chunk size는 1 이상이어야 합니다.");
+        if (chunkSize < MIN_BATCH_CHUNK_SIZE) {
+            throw invalidInput(
+                    "Daily Quiz 배치 chunk size는 %d 이상이어야 합니다."
+                            .formatted(MIN_BATCH_CHUNK_SIZE)
+            );
         }
 
-        if (chunkSize > 1000) {
-            throw invalidInput("Daily Quiz 배치 chunk size는 1000 이하여야 합니다.");
+        if (chunkSize > MAX_BATCH_CHUNK_SIZE) {
+            throw invalidInput(
+                    "Daily Quiz 배치 chunk size는 %d 이하여야 합니다."
+                            .formatted(MAX_BATCH_CHUNK_SIZE)
+            );
         }
     }
 
