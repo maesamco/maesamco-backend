@@ -423,10 +423,17 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName("DB flush에서 낙관적 락 충돌이 발생하면 문제 동시 수정 예외로 변환한다")
-    void updateProblem_translatesOptimisticLockingFailure() {
+    @DisplayName("DB flush에서 낙관적 락 충돌이 발생하면 예외를 상위로 전파한다")
+    void updateProblem_propagatesOptimisticLockingFailure() {
         // given
         Problem problem = createProblem();
+
+        // 요청 lockVersion과 현재 Problem의 lockVersion을 동일하게 맞춘다.
+        ReflectionTestUtils.setField(
+                problem,
+                "lockVersion",
+                0L
+        );
 
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
@@ -456,16 +463,12 @@ class ProblemServiceTest {
                         request
                 )
         )
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception ->
-                        ((BusinessException) exception)
-                                .getErrorCode()
-                )
-                .isEqualTo(
-                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                .isInstanceOf(
+                        ObjectOptimisticLockingFailureException.class
                 );
 
-        verify(problemRepository).flush();
+        verify(problemRepository)
+                .flush();
     }
 
     private ProblemCreateRequest createProblemRequest() {
