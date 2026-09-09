@@ -172,6 +172,34 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("공개 문제 검색에서는 요청한 상태와 관계없이 PUBLISHED 상태로 조회한다")
+    void searchProblems_forcesPublishedStatus() {
+        // given
+        ProblemSearchRequest request = new ProblemSearchRequest();
+
+        ReflectionTestUtils.setField(
+                request,
+                "problemStatus",
+                ProblemStatus.DRAFT
+        );
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        when(problemRepository.searchProblems(request, pageable))
+                .thenReturn(Page.empty(pageable));
+
+        // when
+        problemService.searchProblems(request, pageable);
+
+        // then
+        assertThat(request.getProblemStatus())
+                .isEqualTo(ProblemStatus.PUBLISHED);
+
+        verify(problemRepository)
+                .searchProblems(request, pageable);
+    }
+
+    @Test
     @DisplayName("수정 요청에 포함된 필드만 변경하고 버전은 한 번만 증가한다")
     void updateProblem_updatesProvidedFieldsAndIncreasesVersionOnce() {
         // given

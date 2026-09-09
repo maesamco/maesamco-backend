@@ -84,13 +84,9 @@ public class ProblemService {
     @Transactional(readOnly = true)
     public PageResponse<ProblemSearchItemResponse> searchProblems(ProblemSearchRequest request, Pageable pageable) {
 
-        // TODO: 시연에서는 의도한 흐름대로 진행하니 문제는 안생기나
-        //  추후 컨트롤러에서 .getRole() 이 가능하다면 사용자 / 관리자 관련 정책을 도입
-
-        // problem status가 안 들어왔으면 ProblemStatus.PUBLISHED 인 문제만 검색
-        if (request.getProblemStatus() == null) {
-            request.setProblemStatus(ProblemStatus.PUBLISHED);
-        }
+        // 공개 문제 목록에서는 클라이언트가 요청한 상태와 관계없이
+        // PUBLISHED 상태의 문제만 조회한다.
+        request.setProblemStatus(ProblemStatus.PUBLISHED);
 
         Page<Problem> problems = problemRepository.searchProblems(request, pageable);
 
