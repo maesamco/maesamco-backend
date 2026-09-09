@@ -66,6 +66,11 @@ class ProblemDBTest {
                 "internal.hmac.keys.coaching-service",
                 () -> "test-hmac-key-for-coaching-content"
         );
+
+        registry.add(
+                "internal.hmac.outbound.user-service",
+                () -> "test-hmac-key-for-content-user"
+        );
     }
 
     private static KeyPair generateKeyPair() {
