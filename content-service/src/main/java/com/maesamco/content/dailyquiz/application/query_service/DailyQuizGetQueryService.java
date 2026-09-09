@@ -122,7 +122,10 @@ public class DailyQuizGetQueryService {
         DailyQuizQuestion question = questionById.get(questionId);
 
         if (question == null) {
-            throw new IllegalStateException("배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId=" + questionId);
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId=" + questionId
+            );
         }
 
         return question;
