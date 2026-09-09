@@ -52,7 +52,7 @@ public class WeakConceptRepositoryImpl implements WeakConceptRepository {
     }
 
     @Override
-    public List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDesc(UUID userId) {
-        return springDataWeakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDesc(userId);
+    public List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(UUID userId) {
+        return springDataWeakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(userId);
     }
 }

@@ -11,5 +11,5 @@ interface SpringDataWeakConceptRepository extends JpaRepository<WeakConcept, UUI
 
     Optional<WeakConcept> findByUserIdAndConceptTag(UUID userId, String conceptTag);
 
-    List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDesc(UUID userId);
+    List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(UUID userId);
 }

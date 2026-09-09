@@ -171,7 +171,7 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
 
     @Test
     @DisplayName("이슈 #54 — 개선 안 된 것 우선, 그다음 발견 횟수 높은 순으로 정렬해 조회한다")
-    void findByUserIdOrderByImprovedAscOccurrenceCountDesc_ordersByPriority() {
+    void findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc_ordersByPriority() {
         // given — 코칭 서비스 API 명세 7번 API 우선순위: improved=false 우선, 그다음 occurrenceCount desc
         UUID userId = UUID.randomUUID();
 
@@ -190,7 +190,7 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
         entityManager.clear();
 
         // when
-        List<WeakConcept> found = weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDesc(userId);
+        List<WeakConcept> found = weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(userId);
 
         // then
         assertThat(found).extracting(WeakConcept::getConceptTag)
@@ -199,10 +199,10 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
 
     @Test
     @DisplayName("취약 개념이 없는 사용자를 조회하면 빈 목록을 반환한다")
-    void findByUserIdOrderByImprovedAscOccurrenceCountDesc_returnsEmpty_whenNoWeakConcepts() {
+    void findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc_returnsEmpty_whenNoWeakConcepts() {
         // when
         List<WeakConcept> found =
-                weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDesc(UUID.randomUUID());
+                weakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(UUID.randomUUID());
 
         // then
         assertThat(found).isEmpty();
