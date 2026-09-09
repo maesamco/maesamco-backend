@@ -1,3 +1,8 @@
+-- 주의:
+-- PostgreSQL에서 CHAR(64) -> VARCHAR(64) 타입 변경은
+-- p_users 테이블 재작성 및 ACCESS EXCLUSIVE LOCK을 유발할 수 있습니다.
+-- 운영 데이터가 충분히 쌓인 환경에서는 점검/유지보수 시간에 적용합니다.
+
 ALTER TABLE user_schema.p_users
 ALTER COLUMN email_lookup_hash
     TYPE VARCHAR(64)
