@@ -82,6 +82,8 @@ public class Problem extends BaseEntity {
             RunningTimeLimit runningTimeLimit, RunningMemoryLimit runningMemoryLimit, TimerPolicy timerPolicy,
             ProblemSource source, ProblemStatus problemStatus
     ) {
+        validateSupportedType(type);
+
         Problem problem = new Problem();
 
         problem.title = title;
@@ -104,7 +106,10 @@ public class Problem extends BaseEntity {
     public void changeTitle(String newTitle) { this.title = newTitle; }
     public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
     public void changeDifficulty(ProblemDifficulty newDifficulty) { this.difficulty = newDifficulty; }
-    public void changeType(ProblemType newType) { this.type = newType; }
+    public void changeType(ProblemType newType) {
+        validateSupportedType(newType);
+        this.type = newType;
+    }
     public void changeDescription(String newDescription) { this.description = newDescription; }
     public void changeStarterCode(String newStarterCode) { this.starterCode = newStarterCode; }
     public void changeRunningTimeLimit(RunningTimeLimit newRunningTimeLimit) { this.runningTimeLimit = newRunningTimeLimit; }
@@ -130,6 +135,13 @@ public class Problem extends BaseEntity {
         this.problemStatus = ProblemStatus.PUBLISHED;
     }
 
+    private static void validateSupportedType(ProblemType type) {
+        if (type != ProblemType.CODE) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_PROBLEM_TYPE
+            );
+        }
+    }
 
     public void increaseVersion() { this.currentVersionNo++; }
 }

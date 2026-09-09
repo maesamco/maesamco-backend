@@ -7,6 +7,7 @@ import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
 import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
 import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
 import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,10 @@ public class ProblemUpdateRequest {
     /** 수정할 문제 제목입니다. */
     @Size(max = 100)
     private String title;
+
+    /** 관리자가 조회했을 당시의 JPA 낙관적 락 버전입니다. */
+    @NotNull(message = "lockVersion은 필수입니다.")
+    private Long lockVersion;
 
     /** 수정할 문제 언어입니다. */
     private ProgrammingLanguage language;

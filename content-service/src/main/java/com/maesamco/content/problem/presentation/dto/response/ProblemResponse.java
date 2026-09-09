@@ -29,6 +29,7 @@ public class ProblemResponse {
     private final ProblemSource source;
     private final ProblemStatus problemStatus;
     private final Integer currentVersionNo;
+    private final Long lockVersion;
 
     public static ProblemResponse from(Problem problem) {
         return new ProblemResponse(
@@ -44,7 +45,8 @@ public class ProblemResponse {
                 problem.getTimerPolicy(),
                 problem.getSource(),
                 problem.getProblemStatus(),
-                problem.getCurrentVersionNo()
+                problem.getCurrentVersionNo(),
+                problem.getLockVersion()
         );
     }
 }

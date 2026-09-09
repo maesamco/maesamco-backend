@@ -97,7 +97,7 @@ class ProblemSearchRepositoryImplTest {
                 "나 문제",
                 ProgrammingLanguage.PYTHON,
                 ProblemDifficulty.MEDIUM,
-                ProblemType.SHORT_ANSWER,
+                ProblemType.CODE,
                 ProblemSource.AI_ASSISTED,
                 ProblemStatus.REVIEW_PENDING,
                 TimerPolicy.APPLY180
@@ -107,7 +107,7 @@ class ProblemSearchRepositoryImplTest {
                 "다 문제",
                 ProgrammingLanguage.CPP,
                 ProblemDifficulty.EASY,
-                ProblemType.FILL_IN_BLANK,
+                ProblemType.CODE,
                 ProblemSource.AI_ASSISTED,
                 ProblemStatus.PUBLISHED,
                 TimerPolicy.APPLY300
@@ -234,7 +234,7 @@ class ProblemSearchRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("문제 유형 조건으로 문제를 검색할 수 있다")
+    @DisplayName("지원하지 않는 문제 유형으로 검색하면 빈 페이지를 반환한다")
     void searchProblems_filtersByType() {
         // given
         ProblemSearchRequest request =
@@ -247,13 +247,14 @@ class ProblemSearchRepositoryImplTest {
 
         // when
         Page<Problem> result =
-                problemSearchRepository.searchProblems(request, pageable);
+                problemSearchRepository.searchProblems(
+                        request,
+                        pageable
+                );
 
         // then
-        assertThat(result.getContent()).hasSize(1);
-
-        assertThat(result.getContent().get(0).getId())
-                .isEqualTo(pythonMedium.getId());
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isZero();
     }
 
     @Test

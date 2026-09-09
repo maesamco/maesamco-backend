@@ -550,13 +550,17 @@ class ProblemControllerTest {
         );
 
         /*
-         * starterCode를 null로 명시적으로 전달한다.
+         * starterCode를 null로 명시적으로 전달합니다.
          *
-         * JsonNullableModule이 정상 등록돼있다면
-         * isPresent() == true이면서 내부 값은 null이어야 한다.
+         * JsonNullableModule이 정상 등록돼 있다면
+         * isPresent()는 true이고 내부 값은 null이어야 합니다.
+         *
+         * lockVersion은 PATCH 동시 수정 충돌을 감지하기 위한
+         * 필수 낙관적 락 버전입니다.
          */
         String json = """
             {
+                "lockVersion": 0,
                 "title": "수정된 문제",
                 "difficulty": "HARD",
                 "starterCode": null,
@@ -612,6 +616,9 @@ class ProblemControllerTest {
         ProblemUpdateRequest request =
                 captor.getValue();
 
+        assertThat(request.getLockVersion())
+                .isEqualTo(0L);
+
         assertThat(request.getTitle())
                 .isEqualTo("수정된 문제");
 
@@ -624,13 +631,11 @@ class ProblemControllerTest {
         assertThat(request.getSource())
                 .isEqualTo(ProblemSource.AI_ASSISTED);
 
-        // 명시적 null은 "전달된 값"으로 취급
         assertThat(request.getStarterCode())
                 .isNotNull();
 
-        assertThat(
-                request.getStarterCode().isPresent()
-        ).isTrue();
+        assertThat(request.getStarterCode().isPresent())
+                .isTrue();
 
         assertThat(
                 request.getStarterCode().orElse("default")
@@ -639,12 +644,16 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName("starterCode가 10,000자를 초과하면 400을 반환한다")
-    void updateProblem_starterCodeTooLong_returns400() throws Exception {
+    void updateProblem_starterCodeTooLong_returns400()
+            throws Exception {
+
         // given
-        String oversizedStarterCode = "a".repeat(10_001);
+        String oversizedStarterCode =
+                "a".repeat(10_001);
 
         String json = """
             {
+                "lockVersion": 0,
                 "starterCode": "%s"
             }
             """.formatted(oversizedStarterCode);
@@ -659,7 +668,16 @@ class ProblemControllerTest {
                                 .contentType("application/json")
                                 .content(json)
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("INVALID_INPUT_VALUE")
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[?(@.field == 'starterCode')]"
+                        ).exists()
+                );
 
         verifyNoInteractions(problemService);
     }
@@ -671,10 +689,11 @@ class ProblemControllerTest {
 
         // given
         String json = """
-                {
-                    "title": "수정 시도"
-                }
-                """;
+            {
+                "lockVersion": 0,
+                "title": "수정 시도"
+            }
+            """;
 
         // when & then
         mockMvc.perform(
@@ -686,7 +705,11 @@ class ProblemControllerTest {
                                 .contentType("application/json")
                                 .content(json)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("AUTH_ACCESS_DENIED")
+                );
 
         verifyNoInteractions(problemService);
     }

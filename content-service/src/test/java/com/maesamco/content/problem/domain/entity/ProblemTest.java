@@ -80,6 +80,35 @@ class ProblemTest {
     }
 
     @Test
+    @DisplayName("CODE가 아닌 문제 유형으로 생성하면 예외가 발생한다")
+    void create_throwsWhenTypeIsNotCode() {
+
+        assertThatThrownBy(
+                () -> Problem.create(
+                        "객관식 문제",
+                        ProgrammingLanguage.JAVA,
+                        ProblemDifficulty.EASY,
+                        ProblemType.ONE_CHOICE,
+                        "다음 중 올바른 답을 고르세요.",
+                        null,
+                        RunningTimeLimit.values()[0],
+                        RunningMemoryLimit.values()[0],
+                        TimerPolicy.NOT_APPLY_TIMEPOLICY,
+                        ProblemSource.HUMAN_AUTHORED,
+                        ProblemStatus.DRAFT
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.INVALID_PROBLEM_TYPE
+                );
+    }
+
+    @Test
     @DisplayName("문제 제목을 변경할 수 있다")
     void changeTitle_updatesTitle() {
         // given
@@ -119,16 +148,28 @@ class ProblemTest {
     }
 
     @Test
-    @DisplayName("문제 유형을 변경할 수 있다")
-    void changeType_updatesType() {
+    @DisplayName("CODE가 아닌 문제 유형으로 변경하면 예외가 발생한다")
+    void changeType_throwsWhenTypeIsNotCode() {
         // given
         Problem problem = createProblem();
 
-        // when
-        problem.changeType(ProblemType.SHORT_ANSWER);
+        // when & then
+        assertThatThrownBy(
+                () -> problem.changeType(
+                        ProblemType.SHORT_ANSWER
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.INVALID_PROBLEM_TYPE
+                );
 
-        // then
-        assertThat(problem.getType()).isEqualTo(ProblemType.SHORT_ANSWER);
+        assertThat(problem.getType())
+                .isEqualTo(ProblemType.CODE);
     }
 
     @Test

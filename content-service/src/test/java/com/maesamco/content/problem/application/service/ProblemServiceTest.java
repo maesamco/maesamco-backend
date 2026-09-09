@@ -25,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -208,7 +210,8 @@ class ProblemServiceTest {
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
 
-        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
 
         ReflectionTestUtils.setField(
                 request,
@@ -242,6 +245,8 @@ class ProblemServiceTest {
 
         // 두 필드를 수정했지만 한 요청이므로 버전은 한 번만 증가
         assertThat(response.getCurrentVersionNo()).isEqualTo(2);
+
+        verify(problemRepository).flush();
     }
 
     @Test
@@ -253,7 +258,8 @@ class ProblemServiceTest {
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
 
-        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
 
         ReflectionTestUtils.setField(
                 request,
@@ -281,7 +287,8 @@ class ProblemServiceTest {
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
 
-        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
 
         ReflectionTestUtils.setField(
                 request,
@@ -307,8 +314,8 @@ class ProblemServiceTest {
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
 
-        // 기본값이 JsonNullable.undefined()
-        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
 
         // when
         ProblemResponse response =
@@ -330,7 +337,8 @@ class ProblemServiceTest {
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
 
-        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
 
         ReflectionTestUtils.setField(
                 request,
@@ -370,6 +378,94 @@ class ProblemServiceTest {
         assertThat(problem.getDeletedBy()).isEqualTo(userId);
 
         verify(problemFinder).getProblem(problemId);
+    }
+
+    @Test
+    @DisplayName("요청 lockVersion이 현재 문제 버전과 다르면 동시 수정 충돌 예외가 발생한다")
+    void updateProblem_throwsWhenLockVersionIsStale() {
+        // given
+        Problem problem = createProblem();
+
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        ProblemUpdateRequest request =
+                createUpdateRequest(1L);
+
+        ReflectionTestUtils.setField(
+                request,
+                "title",
+                "오래된 화면에서 수정한 제목"
+        );
+
+        // when & then
+        assertThatThrownBy(
+                () -> problemService.updateProblem(
+                        problemId,
+                        request
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                );
+
+        // stale 요청이므로 실제 값은 수정되면 안 된다.
+        assertThat(problem.getTitle())
+                .isEqualTo("두 수의 합");
+
+        assertThat(problem.getCurrentVersionNo())
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("DB flush에서 낙관적 락 충돌이 발생하면 문제 동시 수정 예외로 변환한다")
+    void updateProblem_translatesOptimisticLockingFailure() {
+        // given
+        Problem problem = createProblem();
+
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        ProblemUpdateRequest request =
+                createUpdateRequest(0L);
+
+        ReflectionTestUtils.setField(
+                request,
+                "title",
+                "동시에 수정한 문제 제목"
+        );
+
+        doThrow(
+                new ObjectOptimisticLockingFailureException(
+                        Problem.class,
+                        problemId
+                )
+        )
+                .when(problemRepository)
+                .flush();
+
+        // when & then
+        assertThatThrownBy(
+                () -> problemService.updateProblem(
+                        problemId,
+                        request
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                );
+
+        verify(problemRepository).flush();
     }
 
     private ProblemCreateRequest createProblemRequest() {
@@ -422,7 +518,7 @@ class ProblemServiceTest {
     }
 
     private Problem createProblem() {
-        return Problem.create(
+        Problem problem = Problem.create(
                 "두 수의 합",
                 ProgrammingLanguage.JAVA,
                 ProblemDifficulty.EASY,
@@ -435,5 +531,29 @@ class ProblemServiceTest {
                 ProblemSource.HUMAN_AUTHORED,
                 ProblemStatus.DRAFT
         );
+
+        // 실제 DB에서 조회된 엔티티처럼 JPA @Version 값을 설정한다.
+        ReflectionTestUtils.setField(
+                problem,
+                "lockVersion",
+                0L
+        );
+
+        return problem;
+    }
+
+    private ProblemUpdateRequest createUpdateRequest(
+            long lockVersion
+    ) {
+        ProblemUpdateRequest request =
+                new ProblemUpdateRequest();
+
+        ReflectionTestUtils.setField(
+                request,
+                "lockVersion",
+                lockVersion
+        );
+
+        return request;
     }
 }

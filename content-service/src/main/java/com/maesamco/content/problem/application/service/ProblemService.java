@@ -17,6 +17,7 @@ import com.maesamco.content.problem.presentation.dto.response.ProblemShortRespon
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,22 +83,42 @@ public class ProblemService {
 
     /** 문제 검색 */
     @Transactional(readOnly = true)
-    public PageResponse<ProblemSearchItemResponse> searchProblems(ProblemSearchRequest request, Pageable pageable) {
+    public PageResponse<ProblemSearchItemResponse> searchProblems(
+            ProblemSearchRequest request,
+            Pageable pageable
+    ) {
 
         // 공개 문제 목록에서는 클라이언트가 요청한 상태와 관계없이
         // PUBLISHED 상태의 문제만 조회한다.
         request.setProblemStatus(ProblemStatus.PUBLISHED);
 
-        Page<Problem> problems = problemRepository.searchProblems(request, pageable);
+        Page<Problem> problems =
+                problemRepository.searchProblems(request, pageable);
 
-        return PageResponse.from(problems, ProblemSearchItemResponse::from);
+        return PageResponse.from(
+                problems,
+                ProblemSearchItemResponse::from
+        );
     }
 
     /** 문제 수정 */
     @Transactional(rollbackFor = Exception.class)
-    public ProblemResponse updateProblem(UUID problemId, ProblemUpdateRequest request) {
+    public ProblemResponse updateProblem(
+            UUID problemId,
+            ProblemUpdateRequest request
+    ) {
 
         Problem problem = problemFinder.getProblem(problemId);
+
+        // 관리자가 조회했던 버전과 현재 DB 버전이 다르면
+        // 오래된 데이터를 기준으로 한 수정 요청이므로 거부한다.
+        if (request.getLockVersion() == null
+                || !request.getLockVersion()
+                .equals(problem.getLockVersion())) {
+            throw new BusinessException(
+                    ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+            );
+        }
 
         // TODO: 수정하기 전에 version snapshot 남기기 (다른 브랜치에서 작업한 것과 merge해야 활성화할 수 있음)
         // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
@@ -127,11 +148,13 @@ public class ProblemService {
             is_modified = true;
         }
 
-
         // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
         if (request.getStarterCode() == null) {
-            throw new BusinessException(ErrorCode.STARTER_CODE_NOT_INITIALIZED);
+            throw new BusinessException(
+                    ErrorCode.STARTER_CODE_NOT_INITIALIZED
+            );
         }
+
         // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
         if (request.getStarterCode().isPresent()) {
             problem.changeStarterCode(
@@ -141,23 +164,44 @@ public class ProblemService {
         }
 
         if (request.getRunningTimeLimit() != null) {
-            problem.changeRunningTimeLimit(request.getRunningTimeLimit());
+            problem.changeRunningTimeLimit(
+                    request.getRunningTimeLimit()
+            );
             is_modified = true;
         }
         if (request.getRunningMemoryLimit() != null) {
-            problem.changeRunningMemoryLimit(request.getRunningMemoryLimit());
+            problem.changeRunningMemoryLimit(
+                    request.getRunningMemoryLimit()
+            );
             is_modified = true;
         }
         if (request.getTimerPolicy() != null) {
-            problem.changeTimerPolicy(request.getTimerPolicy());
+            problem.changeTimerPolicy(
+                    request.getTimerPolicy()
+            );
             is_modified = true;
         }
         if (request.getSource() != null) {
             problem.changeSource(request.getSource());
             is_modified = true;
         }
+
         if (is_modified) {
             problem.increaseVersion();
+
+            /*
+             * 응답을 생성하기 전에 UPDATE를 실행하여
+             * JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
+             */
+            try {
+                problemRepository.flush();
+            } catch (
+                    ObjectOptimisticLockingFailureException exception
+            ) {
+                throw new BusinessException(
+                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                );
+            }
         }
 
         return ProblemResponse.from(problem);

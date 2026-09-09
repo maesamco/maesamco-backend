@@ -2,7 +2,14 @@ package com.maesamco.content.problem;
 
 import com.maesamco.content.problem.application.service.ProblemService;
 import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.enums.*;
+import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
+import com.maesamco.content.problem.domain.enums.ProblemSource;
+import com.maesamco.content.problem.domain.enums.ProblemStatus;
+import com.maesamco.content.problem.domain.enums.ProblemType;
+import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
+import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
+import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
+import com.maesamco.content.problem.domain.enums.TimerPolicy;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -51,15 +58,23 @@ class ProblemDBTest {
                     .withUsername("test")
                     .withPassword("test");
 
-    // JWT 임시키 생성
-    private static final KeyPair KEY_PAIR = generateKeyPair();
+    /**
+     * 테스트에서 사용할 임시 RSA 키입니다.
+     */
+    private static final KeyPair KEY_PAIR =
+            generateKeyPair();
 
     @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
+    static void properties(
+            DynamicPropertyRegistry registry
+    ) {
         registry.add(
                 "jwt.public-key",
                 () -> Base64.getEncoder()
-                        .encodeToString(KEY_PAIR.getPublic().getEncoded())
+                        .encodeToString(
+                                KEY_PAIR.getPublic()
+                                        .getEncoded()
+                        )
         );
 
         registry.add(
@@ -82,8 +97,11 @@ class ProblemDBTest {
 
             return generator.generateKeyPair();
 
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(
+                    "테스트 RSA 키를 생성할 수 없습니다.",
+                    exception
+            );
         }
     }
 
@@ -99,11 +117,11 @@ class ProblemDBTest {
     @Autowired
     private EntityManager entityManager;
 
-    private final UUID adminId = UUID.randomUUID();
+    private final UUID adminId =
+            UUID.randomUUID();
 
     @BeforeEach
     void setUpAuthentication() {
-
         SecurityContext context =
                 SecurityContextHolder.createEmptyContext();
 
@@ -170,7 +188,7 @@ class ProblemDBTest {
 
         /*
          * INSERT SQL을 실제 PostgreSQL에 반영하고
-         * 1차 캐시를 비운다.
+         * 1차 캐시를 비웁니다.
          */
         entityManager.flush();
         entityManager.clear();
@@ -195,16 +213,26 @@ class ProblemDBTest {
         assertThat(createdProblem.getCurrentVersionNo())
                 .isEqualTo(1);
 
-        // given - 문제 수정 요청
+        assertThat(createdProblem.getLockVersion())
+                .isEqualTo(0L);
+
+        /*
+         * 클라이언트는 조회한 lockVersion을
+         * 수정 요청에 그대로 포함해야 합니다.
+         */
+        Long currentLockVersion =
+                createdProblem.getLockVersion();
+
         String updateJson = """
                 {
+                    "lockVersion": %d,
                     "title": "수정된 문제",
                     "difficulty": "HARD",
                     "starterCode": null,
                     "timerPolicy": "APPLY300",
                     "source": "AI_ASSISTED"
                 }
-                """;
+                """.formatted(currentLockVersion);
 
         ProblemUpdateRequest updateRequest =
                 jsonMapper.readValue(
@@ -219,8 +247,8 @@ class ProblemDBTest {
         );
 
         /*
-         * UPDATE SQL을 실제 PostgreSQL에 반영하고
-         * 다시 1차 캐시를 비운다.
+         * UPDATE SQL을 실제 PostgreSQL에 반영합니다.
+         * flush 시점에 Hibernate가 lockVersion을 증가시킵니다.
          */
         entityManager.flush();
         entityManager.clear();
@@ -247,12 +275,16 @@ class ProblemDBTest {
 
         assertThat(updatedProblem.getCurrentVersionNo())
                 .isEqualTo(2);
+
+        assertThat(updatedProblem.getLockVersion())
+                .isEqualTo(currentLockVersion + 1);
     }
 
     @Test
-    @DisplayName("같은 문제의 오래된 버전을 수정하면 낙관적 락 예외가 발생한다")
+    @DisplayName(
+            "같은 문제의 오래된 버전을 수정하면 낙관적 락 예외가 발생한다"
+    )
     void updateProblem_withStaleVersion_throwsOptimisticLockingFailure() {
-
         // given
         Problem problem = Problem.create(
                 "동시성 테스트 문제",
@@ -271,13 +303,14 @@ class ProblemDBTest {
         Problem savedProblem =
                 problemRepository.saveAndFlush(problem);
 
-        UUID problemId = savedProblem.getId();
+        UUID problemId =
+                savedProblem.getId();
 
         entityManager.clear();
 
         /*
-         * 같은 DB row를 동일한 lockVersion으로 두 번 읽어
-         * 서로 독립된 stale 객체를 만든다.
+         * 동일한 DB 행을 lockVersion 0으로 각각 조회한 뒤
+         * 영속성 컨텍스트에서 분리합니다.
          */
         Problem firstProblem =
                 problemRepository.findById(problemId)
@@ -297,23 +330,32 @@ class ProblemDBTest {
         assertThat(secondProblem.getLockVersion())
                 .isEqualTo(0L);
 
-        // 첫 번째 수정은 정상 반영
+        // 첫 번째 수정은 정상적으로 반영됩니다.
         firstProblem.changeTitle("첫 번째 수정");
 
         Problem firstUpdated =
-                problemRepository.saveAndFlush(firstProblem);
+                problemRepository.saveAndFlush(
+                        firstProblem
+                );
 
         assertThat(firstUpdated.getLockVersion())
                 .isEqualTo(1L);
 
         entityManager.clear();
 
-        // 두 번째 객체는 여전히 lockVersion = 0인 stale 상태
-        secondProblem.changeDescription("두 번째 수정");
+        /*
+         * 두 번째 객체는 여전히 lockVersion 0을 가지고 있으므로
+         * 저장할 때 낙관적 락 충돌이 발생해야 합니다.
+         */
+        secondProblem.changeDescription(
+                "두 번째 수정"
+        );
 
         // when & then
         assertThatThrownBy(
-                () -> problemRepository.saveAndFlush(secondProblem)
+                () -> problemRepository.saveAndFlush(
+                        secondProblem
+                )
         )
                 .isInstanceOf(
                         ObjectOptimisticLockingFailureException.class
