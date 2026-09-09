@@ -2,6 +2,7 @@ package com.maesamco.judge.global.security.hmac;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 
 /**
@@ -19,7 +20,7 @@ public class HmacSigningFeignInterceptor implements RequestInterceptor {
     private final String secretKeyForTarget;
 
     public HmacSigningFeignInterceptor(@Value("${spring.application.name}") String serviceName,
-                                        String secretKeyForTarget) {
+                                       String secretKeyForTarget) {
         this.serviceName = serviceName;
         this.secretKeyForTarget = secretKeyForTarget;
     }
@@ -27,10 +28,33 @@ public class HmacSigningFeignInterceptor implements RequestInterceptor {
     @Override
     public void apply(RequestTemplate template) {
         long timestamp = System.currentTimeMillis();
-        String signature = HmacSignatureUtil.sign(serviceName, timestamp, secretKeyForTarget);
+        String nonce = UUID.randomUUID().toString();
+        String method = template.method();
+        String url = template.url();
+        String path = stripQuery(url);
+        String normalizedQuery = HmacSignatureUtil.normalizeQuery(extractQuery(url));
+        String bodyHash = HmacSignatureUtil.hashBody(template.body());
+
+        String signature = HmacSignatureUtil.sign(
+                serviceName, method, path, normalizedQuery, bodyHash, nonce, timestamp, secretKeyForTarget);
 
         template.header(InternalCallHeaders.SERVICE, serviceName);
         template.header(InternalCallHeaders.TIMESTAMP, String.valueOf(timestamp));
+        template.header(InternalCallHeaders.NONCE, nonce);
         template.header(InternalCallHeaders.SIGNATURE, signature);
+    }
+
+    /**
+     * RequestTemplate.url()은 쿼리스트링까지 포함할 수 있어, 검증 측(서버가 보는
+     * request.getRequestURI())과 동일한 기준으로 맞추기 위해 경로와 쿼리를 분리한다.
+     */
+    private String stripQuery(String url) {
+        int idx = url.indexOf('?');
+        return idx == -1 ? url : url.substring(0, idx);
+    }
+
+    private String extractQuery(String url) {
+        int idx = url.indexOf('?');
+        return idx == -1 ? "" : url.substring(idx + 1);
     }
 }

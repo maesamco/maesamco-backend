@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * HmacVerificationFilter를 /internal/v1/** 경로에만 걸어준다.
@@ -19,9 +20,10 @@ public class HmacFilterConfig {
 
     @Bean
     public FilterRegistrationBean<HmacVerificationFilter> hmacVerificationFilterRegistration(
-            InternalServiceKeyProperties keyProperties) {
+            InternalServiceKeyProperties keyProperties,
+            StringRedisTemplate redisTemplate) {
         FilterRegistrationBean<HmacVerificationFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new HmacVerificationFilter(keyProperties));
+        registration.setFilter(new HmacVerificationFilter(keyProperties, redisTemplate));
         registration.addUrlPatterns("/internal/v1/*");
         registration.setOrder(1); // Spring Security 필터 체인 이후, 컨트롤러 이전
         return registration;
