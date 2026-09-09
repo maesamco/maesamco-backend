@@ -1,6 +1,7 @@
 package com.maesamco.judge.application.facade;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -87,6 +88,28 @@ class JudgeExecutionFacadeTest {
             judgeExecutionFacade.execute(submissionId);
 
             verify(judgeExecutionPort, never()).submitBatch(any());
+            verify(judgeExecutionPersistenceService, never())
+                    .savePendingExecutions(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Judge0 응답 개수가 요청 개수와 다르면 저장 없이 예외를 던진다")
+        void throwsWhenTokenCountMismatches() {
+            UUID submissionId = UUID.randomUUID();
+            String testCasesJson = jsonMapper.writeValueAsString(List.of(
+                    new TestCaseItem(UUID.randomUUID(), true, "3 5", "8", 1),
+                    new TestCaseItem(UUID.randomUUID(), false, "1 1", "2", 2)
+            ));
+            ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
+            JudgeExecutionPreparation preparation =
+                    new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willReturn(Optional.of(preparation));
+            given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
+
+            assertThatThrownBy(() -> judgeExecutionFacade.execute(submissionId))
+                    .isInstanceOf(IllegalStateException.class);
+
             verify(judgeExecutionPersistenceService, never())
                     .savePendingExecutions(any(), any(), any());
         }

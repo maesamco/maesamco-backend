@@ -48,6 +48,14 @@ public class JudgeExecutionFacade {
 
         List<String> tokens = judgeExecutionPort.submitBatch(requests);
 
+        if (tokens.size() != testCases.size()) {
+            log.error("[Judge] Judge0 응답 개수 불일치. submissionId={}, 요청={}, 응답={}",
+                    submissionId, testCases.size(), tokens.size());
+            throw new IllegalStateException(
+                    "Judge0 batch 응답 개수 불일치. submissionId=" + submissionId
+                            + ", 요청=" + testCases.size() + ", 응답=" + tokens.size());
+        }
+
         judgeExecutionPersistenceService.savePendingExecutions(submissionId, testCases, tokens);
     }
 
