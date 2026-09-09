@@ -43,15 +43,45 @@ class CoachingEventOutboxPersistenceServiceTest {
     class MarkPublished {
 
         @Test
-        @DisplayName("Outbox를 COMPLETED로 표시하고 저장한다")
+        @DisplayName("id로 다시 조회한 fresh entity를 COMPLETED로 표시하고 저장한다")
         void marksOutboxCompleted() {
-            CoachingEventOutbox outbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            UUID outboxId = UUID.randomUUID();
+            // Facade가 relay() 루프 시작 시점에 조회해뒀던 참조가 아니라, DB에 실제로 남아있는
+            // (오염되지 않은) 값을 흉내낸 별도 인스턴스.
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
 
-            coachingEventOutboxPersistenceService.markPublished(outbox);
+            coachingEventOutboxPersistenceService.markPublished(outboxId);
 
-            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED);
-            assertThat(outbox.getAttemptCount()).isEqualTo(1);
-            verify(coachingEventOutboxRepository).save(outbox);
+            assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED);
+            assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
+            verify(coachingEventOutboxRepository).save(freshOutbox);
+        }
+
+        @Test
+        @DisplayName("id로 다시 조회했는데 Outbox가 없으면 IllegalStateException을 던진다")
+        void throwsWhenOutboxMissing() {
+            UUID outboxId = UUID.randomUUID();
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.markPublished(outboxId))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        @DisplayName("다른 Relay 실행이 이미 종료 처리한(PENDING이 아닌) Outbox는 멱등하게 무시하고 덮어쓰지 않는다")
+        void ignoresAlreadyTerminalOutbox() {
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            freshOutbox.incrementAttemptCount();
+            freshOutbox.markFailed(); // 이미 다른 Relay 실행이 FAILED로 끝낸 상황을 재현
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
+
+            coachingEventOutboxPersistenceService.markPublished(outboxId);
+
+            assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.FAILED); // COMPLETED로 덮어쓰지 않음
+            assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
+            verify(coachingEventOutboxRepository, never()).save(freshOutbox);
         }
     }
 
@@ -62,42 +92,58 @@ class CoachingEventOutboxPersistenceServiceTest {
         @Test
         @DisplayName("상한 미만이면 attemptCount만 증가시켜 PENDING 상태로 저장한다")
         void staysPendingUnderThreshold() {
-            CoachingEventOutbox outbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
 
-            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox);
+            coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId);
 
-            assertThat(outbox.getAttemptCount()).isEqualTo(1);
-            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.PENDING);
-            verify(coachingEventOutboxRepository).save(outbox);
+            assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
+            assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.PENDING);
+            verify(coachingEventOutboxRepository).save(freshOutbox);
         }
 
         @Test
         @DisplayName("상한(5회)에 도달하면 Outbox를 FAILED로 종료 처리한다 — Kafka 발행 자체가 실패해 이벤트가 전달되지 않았으므로 안전하다")
         void terminatesWhenThresholdReached() {
-            CoachingEventOutbox outbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
             for (int i = 0; i < MAX_RELAY_ATTEMPTS - 1; i++) {
-                outbox.incrementAttemptCount(); // 이전에 4번 실패했던 상황을 재현
+                freshOutbox.incrementAttemptCount(); // 이전에 4번 실패했던 상황을 재현
             }
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
 
-            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox); // 5번째 실패
+            coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId); // 5번째 실패
 
-            assertThat(outbox.getAttemptCount()).isEqualTo(MAX_RELAY_ATTEMPTS);
-            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.FAILED);
-            verify(coachingEventOutboxRepository).save(outbox);
+            assertThat(freshOutbox.getAttemptCount()).isEqualTo(MAX_RELAY_ATTEMPTS);
+            assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.FAILED);
+            verify(coachingEventOutboxRepository).save(freshOutbox);
         }
 
         @Test
-        @DisplayName("다른 Relay 실행이 이미 종료 처리한(PENDING이 아닌) Outbox는 멱등하게 무시한다")
+        @DisplayName("id로 다시 조회했는데 Outbox가 없으면 IllegalStateException을 던진다")
+        void throwsWhenOutboxMissing() {
+            UUID outboxId = UUID.randomUUID();
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        @DisplayName("다른 Relay 실행이 이미 종료 처리한(PENDING이 아닌) Outbox는 멱등하게 무시하고 덮어쓰지 않는다")
         void ignoresAlreadyTerminalOutbox() {
-            CoachingEventOutbox outbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
-            outbox.incrementAttemptCount();
-            outbox.markPublished(); // 이미 다른 Relay 실행이 COMPLETED로 끝낸 상황을 재현
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            freshOutbox.incrementAttemptCount();
+            freshOutbox.markPublished(); // 이미 다른 Relay 실행이 COMPLETED로 끝낸 상황을 재현
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
 
-            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox);
+            coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId);
 
-            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED);
-            assertThat(outbox.getAttemptCount()).isEqualTo(1); // 추가로 증가하지 않음
-            verify(coachingEventOutboxRepository, never()).save(outbox);
+            assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED); // FAILED로 되돌리지 않음
+            assertThat(freshOutbox.getAttemptCount()).isEqualTo(1); // 추가로 증가하지 않음
+            verify(coachingEventOutboxRepository, never()).save(freshOutbox);
         }
     }
 

@@ -45,32 +45,53 @@ public class CoachingEventOutboxPersistenceService {
     private final CoachingEventOutboxRepository coachingEventOutboxRepository;
 
     // Kafka 발행 성공 후 호출 — Outbox를 COMPLETED로 표시.
+    //
+    // Facade가 relay() 루프 시작 시점에 조회해뒀던 outbox 객체를 그대로 넘기지 않고 id로
+    // 다시 조회한다 — 그 시점 이후 다른 Relay 인스턴스(또는 이전 폴링 배치의 뒤늦은 재시도)가
+    // 이미 이 Outbox를 COMPLETED/FAILED로 종료했을 수 있는데, 오래된 in-memory 객체를 그대로
+    // save()하면 merge 과정에서 이미 반영된 최신 상태를 오래된 값으로 덮어쓴다(PR #123 심층
+    // 재검토, 2026-09-09).
     @Transactional
-    public void markPublished(CoachingEventOutbox outbox) {
-        outbox.incrementAttemptCount();
-        outbox.markPublished();
-        coachingEventOutboxRepository.save(outbox);
+    public void markPublished(UUID outboxId) {
+        CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
+
+        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
+            return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
+        }
+
+        freshOutbox.incrementAttemptCount();
+        freshOutbox.markPublished();
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행 자체가 실패했을 때 호출 — 이벤트가 아직 전달되지 않았으므로, 상한 소진 시
     // FAILED로 종료해도 안전하다(정말로 발행되지 않은 상태이기 때문).
+    //
+    // markPublished()와 같은 이유로 id로 다시 조회한 fresh entity를 쓴다 — 오래된 객체를
+    // 그대로 쓰면 이미 다른 실행이 COMPLETED로 끝낸 Outbox를 FAILED로 되돌려버릴 수 있다.
     @Transactional
-    public void recordFailedAttempt(CoachingEventOutbox outbox) {
-        if (outbox.getStatus() != OutboxStatus.PENDING) {
+    public void recordFailedAttempt(UUID outboxId) {
+        CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "방금 발행 실패 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
+
+        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
             return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
         }
 
-        outbox.incrementAttemptCount();
+        freshOutbox.incrementAttemptCount();
 
-        if (outbox.getAttemptCount() >= MAX_RELAY_ATTEMPTS) {
-            outbox.markFailed();
-            coachingEventOutboxRepository.save(outbox);
+        if (freshOutbox.getAttemptCount() >= MAX_RELAY_ATTEMPTS) {
+            freshOutbox.markFailed();
+            coachingEventOutboxRepository.save(freshOutbox);
             log.error("[Coaching] Outbox 재시도 상한({}) 도달 — FAILED 처리, User Service에 CoachingCompleted가 "
                             + "발행되지 않아 XP/스트릭 반영이 누락됩니다. 수동 확인 필요. outboxId={}, eventType={}",
-                    MAX_RELAY_ATTEMPTS, outbox.getId(), outbox.getEventType());
+                    MAX_RELAY_ATTEMPTS, freshOutbox.getId(), freshOutbox.getEventType());
             return;
         }
-        coachingEventOutboxRepository.save(outbox);
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행은 성공했으나, markPublished()의 DB 후처리(완료 표시)가 실패했을 때 호출.

@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +72,7 @@ class CoachingEventRelayFacadeTest {
 
             verify(eventPublisherPort).publish(
                     "coaching-completed", outbox.getAggregateId().toString(), JSON_MAPPER.writeValueAsString(outbox.getPayload()));
-            verify(coachingEventOutboxPersistenceService).markPublished(outbox);
+            verify(coachingEventOutboxPersistenceService).markPublished(outbox.getId());
             verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(any());
         }
 
@@ -86,7 +87,7 @@ class CoachingEventRelayFacadeTest {
 
             coachingEventRelayFacade.relay();
 
-            verify(coachingEventOutboxPersistenceService).recordFailedAttempt(outbox);
+            verify(coachingEventOutboxPersistenceService).recordFailedAttempt(outbox.getId());
             verify(coachingEventOutboxPersistenceService, never()).markPublished(any());
         }
 
@@ -97,12 +98,12 @@ class CoachingEventRelayFacadeTest {
             given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
                     .willReturn(List.of(outbox));
             willThrow(new RuntimeException("DB 후처리 실패"))
-                    .given(coachingEventOutboxPersistenceService).markPublished(outbox);
+                    .given(coachingEventOutboxPersistenceService).markPublished(outbox.getId());
 
             coachingEventRelayFacade.relay();
 
             verify(eventPublisherPort).publish(anyString(), anyString(), anyString());
-            verify(coachingEventOutboxPersistenceService).markPublished(outbox);
+            verify(coachingEventOutboxPersistenceService).markPublished(outbox.getId());
             verify(coachingEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId());
             verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(any());
         }
@@ -136,12 +137,39 @@ class CoachingEventRelayFacadeTest {
             willThrow(new IllegalStateException("Kafka 발행 실패"))
                     .given(eventPublisherPort).publish(eq("coaching-completed"), eq(brokenOutbox.getAggregateId().toString()), anyString());
             willThrow(new RuntimeException("DB 커넥션 풀 고갈"))
-                    .given(coachingEventOutboxPersistenceService).recordFailedAttempt(brokenOutbox);
+                    .given(coachingEventOutboxPersistenceService).recordFailedAttempt(brokenOutbox.getId());
 
             coachingEventRelayFacade.relay();
 
             verify(eventPublisherPort).publish(eq("coaching-completed"), eq(healthyOutbox.getAggregateId().toString()), anyString());
-            verify(coachingEventOutboxPersistenceService).markPublished(healthyOutbox);
+            verify(coachingEventOutboxPersistenceService).markPublished(healthyOutbox.getId());
+        }
+
+        @Test
+        @DisplayName("첫 항목 처리 중 인터럽트가 감지되면 나머지 배치는 처리하지 않고 즉시 멈춘다")
+        void stopsBatchWhenInterrupted() {
+            CoachingEventOutbox firstOutbox = pendingOutbox();
+            CoachingEventOutbox secondOutbox = pendingOutbox();
+            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+                    .willReturn(List.of(firstOutbox, secondOutbox));
+            // KafkaEventPublisherAdapter가 InterruptedException을 잡아 interrupt 플래그를
+            // 복원한 뒤 EventPublishOutcomeUnknownException으로 감싸 올리는 상황을 흉내낸다.
+            willAnswer(invocation -> {
+                Thread.currentThread().interrupt();
+                throw new EventPublishOutcomeUnknownException("인터럽트됨", new InterruptedException());
+            }).given(eventPublisherPort).publish(
+                    eq("coaching-completed"), eq(firstOutbox.getAggregateId().toString()), anyString());
+
+            try {
+                coachingEventRelayFacade.relay();
+
+                verify(eventPublisherPort, never()).publish(
+                        eq("coaching-completed"), eq(secondOutbox.getAggregateId().toString()), anyString());
+                verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(secondOutbox.getId());
+                verify(coachingEventOutboxPersistenceService, never()).markPublished(secondOutbox.getId());
+            } finally {
+                Thread.interrupted(); // 이 테스트 스레드의 interrupt 플래그를 정리해서 다음 테스트에 영향 안 주게 함
+            }
         }
     }
 }

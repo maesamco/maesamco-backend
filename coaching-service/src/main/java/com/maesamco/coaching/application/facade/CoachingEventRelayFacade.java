@@ -9,6 +9,7 @@ import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -27,8 +28,13 @@ import java.util.List;
  * 이 Outbox는 지금 event_type이 "CoachingCompleted" 하나뿐이라(Flyway V8 CHECK 제약과
  * 대응) Judge Service처럼 토픽을 event_type별로 분기하지 않는다 — 두 번째 이벤트 타입이
  * 생기면 그때 분기 로직을 추가한다.
+ *
+ * `outbox.relay.enabled`(기본 true)로 켜고 끌 수 있다 — User Service의 CoachingCompleted
+ * 소비자가 아직 멱등 처리를 안 갖췄거나 장애 대응 중 잠시 발행을 멈춰야 할 때, 스케줄링
+ * 전체를 끄지 않고 이 Relay만 끌 수 있어야 한다(PR #123 심층 재검토, 2026-09-09).
  */
 @Component
+@ConditionalOnProperty(prefix = "outbox.relay", name = "enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class CoachingEventRelayFacade {
@@ -59,6 +65,17 @@ public class CoachingEventRelayFacade {
                 log.error("[Coaching] Outbox 처리 중 예상치 못한 예외 — 이 항목만 건너뛰고 나머지 배치는 계속 처리. outboxId={}",
                         outbox.getId(), e);
             }
+
+            // relayOne() 안의 KafkaEventPublisherAdapter가 대기 중 인터럽트를 받으면 interrupt
+            // 플래그를 세팅하고 EventPublishOutcomeUnknownException으로 감싸 올린다. 이 플래그를
+            // 여기서 확인 안 하고 다음 outbox로 넘어가면, 종료/취소 신호를 받은 상태에서 남은
+            // 배치 항목들의 Future.get()이 즉시 InterruptedException을 던지며 연쇄적으로 UNKNOWN
+            // 처리(attemptCount만 소모)될 수 있다 — 인터럽트는 이 실행 자체를 중단하라는
+            // 신호이므로 배치를 계속 돌리지 않고 바로 멈춘다(PR #123 심층 재검토, 2026-09-09).
+            if (Thread.currentThread().isInterrupted()) {
+                log.warn("[Coaching] 인터럽트 감지 — 남은 Outbox 배치 처리를 중단합니다.");
+                break;
+            }
         }
     }
 
@@ -84,16 +101,15 @@ public class CoachingEventRelayFacade {
             // 1. 발행 실패 — 재시도 상한 안이면 status는 PENDING 그대로 둬서 다음 폴링 주기에 재시도.
             // 2. 상한 소진 시 recordFailedAttempt 내부에서 FAILED로 종료 처리.
             // 재시도로 인한 중복 발행 가능성은 User Service 소비자 쪽 멱등 처리로 대응.
-            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox);
-            if (outbox.getStatus() != OutboxStatus.FAILED) {
-                log.error("[Coaching] Outbox 발행 실패 — 다음 폴링에서 재시도. outboxId={}, eventType={}, attemptCount={}",
-                        outbox.getId(), outbox.getEventType(), outbox.getAttemptCount(), e);
-            }
+            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox.getId());
+            log.error("[Coaching] Outbox 발행 실패 — 재시도 상한 전이면 다음 폴링에서 재시도, 상한 도달이면 FAILED 처리됨. "
+                            + "outboxId={}, eventType={}",
+                    outbox.getId(), outbox.getEventType(), e);
             return;
         }
         // 발행 자체는 성공하여 상태 전이 + DB 저장 시도
         try {
-            coachingEventOutboxPersistenceService.markPublished(outbox);
+            coachingEventOutboxPersistenceService.markPublished(outbox.getId());
             log.info("[Coaching] Outbox 발행 성공. outboxId={}, eventType={}, aggregateId={}",
                     outbox.getId(), outbox.getEventType(), outbox.getAggregateId());
         } catch (Exception e) {

@@ -90,4 +90,16 @@ class KafkaEventPublisherAdapterTest {
         assertThatThrownBy(() -> kafkaEventPublisherAdapter.publish("topic", "key", "payload"))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    @DisplayName("Kafka send future가 RetriableException으로 완료되면(예: 브로커 쪽 일시적 타임아웃) 확정 실패가 아니라 EventPublishOutcomeUnknownException으로 감싼다")
+    void wrapsRetriableKafkaExceptionAsOutcomeUnknown() {
+        CompletableFuture<SendResult<String, String>> future = new CompletableFuture<>();
+        future.completeExceptionally(new org.apache.kafka.common.errors.TimeoutException("브로커 응답 지연"));
+        given(outboxKafkaTemplate.send("topic", "key", "payload")).willReturn(future);
+
+        assertThatThrownBy(() -> kafkaEventPublisherAdapter.publish("topic", "key", "payload"))
+                .isInstanceOf(EventPublishOutcomeUnknownException.class)
+                .hasCauseInstanceOf(java.util.concurrent.ExecutionException.class);
+    }
 }
