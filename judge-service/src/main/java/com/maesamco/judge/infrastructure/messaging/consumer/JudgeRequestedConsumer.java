@@ -12,11 +12,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class JudgeRequestedConsumer {
 
-    private final JudgeExecutionFacade  judgeExecutionFacade;
+    private final JudgeExecutionFacade judgeExecutionFacade;
 
     @KafkaListener(
-            topics = "${spring.kafka.topic.judge-requested}",
-            groupId = "${spring.kafka.consumer.group-id}"
+            topics = "${spring.kafka.topic.judge-requested:judge-requested-events}",
+            groupId = "${spring.kafka.consumer.group.judge-requested:judge-service-judge-requested}",
+            containerFactory = "judgeRequestedKafkaListenerContainerFactory"
     )
     public void consume(JudgeRequestedEvent event) {
         log.info("[Judge] JudgeRequested 수신 eventId={}, submissionId={}", event.eventId(), event.submissionId());
