@@ -8,10 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService.JudgeExecutionPreparation;
-import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
-import com.maesamco.judge.domain.entity.Submission;
-import com.maesamco.judge.domain.entity.SubmissionLanguage;
-import com.maesamco.judge.domain.entity.SubmissionStatus;
+import com.maesamco.judge.domain.entity.*;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.global.exception.BusinessException;
@@ -161,6 +158,36 @@ class JudgeExecutionPersistenceServiceTest {
             ArgumentCaptor<List<PendingJudge0Execution>> captor = ArgumentCaptor.forClass(List.class);
             verify(pendingJudge0ExecutionRepository).saveAll(captor.capture());
             assertThat(captor.getValue()).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("markFailed")
+    class MarkFailed {
+
+        @Test
+        @DisplayName("RUNNING 상태의 제출을 FAILED로 전이시키고 failureCode를 기록한다")
+        void marksSubmissionFailed() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            judgeExecutionPersistenceService.markFailed(submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
+            assertThat(submission.getFailureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
+        void throwsWhenSubmissionNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    judgeExecutionPersistenceService.markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.maesamco.judge.application.persistence_service;
 
+import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
@@ -68,5 +69,12 @@ public class JudgeExecutionPersistenceService {
     }
 
     public record JudgeExecutionPreparation(UUID submissionId, String code, ProblemExecutionSpec spec) {
+    }
+
+    @Transactional
+    public void markFailed(UUID submissionId, FailureCode failureCode) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+        submission.markFailed(failureCode);
     }
 }
