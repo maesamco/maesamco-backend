@@ -7,9 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
+import com.maesamco.judge.application.result.SubmissionGetResult;
+import com.maesamco.judge.domain.entity.SubmissionResult;
+import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
-import com.maesamco.judge.presentation.response.SubmissionInternalGetResponse;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -39,13 +41,13 @@ class SubmissionInternalControllerTest {
         @DisplayName("조회에 성공하면 200과 success/data 포맷으로 응답한다")
         void returns200WithSubmission() throws Exception {
             UUID submissionId = UUID.randomUUID();
-            SubmissionInternalGetResponse response = new SubmissionInternalGetResponse(
+            SubmissionGetResult result = new SubmissionGetResult(
                     submissionId, UUID.randomUUID(), UUID.randomUUID(), "code",
-                    "COMPLETED", "WRONG", null,
-                    List.of(new SubmissionInternalGetResponse.FailedTestSummary(true, "WRONG_ANSWER")),
+                    SubmissionStatus.COMPLETED, SubmissionResult.WRONG, null,
+                    List.of(new SubmissionGetResult.FailedTestItem(true, "WRONG_ANSWER")),
                     3
             );
-            given(submissionQueryService.getSubmissionForInternal(any())).willReturn(response);
+            given(submissionQueryService.getSubmissionForInternal(any())).willReturn(result);
 
             mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId))
                     .andExpect(status().isOk())
