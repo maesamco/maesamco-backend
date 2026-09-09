@@ -35,6 +35,9 @@ public enum ErrorCode {
 
     // ===== content =====
     QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "오늘 생성된 퀴즈 세트가 없습니다."),
+    QUESTION_NOT_ASSIGNED(HttpStatus.NOT_FOUND, "배정되지 않은 문제입니다."),
+    ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이미 제출된 문항입니다."),
+    QUIZ_EXPIRED(HttpStatus.GONE, "만료된 퀴즈 세트입니다."),
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
     INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
