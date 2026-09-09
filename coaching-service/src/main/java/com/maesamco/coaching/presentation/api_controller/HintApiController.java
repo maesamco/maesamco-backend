@@ -5,6 +5,7 @@ import com.maesamco.coaching.application.query_service.HintQueryService;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,9 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Hint", description = "오답 단계별 힌트 API")
 @RestController
 @RequestMapping("/api/v1/coaching/submissions/{submissionId}/hints")
-public class HintApiController {
+public class HintApiController implements HintApiDocs {
 
     private final HintGenerationFacade hintGenerationFacade;
     private final HintQueryService hintQueryService;
@@ -29,6 +31,7 @@ public class HintApiController {
         this.hintQueryService = hintQueryService;
     }
 
+    @Override
     @PostMapping
     public ResponseEntity<SuccessResponse<HintResponse>> requestHint(
             @PathVariable UUID submissionId,
@@ -40,6 +43,7 @@ public class HintApiController {
         return ResponseEntity.status(status).body(SuccessResponse.success(HintResponse.from(result)));
     }
 
+    @Override
     @GetMapping
     public ResponseEntity<SuccessResponse<List<HintListItemResponse>>> getHints(
             @PathVariable UUID submissionId,
