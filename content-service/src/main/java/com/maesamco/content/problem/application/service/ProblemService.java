@@ -75,7 +75,7 @@ public class ProblemService {
 
         // 사용자는 발행된 문제만 조회 가능
         if (problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
-            throw new BusinessException(ErrorCode.PROBLEM_NOT_PUBLISHED);
+            throw new BusinessException(ErrorCode.PROBLEM_NOT_FOUND); // user enumeration oracle 방지를 위해 에러 통일
         }
 
         return ProblemShortResponse.from(problem);
