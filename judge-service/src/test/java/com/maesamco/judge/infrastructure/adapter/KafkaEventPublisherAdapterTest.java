@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
+
+import com.maesamco.judge.infrastructure.adapter.kafka.KafkaEventPublisherAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

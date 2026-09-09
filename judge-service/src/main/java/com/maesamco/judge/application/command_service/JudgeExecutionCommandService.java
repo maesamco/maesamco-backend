@@ -1,5 +1,6 @@
 package com.maesamco.judge.application.command_service;
 
+import com.maesamco.judge.domain.entity.SubmissionStatus;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 import com.maesamco.judge.application.port.JudgeExecutionPort;
@@ -37,7 +38,10 @@ public class JudgeExecutionCommandService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
-        // 이미 RUNNING으로 넘어간 뒤 재수신된 중복 이벤트는 markRunning()이 no-op 처리
+        if (submission.getStatus() == SubmissionStatus.RUNNING) {
+            log.info("[Judge] 이미 RUNNING 상태인 중복 이벤트 — 재제출하지 않고 스킵. submissionId={}", submissionId);
+            return;
+        }
         submission.markRunning();
 
         ProblemExecutionSpec spec = problemExecutionSpecRepository

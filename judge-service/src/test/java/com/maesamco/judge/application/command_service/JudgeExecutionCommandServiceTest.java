@@ -153,5 +153,24 @@ class JudgeExecutionCommandServiceTest {
             verify(pendingJudge0ExecutionRepository).saveAll(captor.capture());
             assertThat(captor.getValue()).hasSize(1);
         }
+
+        @Test
+        @DisplayName("이미 RUNNING 상태인 중복 이벤트면 재제출하지 않고 스킵한다")
+        void skipsWhenAlreadyRunning() {
+            // given
+            Submission submission = queuedSubmission();
+            submission.markRunning(); // 이미 첫 번째 이벤트로 RUNNING까지 전이된 상황을 재현
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            // when
+            judgeExecutionCommandService.execute(submission.getId());
+
+            // then
+            verify(problemExecutionSpecRepository, never())
+                    .findByProblemIdAndProblemVersionId(any(), any());
+            verify(judgeExecutionPort, never()).submitBatch(anyList());
+            verify(pendingJudge0ExecutionRepository, never()).saveAll(any());
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
+        }
     }
 }
