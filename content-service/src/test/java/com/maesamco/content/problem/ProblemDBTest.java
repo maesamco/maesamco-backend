@@ -1,5 +1,7 @@
 package com.maesamco.content.problem;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.problem.application.service.ProblemService;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
@@ -29,6 +31,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -82,10 +85,13 @@ class ProblemDBTest {
                 () -> "test-hmac-key-for-coaching-content"
         );
 
+        // @SpringBootTest 전체 컨텍스트 로딩 시
+        // UserServiceFeignConfig의 HMAC 인터셉터 Bean 생성에 필요한 테스트용 설정값
         registry.add(
                 "internal.hmac.outbound.user-service",
                 () -> "test-hmac-key-for-content-user"
         );
+
     }
 
     private static KeyPair generateKeyPair() {
@@ -281,10 +287,8 @@ class ProblemDBTest {
     }
 
     @Test
-    @DisplayName(
-            "같은 문제의 오래된 버전을 수정하면 낙관적 락 예외가 발생한다"
-    )
-    void updateProblem_withStaleVersion_throwsOptimisticLockingFailure() {
+    @DisplayName("오래된 lockVersion으로 문제를 수정하면 동시성 충돌 예외가 발생한다")
+    void updateProblem_withStaleLockVersion_throwsException() {
         // given
         Problem problem = Problem.create(
                 "동시성 테스트 문제",
@@ -303,62 +307,50 @@ class ProblemDBTest {
         Problem savedProblem =
                 problemRepository.saveAndFlush(problem);
 
-        UUID problemId =
-                savedProblem.getId();
+        UUID problemId = savedProblem.getId();
 
-        entityManager.clear();
+        Long staleLockVersion =
+                savedProblem.getLockVersion(); // 0
 
-        /*
-         * 동일한 DB 행을 lockVersion 0으로 각각 조회한 뒤
-         * 영속성 컨텍스트에서 분리합니다.
-         */
-        Problem firstProblem =
-                problemRepository.findById(problemId)
-                        .orElseThrow();
+        // 다른 수정이 먼저 발생했다고 가정
+        savedProblem.changeTitle("다른 관리자가 먼저 수정");
 
-        entityManager.detach(firstProblem);
+        problemRepository.flush();
 
-        Problem secondProblem =
-                problemRepository.findById(problemId)
-                        .orElseThrow();
-
-        entityManager.detach(secondProblem);
-
-        assertThat(firstProblem.getLockVersion())
-                .isEqualTo(0L);
-
-        assertThat(secondProblem.getLockVersion())
-                .isEqualTo(0L);
-
-        // 첫 번째 수정은 정상적으로 반영됩니다.
-        firstProblem.changeTitle("첫 번째 수정");
-
-        Problem firstUpdated =
-                problemRepository.saveAndFlush(
-                        firstProblem
-                );
-
-        assertThat(firstUpdated.getLockVersion())
+        assertThat(savedProblem.getLockVersion())
                 .isEqualTo(1L);
 
-        entityManager.clear();
+        ProblemUpdateRequest request =
+                new ProblemUpdateRequest();
 
-        /*
-         * 두 번째 객체는 여전히 lockVersion 0을 가지고 있으므로
-         * 저장할 때 낙관적 락 충돌이 발생해야 합니다.
-         */
-        secondProblem.changeDescription(
-                "두 번째 수정"
+        ReflectionTestUtils.setField(
+                request,
+                "title",
+                "오래된 버전으로 수정"
+        );
+
+        ReflectionTestUtils.setField(
+                request,
+                "lockVersion",
+                staleLockVersion
         );
 
         // when & then
         assertThatThrownBy(
-                () -> problemRepository.saveAndFlush(
-                        secondProblem
+                () -> problemService.updateProblem(
+                        problemId,
+                        request
                 )
         )
-                .isInstanceOf(
-                        ObjectOptimisticLockingFailureException.class
-                );
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> {
+                    BusinessException businessException =
+                            (BusinessException) exception;
+
+                    assertThat(businessException.getErrorCode())
+                            .isEqualTo(
+                                    ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                            );
+                });
     }
 }
