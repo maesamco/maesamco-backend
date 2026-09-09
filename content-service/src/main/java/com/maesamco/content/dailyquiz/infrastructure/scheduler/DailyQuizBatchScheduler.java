@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 // import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -22,6 +23,7 @@ public class DailyQuizBatchScheduler {
 
     private final DailyQuizBatchExecutionService batchExecutionService;
     private final DailyQuizBatchProperties properties;
+    private final Clock dailyQuizClock;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     @Scheduled(
@@ -37,7 +39,7 @@ public class DailyQuizBatchScheduler {
 
         try {
             // 설정된 timezone을 기준으로 attemptDate를 계산합니다.
-            LocalDate attemptDate = LocalDate.now(properties.zoneId());
+            LocalDate attemptDate = LocalDate.now(dailyQuizClock);
 
             // attemptDate와 chunkSize를 전달해 배치 실행 서비스를 호출합니다.
             log.info(
