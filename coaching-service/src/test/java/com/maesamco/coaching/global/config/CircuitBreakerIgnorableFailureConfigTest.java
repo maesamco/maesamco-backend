@@ -32,6 +32,15 @@ class CircuitBreakerIgnorableFailureConfigTest {
     }
 
     @Test
+    @DisplayName("judge-service 커스터마이저는 PROBLEM_NOT_FOUND를, content-service 커스터마이저는 SUBMISSION_NOT_FOUND를 무시하지 않는다")
+    void doesNotCrossIgnoreTheOtherServicesNotFoundCode() {
+        assertThat(ignorePredicateFor(config.judgeServiceCircuitBreakerCustomizer(), "judge-service")
+                .test(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND))).isFalse();
+        assertThat(ignorePredicateFor(config.contentServiceCircuitBreakerCustomizer(), "content-service")
+                .test(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND))).isFalse();
+    }
+
+    @Test
     @DisplayName("진짜 통신 실패(FEIGN_CLIENT_ERROR)는 여전히 실패로 잡힌다 — 서킷 브레이커가 무력화되지 않았는지 확인")
     void stillRecordsGenuineFeignFailures() {
         assertThat(ignorePredicateFor(config.judgeServiceCircuitBreakerCustomizer(), "judge-service")

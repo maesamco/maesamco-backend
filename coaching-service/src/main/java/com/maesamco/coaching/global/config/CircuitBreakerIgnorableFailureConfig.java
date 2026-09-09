@@ -31,31 +31,37 @@ import java.util.Set;
 public class CircuitBreakerIgnorableFailureConfig {
 
     /**
-     * 원격 서비스가 명시적으로 "존재하지 않음"으로 응답해서 생기는 ErrorCode만 담는다.
-     * FEIGN_CLIENT_ERROR(통신 실패)는 절대 포함하지 않는다 — 그건 서킷이 계속 실패로
-     * 카운트해야 한다. 새 FeignAdapter가 같은 성격의 *_NOT_FOUND를 추가하면 여기도
-     * 같이 추가할 것.
+     * 인스턴스별로 정확히 그 Adapter가 던지는 *_NOT_FOUND 하나만 담는다(PR #127 심층
+     * 재검토, 2026-09-09) — 이전엔 두 코드를 하나의 Set으로 묶어 judge-service/
+     * content-service 양쪽에 동일하게 적용했는데, 그러면 judge-service 서킷이
+     * PROBLEM_NOT_FOUND도, content-service 서킷이 SUBMISSION_NOT_FOUND도 무시하게 된다.
+     * 지금은 각 Adapter 구현상 반대쪽 코드가 발생할 경로가 없어 무해하지만, 나중에 같은
+     * CircuitBreaker 이름을 쓰는 메서드가 늘어나면 엉뚱한 BusinessException까지 정상
+     * 결과로 무시할 위험이 있다. FEIGN_CLIENT_ERROR(통신 실패)는 어느 Set에도 포함하지
+     * 않는다 — 그건 서킷이 계속 실패로 카운트해야 한다.
      */
-    private static final Set<ErrorCode> IGNORABLE_NOT_FOUND_CODES =
-            EnumSet.of(ErrorCode.SUBMISSION_NOT_FOUND, ErrorCode.PROBLEM_NOT_FOUND);
+    private static final Set<ErrorCode> JUDGE_SERVICE_IGNORABLE_CODES = EnumSet.of(ErrorCode.SUBMISSION_NOT_FOUND);
+    private static final Set<ErrorCode> CONTENT_SERVICE_IGNORABLE_CODES = EnumSet.of(ErrorCode.PROBLEM_NOT_FOUND);
 
     @Bean
     public CircuitBreakerConfigCustomizer judgeServiceCircuitBreakerCustomizer() {
-        return ignorableNotFoundCustomizer("judge-service");
+        return ignorableNotFoundCustomizer("judge-service", JUDGE_SERVICE_IGNORABLE_CODES);
     }
 
     @Bean
     public CircuitBreakerConfigCustomizer contentServiceCircuitBreakerCustomizer() {
-        return ignorableNotFoundCustomizer("content-service");
+        return ignorableNotFoundCustomizer("content-service", CONTENT_SERVICE_IGNORABLE_CODES);
     }
 
-    private CircuitBreakerConfigCustomizer ignorableNotFoundCustomizer(String circuitBreakerName) {
+    private CircuitBreakerConfigCustomizer ignorableNotFoundCustomizer(
+            String circuitBreakerName, Set<ErrorCode> ignorableCodes
+    ) {
         return CircuitBreakerConfigCustomizer.of(circuitBreakerName,
-                builder -> builder.ignoreException(this::isIgnorableNotFound));
+                builder -> builder.ignoreException(throwable -> isIgnorableNotFound(throwable, ignorableCodes)));
     }
 
-    private boolean isIgnorableNotFound(Throwable throwable) {
+    private boolean isIgnorableNotFound(Throwable throwable, Set<ErrorCode> ignorableCodes) {
         return throwable instanceof BusinessException businessException
-                && IGNORABLE_NOT_FOUND_CODES.contains(businessException.getErrorCode());
+                && ignorableCodes.contains(businessException.getErrorCode());
     }
 }

@@ -66,6 +66,21 @@ spring:
         chat:
           options:
             model: gemini-3.6-flash # 로컬 전용(GeminiModelAdapter) — AI_MODEL_CHAT=google-genai일 때만 사용, 실제 호출로 확인(2026-09-02)
+  cloud:
+    openfeign:
+      client:
+        config:
+          # CircuitBreaker는 실패율로 다음 호출을 차단할 뿐, 이미 진행 중인 느린 HTTP
+          # 요청 자체의 응답 대기 시간은 제한하지 않는다(PR #127 심층 재검토, 2026-09-09).
+          # 명시 안 하면 OpenFeign 기본값(연결 10s/응답 60s)에 그대로 의존하게 되는데,
+          # 이 Client는 Hint/Explanation/Feedback 생성처럼 사용자 응답시간에 직접 영향을
+          # 주는 경로에 연결될 예정이라 더 짧게 잡는다.
+          content-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+          judge-service:
+            connectTimeout: 2000
+            readTimeout: 3000
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -75,8 +90,11 @@ internal:
     keys:
       content-service: ${HMAC_KEY_CONTENT_TO_COACHING}
     outbound:
-      judge-service: ${HMAC_KEY_COACHING_TO_JUDGE:} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
-      content-service: ${HMAC_KEY_COACHING_TO_CONTENT:} # 이 서비스가 Content에게 보낼 때 서명하는 키(ContentServiceFeignConfig, 이슈 #62)
+      # 빈 문자열 기본값을 두지 않는다(PR #127 심층 재검토, 2026-09-09) — 위 keys.*(수신
+      # 검증용)처럼 기본값 없이 fail-fast해야, 설정 누락 시 빈 secret으로 조용히 서명하고
+      # 기동만 되는(실제 호출은 전부 401) 상태를 막을 수 있다.
+      judge-service: ${HMAC_KEY_COACHING_TO_JUDGE} # 이 서비스가 Judge에게 보낼 때 서명하는 키(JudgeServiceFeignConfig)
+      content-service: ${HMAC_KEY_COACHING_TO_CONTENT} # 이 서비스가 Content에게 보낼 때 서명하는 키(ContentServiceFeignConfig, 이슈 #62)
 
 resilience4j:
   circuitbreaker:

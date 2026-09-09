@@ -1,6 +1,7 @@
 package com.maesamco.coaching.infrastructure.feign;
 
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
+import com.maesamco.coaching.global.config.CircuitBreakerIgnorableFailureConfig;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
@@ -22,6 +23,7 @@ import org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfigurat
 import org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration;
 import org.springframework.ai.model.google.genai.autoconfigure.chat.GoogleGenAiChatAutoConfiguration;
@@ -43,10 +45,28 @@ import static org.mockito.Mockito.when;
  * 원천적으로 확인할 수 없다(목 객체는 프록시를 안 거치므로). 최소한의 자동 설정만 켠
  * 슬림 컨텍스트로 실제 빈을 띄워서 확인한다 — DB/Kafka/Redis/AI 벤더 자동 설정은 이
  * 테스트와 무관해서 제외했다(붙어 있으면 관련 커넥션 시도로 컨텍스트 로딩이 실패한다).
+ *
+ * CircuitBreakerIgnorableFailureConfig도 같이 등록한다(PR #127 심층 재검토, 2026-09-09)
+ * — 실제 Spring AutoConfiguration이 judge-service 이름의 CircuitBreaker에 ignore
+ * Predicate를 적용했는지, 그리고 그 Predicate가 SUBMISSION_NOT_FOUND만 무시하고
+ * PROBLEM_NOT_FOUND(다른 서비스 코드)는 무시하지 않는지까지 실제 레지스트리로 검증한다.
+ *
+ * @TestPropertySource로 resilience4j.circuitbreaker.instances.judge-service.*를 직접
+ * 지정하는 이유는 ContentServiceAdapterTest와 동일하다 — src/test/resources/
+ * application.yml이 src/main/resources/application.yml을 클래스패스에서 완전히 가려서
+ * (같은 경로, 병합 안 됨) main의 resilience4j 설정이 이 테스트엔 전혀 반영되지 않는다
+ * (PR #127 심층 재검토, 2026-09-09 — 디버그로 실제 확인: 이름을 안 주면
+ * CircuitBreakerRegistry가 즉석 기본 설정으로 만들어버려 customizer가 적용될 기회조차
+ * 없다).
  */
 @SpringBootTest(classes = {
         JudgeServiceAdapter.class,
+        CircuitBreakerIgnorableFailureConfig.class,
         JudgeServiceAdapterTest.MinimalAutoConfig.class
+})
+@TestPropertySource(properties = {
+        "resilience4j.circuitbreaker.instances.judge-service.sliding-window-size=10",
+        "resilience4j.circuitbreaker.instances.judge-service.minimum-number-of-calls=5"
 })
 class JudgeServiceAdapterTest {
 
@@ -130,5 +150,47 @@ class JudgeServiceAdapterTest {
         assertThat(snapshot.submissionId()).isEqualTo(submissionId);
         assertThat(snapshot.userId()).isEqualTo(userId);
         assertThat(snapshot.isIncorrect()).isTrue();
+    }
+
+    @Test
+    void SUBMISSION_NOT_FOUND는_실제_CircuitBreakerRegistry에서도_실패로_안_잡힌다() {
+        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("judge-service");
+        long before = circuitBreaker.getMetrics().getNumberOfFailedCalls();
+
+        UUID submissionId = UUID.randomUUID();
+        when(feignClient.getSubmission(submissionId))
+                .thenThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+
+        assertThatThrownBy(() -> judgeServiceAdapter.getSubmission(submissionId)).isInstanceOf(BusinessException.class);
+
+        assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(before);
+    }
+
+    @Test
+    void PROBLEM_NOT_FOUND는_judge_service_레지스트리에서는_실패로_잡힌다() {
+        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("judge-service");
+        long before = circuitBreaker.getMetrics().getNumberOfFailedCalls();
+
+        UUID submissionId = UUID.randomUUID();
+        when(feignClient.getSubmission(submissionId))
+                .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        assertThatThrownBy(() -> judgeServiceAdapter.getSubmission(submissionId)).isInstanceOf(BusinessException.class);
+
+        assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(before + 1);
+    }
+
+    @Test
+    void FEIGN_CLIENT_ERROR는_실제_CircuitBreakerRegistry에서_실패로_잡힌다() {
+        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("judge-service");
+        long before = circuitBreaker.getMetrics().getNumberOfFailedCalls();
+
+        UUID submissionId = UUID.randomUUID();
+        when(feignClient.getSubmission(submissionId))
+                .thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
+
+        assertThatThrownBy(() -> judgeServiceAdapter.getSubmission(submissionId)).isInstanceOf(BusinessException.class);
+
+        assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(before + 1);
     }
 }
