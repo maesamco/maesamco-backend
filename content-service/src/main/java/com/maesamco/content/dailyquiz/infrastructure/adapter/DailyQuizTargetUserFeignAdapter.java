@@ -5,6 +5,8 @@ import com.maesamco.content.dailyquiz.application.result.DailyQuizTargetUserPage
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.SuccessResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -13,6 +15,7 @@ import java.util.UUID;
  * User Service에서 Daily Quiz 생성 대상 사용자를 조회하고
  * 외부 응답을 애플리케이션에서 사용하는 페이지 모델로 변환하는 Adapter
  */
+@Slf4j
 @Component
 public class DailyQuizTargetUserFeignAdapter implements DailyQuizTargetUserPort {
 
@@ -23,6 +26,7 @@ public class DailyQuizTargetUserFeignAdapter implements DailyQuizTargetUserPort 
     }
 
     @Override
+    @CircuitBreaker(name = "user-service", fallbackMethod = "getTargetUsersFallback")
     public DailyQuizTargetUserPage getTargetUsers(UUID cursor, int size) {
         // Feign Client를 사용해 cursor와 size에 해당하는 대상 사용자 페이지를 조회합니다.
         SuccessResponse<UserQuizTargetPageResponse> quizTargets = feignClient.getQuizTargets(cursor, size);
@@ -49,6 +53,24 @@ public class DailyQuizTargetUserFeignAdapter implements DailyQuizTargetUserPort 
                 data.userIds(),
                 data.nextCursor(),
                 data.hasNext()
+        );
+    }
+
+    @SuppressWarnings("unused")
+    DailyQuizTargetUserPage getTargetUsersFallback(UUID cursor, int size, Throwable throwable) {
+        if (throwable instanceof BusinessException businessException) {
+            throw businessException;
+        }
+
+        log.error(
+                "User Service Daily Quiz 대상 사용자 조회 실패. cursor={}, size={}",
+                cursor,
+                size,
+                throwable
+        );
+        throw new BusinessException(
+                ErrorCode.FEIGN_CLIENT_ERROR,
+                "Daily Quiz 대상 사용자 조회 중 서비스 간 통신에 실패했습니다."
         );
     }
 }
