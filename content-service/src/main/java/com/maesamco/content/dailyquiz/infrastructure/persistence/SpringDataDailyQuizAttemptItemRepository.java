@@ -4,6 +4,7 @@ import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 interface SpringDataDailyQuizAttemptItemRepository
@@ -13,4 +14,9 @@ interface SpringDataDailyQuizAttemptItemRepository
      * 세트에 배정된 문항 내역을 questionOrder 오름차순으로 조회합니다.
      */
     List<DailyQuizAttemptItem> findAllByAttemptIdOrderByQuestionOrder(UUID attemptId);
+
+    /**
+     * 특정 세트에 특정 문제 버전이 배정됐는지 단건 조회합니다.
+     */
+    Optional<DailyQuizAttemptItem> findByAttemptIdAndQuestionId(UUID attemptId, UUID questionId);
 }
