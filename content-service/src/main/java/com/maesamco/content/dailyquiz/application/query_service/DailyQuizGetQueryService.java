@@ -121,8 +121,9 @@ public class DailyQuizGetQueryService {
         DailyQuizQuestion question = questionById.get(questionId);
 
         if (question == null) {
-            throw new BusinessException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
+            // 배정 문항과 문제 버전 사이의 내부 데이터 정합성이 깨진 상황입니다.
+            // 상세 ID는 전역 예외 처리기의 ERROR 로그에만 남기고 응답에는 노출하지 않습니다.
+            throw new IllegalStateException(
                     "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId=" + questionId
             );
         }
