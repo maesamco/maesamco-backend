@@ -284,6 +284,30 @@ public class GlobalExceptionHandler {
                 "NoResourceFoundException: {}",
                 e.getMessage()
         );
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            NoResourceFoundException e
+    ) {
+        log.warn(
+                "NoResourceFoundException: {}",
+                e.getMessage()
+        );
+
+        return ResponseEntity
+                .status(
+                        ErrorCode.ENTITY_NOT_FOUND
+                                .getStatus()
+                )
+                .body(
+                        ErrorResponse.from(
+                                ErrorCode.ENTITY_NOT_FOUND
+                        )
+                );
+    }
+
+    // Enum 필드 역직렬화 실패 시 400 대신 500 응답
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
+        log.warn("HttpMessageNotReadableException: {}", e.getMessage());
 
         return ResponseEntity
                 .status(
