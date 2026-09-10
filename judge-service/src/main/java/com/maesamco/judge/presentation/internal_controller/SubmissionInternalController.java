@@ -2,6 +2,7 @@ package com.maesamco.judge.presentation.internal_controller;
 
 import com.maesamco.judge.application.query.SubmissionGetQuery;
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
+import com.maesamco.judge.application.result.SubmissionGetResult;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.response.SubmissionInternalGetResponse;
 import java.util.UUID;
@@ -20,8 +21,8 @@ public class SubmissionInternalController {
 
     @GetMapping("/{submissionId}")
     public SuccessResponse<SubmissionInternalGetResponse> getSubmission(@PathVariable UUID submissionId) {
-        SubmissionInternalGetResponse response =
+        SubmissionGetResult result =
                 submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
-        return SuccessResponse.success(response);
+        return SuccessResponse.success(SubmissionInternalGetResponse.from(result));
     }
 }

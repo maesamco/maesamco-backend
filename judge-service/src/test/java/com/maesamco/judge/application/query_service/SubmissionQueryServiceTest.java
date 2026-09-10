@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.query.SubmissionGetQuery;
+import com.maesamco.judge.application.result.SubmissionGetResult;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
@@ -17,7 +18,6 @@ import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.domain.repository.SubmissionTestResultRepository;
 import com.maesamco.judge.global.exception.BusinessException;
-import com.maesamco.judge.presentation.response.SubmissionInternalGetResponse;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class SubmissionQueryServiceTest {
@@ -41,10 +42,17 @@ class SubmissionQueryServiceTest {
     @InjectMocks
     private SubmissionQueryService submissionQueryService;
 
+    private final UUID userId = UUID.randomUUID();
+    private final UUID problemId = UUID.randomUUID();
+
     private Submission pendingSubmission(UUID id) {
-        return Submission.create(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 3,
+        Submission submission = Submission.create(
+                userId, problemId, UUID.randomUUID(), 3,
                 "public class Main {}", SubmissionLanguage.JAVA17, "idem-" + id);
+        // Submission.create()는 실제 JPA persist 없이는 @UuidGenerator가 안 돌아서 id가 null임 —
+        // submissionId 응답 필드를 의미 있게 검증하려고 테스트에서 id를 직접 심어줌 (리뷰 반영)
+        ReflectionTestUtils.setField(submission, "id", id);
+        return submission;
     }
 
     @Nested
@@ -52,8 +60,8 @@ class SubmissionQueryServiceTest {
     class GetSubmissionForInternal {
 
         @Test
-        @DisplayName("완료된 제출은 result와 실패한 테스트케이스 목록을 함께 반환한다")
-        void returnsResultAndFailedTestsWhenCompleted() {
+        @DisplayName("완료된 제출은 Coaching Service가 실제 소비하는 필드를 포함해 응답 계약 전체를 정확한 값으로 반환한다")
+        void returnsFullContractWhenCompleted() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
             submission.markQueued();
@@ -67,17 +75,25 @@ class SubmissionQueryServiceTest {
             given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))
                     .willReturn(List.of(failed));
 
-            SubmissionInternalGetResponse response =
+            SubmissionGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
-            assertThat(response.status()).isEqualTo(SubmissionStatus.COMPLETED.name());
-            assertThat(response.result()).isEqualTo(SubmissionResult.WRONG.name());
-            assertThat(response.failedTestSummary()).hasSize(1);
+            assertThat(result.submissionId()).isEqualTo(submissionId);
+            assertThat(result.userId()).isEqualTo(userId);
+            assertThat(result.problemId()).isEqualTo(problemId);
+            assertThat(result.code()).isEqualTo("public class Main {}");
+            assertThat(result.status()).isEqualTo(SubmissionStatus.COMPLETED);
+            assertThat(result.result()).isEqualTo(SubmissionResult.WRONG);
+            assertThat(result.failureCode()).isNull();
+            assertThat(result.attemptNo()).isEqualTo(3);
+            assertThat(result.failedTestSummary()).hasSize(1);
+            assertThat(result.failedTestSummary().get(0).isPublic()).isTrue();
+            assertThat(result.failedTestSummary().get(0).errorType()).isNull();
         }
 
         @Test
-        @DisplayName("채점 중인 제출은 result가 null이고 failedTestSummary는 빈 리스트이며, 테스트 결과 조회를 하지 않는다")
-        void returnsNullResultAndEmptyFailedTestsWhenNotCompleted() {
+        @DisplayName("채점 중인 제출은 result와 failedTestSummary가 비어있고 테스트 결과 조회를 하지 않는다")
+        void returnsEmptyResultWhenNotCompleted() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
             submission.markQueued();
@@ -85,17 +101,17 @@ class SubmissionQueryServiceTest {
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
-            SubmissionInternalGetResponse response =
+            SubmissionGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
-            assertThat(response.status()).isEqualTo(SubmissionStatus.RUNNING.name());
-            assertThat(response.result()).isNull();
-            assertThat(response.failedTestSummary()).isEmpty();
+            assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.result()).isNull();
+            assertThat(result.failedTestSummary()).isEmpty();
             verify(submissionTestResultRepository, never()).findBySubmissionIdAndPassedFalse(any());
         }
 
         @Test
-        @DisplayName("실패로 종료된 제출은 failureCode를 함께 반환하고 result는 null이며, 테스트 결과 조회를 하지 않는다")
+        @DisplayName("실패로 종료된 제출은 failureCode를 반환하고 result는 null이며, 테스트 결과 조회를 하지 않는다")
         void returnsFailureCodeWhenFailed() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
@@ -103,12 +119,12 @@ class SubmissionQueryServiceTest {
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
-            SubmissionInternalGetResponse response =
+            SubmissionGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
-            assertThat(response.status()).isEqualTo(SubmissionStatus.FAILED.name());
-            assertThat(response.failureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE.name());
-            assertThat(response.result()).isNull();
+            assertThat(result.status()).isEqualTo(SubmissionStatus.FAILED);
+            assertThat(result.failureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE);
+            assertThat(result.result()).isNull();
             verify(submissionTestResultRepository, never()).findBySubmissionIdAndPassedFalse(any());
         }
 
