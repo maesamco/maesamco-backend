@@ -1,16 +1,20 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.TestCase;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.enums.ProblemType;
 import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
+import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
+import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
 import com.maesamco.content.problem.domain.enums.TimerPolicy;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.problem.domain.repository.TestCaseRepository;
+import com.maesamco.content.testcase.domain.entity.TestCase;
+import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
+import com.maesamco.content.testcase.domain.repository.TestCaseRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +37,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 문제 테스트케이스 조회 규칙을 실제 PostgreSQL에서 검증합니다.
+ * 문제 발행 시 사용할 테스트케이스 조회 규칙을
+ * 실제 PostgreSQL에서 검증합니다.
  */
 @DataJpaTest(properties = {
         "spring.flyway.enabled=true",
@@ -45,7 +50,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import(JpaAuditingConfig.class)
+@Import({
+        JpaAuditingConfig.class,
+        QuerydslConfig.class
+})
 @EnableJpaRepositories(
         basePackageClasses = TestCaseRepository.class,
         excludeFilters = @ComponentScan.Filter(
@@ -75,47 +83,66 @@ class TestCaseRepositoryTest {
 
     @Test
     @DisplayName(
-            "문제의 테스트케이스를 조회하면 "
-                    + "삭제되지 않은 항목만 displayOrder 순으로 반환한다"
+            "문제 발행용 테스트케이스 조회 시 "
+                    + "승인되고 삭제되지 않은 항목만 정해진 순서로 반환한다"
     )
-    void findAllByProblemId_returnsActiveTestCasesInDisplayOrder() {
-        Problem problem = createProblem();
+    void findAllForPublication_returnsOnlyApprovedActiveTestCasesInOrder() {
+        // given
+        Problem problem =
+                createProblem();
 
-        entityManager.persist(problem);
+        entityManager.persist(
+                problem
+        );
+
         entityManager.flush();
 
-        TestCase second =
-                TestCase.create(
+        TestCase hiddenSecond =
+                TestCase.createByAdmin(
                         problem.getId(),
-                        false,
                         "10 20",
                         "30",
+                        false,
                         2
                 );
 
-        TestCase first =
-                TestCase.create(
+        TestCase publicFirst =
+                TestCase.createByAdmin(
                         problem.getId(),
-                        true,
                         "1 2",
                         "3",
+                        true,
                         1
                 );
 
         TestCase deleted =
-                TestCase.create(
+                TestCase.createByAdmin(
                         problem.getId(),
-                        false,
                         "100 200",
                         "300",
+                        false,
                         3
+                );
+
+        /*
+         * 사용자 생성 테스트케이스는 PENDING 상태이므로
+         * 발행 대상에서 제외되어야 합니다.
+         */
+        TestCase pending =
+                TestCase.createByUser(
+                        problem.getId(),
+                        "5 5",
+                        "10",
+                        true,
+                        2
                 );
 
         testCaseRepository.saveAll(
                 List.of(
-                        second,
-                        first,
-                        deleted
+                        hiddenSecond,
+                        publicFirst,
+                        deleted,
+                        pending
                 )
         );
 
@@ -129,27 +156,37 @@ class TestCaseRepositoryTest {
 
         entityManager.clear();
 
+        // when
         List<TestCase> found =
                 testCaseRepository
-                        .findAllByProblemIdOrderByDisplayOrderAsc(
-                                problem.getId()
+                        .findAllByProblemIdAndTestCaseStatusOrderByIsPublicDescTestCaseOrderAscIdAsc(
+                                problem.getId(),
+                                TestCaseStatus.APPROVED
                         );
 
+        // then
         assertThat(found)
                 .hasSize(2);
-
-        assertThat(found)
-                .extracting(TestCase::getDisplayOrder)
-                .containsExactly(
-                        1,
-                        2
-                );
 
         assertThat(found)
                 .extracting(TestCase::getInput)
                 .containsExactly(
                         "1 2",
                         "10 20"
+                );
+
+        assertThat(found)
+                .extracting(TestCase::getTestCaseOrder)
+                .containsExactly(
+                        1,
+                        2
+                );
+
+        assertThat(found)
+                .allMatch(
+                        testCase ->
+                                testCase.getTestCaseStatus()
+                                        == TestCaseStatus.APPROVED
                 );
     }
 
@@ -161,12 +198,11 @@ class TestCaseRepositoryTest {
                 ProblemType.CODE,
                 "두 정수를 더한 값을 반환하세요.",
                 "class Solution {}",
-                1,
-                128,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
                 TimerPolicy.APPLY60,
                 ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.REVIEW_PENDING,
-                1
+                ProblemStatus.REVIEW_PENDING
         );
     }
 }

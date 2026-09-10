@@ -3,12 +3,7 @@ package com.maesamco.content.problem.domain.entity;
 import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,6 +12,7 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 /** 문제 객체 */
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -49,18 +45,20 @@ public class Problem extends BaseEntity {
     @Column(name = "starter_code", columnDefinition = "TEXT")
     private String starterCode;
 
-    @Column(name = "running_time_limit", nullable = false)
-    private Integer runningTimeLimit;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "running_time_limit", nullable = false, length = 20)
+    private RunningTimeLimit runningTimeLimit;
 
-    @Column(name = "running_memory_limit", nullable = false)
-    private Integer runningMemoryLimit;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "running_memory_limit", nullable = false, length = 20)
+    private RunningMemoryLimit runningMemoryLimit;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "timer_policy", nullable = false, length = 20)
     private TimerPolicy timerPolicy;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false, length = 20)
+    @Column(name = "source", nullable = false, length = 100)
     private ProblemSource source;
 
     @Enumerated(EnumType.STRING)
@@ -71,20 +69,21 @@ public class Problem extends BaseEntity {
     @Column(name = "current_version_no", nullable = false)
     private Integer currentVersionNo = 1;
 
+    // JPA 낙관적 락 버전입니다.
+    // 문제 콘텐츠 버전(currentVersionNo)과는 별도로 관리합니다.
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
+
     public static Problem create(
             String title,
-            ProgrammingLanguage language,
-            ProblemDifficulty difficulty,
-            ProblemType type,
-            String description,
-            String starterCode,
-            Integer runningTimeLimit,
-            Integer runningMemoryLimit,
-            TimerPolicy timerPolicy,
-            ProblemSource source,
-            ProblemStatus problemStatus,
-            Integer version
+            ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,
+            String description, String starterCode,
+            RunningTimeLimit runningTimeLimit, RunningMemoryLimit runningMemoryLimit, TimerPolicy timerPolicy,
+            ProblemSource source, ProblemStatus problemStatus
     ) {
+        validateSupportedType(type);
+
         Problem problem = new Problem();
 
         problem.title = title;
@@ -98,89 +97,67 @@ public class Problem extends BaseEntity {
         problem.timerPolicy = timerPolicy;
         problem.source = source;
         problem.problemStatus = problemStatus;
-        problem.currentVersionNo = version;
+        problem.currentVersionNo = 1;
 
         return problem;
+    }
+
+    /* problem 값 변경 */
+    public void changeTitle(String newTitle) { this.title = newTitle; }
+    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
+    public void changeDifficulty(ProblemDifficulty newDifficulty) { this.difficulty = newDifficulty; }
+    public void changeType(ProblemType newType) {
+        validateSupportedType(newType);
+        this.type = newType;
+    }
+    public void changeDescription(String newDescription) { this.description = newDescription; }
+    public void changeStarterCode(String newStarterCode) { this.starterCode = newStarterCode; }
+    public void changeRunningTimeLimit(RunningTimeLimit newRunningTimeLimit) { this.runningTimeLimit = newRunningTimeLimit; }
+    public void changeRunningMemoryLimit(RunningMemoryLimit newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
+    public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
+    public void changeSource(ProblemSource newSource) { this.source = newSource; }
+
+    public void setProblemStatusDraft() {
+        this.problemStatus = ProblemStatus.DRAFT;
+    }
+    public void setProblemStatusReviewPending() {
+        this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
     /**
      * 문제 공개 심사를 요청합니다.
      *
-     * <p>DRAFT 상태의 문제만 관리자 승인 대기 상태로
+     * <p>DRAFT 상태의 문제만 REVIEW_PENDING 상태로
      * 전환할 수 있습니다.</p>
      */
     public void requestPublicationReview() {
-        if (problemStatus != ProblemStatus.DRAFT) {
+        if (this.problemStatus != ProblemStatus.DRAFT) {
             throw new BusinessException(
                     ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION
             );
         }
 
-        problemStatus = ProblemStatus.REVIEW_PENDING;
+        this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
-    /**
-     * 문제 발행을 승인합니다.
-     *
-     * <p>REVIEW_PENDING 상태의 문제만
-     * PUBLISHED 상태로 전환할 수 있습니다.</p>
-     */
+    // TODO: 추후에 작성 -> Content 다른 도메인을 import 할 수 있어야 해결이 가능합니다.
+    // problem status 전환 과정은 DDD 적용
+    // 1. REVIEW_PENDING -> PUBLISHED
     public void approvePublication() {
-        if (problemStatus != ProblemStatus.REVIEW_PENDING) {
-            throw new BusinessException(
-                    ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION
-            );
+        if (this.problemStatus != ProblemStatus.REVIEW_PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
         }
 
-        problemStatus = ProblemStatus.PUBLISHED;
+        this.problemStatus = ProblemStatus.PUBLISHED;
     }
 
-    /* problem 값 변경 */
-    public void changeTitle(String newTitle) {
-        this.title = newTitle;
+    private static void validateSupportedType(ProblemType type) {
+        if (type != ProblemType.CODE) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_PROBLEM_TYPE
+            );
+        }
     }
 
-    public void changeLanguage(ProgrammingLanguage newLanguage) {
-        this.language = newLanguage;
-    }
-
-    public void changeDifficulty(ProblemDifficulty newDifficulty) {
-        this.difficulty = newDifficulty;
-    }
-
-    public void changeType(ProblemType newType) {
-        this.type = newType;
-    }
-
-    public void changeDescription(String newDescription) {
-        this.description = newDescription;
-    }
-
-    public void changeStarterCode(String newStarterCode) {
-        this.starterCode = newStarterCode;
-    }
-
-    public void changeRunningTimeLimit(Integer newRunningTimeLimit) {
-        this.runningTimeLimit = newRunningTimeLimit;
-    }
-
-    public void changeRunningMemoryLimit(Integer newRunningMemoryLimit) {
-        this.runningMemoryLimit = newRunningMemoryLimit;
-    }
-
-    public void changeTimerPolicy(TimerPolicy newTimerPolicy) {
-        this.timerPolicy = newTimerPolicy;
-    }
-
-    public void changeSource(ProblemSource newSource) {
-        this.source = newSource;
-    }
-
-    public void changeProblemStatus(ProblemStatus newProblemStatus) {
-        this.problemStatus = newProblemStatus;
-    }
-
-    public void increaseVersion() {
-        this.currentVersionNo++;
-    }
+    public void increaseVersion() { this.currentVersionNo++; }
 }

@@ -1,6 +1,7 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSession;
+import com.maesamco.user.application.port.AuthSessionRotationResult;
 import com.maesamco.user.application.port.AuthSessionStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,16 +18,19 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * RedisAuthSessionStore의 Redis 저장 규칙을 검증합니다.
+ * RedisAuthSessionStore의 Redis 저장 및 Refresh Token Rotation 규칙을 검증합니다.
  */
 @ExtendWith(MockitoExtension.class)
 class RedisAuthSessionStoreTest {
@@ -36,6 +40,17 @@ class RedisAuthSessionStoreTest {
 
     private static final Duration SESSION_TTL =
             Duration.ofDays(14);
+
+    private static final Duration ROTATION_GRACE_PERIOD =
+            Duration.ofSeconds(5);
+
+    private static final String NOW_EPOCH_MILLIS =
+            Long.toString(NOW.toEpochMilli());
+
+    private static final String ROTATION_GRACE_PERIOD_MILLIS =
+            Long.toString(
+                    ROTATION_GRACE_PERIOD.toMillis()
+            );
 
     private static final UUID SESSION_ID =
             UUID.fromString(
@@ -57,6 +72,12 @@ class RedisAuthSessionStoreTest {
 
     private static final String SESSION_JSON =
             "{\"sessionId\":\"" + SESSION_ID + "\"}";
+
+    private static final String EXPECTED_REFRESH_TOKEN_HASH =
+            "expected-refresh-token-hash";
+
+    private static final String NEW_REFRESH_TOKEN_HASH =
+            "new-refresh-token-hash";
 
     @Mock
     private StringRedisTemplate redisTemplate;
@@ -80,7 +101,10 @@ class RedisAuthSessionStoreTest {
         authSessionStore = new RedisAuthSessionStore(
                 redisTemplate,
                 jsonMapper,
-                clock
+                clock,
+                new AuthSessionProperties(
+                        ROTATION_GRACE_PERIOD
+                )
         );
 
         authSession = new AuthSession(
@@ -156,6 +180,187 @@ class RedisAuthSessionStoreTest {
 
         verify(valueOperations).get(SESSION_KEY);
         verifyNoInteractions(jsonMapper);
+    }
+
+    @Test
+    @DisplayName("Refresh Token hash Rotation이 성공하면 ROTATED를 반환한다")
+    void rotateRefreshToken_returnsRotated() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(1L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.ROTATED
+                );
+    }
+
+    @Test
+    @DisplayName("Rotation 대상 세션이 없으면 SESSION_NOT_FOUND를 반환한다")
+    void rotateRefreshToken_returnsSessionNotFound() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(0L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.SESSION_NOT_FOUND
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "grace window 안의 직전 Refresh Token이면 "
+                    + "PREVIOUS_TOKEN_WITHIN_GRACE를 반환한다"
+    )
+    void rotateRefreshToken_returnsPreviousTokenWithinGrace() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(2L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult
+                                .PREVIOUS_TOKEN_WITHIN_GRACE
+                );
+    }
+
+    @Test
+    @DisplayName("Refresh Token 재사용이 감지되면 TOKEN_REUSED를 반환한다")
+    void rotateRefreshToken_returnsTokenReused() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(3L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult.TOKEN_REUSED
+                );
+    }
+
+    @Test
+    @DisplayName("Redis에서 Rotation 결과를 반환하지 않으면 실패한다")
+    void rotateRefreshToken_rejectsNullResult() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(null);
+
+        // when & then
+        assertThatThrownBy(() ->
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                )
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "Refresh Token Rotation 결과를 확인할 수 없습니다."
+                );
+    }
+
+    @Test
+    @DisplayName("기존 Refresh Token hash가 비어 있으면 Rotation하지 않는다")
+    void rotateRefreshToken_rejectsBlankExpectedHash() {
+        // when & then
+        assertThatThrownBy(() ->
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        " ",
+                        NEW_REFRESH_TOKEN_HASH
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "기존 Refresh Token hash는 필수입니다."
+                );
+
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    @DisplayName("새 Refresh Token hash가 비어 있으면 Rotation하지 않는다")
+    void rotateRefreshToken_rejectsBlankNewHash() {
+        // when & then
+        assertThatThrownBy(() ->
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        " "
+                )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "새 Refresh Token hash는 필수입니다."
+                );
+
+        verifyNoInteractions(redisTemplate);
     }
 
     @Test

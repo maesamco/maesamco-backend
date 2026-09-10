@@ -31,6 +31,8 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topic:
+      coaching-completed: coaching-completed-events
     consumer:
       group-id: coaching-service
       auto-offset-reset: earliest
@@ -39,8 +41,24 @@ spring:
     # 값 하나로 벤더가 갈리며, ClaudeModelAdapter/GeminiModelAdapter도 이 프로퍼티 하나로 게이트된다.
     model:
       chat: ${AI_MODEL_CHAT:anthropic}
+    retry:
+      # content-service와 동일한 이유(튜터님 피드백) — 설정 안 하면 Spring AI 기본값(10회)이 그대로
+      # 적용된다. 단, 이 프로퍼티는 spring-ai-retry의 RetryTemplate을 통해서만 적용되는데,
+      # AnthropicChatAutoConfiguration은 이 RetryTemplate을 전혀 쓰지 않는다(자가 리뷰 재검증,
+      # 2026-09-07 — 소스 직접 확인, AnthropicChatModel.java엔 "retry" 문자열 자체가 없음).
+      # 즉 이 값은 Gemini(GoogleGenAiChatAutoConfiguration, 로컬 개발 전용)에만 적용되고,
+      # 운영에서 실제로 쓰는 Anthropic 경로는 아래 anthropic.max-retries가 별도로 담당한다.
+      max-attempts: ${SPRING_AI_RETRY_MAX_ATTEMPTS:2}
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
+      # 튜터님 피드백 — 명시적 타임아웃 없이는 SDK 기본값에 그대로 의존하게 돼 호출 하나가
+      # 응답 없이 오래 묶여있을 수 있다(위 retry와 곱해지면 더 길어짐).
+      timeout: ${SPRING_AI_ANTHROPIC_TIMEOUT:30s}
+      # 자가 리뷰 재검증(2026-09-07) — Anthropic 호출의 실제 재시도 횟수는 위
+      # spring.ai.retry.max-attempts가 아니라 이 프로퍼티(AnthropicConnectionProperties,
+      # Anthropic Java SDK 클라이언트 자체 재시도)가 결정한다. 설정 안 하면 SDK 기본값에
+      # 그대로 맡겨져 우리가 재시도 횟수를 전혀 통제하지 못하는 상태가 된다.
+      max-retries: ${SPRING_AI_ANTHROPIC_MAX_RETRIES:2}
       chat:
         options:
           model: claude-sonnet-5 # ⚠️ 팀 확인 필요 — 힌트 생성용 모델 티어 미확정, 임시값
@@ -50,6 +68,12 @@ spring:
         chat:
           options:
             model: gemini-3.6-flash # 로컬 전용(GeminiModelAdapter) — AI_MODEL_CHAT=google-genai일 때만 사용, 실제 호출로 확인(2026-09-02)
+
+outbox:
+  relay:
+    enabled: true
+    fixed-delay-ms: 1000
+    publish-timeout-ms: 3000
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -65,6 +89,13 @@ resilience4j:
   circuitbreaker:
     instances:
       judge-service: # JudgeServiceAdapter.getSubmission() — 힌트 생성 핵심 경로 호출(팀 컨벤션 2절)
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      ai-model: # ClaudeModelAdapter/GeminiModelAdapter.generate() — 튜터님 피드백(외부 LLM 장애가
+        # 내부 장애로 전파되지 않도록). Feign이 아니라 팀 컨벤션 2절 대상 밖이었으나 같은 원칙 적용.
         sliding-window-size: 10
         minimum-number-of-calls: 5
         failure-rate-threshold: 50 # ⚠️ 임계치는 초기값 — 실 트래픽 데이터로 조정할 것

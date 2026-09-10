@@ -1,5 +1,7 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
+import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
 import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
 import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
@@ -15,6 +17,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -40,6 +43,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
+@Import({
+        JpaAuditingConfig.class,
+        QuerydslConfig.class
+})
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @EnableJpaRepositories(
         basePackageClasses = ProblemEventOutboxRepository.class,

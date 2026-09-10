@@ -2,14 +2,10 @@ package com.maesamco.content.problem.infrastructure.persistence;
 
 import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import jakarta.persistence.EntityManager;
@@ -48,7 +44,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import(JpaAuditingConfig.class)
+@Import({
+        JpaAuditingConfig.class,
+        QuerydslConfig.class
+})
 @EnableJpaRepositories(
         basePackageClasses = ProblemVersionRepository.class,
         excludeFilters = @ComponentScan.Filter(
@@ -149,7 +148,21 @@ class ProblemVersionRepositoryTest {
         assertThat(found.getPublishedAt())
                 .isEqualTo(publishedAt);
 
-        assertThat(found.getCreatedBy())
+        UUID createdBy = (UUID) entityManager
+                .createNativeQuery(
+                        """
+                        SELECT created_by
+                        FROM content_schema.p_problem_versions
+                        WHERE id = ?1
+                        """
+                )
+                .setParameter(
+                        1,
+                        problemVersionId
+                )
+                .getSingleResult();
+
+        assertThat(createdBy)
                 .isEqualTo(
                         BaseEntity.SYSTEM_ACTOR_ID
                 );
@@ -197,15 +210,12 @@ class ProblemVersionRepositoryTest {
         String columnType = (String) entityManager
                 .createNativeQuery(
                         """
-                        SELECT pg_typeof(content_snapshot)::text
+                        SELECT pg_typeof(problem_snapshot)::text
                         FROM content_schema.p_problem_versions
                         WHERE id = :problemVersionId
                         """
                 )
-                .setParameter(
-                        "problemVersionId",
-                        problemVersionId
-                )
+                .setParameter("problemVersionId", problemVersionId)
                 .getSingleResult();
 
         assertThat(columnType)
@@ -223,12 +233,11 @@ class ProblemVersionRepositoryTest {
                 ProblemType.CODE,
                 "두 정수를 더한 값을 반환하세요.",
                 "class Solution {}",
-                1,
-                128,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
                 TimerPolicy.APPLY60,
                 ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.REVIEW_PENDING,
-                1
+                ProblemStatus.REVIEW_PENDING
         );
     }
 }

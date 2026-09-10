@@ -7,7 +7,7 @@ import org.springframework.data.domain.Pageable;
 
 /**
  * 문제 Querydsl 동적 검색을 위한 Custom Repository
- * <p>searchProblems(...), 실제 구현은 ProblemRepositoryImpl에서 한다.</p>
+ * <p>searchProblems(...), 실제 구현은 ProblemSearchRepositoryImpl에서 한다.</p>
  */
 public interface ProblemSearchRepository {
 

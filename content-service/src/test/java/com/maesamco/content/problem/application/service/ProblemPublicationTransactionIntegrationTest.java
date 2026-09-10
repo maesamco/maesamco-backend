@@ -1,24 +1,19 @@
 package com.maesamco.content.problem.application.service;
 
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.entity.TestCase;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
-import com.maesamco.content.problem.domain.repository.TestCaseRepository;
 import com.maesamco.content.problem.infrastructure.messaging.event.ProblemPublishedEvent;
+import com.maesamco.content.testcase.domain.entity.TestCase;
+import com.maesamco.content.testcase.domain.repository.TestCaseRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,11 +26,7 @@ import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.*;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -74,7 +65,8 @@ import static org.mockito.Mockito.when;
 @Import({
         JpaAuditingConfig.class,
         ProblemPublicationService.class,
-        ProblemPublicationTransactionIntegrationTest.TestConfig.class
+        ProblemPublicationTransactionIntegrationTest.TestConfig.class,
+        QuerydslConfig.class,
 })
 @EnableJpaRepositories(
         basePackageClasses = {
@@ -128,13 +120,14 @@ class ProblemPublicationTransactionIntegrationTest {
     @Test
     @DisplayName(
             "Outbox 저장이 실패하면 "
-                    + "PUBLISHED 상태 변경과 ProblemVersion 저장이 모두 롤백된다"
+                    + "PUBLISHED 상태 변경과 버전 증가 및 ProblemVersion 저장이 모두 롤백된다"
     )
     void approvePublication_outboxFailure_rollsBackEntireTransaction()
             throws Exception {
+
         // given
         UUID problemId =
-                createPublishedReviewFixture();
+                createPublicationReviewFixture();
 
         assertThat(
                 AopUtils.isAopProxy(
@@ -148,16 +141,17 @@ class ProblemPublicationTransactionIntegrationTest {
                 )
         ).thenReturn(
                 """
-                {
-                  "eventType": "PROBLEM_PUBLISHED"
-                }
-                """
+                        {
+                          "eventType": "PROBLEM_PUBLISHED"
+                        }
+                        """
         );
 
         /*
          * ProblemVersion.save() 이후 실제 PostgreSQL로 flush하여
-         * Problem의 PUBLISHED UPDATE와 ProblemVersion INSERT가
-         * DB에 전달된 상태를 만든 다음 강제로 실패시킵니다.
+         * Problem의 PUBLISHED UPDATE, currentVersionNo 증가,
+         * ProblemVersion INSERT가 DB에 전달된 상태를 만든 뒤
+         * Outbox 저장 단계에서 강제로 실패시킵니다.
          *
          * 이 예외가 서비스 @Transactional 경계를 빠져나갈 때
          * 전체 트랜잭션이 rollback되어야 합니다.
@@ -201,8 +195,8 @@ class ProblemPublicationTransactionIntegrationTest {
                 );
 
         /*
-         * 서비스 트랜잭션에서 PUBLISHED로 변경되었지만
-         * 최종 rollback 후에는 기존 REVIEW_PENDING 상태여야 합니다.
+         * 서비스 트랜잭션 안에서는 PUBLISHED로 변경됐지만
+         * rollback 후에는 기존 REVIEW_PENDING 상태여야 합니다.
          */
         assertThat(
                 rollbackResult.problemStatus()
@@ -211,8 +205,18 @@ class ProblemPublicationTransactionIntegrationTest {
         );
 
         /*
+         * 발행 승인 시 currentVersionNo가 증가하지만
+         * Outbox 저장 실패 시 해당 증가 역시 rollback되어야 합니다.
+         */
+        assertThat(
+                rollbackResult.currentVersionNo()
+        ).isEqualTo(
+                1
+        );
+
+        /*
          * 서비스 내부 flush 시 PostgreSQL에 INSERT가 전달되었더라도
-         * 트랜잭션 rollback 후에는 ProblemVersion이 없어야 합니다.
+         * 트랜잭션 rollback 후에는 발행 ProblemVersion이 없어야 합니다.
          */
         assertThat(
                 rollbackResult.problemVersionCount()
@@ -231,9 +235,9 @@ class ProblemPublicationTransactionIntegrationTest {
 
     /**
      * 서비스 트랜잭션과 분리된 선행 트랜잭션에서
-     * REVIEW_PENDING 문제와 테스트케이스를 저장합니다.
+     * REVIEW_PENDING 문제와 승인된 테스트케이스를 저장합니다.
      */
-    private UUID createPublishedReviewFixture() {
+    private UUID createPublicationReviewFixture() {
         TransactionTemplate transactionTemplate =
                 new TransactionTemplate(
                         transactionManager
@@ -250,20 +254,20 @@ class ProblemPublicationTransactionIntegrationTest {
             entityManager.flush();
 
             TestCase publicTestCase =
-                    TestCase.create(
+                    TestCase.createByAdmin(
                             problem.getId(),
-                            true,
                             "1 2",
                             "3",
+                            true,
                             1
                     );
 
             TestCase hiddenTestCase =
-                    TestCase.create(
+                    TestCase.createByAdmin(
                             problem.getId(),
-                            false,
                             "10 20",
                             "30",
+                            false,
                             2
                     );
 
@@ -305,10 +309,10 @@ class ProblemPublicationTransactionIntegrationTest {
             Long problemVersionCount =
                     entityManager.createQuery(
                                     """
-                                    SELECT COUNT(problemVersion)
-                                    FROM ProblemVersion problemVersion
-                                    WHERE problemVersion.problemId = :problemId
-                                    """,
+                                            SELECT COUNT(problemVersion)
+                                            FROM ProblemVersion problemVersion
+                                            WHERE problemVersion.problemId = :problemId
+                                            """,
                                     Long.class
                             )
                             .setParameter(
@@ -320,10 +324,10 @@ class ProblemPublicationTransactionIntegrationTest {
             Long testCaseCount =
                     entityManager.createQuery(
                                     """
-                                    SELECT COUNT(testCase)
-                                    FROM TestCase testCase
-                                    WHERE testCase.problemId = :problemId
-                                    """,
+                                            SELECT COUNT(testCase)
+                                            FROM TestCase testCase
+                                            WHERE testCase.problemId = :problemId
+                                            """,
                                     Long.class
                             )
                             .setParameter(
@@ -334,6 +338,7 @@ class ProblemPublicationTransactionIntegrationTest {
 
             return new RollbackResult(
                     problem.getProblemStatus(),
+                    problem.getCurrentVersionNo(),
                     problemVersionCount,
                     testCaseCount
             );
@@ -351,12 +356,11 @@ class ProblemPublicationTransactionIntegrationTest {
                 ProblemType.CODE,
                 "두 정수를 더한 값을 반환하세요.",
                 "class Solution {}",
-                1,
-                128,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
                 TimerPolicy.APPLY60,
                 ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.REVIEW_PENDING,
-                1
+                ProblemStatus.REVIEW_PENDING
         );
     }
 
@@ -365,6 +369,7 @@ class ProblemPublicationTransactionIntegrationTest {
      */
     private record RollbackResult(
             ProblemStatus problemStatus,
+            int currentVersionNo,
             long problemVersionCount,
             long testCaseCount
     ) {
@@ -381,30 +386,49 @@ class ProblemPublicationTransactionIntegrationTest {
 
         /**
          * 서비스 트랜잭션에 참여하는 ProblemFinder입니다.
-         *
-         * <p>ProblemRepository의 기존 custom fragment 문제를
-         * 이번 #109 테스트 범위와 분리하기 위해 EntityManager를
-         * 사용합니다.</p>
          */
         @Bean
         @Primary
         ProblemFinder problemFinder(
                 EntityManager entityManager
         ) {
-            return problemId -> {
-                Problem problem =
-                        entityManager.find(
-                                Problem.class,
-                                problemId
-                        );
+            return new ProblemFinder() {
 
-                if (problem == null) {
-                    throw new BusinessException(
-                            ErrorCode.PROBLEM_NOT_FOUND
+                @Override
+                public Problem getProblem(
+                        UUID problemId
+                ) {
+                    return findProblem(
+                            problemId
                     );
                 }
 
-                return problem;
+                @Override
+                public Problem getProblemForUpdate(
+                        UUID problemId
+                ) {
+                    return findProblem(
+                            problemId
+                    );
+                }
+
+                private Problem findProblem(
+                        UUID problemId
+                ) {
+                    Problem problem =
+                            entityManager.find(
+                                    Problem.class,
+                                    problemId
+                            );
+
+                    if (problem == null) {
+                        throw new BusinessException(
+                                ErrorCode.PROBLEM_NOT_FOUND
+                        );
+                    }
+
+                    return problem;
+                }
             };
         }
 

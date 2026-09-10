@@ -1,14 +1,13 @@
 package com.maesamco.gateway.filter;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -21,17 +20,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 로그인/비밀번호 재설정/코드 제출/코칭 힌트 생성 API에 고정 윈도(fixed window)
- * Rate Limit을 적용한다(게이트웨이 및 인증 보안 설계 8절). 계정 단위 로그인 실패
- * 잠금은 별개로 User Service가 담당한다 — 이 필터는 "요청 빈도" 자체를 제한하는
- * 1차 방어선이다.
+ * 회원가입/로그인/비밀번호 재설정/코드 제출/코칭 힌트·설명 생성/역질문 답변 API에
+ * 고정 윈도(fixed window) Rate Limit을 적용한다(게이트웨이 및 인증 보안 설계 8절).
+ * 계정 단위 로그인 실패 잠금은 별개로 User Service가 담당한다 — 이 필터는 "요청
+ * 빈도" 자체를 제한하는 1차 방어선이다.
  *
  * Redis 자료구조: INCR + 최초 요청 시에만 EXPIRE — Lua로 원자 처리해 레이스 컨디션 방지.
  * (resources/scripts/rate_limit.lua 참고)
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
     /**
@@ -42,23 +40,71 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     private record RuleMatch(HttpMethod method, String prefix, int limit, Duration window) {
     }
 
-    // 실제 임계값은 부하 테스트/운영 데이터로 조정할 것 — 여기 숫자는 초기값 예시.
-    private static final List<RuleMatch> RULES = List.of(
-            new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
-            new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
-            new RuleMatch(null, "/api/v1/submissions", 30, Duration.ofMinutes(1)),
-            // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.
-            // GET(목록/상세 조회)은 LLM 비용이 없어 이 룰에서 의도적으로 제외(method=POST만 매칭).
-            // prefix가 "/api/v1/coaching/submissions"라 startsWith로 매칭되는
-            // POST /api/v1/coaching/submissions/{id}/explanations(60초 설명 등록, 마찬가지로
-            // LLM 호출 비용 있는 액션)도 이미 이 룰로 함께 보호된다(PR #88 리뷰 재검토) —
-            // 별도 룰을 새로 추가하지 않는다.
-            new RuleMatch(HttpMethod.POST, "/api/v1/coaching/submissions", 10, Duration.ofMinutes(1))
-    );
-
+    private final List<RuleMatch> rules;
     private final ReactiveRedisTemplate<String, Long> redisTemplate;
     private final RedisScript<Long> rateLimitScript = RedisScript.of(
             new ClassPathResource("scripts/rate_limit.lua"), Long.class);
+
+    /**
+     * ⚠️ /api/v1/submissions의 임계값만 환경변수로 뺐다 — 최종 프로젝트 가이드라인의
+     * JMeter 부하 테스트가 이 룰에 그대로 걸려서 429만 잔뜩 찍히고 실제 처리량 측정이
+     * 불가능해질 것으로 예상됨(아직 JMeter 실행 전이라 실측은 안 됨). 평소엔 기본값
+     * (분당 30회) 그대로 두고, 부하 테스트 직전에만 RATE_LIMIT_SUBMISSIONS_PER_MIN
+     * 환경변수로 넉넉하게 올렸다가 테스트 끝나면 원래대로 되돌리면 된다(코드 수정 불필요).
+     *
+     * ⚠️ 이 값이 기본값과 다르면 기동 시 경고 로그를 남긴다(P3 리뷰 반영) — 부하 테스트 후
+     * 되돌리는 걸 깜빡해서 judge-service 제출을 보호하는 유일한 Rate Limit이 아무 신호
+     * 없이 느슨해진 채로 남는 걸 방지하기 위함. 이 프로젝트에서 코드에 하드코딩하지 않고
+     * 환경변수로 열어둔 임계값은 이게 유일하다.
+     */
+    private static final int SUBMISSIONS_PER_MINUTE_DEFAULT = 30;
+
+    /**
+     * ⚠️ Gateway 앞에 신뢰 가능한 리버스 프록시/로드밸런서가 있을 때만, 그 프록시의
+     * IP로 들어온 요청에 한해 Forwarded 헤더를 신뢰한다. 기본값은 빈 목록 —
+     * 지금처럼 프록시가 없는 로컬/현재 배포 상태에선 아무도 신뢰되지 않아
+     * 항상 remoteAddress만 쓰는 것과 동일하게 동작한다(안전한 기본값).
+     * 실제로 프록시를 앞에 두게 되면 코드 수정 없이 이 프로퍼티 값만 채우면 된다.
+     */
+    private final List<String> trustedProxyIps;
+
+    public RateLimitFilter(
+            ReactiveRedisTemplate<String, Long> redisTemplate,
+            @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute,
+            @Value("${rate-limit.trusted-proxy-ips:}") List<String> trustedProxyIps) {
+        this.redisTemplate = redisTemplate;
+        this.trustedProxyIps = trustedProxyIps;
+        if (submissionsPerMinute != SUBMISSIONS_PER_MINUTE_DEFAULT) {
+            log.warn("RATE_LIMIT_SUBMISSIONS_PER_MIN이 기본값({})과 다릅니다. 현재 값: {}회/분. "
+                            + "JMeter 부하 테스트용으로 임시로 올린 것이라면 테스트 후 반드시 되돌리세요.",
+                    SUBMISSIONS_PER_MINUTE_DEFAULT, submissionsPerMinute);
+        }
+        this.rules = List.of(
+                // 스팸 계정 생성(봇 가입) 방어 — 정상 사용자가 10분 안에 5번씩 가입
+                // 시도할 일은 거의 없어 로그인보다 빡빡하게 잡음.
+                new RuleMatch(null, "/api/v1/auth/signup", 5, Duration.ofMinutes(10)),
+                new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
+                new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
+                new RuleMatch(null, "/api/v1/submissions", submissionsPerMinute, Duration.ofMinutes(1)),
+                // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.
+                // GET(목록/상세 조회)은 LLM 비용이 없어 이 룰에서 의도적으로 제외(method=POST만 매칭).
+                // prefix가 "/api/v1/coaching/submissions"라 startsWith로 매칭되는
+                // POST /api/v1/coaching/submissions/{id}/explanations(60초 설명 등록, 마찬가지로
+                // LLM 호출 비용 있는 액션)도 이미 이 룰로 함께 보호된다(PR #88 리뷰 재검토) —
+                // 별도 룰을 새로 추가하지 않는다.
+                new RuleMatch(HttpMethod.POST, "/api/v1/coaching/submissions", 10, Duration.ofMinutes(1)),
+                // 역질문 답변 등록도 성공 시 FeedbackGenerationFacade를 통해 LLM 호출(AI 종합
+                // 피드백 생성)을 트리거하는 액션이라 동일하게 보호한다. 경로가
+                // /api/v1/coaching/follow-up-questions/**라 위 submissions 룰의 prefix에
+                // 안 걸려서 별도 룰로 추가함(PR #98 리뷰 반영, 이슈 #99).
+                new RuleMatch(HttpMethod.POST, "/api/v1/coaching/follow-up-questions", 10, Duration.ofMinutes(1)),
+
+                // 문제 쓰기, 수정, 삭제 API Rate Limit(RateLimitFilter 규칙 추가)
+                new RuleMatch(HttpMethod.POST, "/api/v1/contents/problems", 10, Duration.ofMinutes(1)),
+                new RuleMatch(HttpMethod.PATCH, "/api/v1/contents/problems", 10, Duration.ofMinutes(1)),
+                new RuleMatch(HttpMethod.DELETE, "/api/v1/contents/problems", 10, Duration.ofMinutes(1))
+        );
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -66,7 +112,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         String path = request.getURI().getPath();
         HttpMethod method = request.getMethod();
 
-        RuleMatch rule = RULES.stream()
+        RuleMatch rule = rules.stream()
                 .filter(r -> path.startsWith(r.prefix()))
                 .filter(r -> r.method() == null || r.method() == method)
                 .findFirst()
@@ -77,7 +123,18 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         }
 
         String identifier = resolveIdentifier(request);
-        String key = "rate-limit:" + rule.prefix() + ":" + identifier;
+
+        String methodKey = rule.method() == null
+                ? "ALL"
+                : rule.method().name();
+
+        // 기존 key 생성 코드 수정
+        String key = "rate-limit:"
+                + methodKey
+                + ":"
+                + rule.prefix()
+                + ":"
+                + identifier;
 
         return redisTemplate.execute(rateLimitScript,
                         List.of(key),
@@ -92,13 +149,64 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 });
     }
 
-    /** 로그인 전이라 사용자 식별이 안 되는 구간이 많으므로 IP를 우선 식별자로 쓴다. */
+    /**
+     * ⚠️ 클라이언트가 보내는 Forwarded 헤더는 원칙적으로 신뢰하지 않는다 — 검증 없이
+     * 신뢰하면 매 요청마다 이 헤더 값을 무작위로 바꿔서 Redis 키 자체를 매번 새로
+     * 만들 수 있고, 그러면 count > limit 조건이 영원히 성립하지 않아 Rate Limit
+     * 전체가 완전히 무력화된다(단순 사칭보다 심각한 완전 우회 — 이슈 #96 논의 중 발견).
+     *
+     * 예외적으로, 이 요청이 trustedProxyIps에 등록된 신뢰 가능한 리버스 프록시로부터
+     * 직접 온 경우(remoteAddress가 그 목록에 있는 경우)에만 그 프록시가 실어준
+     * 클라이언트 IP 헤더를 신뢰한다 — 그 외 모든 경우엔 TCP 연결의 실제 소스 IP만 쓴다.
+     * trustedProxyIps가 비어있으면(기본값) 이 조건은 절대 참이 될 수 없어 항상
+     * remoteAddress만 쓰는 것과 동일하게 동작한다.
+     *
+     * ⚠️ P4 리뷰 반영 — 표준 Forwarded(RFC 7239) 헤더만 보면, AWS ALB나 흔한 nginx
+     * 기본 설정처럼 실무에서 X-Forwarded-For만 보내고 Forwarded는 안 보내는 프록시가
+     * 많아 트러스트 기능이 조용히 한 번도 발동 안 할 수 있다(안전한 방향의 실패이긴
+     * 하지만 실효성이 없음). X-Forwarded-For를 우선 확인하고, 없으면 Forwarded도
+     * 확인하도록 둘 다 지원한다.
+     */
     private String resolveIdentifier(ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst("Forwarded");
-        if (forwardedFor != null) {
-            return forwardedFor;
+        String remoteIp = Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        if (trustedProxyIps.contains(remoteIp)) {
+            String clientIp = extractClientIp(request);
+            if (clientIp != null) {
+                return clientIp;
+            }
         }
-        return Objects.requireNonNull(request.getRemoteAddress()).getAddress().getHostAddress();
+
+        return remoteIp;
+    }
+
+    /**
+     * X-Forwarded-For(콤마 구분, 맨 앞이 원본 클라이언트)를 우선 확인하고,
+     * 없으면 Forwarded(RFC 7239, for= 파라미터)를 확인한다. 둘 다 없으면 null.
+     */
+    private String extractClientIp(ServerHttpRequest request) {
+        String xForwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String forwarded = request.getHeaders().getFirst("Forwarded");
+        if (forwarded != null && !forwarded.isBlank()) {
+            // 여러 홉이 콤마로 이어질 수 있어(for=1.1.1.1;proto=http, for=2.2.2.2),
+            // 맨 앞 홉의 for= 값만 뽑는다. 완전한 RFC 7239 파서는 아니고 단순 파싱이다.
+            String firstHop = forwarded.split(",")[0];
+            for (String part : firstHop.split(";")) {
+                String trimmed = part.trim();
+                if (trimmed.toLowerCase().startsWith("for=")) {
+                    String value = trimmed.substring(4).replace("\"", "");
+                    if (!value.isBlank()) {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private Mono<Void> onRateLimited(ServerWebExchange exchange) {

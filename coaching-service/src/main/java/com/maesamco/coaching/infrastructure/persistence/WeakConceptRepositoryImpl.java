@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,5 +49,10 @@ public class WeakConceptRepositoryImpl implements WeakConceptRepository {
     public Optional<WeakConcept> findByUserIdAndConceptTag(UUID userId, String conceptTag) {
         String trimmedConceptTag = conceptTag == null ? null : conceptTag.trim();
         return springDataWeakConceptRepository.findByUserIdAndConceptTag(userId, trimmedConceptTag);
+    }
+
+    @Override
+    public List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(UUID userId) {
+        return springDataWeakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(userId);
     }
 }

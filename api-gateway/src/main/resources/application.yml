@@ -25,7 +25,10 @@ spring:
             - id: content-service
               uri: lb://content-service
               predicates:
-                - Path=/api/v1/contents/**, /api/v1/admin/contents/**
+                # /api/v1/daily-quiz는 /api/v1/contents/** 프리픽스 하위가 아니라
+                # top-level 경로가 실제 의도된 설계(매삼코 DB 테이블 명세, 팀 시연
+                # 점검 문서 기준) — 이슈 #153, PR #151 리뷰 중 라우트 누락 발견
+                - Path=/api/v1/contents/**, /api/v1/admin/contents/**, /api/v1/daily-quiz/**
             - id: judge-service
               uri: lb://judge-service
               predicates:
@@ -70,3 +73,11 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+# JMeter 부하 테스트용 — 평소엔 30(분당 30회), 테스트 직전에만 환경변수로 넉넉하게 올림
+# ⚠️ 이 줄이 없으면 RATE_LIMIT_SUBMISSIONS_PER_MIN 환경변수를 아무리 바꿔도
+# Spring이 어디에 연결해야 할지 몰라 무시함(리뷰 반영 — 실제로 빠져있던 걸 발견)
+rate-limit:
+  submissions:
+    per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:30}
+  trusted-proxy-ips: ${RATE_LIMIT_TRUSTED_PROXY_IPS:}

@@ -1,17 +1,17 @@
 package com.maesamco.content.problem.presentation.dto.request;
 
-import org.openapitools.jackson.nullable.JsonNullable;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.enums.ProblemType;
 import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
 import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
 import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
 import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.openapitools.jackson.nullable.JsonNullable;
 
 /**
  * 문제 수정 요청 정보를 전달합니다.
@@ -30,6 +30,10 @@ public class ProblemUpdateRequest {
     @Size(max = 100)
     private String title;
 
+    /** 관리자가 조회했을 당시의 JPA 낙관적 락 버전입니다. */
+    @NotNull(message = "lockVersion은 필수입니다.")
+    private Long lockVersion;
+
     /** 수정할 문제 언어입니다. */
     private ProgrammingLanguage language;
 
@@ -40,10 +44,12 @@ public class ProblemUpdateRequest {
     private ProblemType type;
 
     /** 수정할 문제 설명입니다. */
+    @Size(max = 10_000, message = "문제 설명은 최대 10,000자까지 입력할 수 있습니다.")
     private String description;
 
     /** 수정할 문제 풀이 시작 코드입니다. */
-    private JsonNullable<String> starterCode = JsonNullable.undefined();
+    private JsonNullable<@Size(max = 10_000, message = "스타터 코드는 최대 10,000자까지 입력할 수 있습니다.") String>
+            starterCode = JsonNullable.undefined();
 
     /** 수정할 코드 실행 시간 제한입니다. */
     private RunningTimeLimit runningTimeLimit;
@@ -56,7 +62,4 @@ public class ProblemUpdateRequest {
 
     /** 수정할 문제 출처입니다. */
     private ProblemSource source;
-
-    /** 수정할 문제 상태입니다. */
-    private ProblemStatus problemStatus;
 }

@@ -1,11 +1,6 @@
 package com.maesamco.content.problem.domain.entity;
 
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.problem.domain.enums.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -126,12 +121,11 @@ class ProblemVersionTest {
                 ProblemType.CODE,
                 "두 정수를 더한 값을 반환하세요.",
                 "class Solution {}",
-                1,
-                128,
+                RunningTimeLimit.SECOND_1,
+                RunningMemoryLimit.MB_128,
                 TimerPolicy.APPLY60,
                 ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.REVIEW_PENDING,
-                1
+                ProblemStatus.REVIEW_PENDING
         );
     }
 }

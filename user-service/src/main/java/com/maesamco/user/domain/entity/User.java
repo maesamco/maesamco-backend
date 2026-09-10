@@ -50,7 +50,7 @@ public class User extends BaseEntity {
     @Column(
             name = "email_lookup_hash",
             nullable = false,
-            columnDefinition = "CHAR(64)"
+            length = EMAIL_LOOKUP_HASH_LENGTH
     )
     private String emailLookupHash;
 

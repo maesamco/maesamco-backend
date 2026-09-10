@@ -42,7 +42,8 @@ public enum ErrorCode {
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     SUBMISSION_INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 채점 상태 전이입니다."),
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
-    IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다.");
+    IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
+    LANGUAGE_MISMATCH(HttpStatus.BAD_REQUEST, "문제가 요구하는 언어와 제출한 언어가 다릅니다.");
 
     // ===== coaching =====
     // HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인의 오답 제출에만 힌트를 요청할 수 있습니다.");

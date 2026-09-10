@@ -1,6 +1,7 @@
 package com.maesamco.content.problem.application.service;
 
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
 import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
 import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
@@ -53,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @Import({
         JpaAuditingConfig.class,
+        QuerydslConfig.class,
         ProblemEventOutboxStatusService.class
 })
 @EnableJpaRepositories(

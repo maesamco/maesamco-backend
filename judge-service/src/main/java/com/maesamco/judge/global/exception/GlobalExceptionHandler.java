@@ -11,6 +11,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -28,9 +29,20 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     // 주 통로 — 도메인 로직에서 의도적으로 던지는 모든 예외
+    //
+    // ⚠️ 리뷰로 발견(PR #128 재리뷰) — 예전엔 ErrorCode가 뭐든 무조건 log.warn으로
+    // 찍어서, 서비스 계층에서 아무리 log.debug로 로그 신호를 분리해도(예:
+    // RefreshService의 "정상 grace window 동시 요청" vs "실제 재사용 탈취" 구분)
+    // 여기서 다시 같은 텍스트의 WARN 하나로 뭉개버렸다. BusinessException 인스턴스에
+    // 실린 logSeverity를 그대로 따라가도록 바꿔, 서비스 계층이 정한 로그 신호가
+    // 핸들러까지 그대로 전달되게 한다.
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
-        log.warn("BusinessException: {} - {}", e.getErrorCode().name(), e.getMessage());
+        if (e.getLogSeverity() == BusinessException.LogSeverity.DEBUG) {
+            log.debug("BusinessException: {} - {}", e.getErrorCode().name(), e.getMessage());
+        } else {
+            log.warn("BusinessException: {} - {}", e.getErrorCode().name(), e.getMessage());
+        }
         return ResponseEntity.status(e.getErrorCode().getStatus())
                 .body(ErrorResponse.from(e.getErrorCode(), e.getMessage()));
     }
@@ -56,6 +68,7 @@ public class GlobalExceptionHandler {
     // 파라미터 누락 / 타입 불일치 / 지원하지 않는 메서드
     @ExceptionHandler({
             MissingServletRequestParameterException.class,
+            MissingRequestHeaderException.class,
             MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception e) {
@@ -116,5 +129,12 @@ public class GlobalExceptionHandler {
 
     private String messageOf(FieldError fe) {
         return fe.getDefaultMessage() == null ? "유효하지 않은 값입니다." : fe.getDefaultMessage();
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("IllegalArgumentException: {}", e.getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
     }
 }

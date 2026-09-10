@@ -4,18 +4,21 @@ import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
 import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.entity.TestCase;
 import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
 import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
 import com.maesamco.content.problem.domain.enums.ProblemSource;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.enums.ProblemType;
 import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
+import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
+import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
 import com.maesamco.content.problem.domain.enums.TimerPolicy;
 import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
 import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
-import com.maesamco.content.problem.domain.repository.TestCaseRepository;
 import com.maesamco.content.problem.infrastructure.messaging.event.ProblemPublishedEvent;
+import com.maesamco.content.testcase.domain.entity.TestCase;
+import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
+import com.maesamco.content.testcase.domain.repository.TestCaseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,29 +95,40 @@ class ProblemPublicationServiceTest {
                             }
                         }
                         """,
-                        2,
-                        256,
+                        RunningTimeLimit.SECOND_2,
+                        RunningMemoryLimit.MB_256,
                         TimerPolicy.values()[0],
                         ProblemSource.values()[0],
-                        ProblemStatus.REVIEW_PENDING,
-                        3
+                        ProblemStatus.REVIEW_PENDING
                 );
 
+        /*
+         * #121 기준으로 생성/수정 시 ProblemVersion이 이미 저장되므로
+         * 현재 콘텐츠 버전이 2인 문제를 발행하는 상황을 구성합니다.
+         *
+         * 발행 승인 시 ProblemPublicationService에서 버전을 3으로 증가시킵니다.
+         */
+        ReflectionTestUtils.setField(
+                problem,
+                "currentVersionNo",
+                2
+        );
+
         TestCase firstTestCase =
-                TestCase.create(
+                TestCase.createByAdmin(
                         problemId,
-                        true,
                         "1 2",
                         "3",
+                        true,
                         1
                 );
 
         TestCase secondTestCase =
-                TestCase.create(
+                TestCase.createByAdmin(
                         problemId,
-                        false,
                         "10 20",
                         "30",
+                        false,
                         2
                 );
 
@@ -136,8 +150,9 @@ class ProblemPublicationServiceTest {
 
         when(
                 testCaseRepository
-                        .findAllByProblemIdOrderByDisplayOrderAsc(
-                                problemId
+                        .findAllByProblemIdAndTestCaseStatusOrderByIsPublicDescTestCaseOrderAscIdAsc(
+                                problemId,
+                                TestCaseStatus.APPROVED
                         )
         ).thenReturn(
                 List.of(
@@ -193,6 +208,12 @@ class ProblemPublicationServiceTest {
                 problem.getProblemStatus()
         ).isEqualTo(
                 ProblemStatus.PUBLISHED
+        );
+
+        assertThat(
+                problem.getCurrentVersionNo()
+        ).isEqualTo(
+                3
         );
 
         ArgumentCaptor<ProblemVersion> problemVersionCaptor =

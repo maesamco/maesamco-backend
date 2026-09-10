@@ -138,4 +138,41 @@ class AiCallHistoryRepositoryImplTest extends AbstractCoachingRepositoryTest {
         assertThat(reloaded.getRequestStatus()).isEqualTo("PENDING");
         assertThat(reloaded.getRetryCount()).isEqualTo(0);
     }
+
+    /**
+     * 재검증(PR #111, 외부 AI 리뷰) — SKIPPED(서킷브레이커 OPEN으로 실제 LLM 호출이 없었던
+     * 시도)는 재시도 예산 카운트에서 제외돼야 한다. Mockito로는 실제 SQL의
+     * "AndRequestStatusNot" 파생 쿼리가 의도대로 필터링하는지 검증할 수 없어, 여기서
+     * 실제 DB로 확인한다.
+     */
+    @Test
+    @DisplayName("countRealAttemptsByCoachingSessionIdAndPurpose는 SKIPPED를 제외하고 센다")
+    void countRealAttemptsByCoachingSessionIdAndPurpose_excludesSkipped() {
+        // given
+        UUID coachingSessionId = createCoachingSessionId();
+        aiCallHistoryRepository.save(AiCallHistory.create(
+                coachingSessionId, AiCallPurpose.FEEDBACK, "gpt-4o", "v1", "FAILED", null, null, "timeout", 0
+        ));
+        aiCallHistoryRepository.save(AiCallHistory.create(
+                coachingSessionId, AiCallPurpose.FEEDBACK, "unknown", "v1", "SKIPPED", null, null, "circuit open", 0
+        ));
+        aiCallHistoryRepository.save(AiCallHistory.create(
+                coachingSessionId, AiCallPurpose.FEEDBACK, "unknown", "v1", "SKIPPED", null, null, "circuit open", 0
+        ));
+        // 다른 purpose(HINT)는 애초에 필터 대상이 아니라는 것도 함께 확인.
+        aiCallHistoryRepository.save(AiCallHistory.create(
+                coachingSessionId, AiCallPurpose.HINT, "gpt-4o", "v1", "SUCCESS", 1000, 100, null, 0
+        ));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        long count = aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(
+                coachingSessionId, AiCallPurpose.FEEDBACK
+        );
+
+        // then — FAILED 1건만 세고, SKIPPED 2건은 제외한다.
+        assertThat(count).isEqualTo(1L);
+    }
 }
