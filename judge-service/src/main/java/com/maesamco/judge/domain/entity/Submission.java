@@ -142,9 +142,12 @@ public class Submission extends BaseEntity {
         return new Submission(userId, problemId, problemVersionId, attemptNo, code, language, idempotencyKey);
     }
 
-    /** Outbox Relay가 JudgeRequested 발행에 성공한 뒤 호출 (PENDING -> QUEUED). */
+    /** Outbox Relay가 JudgeRequested 발행에 성공한 뒤 호출 (PENDING -> QUEUED).
+     * Consumer가 먼저 메시지를 처리해 이미 RUNNING 이상으로 전이된 경우(Outbox 커밋 완료 전에
+     * Consumer가 먼저 메시지를 가져가는 레이스, markRunning()이 PENDING을 허용하면서 발생 가능)는
+     * 멱등하게 스킵한다 — 이미 더 진행된 상태를 되돌릴 이유가 없다. */
     public void markQueued() {
-        if (this.status == SubmissionStatus.QUEUED) {
+        if (this.status != SubmissionStatus.PENDING) {
             return;
         }
         transition(SubmissionStatus.QUEUED, EnumSet.of(SubmissionStatus.PENDING));
@@ -155,7 +158,8 @@ public class Submission extends BaseEntity {
         if (this.status == SubmissionStatus.RUNNING) {
             return;
         }
-        transition(SubmissionStatus.RUNNING, EnumSet.of(SubmissionStatus.QUEUED, SubmissionStatus.RETRY_WAIT));
+        transition(SubmissionStatus.RUNNING,
+                EnumSet.of(SubmissionStatus.PENDING, SubmissionStatus.QUEUED, SubmissionStatus.RETRY_WAIT));
     }
 
     /**
