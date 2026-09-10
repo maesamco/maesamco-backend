@@ -23,6 +23,11 @@ public interface DailyQuizAttemptRepository {
     );
 
     /**
+     * 문항 제출 처리를 위해 특정 Daily Quiz 세트를 쓰기 잠금과 함께 조회
+     */
+    Optional<DailyQuizAttempt> findByIdForUpdate(UUID attemptId);
+
+    /**
      * READY 상태인 세트만 IN_PROGRESS로 전환하고 최초 시작 시각을 기록
      */
     int startIfReady(UUID attemptId, Instant startedAt);
