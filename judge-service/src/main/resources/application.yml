@@ -33,6 +33,7 @@ spring:
     topic:
       problem-published: problem-published-events
       judge-requested: judge-requested-events
+      submission-judged: submission-judged-events
     consumer:
       group-id: judge-service
       auto-offset-reset: earliest
