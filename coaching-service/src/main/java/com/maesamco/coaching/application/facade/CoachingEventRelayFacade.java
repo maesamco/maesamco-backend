@@ -51,7 +51,7 @@ public class CoachingEventRelayFacade {
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
     public void relay() {
         List<CoachingEventOutbox> pending =
-                coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING);
+                coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100);
 
         for (CoachingEventOutbox outbox : pending) {
             try {

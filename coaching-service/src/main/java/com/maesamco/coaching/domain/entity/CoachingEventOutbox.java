@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,6 +22,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import tools.jackson.databind.JsonNode;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -41,6 +43,13 @@ import java.util.UUID;
  *
  * 발생한 사실을 기록하고, 수정·삭제 대상은 아니다(팀 컨벤션 16절, append-only Outbox
  * 계열) — `markPublished()`만 상태를 바꾼다.
+ *
+ * PR #123 재검토 2차(용현님, 2026-09-10) 반영 — `version`으로 낙관적 락을 건다.
+ * `CoachingEventOutboxPersistenceService`의 각 메서드가 id로 재조회한 뒤 status가
+ * PENDING인지 확인하고 저장하는 것만으로는, 두 Relay 인스턴스가 거의 동시에 같은 행을
+ * PENDING으로 읽어버리는 진짜 동시 실행까지는 막지 못한다(check-then-act). 낙관적 락을
+ * 걸면 나중에 flush되는 트랜잭션이 `ObjectOptimisticLockingFailureException`으로 걸러져,
+ * 호출자가 "다른 Relay가 이미 처리함"과 동일하게 무시할 수 있다.
  */
 @Entity
 @Table(
@@ -82,6 +91,19 @@ public class CoachingEventOutbox {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    // PR #123 재검토 2차 — recordPostPublishFailure()의 무한 재시도가 Relay의 oldest-first
+    // LIMIT 100 폴링과 결합되면 head-of-line blocking을 일으킬 수 있어(용현님 리뷰,
+    // 2026-09-10), 실패할 때마다 지수 백오프로 다음 재시도 가능 시각을 기록한다.
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
+    private static final Duration BASE_RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration MAX_RETRY_DELAY = Duration.ofMinutes(30);
+
     @Builder
     private CoachingEventOutbox(UUID aggregateId, String eventType, JsonNode payload) {
         this.aggregateId = Validate.requireNonNull(aggregateId, "애그리거트 ID");
@@ -119,5 +141,18 @@ public class CoachingEventOutbox {
     public void markFailed() {
         this.status = OutboxStatus.FAILED;
         this.processedAt = Instant.now();
+    }
+
+    /**
+     * 실패한 시도 직후 호출 — 지수 백오프로 다음 재시도 가능 시각을 계산해 기록한다.
+     * {@code attemptCount}가 이미 증가된 뒤(호출자가 {@link #incrementAttemptCount()}를
+     * 먼저 호출한 뒤)라고 가정한다. 상한(30분) 이후로는 더 늘어나지 않는다.
+     */
+    public void scheduleNextAttempt() {
+        long backoffSeconds = Math.min(
+                BASE_RETRY_DELAY.toSeconds() * (1L << Math.min(attemptCount, 20)),
+                MAX_RETRY_DELAY.toSeconds()
+        );
+        this.nextAttemptAt = Instant.now().plusSeconds(backoffSeconds);
     }
 }

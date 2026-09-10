@@ -65,7 +65,7 @@ class CoachingEventRelayFacadeTest {
         @DisplayName("PENDING Outbox 발행에 성공하면 markPublished를 호출한다")
         void marksPublishedOnSuccess() {
             CoachingEventOutbox outbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(outbox));
 
             coachingEventRelayFacade.relay();
@@ -80,7 +80,7 @@ class CoachingEventRelayFacadeTest {
         @DisplayName("발행이 실패하면 recordFailedAttempt를 호출하고 예외를 전파하지 않는다")
         void recordsFailedAttemptOnPublishFailure() {
             CoachingEventOutbox outbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(outbox));
             willThrow(new IllegalStateException("Kafka 발행 실패"))
                     .given(eventPublisherPort).publish(anyString(), anyString(), anyString());
@@ -95,7 +95,7 @@ class CoachingEventRelayFacadeTest {
         @DisplayName("발행은 성공했지만 markPublished 후처리가 실패하면 recordPostPublishFailure로 넘긴다")
         void recordsPostPublishFailureWhenMarkPublishedFails() {
             CoachingEventOutbox outbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(outbox));
             willThrow(new RuntimeException("DB 후처리 실패"))
                     .given(coachingEventOutboxPersistenceService).markPublished(outbox.getId());
@@ -112,7 +112,7 @@ class CoachingEventRelayFacadeTest {
         @DisplayName("발행 결과를 확인 못하면(EventPublishOutcomeUnknownException) recordFailedAttempt가 아니라 recordPostPublishFailure로 보낸다")
         void recordsPostPublishFailureWhenPublishOutcomeUnknown() {
             CoachingEventOutbox outbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(outbox));
             willThrow(new EventPublishOutcomeUnknownException("응답 대기 시간 초과", new java.util.concurrent.TimeoutException()))
                     .given(eventPublisherPort).publish(anyString(), anyString(), anyString());
@@ -129,7 +129,7 @@ class CoachingEventRelayFacadeTest {
         void isolatesFailureOfOneItemFromRestOfBatch() {
             CoachingEventOutbox brokenOutbox = pendingOutbox();
             CoachingEventOutbox healthyOutbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(brokenOutbox, healthyOutbox));
 
             // 첫 번째 outbox는 발행도 실패하고, 그 실패를 기록하려는 recordFailedAttempt 자체도
@@ -150,7 +150,7 @@ class CoachingEventRelayFacadeTest {
         void stopsBatchWhenInterrupted() {
             CoachingEventOutbox firstOutbox = pendingOutbox();
             CoachingEventOutbox secondOutbox = pendingOutbox();
-            given(coachingEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+            given(coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100))
                     .willReturn(List.of(firstOutbox, secondOutbox));
             // KafkaEventPublisherAdapter가 InterruptedException을 잡아 interrupt 플래그를
             // 복원한 뒤 EventPublishOutcomeUnknownException으로 감싸 올리는 상황을 흉내낸다.

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -17,8 +18,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -83,6 +86,19 @@ class CoachingEventOutboxPersistenceServiceTest {
             assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
             verify(coachingEventOutboxRepository, never()).save(freshOutbox);
         }
+
+        @Test
+        @DisplayName("저장 시 낙관적 락 충돌(다른 Relay가 거의 동시에 먼저 처리)이 나면 예외를 전파하지 않고 무시한다")
+        void ignoresOptimisticLockingConflict() {
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
+                    .given(coachingEventOutboxRepository).save(freshOutbox);
+
+            assertThatCode(() -> coachingEventOutboxPersistenceService.markPublished(outboxId))
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Nested
@@ -100,7 +116,37 @@ class CoachingEventOutboxPersistenceServiceTest {
 
             assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
             assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.PENDING);
+            assertThat(freshOutbox.getNextAttemptAt()).isNotNull(); // 지수 백오프로 다음 재시도 시각 기록(head-of-line blocking 방지)
             verify(coachingEventOutboxRepository).save(freshOutbox);
+        }
+
+        @Test
+        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
+        void ignoresOptimisticLockingConflict() {
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
+                    .given(coachingEventOutboxRepository).save(freshOutbox);
+
+            assertThatCode(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("상한 도달로 FAILED 저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
+        void ignoresOptimisticLockingConflictWhenTerminating() {
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            for (int i = 0; i < MAX_RELAY_ATTEMPTS - 1; i++) {
+                freshOutbox.incrementAttemptCount();
+            }
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
+                    .given(coachingEventOutboxRepository).save(freshOutbox);
+
+            assertThatCode(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId))
+                    .doesNotThrowAnyException();
         }
 
         @Test
@@ -163,7 +209,21 @@ class CoachingEventOutboxPersistenceServiceTest {
 
             assertThat(freshOutbox.getAttemptCount()).isEqualTo(1);
             assertThat(freshOutbox.getStatus()).isEqualTo(OutboxStatus.PENDING);
+            assertThat(freshOutbox.getNextAttemptAt()).isNotNull(); // 지수 백오프로 다음 재시도 시각 기록(head-of-line blocking 방지)
             verify(coachingEventOutboxRepository).save(freshOutbox);
+        }
+
+        @Test
+        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
+        void ignoresOptimisticLockingConflict() {
+            UUID outboxId = UUID.randomUUID();
+            CoachingEventOutbox freshOutbox = CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload());
+            given(coachingEventOutboxRepository.findById(outboxId)).willReturn(Optional.of(freshOutbox));
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
+                    .given(coachingEventOutboxRepository).save(freshOutbox);
+
+            assertThatCode(() -> coachingEventOutboxPersistenceService.recordPostPublishFailure(outboxId))
+                    .doesNotThrowAnyException();
         }
 
         @Test
