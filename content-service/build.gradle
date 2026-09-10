@@ -53,6 +53,11 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers-postgresql'
+
+    // JsonNullable 객체 제공
+    // 루트 build.gradle의 ext 쪽에 jacksonNullableVersion = '0.2.11'
+    // implementation "org.openapitools:jackson-databind-nullable:${jacksonNullableVersion}"
+    implementation "org.openapitools:jackson-databind-nullable:0.2.11"
 }
 
 dependencyManagement {
