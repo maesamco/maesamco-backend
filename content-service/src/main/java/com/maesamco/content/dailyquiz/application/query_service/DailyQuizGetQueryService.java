@@ -15,9 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,11 +35,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DailyQuizGetQueryService {
 
-    private static final ZoneId QUIZ_ZONE_ID = ZoneId.of("Asia/Seoul");
-
     private final DailyQuizAttemptRepository attemptRepository;
     private final DailyQuizAttemptItemRepository attemptItemRepository;
     private final DailyQuizQuestionRepository questionRepository;
+    private final Clock dailyQuizClock;
 
     @Transactional
     public DailyQuizGetResult get(DailyQuizGetQuery query) {
@@ -47,8 +46,8 @@ public class DailyQuizGetQueryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "Daily Quiz 조회 조건은 필수입니다.");
         }
 
-        Instant now = Instant.now();
-        LocalDate attemptDate = LocalDate.ofInstant(now, QUIZ_ZONE_ID);
+        Instant now = dailyQuizClock.instant();
+        LocalDate attemptDate = LocalDate.now(dailyQuizClock);
 
         DailyQuizAttempt attempt = findTodayAttempt(
                 query.userId(),
