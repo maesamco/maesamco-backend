@@ -31,6 +31,8 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topic:
+      coaching-completed: coaching-completed-events
     consumer:
       group-id: coaching-service
       auto-offset-reset: earliest
@@ -66,6 +68,12 @@ spring:
         chat:
           options:
             model: gemini-3.6-flash # 로컬 전용(GeminiModelAdapter) — AI_MODEL_CHAT=google-genai일 때만 사용, 실제 호출로 확인(2026-09-02)
+
+outbox:
+  relay:
+    enabled: true
+    fixed-delay-ms: 1000
+    publish-timeout-ms: 3000
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
