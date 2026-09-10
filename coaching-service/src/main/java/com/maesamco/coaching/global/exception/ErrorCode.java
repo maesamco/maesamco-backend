@@ -73,7 +73,11 @@ public enum ErrorCode {
     // 수 있어 추가했다.
     AI_FEEDBACK_RETRY_IN_PROGRESS(HttpStatus.CONFLICT, "이미 AI 피드백 재시도가 진행 중입니다. 잠시 후 다시 시도해주세요."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
-    WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
+    WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다."),
+    // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
+    // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
+    // 대상이 아닌 서비스가 호출한 경우에 쓴다(PR #124 리뷰, 용현님).
+    INTERNAL_CALLER_NOT_ALLOWED(HttpStatus.FORBIDDEN, "이 내부 API를 호출할 수 없는 서비스입니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====
