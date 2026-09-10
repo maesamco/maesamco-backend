@@ -30,7 +30,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/lessons")
+@RequestMapping("/api/v1/contents/lessons")
 public class LessonController {
 
     /** 레슨 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
@@ -66,6 +66,7 @@ public class LessonController {
      * @param lessonId 조회할 레슨의 고유 ID
      * @return 조회된 레슨 정보를 포함한 성공 응답
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<LessonResponse>> getLesson(
             @PathVariable UUID lessonId
@@ -91,6 +92,7 @@ public class LessonController {
      * @param size 한 페이지에 조회할 레슨 개수
      * @return 특정 유닛의 페이징된 레슨 목록
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<LessonResponse>>> getLessons(
             @RequestParam UUID unitId,

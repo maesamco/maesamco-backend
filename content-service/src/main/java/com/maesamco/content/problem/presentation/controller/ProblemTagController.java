@@ -28,7 +28,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/problems/{problemId}/tags")
+@RequestMapping("/api/v1/contents/problems/{problemId}/tags")
 public class ProblemTagController {
 
     private final ProblemTagService problemTagService;

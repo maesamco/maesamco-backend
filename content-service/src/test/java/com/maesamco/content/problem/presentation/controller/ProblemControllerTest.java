@@ -5,6 +5,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.service.ProblemService;
+import com.maesamco.content.problem.application.service.ProblemPublicationService;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.enums.*;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
@@ -62,6 +63,9 @@ class ProblemControllerTest {
 
     @MockitoBean
     private ProblemService problemService;
+
+    @MockitoBean
+    private ProblemPublicationService problemPublicationService;
 
     private final UUID problemId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();

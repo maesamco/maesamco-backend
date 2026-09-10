@@ -30,7 +30,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/curriculums")
+@RequestMapping("/api/v1/contents/curriculums")
 public class CurriculumController {
 
     /** 커리큘럼 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
@@ -66,6 +66,7 @@ public class CurriculumController {
      * @param curriculumId 조회할 커리큘럼의 고유 ID
      * @return 조회된 커리큘럼 정보를 포함한 성공 응답
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(
             @PathVariable UUID curriculumId
@@ -90,6 +91,7 @@ public class CurriculumController {
      * @param size 한 페이지에 조회할 커리큘럼 개수
      * @return 페이징된 커리큘럼 목록
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(
             @RequestParam(required = false) Integer page,

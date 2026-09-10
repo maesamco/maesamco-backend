@@ -75,7 +75,7 @@ class ProblemTagControllerSecurityTest {
         // when & then
         mockMvc.perform(
                         post(
-                                "/api/v1/problems/{problemId}/tags/{tagId}",
+                                "/api/v1/contents/problems/{problemId}/tags/{tagId}",
                                 problemId,
                                 tagId
                         )
@@ -112,7 +112,7 @@ class ProblemTagControllerSecurityTest {
         // when & then
         mockMvc.perform(
                         post(
-                                "/api/v1/problems/{problemId}/tags/{tagId}",
+                                "/api/v1/contents/problems/{problemId}/tags/{tagId}",
                                 problemId,
                                 tagId
                         )
@@ -146,7 +146,7 @@ class ProblemTagControllerSecurityTest {
         // when & then
         mockMvc.perform(
                         delete(
-                                "/api/v1/problems/{problemId}/tags/{tagId}",
+                                "/api/v1/contents/problems/{problemId}/tags/{tagId}",
                                 problemId,
                                 tagId
                         )
@@ -183,7 +183,7 @@ class ProblemTagControllerSecurityTest {
         // when & then
         mockMvc.perform(
                         delete(
-                                "/api/v1/problems/{problemId}/tags/{tagId}",
+                                "/api/v1/contents/problems/{problemId}/tags/{tagId}",
                                 problemId,
                                 tagId
                         )

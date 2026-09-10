@@ -48,7 +48,7 @@ public class TestCaseController {
      * @return 생성된 테스트케이스 정보를 포함한 성공 응답
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/problems/{problemId}/test-cases")
+    @PostMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<TestCaseCreateResponse>> createTestCase(
             @PathVariable UUID problemId,
             @Valid @RequestBody TestCaseCreateRequest request
@@ -66,7 +66,7 @@ public class TestCaseController {
      * @param testCaseId 조회할 테스트케이스의 고유 ID
      * @return 조회된 테스트케이스 정보를 포함한 성공 응답
      */
-    @GetMapping("/test-cases/{testCaseId}")
+    @GetMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> getTestCase(
             @PathVariable UUID testCaseId,
             Authentication authentication
@@ -95,7 +95,7 @@ public class TestCaseController {
      * @param size 한 페이지에 조회할 테스트케이스 개수
      * @return 특정 문제의 페이징된 테스트케이스 목록
      */
-    @GetMapping("/problems/{problemId}/test-cases")
+    @GetMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<PageResponse<TestCaseResponse>>> getTestCases(
             @PathVariable UUID problemId,
             @RequestParam(required = false) Integer page,
@@ -128,7 +128,7 @@ public class TestCaseController {
      * @return 수정된 테스트케이스 정보를 포함한 성공 응답
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/test-cases/{testCaseId}")
+    @PatchMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> updateTestCase(
             @PathVariable UUID testCaseId,
             @Valid @RequestBody TestCaseUpdateRequest request
@@ -151,7 +151,7 @@ public class TestCaseController {
      * @return 응답 데이터가 없는 성공 응답
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/test-cases/{testCaseId}")
+    @DeleteMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTestCase(
             @PathVariable UUID testCaseId,
             @AuthenticationPrincipal UUID userId

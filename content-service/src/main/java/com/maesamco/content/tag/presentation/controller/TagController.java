@@ -45,7 +45,7 @@ public class TagController {
      * 태그를 생성합니다.
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/admin/tags")
+    @PostMapping("/admin/contents/tags")
     public ResponseEntity<
             SuccessResponse<TagCreateResponse>
             > createTag(
@@ -64,7 +64,7 @@ public class TagController {
     /**
      * 태그 목록을 조회합니다.
      */
-    @GetMapping("/tags")
+    @GetMapping("/contents/tags")
     public ResponseEntity<
             SuccessResponse<PageResponse<TagResponse>>
             > getTags(
@@ -107,7 +107,7 @@ public class TagController {
      * 태그 정보를 수정합니다.
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/admin/tags/{tagId}")
+    @PatchMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> updateTag(
             @PathVariable UUID tagId,
             @Valid @RequestBody TagUpdateRequest request
@@ -130,7 +130,7 @@ public class TagController {
      * @return 데이터가 없는 성공 응답
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/admin/tags/{tagId}")
+    @DeleteMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTag(
             @PathVariable UUID tagId,
             @AuthenticationPrincipal UUID userId

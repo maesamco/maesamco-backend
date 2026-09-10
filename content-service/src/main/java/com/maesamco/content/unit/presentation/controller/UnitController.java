@@ -30,7 +30,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/units")
+@RequestMapping("/api/v1/contents/units")
 public class UnitController {
 
     /** 유닛 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
@@ -66,6 +66,7 @@ public class UnitController {
      * @param unitId 조회할 유닛의 고유 ID
      * @return 조회된 유닛 정보를 포함한 성공 응답
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<UnitResponse>> getUnit(
             @PathVariable UUID unitId
@@ -91,6 +92,7 @@ public class UnitController {
      * @param size 한 페이지에 조회할 유닛 개수
      * @return 특정 커리큘럼의 페이징된 유닛 목록
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<UnitResponse>>> getUnits(
             @RequestParam UUID curriculumId,

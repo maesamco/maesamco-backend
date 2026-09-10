@@ -145,10 +145,6 @@ public class ProblemService {
                         || request.getTimerPolicy() != null
                         || request.getSource() != null;
 
-        // TODO: 수정하기 전에 version snapshot 남기기 (다른 브랜치에서 작업한 것과 merge해야 활성화할 수 있음)
-        // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
-        // problemVersionRepository.save(snapshot);
-
         // 수정 요청이 있는 값들만 수정
         if (request.getTitle() != null) {
             problem.changeTitle(request.getTitle());
@@ -186,6 +182,15 @@ public class ProblemService {
 
         if (isModified) {
             problem.increaseVersion();
+
+            /*
+             * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
+             * 새 버전 스냅샷으로 저장합니다.
+             */
+            ProblemVersion snapshot =
+                    ProblemVersion.snapshot(problem);
+
+            problemVersionRepository.save(snapshot);
 
             // 응답을 생성하기 전에 UPDATE를 실행하여 JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
             problemRepository.flush();
