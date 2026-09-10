@@ -1,5 +1,6 @@
 package com.maesamco.judge.application.persistence_service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.maesamco.judge.application.port.JudgeExecutionResult;
 import com.maesamco.judge.application.port.JudgeExecutionStatus;
 import com.maesamco.judge.domain.entity.*;
@@ -19,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 import static com.maesamco.judge.domain.entity.SubmissionResult.MEMORY_LIMIT_EXCEEDED;
 
@@ -28,6 +31,7 @@ import static com.maesamco.judge.domain.entity.SubmissionResult.MEMORY_LIMIT_EXC
 @Transactional
 public class JudgeResultPersistenceService {
 
+    private static final String SUBMISSION_JUDGED_EVENT_TYPE = "SubmissionJudged";
     private static final int KB_PER_MB = 1024;
 
     private final PendingJudge0ExecutionRepository pendingJudge0ExecutionRepository;
@@ -35,6 +39,7 @@ public class JudgeResultPersistenceService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
     private final ProblemExecutionSpecRepository problemExecutionSpecRepository;
+    private final JsonMapper jsonMapper;
 
     /**
      * 토큰 하나(=테스트케이스 하나)의 Judge0 결과를 반영.
@@ -55,7 +60,7 @@ public class JudgeResultPersistenceService {
         SubmissionTestErrorType errorType = passed ? null : resolveErrorType(pending, result);
 
         SubmissionTestResult testResult = SubmissionTestResult.create(
-                pending.getSubmissionId(), pending.getTestCaseId(), false, passed, result.stdout(), errorType);
+                pending.getSubmissionId(), pending.getTestCaseId(), pending.isPublic(), passed, result.stdout(), errorType);
         submissionTestResultRepository.save(testResult);
         pendingJudge0ExecutionRepository.delete(pending);
 
@@ -109,12 +114,10 @@ public class JudgeResultPersistenceService {
         submission.markCompleted(overallResult, executionTimeMs, memoryUsedKb);
         submissionRepository.save(submission);
 
-        String payload = String.format(
-                "{\"submissionId\":\"%s\",\"userId\":\"%s\",\"problemId\":\"%s\",\"status\":\"COMPLETED\",\"result\":\"%s\"}",
-                submission.getId(), submission.getUserId(), submission.getProblemId(), overallResult.name());
+        String payload = writeSubmissionJudgedPayload(submission, overallResult);
 
         submissionEventOutboxRepository.save(
-                SubmissionEventOutbox.create(submissionId, "SubmissionJudged", payload));
+                SubmissionEventOutbox.create(submissionId, SUBMISSION_JUDGED_EVENT_TYPE, payload));
     }
 
     private SubmissionTestErrorType toErrorType(JudgeExecutionStatus status) {
@@ -142,10 +145,36 @@ public class JudgeResultPersistenceService {
                 .orElse(SubmissionTestErrorType.WRONG_ANSWER);
     }
 
+    private String writeSubmissionJudgedPayload(Submission submission, SubmissionResult overallResult) {
+        try {
+            return jsonMapper.writeValueAsString(SubmissionJudgedPayload.of(submission, overallResult));
+        } catch (JacksonException e) {
+            throw new IllegalStateException(
+                    "SubmissionJudged payload 직렬화 실패. submissionId=" + submission.getId(), e);
+        }
+    }
+
     private static final List<SubmissionTestErrorType> SEVERITY_ORDER = List.of(
             SubmissionTestErrorType.RUNTIME_ERROR,
             SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED,
             SubmissionTestErrorType.TIME_LIMIT_EXCEEDED,
             SubmissionTestErrorType.WRONG_ANSWER
     );
+
+    private record SubmissionJudgedPayload(
+            UUID submissionId,
+            UUID userId,
+            UUID problemId,
+            String status,
+            String result
+    ) {
+        static SubmissionJudgedPayload of(Submission submission, SubmissionResult overallResult) {
+            return new SubmissionJudgedPayload(
+                    submission.getId(),
+                    submission.getUserId(),
+                    submission.getProblemId(),
+                    SubmissionStatus.COMPLETED.name(),
+                    overallResult.name());
+        }
+    }
 }

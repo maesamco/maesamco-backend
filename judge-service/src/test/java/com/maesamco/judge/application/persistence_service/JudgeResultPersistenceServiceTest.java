@@ -1,7 +1,6 @@
 package com.maesamco.judge.application.persistence_service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -17,6 +16,8 @@ import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepos
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
 class JudgeResultPersistenceServiceTest {
@@ -45,8 +47,18 @@ class JudgeResultPersistenceServiceTest {
     @Mock
     private ProblemExecutionSpecRepository problemExecutionSpecRepository;
 
-    @InjectMocks
     private JudgeResultPersistenceService judgeResultPersistenceService;
+
+    @BeforeEach
+    void setUp() {
+        judgeResultPersistenceService = new JudgeResultPersistenceService(
+                pendingJudge0ExecutionRepository,
+                submissionTestResultRepository,
+                submissionRepository,
+                submissionEventOutboxRepository,
+                problemExecutionSpecRepository,
+                JsonMapper.builder().build());
+    }
 
     private Submission runningSubmission(UUID submissionId) {
         Submission submission = Submission.create(
@@ -71,7 +83,7 @@ class JudgeResultPersistenceServiceTest {
             Submission submission = runningSubmission(submissionId);
 
             PendingJudge0Execution lastPending =
-                    PendingJudge0Execution.create(submissionId, lastTestCaseId, "token-last");
+                    PendingJudge0Execution.create(submissionId, lastTestCaseId, "token-last", true);
 
             // 마지막 테스트케이스는 통과 — 이 호출로 allDone이 되면서 최종 판정이 일어남
             JudgeExecutionResult lastResult = new JudgeExecutionResult(
@@ -111,7 +123,7 @@ class JudgeResultPersistenceServiceTest {
             Submission submission = runningSubmission(submissionId);
 
             PendingJudge0Execution lastPending =
-                    PendingJudge0Execution.create(submissionId, lastTestCaseId, "token-last");
+                    PendingJudge0Execution.create(submissionId, lastTestCaseId, "token-last", true);
             JudgeExecutionResult lastResult = new JudgeExecutionResult(
                     "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
 
