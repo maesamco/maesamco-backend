@@ -12,14 +12,25 @@ interface SpringDataDailyQuizQuestionRepository extends JpaRepository<DailyQuizQ
 
     @Query(
             value = """
-                    SELECT q.*
-                    FROM content_schema.p_daily_quiz_questions q
-                    WHERE q.status = 'ACTIVE'
-                      AND jsonb_exists_any(q.concept_tags, CAST(:conceptTags AS text[]))
+                    WITH requested_concepts AS (
+                        SELECT DISTINCT
+                               unnest(CAST(:conceptTags AS text[])) AS concept_tag
+                    )
+                    SELECT DISTINCT q.*
+                    FROM requested_concepts rc
+                    CROSS JOIN LATERAL (
+                        SELECT candidate.*
+                        FROM content_schema.p_daily_quiz_questions candidate
+                        WHERE candidate.status = 'ACTIVE'
+                          AND candidate.concept_tags @> jsonb_build_array(rc.concept_tag)
+                        ORDER BY candidate.id
+                        LIMIT :limitPerConcept
+                    ) q
                     """,
             nativeQuery = true
     )
     List<DailyQuizQuestion> findActiveByAnyConceptTags(
-            @Param("conceptTags") String[] conceptTags
+            @Param("conceptTags") String[] conceptTags,
+            @Param("limitPerConcept") int limitPerConcept
     );
 }

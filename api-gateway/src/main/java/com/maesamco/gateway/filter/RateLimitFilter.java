@@ -97,7 +97,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 // 피드백 생성)을 트리거하는 액션이라 동일하게 보호한다. 경로가
                 // /api/v1/coaching/follow-up-questions/**라 위 submissions 룰의 prefix에
                 // 안 걸려서 별도 룰로 추가함(PR #98 리뷰 반영, 이슈 #99).
-                new RuleMatch(HttpMethod.POST, "/api/v1/coaching/follow-up-questions", 10, Duration.ofMinutes(1))
+                new RuleMatch(HttpMethod.POST, "/api/v1/coaching/follow-up-questions", 10, Duration.ofMinutes(1)),
+
+                // 문제 쓰기, 수정, 삭제 API Rate Limit(RateLimitFilter 규칙 추가)
+                new RuleMatch(HttpMethod.POST, "/api/v1/contents/problems", 10, Duration.ofMinutes(1)),
+                new RuleMatch(HttpMethod.PATCH, "/api/v1/contents/problems", 10, Duration.ofMinutes(1)),
+                new RuleMatch(HttpMethod.DELETE, "/api/v1/contents/problems", 10, Duration.ofMinutes(1))
         );
     }
 
@@ -118,7 +123,18 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         }
 
         String identifier = resolveIdentifier(request);
-        String key = "rate-limit:" + rule.prefix() + ":" + identifier;
+
+        String methodKey = rule.method() == null
+                ? "ALL"
+                : rule.method().name();
+
+        // 기존 key 생성 코드 수정
+        String key = "rate-limit:"
+                + methodKey
+                + ":"
+                + rule.prefix()
+                + ":"
+                + identifier;
 
         return redisTemplate.execute(rateLimitScript,
                         List.of(key),
