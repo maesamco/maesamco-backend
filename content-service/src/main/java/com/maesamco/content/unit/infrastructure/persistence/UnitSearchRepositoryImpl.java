@@ -43,8 +43,7 @@ public class UnitSearchRepositoryImpl implements UnitSearchRepository {
 
         // where절 공통 부분 묶기
         BooleanExpression[] conditions = {
-                curriculumIdEq(unit, curriculumId),
-                unit.deletedAt.isNull()
+                curriculumIdEq(unit, curriculumId)
         };
 
         List<Unit> units = queryFactory
