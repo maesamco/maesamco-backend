@@ -39,7 +39,10 @@ public class SubmissionEventOutboxPersistenceService {
         outbox.markPublished();
         submissionEventOutboxRepository.save(outbox);
 
-        markSubmissionQueued(outbox);
+        // JudgeRequested 발행 성공 시에만 PENDING -> QUEUED 전이.
+        if ("JudgeRequested".equals(outbox.getEventType())) {
+            markSubmissionQueued(outbox);
+        }
     }
 
     // Kafka 발행 자체가 실패했을 때 호출
