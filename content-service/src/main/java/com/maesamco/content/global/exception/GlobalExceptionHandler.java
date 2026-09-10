@@ -2,7 +2,6 @@ package com.maesamco.content.global.exception;
 
 import com.maesamco.content.global.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +17,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.List;
 
 /**
  * 전역 예외 처리기. 각 서비스에 그대로 복사해 사용한다(팀 컨벤션 13절).
