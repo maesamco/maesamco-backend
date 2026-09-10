@@ -44,6 +44,7 @@ CREATE TABLE content_schema.p_problem_event_outboxes
 
     -- PENDING
     -- PUBLISHED
+    -- FAILED
     status VARCHAR(20) NOT NULL,
 
     -- Kafka 발행 실패 후 재시도 횟수입니다.
@@ -54,7 +55,7 @@ CREATE TABLE content_schema.p_problem_event_outboxes
 
     -- Kafka 발행 완료 시각입니다.
     --
-    -- PENDING 상태에서는 NULL이고,
+    -- PENDING/FAILED 상태에서는 NULL이고,
     -- PUBLISHED 상태가 되면 기록됩니다.
     published_at TIMESTAMPTZ,
 
@@ -77,14 +78,15 @@ CREATE TABLE content_schema.p_problem_event_outboxes
         CHECK (
             status IN (
                        'PENDING',
-                       'PUBLISHED'
+                       'PUBLISHED',
+                       'FAILED'
                 )
             ),
 
     CONSTRAINT chk_problem_event_outboxes_published_at
         CHECK (
             (
-                status = 'PENDING'
+                status IN ('PENDING', 'FAILED')
                     AND published_at IS NULL
                 )
                 OR

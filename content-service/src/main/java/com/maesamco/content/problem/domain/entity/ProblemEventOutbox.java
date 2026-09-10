@@ -229,6 +229,21 @@ public class ProblemEventOutbox {
     }
 
     /**
+     * 재시도로 복구할 수 없는 Kafka 발행 실패를 기록합니다.
+     *
+     * <p>FAILED 상태는 Relay의 PENDING 조회 대상에서 제외되어
+     * 이후 정상 이벤트의 발행을 막지 않습니다.</p>
+     *
+     * @param error 외부 노출이 없는 안전한 오류 요약
+     */
+    public void markFailed(String error) {
+        this.status = ProblemEventOutboxStatus.FAILED;
+        this.retryCount++;
+        this.publishedAt = null;
+        this.lastError = error;
+    }
+
+    /**
      * Kafka 발행 성공을 기록합니다.
      *
      * @param publishedAt 실제 Kafka 발행 완료 시각

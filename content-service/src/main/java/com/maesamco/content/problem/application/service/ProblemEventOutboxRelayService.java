@@ -104,7 +104,7 @@ public class ProblemEventOutboxRelayService {
         if (isPayloadTooLarge(
                 outbox.getPayload()
         )) {
-            recordFailureSafely(
+            markFailedSafely(
                     outbox,
                     PAYLOAD_TOO_LARGE_ERROR
             );
@@ -222,6 +222,30 @@ public class ProblemEventOutboxRelayService {
         } catch (RuntimeException exception) {
             log.error(
                     "ProblemPublished Outbox 실패 상태 저장 실패. "
+                            + "outboxId={}, eventId={}, problemId={}, errorType={}",
+                    outbox.getId(),
+                    outbox.getEventId(),
+                    outbox.getAggregateId(),
+                    exception.getClass().getSimpleName()
+            );
+        }
+    }
+
+    /**
+     * 재시도로 복구할 수 없는 Kafka 발행 실패를 별도 트랜잭션으로 기록합니다.
+     */
+    private void markFailedSafely(
+            ProblemEventOutbox outbox,
+            String safeError
+    ) {
+        try {
+            statusService.markFailed(
+                    outbox.getId(),
+                    safeError
+            );
+        } catch (RuntimeException exception) {
+            log.error(
+                    "ProblemPublished Outbox 터미널 실패 상태 저장 실패. "
                             + "outboxId={}, eventId={}, problemId={}, errorType={}",
                     outbox.getId(),
                     outbox.getEventId(),

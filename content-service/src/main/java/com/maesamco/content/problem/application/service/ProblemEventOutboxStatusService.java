@@ -66,6 +66,25 @@ public class ProblemEventOutboxStatusService {
         );
     }
 
+    /**
+     * 재시도로 복구할 수 없는 발행 실패를 Outbox에 반영합니다.
+     *
+     * @param outboxId Outbox ID
+     * @param error    payload를 포함하지 않는 실패 사유
+     */
+    @Transactional
+    public void markFailed(
+            UUID outboxId,
+            String error
+    ) {
+        ProblemEventOutbox outbox =
+                getOutbox(outboxId);
+
+        outbox.markFailed(
+                error
+        );
+    }
+
     private ProblemEventOutbox getOutbox(
             UUID outboxId
     ) {

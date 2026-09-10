@@ -129,6 +129,40 @@ class ProblemEventOutboxTest {
 
     @Test
     @DisplayName(
+            "영구 실패를 기록하면 FAILED 상태로 전환되어 재시도 대상에서 제외된다"
+    )
+    void markFailed_changesStatusToFailed() {
+        ProblemEventOutbox outbox =
+                ProblemEventOutbox.createPending(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        1,
+                        "{}",
+                        Instant.parse(
+                                "2026-09-08T00:00:00Z"
+                        )
+                );
+
+        outbox.markFailed(
+                "EVENT_PAYLOAD_TOO_LARGE"
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(
+                        ProblemEventOutboxStatus.FAILED
+                );
+        assertThat(outbox.getRetryCount())
+                .isEqualTo(1);
+        assertThat(outbox.getLastError())
+                .isEqualTo(
+                        "EVENT_PAYLOAD_TOO_LARGE"
+                );
+        assertThat(outbox.getPublishedAt())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName(
             "Kafka 발행에 성공하면 "
                     + "PUBLISHED 상태와 발행 시각이 기록된다"
     )

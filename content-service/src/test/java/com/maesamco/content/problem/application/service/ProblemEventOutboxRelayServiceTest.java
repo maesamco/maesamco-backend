@@ -475,9 +475,9 @@ class ProblemEventOutboxRelayServiceTest {
 
     @Test
     @DisplayName(
-            "UTF-8 payload가 최대 크기를 초과하면 Kafka로 발행하지 않고 실패를 기록한다"
+            "UTF-8 payload가 최대 크기를 초과하면 Kafka로 발행하지 않고 FAILED 처리한다"
     )
-    void relayPendingOutboxes_recordsFailureWithoutPublishing_whenPayloadIsTooLarge() {
+    void relayPendingOutboxes_marksFailedWithoutPublishing_whenPayloadIsTooLarge() {
         // given
         UUID outboxId =
                 UUID.randomUUID();
@@ -534,9 +534,14 @@ class ProblemEventOutboxRelayServiceTest {
                 anyString()
         );
 
-        verify(statusService).recordFailure(
+        verify(statusService).markFailed(
                 outboxId,
                 "EVENT_PAYLOAD_TOO_LARGE"
+        );
+
+        verify(statusService, never()).recordFailure(
+                eq(outboxId),
+                anyString()
         );
 
         verify(statusService, never()).markPublished(

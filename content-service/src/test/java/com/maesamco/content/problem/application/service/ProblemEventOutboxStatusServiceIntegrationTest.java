@@ -203,6 +203,48 @@ class ProblemEventOutboxStatusServiceIntegrationTest {
         ).isNull();
     }
 
+    @Test
+    @DisplayName(
+            "markFailed는 Spring Proxy 트랜잭션에서 FAILED 상태를 DB에 commit한다"
+    )
+    void markFailed_commitsTerminalFailureStateThroughTransactionalProxy() {
+        // given
+        UUID outboxId =
+                createPendingOutboxFixture();
+
+        String safeError =
+                "EVENT_PAYLOAD_TOO_LARGE";
+
+        assertThat(
+                AopUtils.isAopProxy(
+                        statusService
+                )
+        ).isTrue();
+
+        // when
+        statusService.markFailed(
+                outboxId,
+                safeError
+        );
+
+        // then
+        OutboxState result =
+                readOutboxState(
+                        outboxId
+                );
+
+        assertThat(result.status())
+                .isEqualTo(
+                        ProblemEventOutboxStatus.FAILED
+                );
+        assertThat(result.retryCount())
+                .isEqualTo(1);
+        assertThat(result.lastError())
+                .isEqualTo(safeError);
+        assertThat(result.publishedAt())
+                .isNull();
+    }
+
     /**
      * 서비스 트랜잭션과 분리된 선행 트랜잭션에서
      * PENDING Outbox를 실제 PostgreSQL에 저장합니다.
