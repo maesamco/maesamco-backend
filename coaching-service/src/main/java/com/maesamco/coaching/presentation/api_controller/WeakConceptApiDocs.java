@@ -17,8 +17,8 @@ public interface WeakConceptApiDocs {
 
     @Operation(
             summary = "내 취약 개념 목록 조회",
-            description = "로그인한 사용자 본인의 취약 개념 목록을 조회한다. 발견 횟수가 높을수록, "
-                    + "복습 후 개선되지 않았을수록 우선순위가 높은 취약 개념이다."
+            description = "로그인한 사용자 본인의 취약 개념 목록을 조회한다. 복습 후 개선되지 않은 "
+                    + "개념이 항상 먼저 오고, 그중에서는 발견 횟수가 높을수록 우선순위가 높다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공 — 취약 개념이 없으면 빈 배열")
