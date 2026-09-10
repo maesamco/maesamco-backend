@@ -20,10 +20,19 @@ public enum AuthSessionRotationResult {
     SESSION_NOT_FOUND,
 
     /**
-     * 세션은 존재하지만 요청한 Refresh Token hash가 현재 저장된 hash와 다릅니다.
+     * 직전 Refresh Token이 grace window 안에 다시 요청되었습니다.
      *
-     * <p>이미 Rotation된 이전 Refresh Token의 재사용으로 판단하며,
-     * 보안을 위해 해당 인증 세션도 함께 폐기합니다.</p>
+     * <p>멀티탭 또는 네트워크 재시도와 같은 동시 요청일 수 있으므로
+     * 현재 인증 세션은 삭제하지 않습니다.</p>
+     */
+    PREVIOUS_TOKEN_WITHIN_GRACE,
+
+    /**
+     * 현재 토큰 또는 grace window 안의 직전 토큰과 일치하지 않는
+     * Refresh Token이 사용되었습니다.
+     *
+     * <p>Refresh Token 탈취 후 재사용 가능성이 있으므로
+     * 해당 인증 세션을 폐기합니다.</p>
      */
     TOKEN_REUSED
 }

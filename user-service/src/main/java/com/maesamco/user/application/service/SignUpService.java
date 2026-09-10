@@ -64,6 +64,11 @@ public class SignUpService {
         String normalizedNickname =
                 normalizeNickname(command.nickname());
 
+        signUpPersistenceService.validateNotDuplicated(
+                emailLookupHash,
+                normalizedNickname
+        );
+
         String encryptedEmail =
                 emailCipher.encrypt(normalizedEmail);
 
@@ -120,6 +125,11 @@ public class SignUpService {
                     ErrorCode.SIGNUP_AUTO_LOGIN_FAILED
             );
         }
+
+        log.info(
+                "회원가입이 완료되었습니다. userId={}",
+                savedUser.getId()
+        );
 
         long accessTokenExpiresIn =
                 TokenExpirationCalculator.remainingSeconds(

@@ -66,13 +66,11 @@ public class RsaRefreshTokenVerifier implements RefreshTokenVerifier {
             String subject = claims.getSubject();
             String sessionIdClaim =
                     claims.get("sessionId", String.class);
-            String tokenId = claims.getId();
             Date expiration = claims.getExpiration();
 
             validateRequiredClaims(
                     subject,
                     sessionIdClaim,
-                    tokenId,
                     expiration
             );
 
@@ -82,7 +80,6 @@ public class RsaRefreshTokenVerifier implements RefreshTokenVerifier {
             return new VerifiedRefreshToken(
                     userId,
                     sessionId,
-                    tokenId,
                     expiration.toInstant()
             );
         } catch (ExpiredJwtException exception) {
@@ -117,13 +114,11 @@ public class RsaRefreshTokenVerifier implements RefreshTokenVerifier {
      *
      * @param subject 사용자 식별자 Claim
      * @param sessionId 세션 식별자 Claim
-     * @param tokenId JWT ID
      * @param expiration 토큰 만료 시각
      */
     private void validateRequiredClaims(
             String subject,
             String sessionId,
-            String tokenId,
             Date expiration
     ) {
         if (subject == null || subject.isBlank()) {
@@ -133,12 +128,6 @@ public class RsaRefreshTokenVerifier implements RefreshTokenVerifier {
         }
 
         if (sessionId == null || sessionId.isBlank()) {
-            throw new BusinessException(
-                    ErrorCode.AUTH_INVALID_TOKEN
-            );
-        }
-
-        if (tokenId == null || tokenId.isBlank()) {
             throw new BusinessException(
                     ErrorCode.AUTH_INVALID_TOKEN
             );
