@@ -216,18 +216,19 @@ class SignUpServiceTest {
     }
 
     @Test
-    @DisplayName("이미 사용 중인 이메일이면 회원가입을 거부한다")
-    void signUp_duplicateEmail() {
+    @DisplayName("중복 이메일이면 암호화와 비밀번호 해시 전에 회원가입을 거부한다")
+    void signUp_duplicateEmailBeforeExpensiveOperations() {
         // given
         String rawEmail = " Learner@Example.com ";
         String trimmedEmail = "Learner@Example.com";
         String normalizedEmail = "learner@example.com";
         String emailLookupHash = "a".repeat(64);
+        String normalizedNickname = "김티암";
 
         SignUpCommand command = new SignUpCommand(
                 rawEmail,
                 "Abcd1234!",
-                "김티암",
+                normalizedNickname,
                 3,
                 LearningLevel.BEGINNER
         );
@@ -238,17 +239,15 @@ class SignUpServiceTest {
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
 
-        when(emailCipher.encrypt(normalizedEmail))
-                .thenReturn("encrypted-email");
-
-        when(passwordHasher.hash("Abcd1234!"))
-                .thenReturn("argon2-password-hash");
-
-        when(signUpPersistenceService.saveUser(any(User.class)))
-                .thenThrow(
-                        new BusinessException(
-                                ErrorCode.USER_DUPLICATE_EMAIL
-                        )
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_DUPLICATE_EMAIL
+                )
+        )
+                .when(signUpPersistenceService)
+                .validateNotDuplicated(
+                        emailLookupHash,
+                        normalizedNickname
                 );
 
         // when & then
@@ -263,14 +262,29 @@ class SignUpServiceTest {
         verify(emailNormalizer)
                 .normalize(trimmedEmail);
 
-        verify(emailCipher)
-                .encrypt(normalizedEmail);
-
-        verify(passwordHasher)
-                .hash("Abcd1234!");
+        verify(emailLookupHasher)
+                .hash(normalizedEmail);
 
         verify(signUpPersistenceService)
-                .saveUser(any(User.class));
+                .validateNotDuplicated(
+                        emailLookupHash,
+                        normalizedNickname
+                );
+
+        verify(
+                emailCipher,
+                never()
+        ).encrypt(normalizedEmail);
+
+        verify(
+                passwordHasher,
+                never()
+        ).hash("Abcd1234!");
+
+        verify(
+                signUpPersistenceService,
+                never()
+        ).saveUser(any(User.class));
 
         verify(
                 tokenIssuer,
@@ -374,5 +388,86 @@ class SignUpServiceTest {
                 authSessionStore,
                 never()
         ).deleteBySessionId(any(UUID.class));
+    }
+
+    @Test
+    @DisplayName("중복 닉네임이면 암호화와 비밀번호 해시 전에 회원가입을 거부한다")
+    void signUp_duplicateNicknameBeforeExpensiveOperations() {
+        // given
+        String trimmedEmail = "Learner@Example.com";
+        String normalizedEmail = "learner@example.com";
+        String emailLookupHash = "a".repeat(64);
+        String normalizedNickname = "김티암";
+
+        SignUpCommand command = new SignUpCommand(
+                trimmedEmail,
+                "Abcd1234!",
+                normalizedNickname,
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        when(emailNormalizer.normalize(trimmedEmail))
+                .thenReturn(normalizedEmail);
+
+        when(emailLookupHasher.hash(normalizedEmail))
+                .thenReturn(emailLookupHash);
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_DUPLICATE_NICKNAME
+                )
+        )
+                .when(signUpPersistenceService)
+                .validateNotDuplicated(
+                        emailLookupHash,
+                        normalizedNickname
+                );
+
+        // when & then
+        assertThatThrownBy(() -> signUpService.signUp(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception).getErrorCode()
+                )
+                .isEqualTo(ErrorCode.USER_DUPLICATE_NICKNAME);
+
+        verify(emailNormalizer)
+                .normalize(trimmedEmail);
+
+        verify(emailLookupHasher)
+                .hash(normalizedEmail);
+
+        verify(signUpPersistenceService)
+                .validateNotDuplicated(
+                        emailLookupHash,
+                        normalizedNickname
+                );
+
+        verify(
+                emailCipher,
+                never()
+        ).encrypt(normalizedEmail);
+
+        verify(
+                passwordHasher,
+                never()
+        ).hash("Abcd1234!");
+
+        verify(
+                signUpPersistenceService,
+                never()
+        ).saveUser(any(User.class));
+
+        verify(
+                tokenIssuer,
+                never()
+        ).issueTokens(any(), any(), any());
+
+        verify(
+                authSessionStore,
+                never()
+        ).save(any(AuthSession.class));
     }
 }

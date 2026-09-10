@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.script.RedisScript;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -41,6 +40,17 @@ class RedisAuthSessionStoreTest {
 
     private static final Duration SESSION_TTL =
             Duration.ofDays(14);
+
+    private static final Duration ROTATION_GRACE_PERIOD =
+            Duration.ofSeconds(5);
+
+    private static final String NOW_EPOCH_MILLIS =
+            Long.toString(NOW.toEpochMilli());
+
+    private static final String ROTATION_GRACE_PERIOD_MILLIS =
+            Long.toString(
+                    ROTATION_GRACE_PERIOD.toMillis()
+            );
 
     private static final UUID SESSION_ID =
             UUID.fromString(
@@ -91,7 +101,10 @@ class RedisAuthSessionStoreTest {
         authSessionStore = new RedisAuthSessionStore(
                 redisTemplate,
                 jsonMapper,
-                clock
+                clock,
+                new AuthSessionProperties(
+                        ROTATION_GRACE_PERIOD
+                )
         );
 
         authSession = new AuthSession(
@@ -177,7 +190,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(1L);
 
         // when
@@ -203,7 +218,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(0L);
 
         // when
@@ -222,15 +239,49 @@ class RedisAuthSessionStoreTest {
     }
 
     @Test
-    @DisplayName("이전 Refresh Token 재사용이 감지되면 TOKEN_REUSED를 반환한다")
+    @DisplayName(
+            "grace window 안의 직전 Refresh Token이면 "
+                    + "PREVIOUS_TOKEN_WITHIN_GRACE를 반환한다"
+    )
+    void rotateRefreshToken_returnsPreviousTokenWithinGrace() {
+        // given
+        when(redisTemplate.execute(
+                any(),
+                eq(List.of(SESSION_KEY)),
+                eq(EXPECTED_REFRESH_TOKEN_HASH),
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(2L);
+
+        // when
+        AuthSessionRotationResult result =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        EXPECTED_REFRESH_TOKEN_HASH,
+                        NEW_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(result)
+                .isEqualTo(
+                        AuthSessionRotationResult
+                                .PREVIOUS_TOKEN_WITHIN_GRACE
+                );
+    }
+
+    @Test
+    @DisplayName("Refresh Token 재사용이 감지되면 TOKEN_REUSED를 반환한다")
     void rotateRefreshToken_returnsTokenReused() {
         // given
         when(redisTemplate.execute(
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
-        )).thenReturn(2L);
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
+        )).thenReturn(3L);
 
         // when
         AuthSessionRotationResult result =
@@ -255,7 +306,9 @@ class RedisAuthSessionStoreTest {
                 any(),
                 eq(List.of(SESSION_KEY)),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
-                eq(NEW_REFRESH_TOKEN_HASH)
+                eq(NEW_REFRESH_TOKEN_HASH),
+                eq(NOW_EPOCH_MILLIS),
+                eq(ROTATION_GRACE_PERIOD_MILLIS)
         )).thenReturn(null);
 
         // when & then

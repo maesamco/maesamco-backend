@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Component
@@ -18,6 +19,7 @@ import java.util.UUID;
 public class SubmissionSaveExecutor {
 
     private static final String JUDGE_REQUESTED_EVENT_TYPE = "JudgeRequested";
+    private static final int JUDGE_REQUESTED_EVENT_VERSION = 1;
 
     private final SubmissionRepository submissionRepository;
     private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
@@ -38,11 +40,15 @@ public class SubmissionSaveExecutor {
     }
     private String writeJudgeRequestedPayload(UUID submissionId) {
         try {
-            return jsonMapper.writeValueAsString(new JudgeRequestedPayload(submissionId));
+            return jsonMapper.writeValueAsString(new JudgeRequestedPayload(UUID.randomUUID(), JUDGE_REQUESTED_EVENT_TYPE, JUDGE_REQUESTED_EVENT_VERSION,
+                    Instant.now(), submissionId
+            ));
         } catch (JacksonException ex) {
             throw new IllegalArgumentException("JudgeRequested payload 직렬화 실패. submissionId=" + submissionId, ex);
         }
     }
 
-    private record JudgeRequestedPayload(UUID submissionId) {}
+    private record JudgeRequestedPayload(
+            UUID eventId, String eventType, int eventVersion, Instant occurredAt, UUID submissionId
+    ) {}
 }
