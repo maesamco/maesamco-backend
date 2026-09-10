@@ -2,7 +2,9 @@ package com.maesamco.content.dailyquiz.infrastructure.persistence;
 
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttempt;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +22,15 @@ interface SpringDataDailyQuizAttemptRepository
     Optional<DailyQuizAttempt> findByUserIdAndAttemptDate(
             UUID userId,
             LocalDate attemptDate
+    );
+
+    /**
+     * 문항 제출 트랜잭션 동안 세트 행에 쓰기 잠금을 획득합니다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT attempt FROM DailyQuizAttempt attempt WHERE attempt.id = :attemptId")
+    Optional<DailyQuizAttempt> findByIdForUpdate(
+            @Param("attemptId") UUID attemptId
     );
 
     /**
