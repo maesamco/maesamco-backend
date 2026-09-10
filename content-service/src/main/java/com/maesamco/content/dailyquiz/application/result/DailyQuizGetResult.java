@@ -16,6 +16,10 @@ public record DailyQuizGetResult(
         DailyQuizAttemptStatus attemptStatus,
         // 세트에 실제로 배정된 전체 문항 수
         int totalCount,
+        // 클라이언트가 적용할 타이머 표시 정책
+        String timerPolicy,
+        // 세트 풀이 권장 시간(초). 제출 제한 시간은 아님
+        int recommendedDurationSeconds,
         // 사용자가 세트를 최초로 시작한 시각
         Instant startedAt,
         // 문항 순서대로 정렬된 배정 문항 조회 결과

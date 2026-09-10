@@ -29,13 +29,8 @@ public record DailyQuizGetResponse(
         // 문항 순서대로 정렬된 배정 문항 응답 목록
         List<QuestionResponse> questions
 ) {
-
-    private static final String TIMER_POLICY = "QUICK_ANSWER";
-    private static final int RECOMMENDED_DURATION_SECONDS = 180;
-
     /**
-     * 세트 조회 결과에 Daily Quiz의 고정 타이머 정책을 결합하여
-     * API 응답 DTO로 변환
+     * Application 계층의 세트 조회 결과를 API 응답 DTO로 변환
      */
     public static DailyQuizGetResponse from(DailyQuizGetResult result) {
         List<QuestionResponse> list = result.questions().stream()
@@ -46,8 +41,8 @@ public record DailyQuizGetResponse(
                 result.quizAttemptId(),
                 result.attemptStatus(),
                 result.totalCount(),
-                TIMER_POLICY,
-                RECOMMENDED_DURATION_SECONDS,
+                result.timerPolicy(),
+                result.recommendedDurationSeconds(),
                 result.startedAt(),
                 list
         );

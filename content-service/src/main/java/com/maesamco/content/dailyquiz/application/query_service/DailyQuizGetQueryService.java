@@ -3,6 +3,7 @@ package com.maesamco.content.dailyquiz.application.query_service;
 import com.maesamco.content.dailyquiz.application.query.DailyQuizGetQuery;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizGetResult;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionGetResult;
+import com.maesamco.content.dailyquiz.domain.DailyQuizPolicy;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttempt;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptItem;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
@@ -98,6 +99,8 @@ public class DailyQuizGetQueryService {
                 attempt.getId(),
                 attempt.getStatus(),
                 attempt.getTotalCount(),
+                DailyQuizPolicy.TIMER_POLICY,
+                DailyQuizPolicy.RECOMMENDED_DURATION_SECONDS,
                 attempt.getStartedAt(),
                 questions
         );
