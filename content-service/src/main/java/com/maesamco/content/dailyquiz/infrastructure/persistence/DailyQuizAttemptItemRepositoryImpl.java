@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -23,5 +24,13 @@ public class DailyQuizAttemptItemRepositoryImpl implements DailyQuizAttemptItemR
     public List<DailyQuizAttemptItem> findAllByAttemptIdOrderByQuestionOrder(UUID attemptId) {
         // Spring Data Repository에서 세트별 배정 문항을 노출 순서대로 조회
         return springDataRepository.findAllByAttemptIdOrderByQuestionOrder(attemptId);
+    }
+
+    @Override
+    public Optional<DailyQuizAttemptItem> findByAttemptIdAndQuestionId(
+            UUID attemptId,
+            UUID questionId
+    ) {
+        return springDataRepository.findByAttemptIdAndQuestionId(attemptId, questionId);
     }
 }
