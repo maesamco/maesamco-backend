@@ -67,8 +67,18 @@ public class TestCaseService {
 
         TestCase testCase = testCaseFinder.getTestCase(testCaseId);
 
+        /*
+         * 공개 테스트케이스라도 상위 Problem이 삭제된 경우에는
+         * 직접 접근할 수 없도록 부모의 활성 상태를 함께 검증한다.
+         */
+        problemFinder.getProblem(
+                testCase.getProblemId()
+        );
+
         if (!testCase.getIsPublic()) {
-            throw new BusinessException(ErrorCode.TEST_CASE_ACCESS_DENIED);
+            throw new BusinessException(
+                    ErrorCode.TEST_CASE_ACCESS_DENIED
+            );
         }
 
         return TestCaseResponse.from(testCase);

@@ -1,6 +1,7 @@
 package com.maesamco.content.quicktest;
 
 import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.testcase.application.port.TestCaseFinder;
@@ -79,6 +80,9 @@ class TestCaseServiceTest {
         assertThat(response.getTestCaseStatus()).isEqualTo(TestCaseStatus.APPROVED);
         assertThat(response.getTestCaseOrder()).isEqualTo(1);
 
+        verify(problemFinder)
+                .getProblem(problemId);
+
         System.out.println("===== 공개 테스트케이스 단건 조회 결과 =====");
         System.out.println("testCaseId = " + response.getId());
         System.out.println("problemId = " + response.getProblemId());
@@ -110,6 +114,47 @@ class TestCaseServiceTest {
         System.out.println("testCaseId = " + testCaseId);
         System.out.println("isPublic = false");
         System.out.println("공개 조회 불가");
+    }
+
+    @Test
+    @DisplayName("상위 문제가 존재하지 않으면 공개 테스트케이스도 조회할 수 없다.")
+    void getPublicTestCase_parentProblemNotFound() {
+
+        // given
+        UUID testCaseId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+
+        TestCase testCase = mock(TestCase.class);
+
+        when(testCaseFinder.getTestCase(testCaseId))
+                .thenReturn(testCase);
+
+        when(testCase.getProblemId())
+                .thenReturn(problemId);
+
+        when(problemFinder.getProblem(problemId))
+                .thenThrow(
+                        new BusinessException(
+                                ErrorCode.PROBLEM_NOT_FOUND
+                        )
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> testCaseService.getPublicTestCase(testCaseId)
+        )
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception).getErrorCode()
+                        ).isEqualTo(ErrorCode.PROBLEM_NOT_FOUND)
+                );
+
+        verify(problemFinder)
+                .getProblem(problemId);
+
+        verify(testCase, never())
+                .getIsPublic();
     }
 
     @Test

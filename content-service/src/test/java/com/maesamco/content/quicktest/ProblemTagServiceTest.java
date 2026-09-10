@@ -1,11 +1,13 @@
 package com.maesamco.content.quicktest;
 
 import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.application.port.ProblemTagFinder;
 import com.maesamco.content.problem.application.service.ProblemTagService;
 import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemTag;
+import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
 import com.maesamco.content.tag.application.port.TagFinder;
 import com.maesamco.content.tag.domain.entity.Tag;
@@ -125,5 +127,92 @@ class ProblemTagServiceTest {
         System.out.println("problemId = " + problemId);
         System.out.println("tagId = " + tagId);
         System.out.println("Problem 조회 단계에서 실패하여 태그가 저장되지 않음");
+    }
+
+    @Test
+    @DisplayName("발행된 문제의 태그 목록을 조회한다.")
+    void searchProblemTags_publishedProblem_success() {
+
+        // given
+        UUID problemId = UUID.randomUUID();
+
+        Problem problem = mock(Problem.class);
+
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        when(problem.getProblemStatus())
+                .thenReturn(ProblemStatus.PUBLISHED);
+
+        var pageable =
+                org.springframework.data.domain.PageRequest.of(0, 10);
+
+        when(problemTagRepository.searchTagsByProblemId(
+                problemId,
+                pageable
+        )).thenReturn(
+                org.springframework.data.domain.Page.empty(pageable)
+        );
+
+        // when
+        var response =
+                problemTagService.searchProblemTags(
+                        problemId,
+                        pageable
+                );
+
+        // then
+        assertThat(response.content()).isEmpty();
+
+        verify(problemFinder)
+                .getProblem(problemId);
+
+        verify(problemTagRepository)
+                .searchTagsByProblemId(
+                        problemId,
+                        pageable
+                );
+    }
+
+    @Test
+    @DisplayName("발행되지 않은 문제의 태그 목록은 조회할 수 없다.")
+    void searchProblemTags_reviewPendingProblem_denied() {
+
+        // given
+        UUID problemId = UUID.randomUUID();
+
+        Problem problem = mock(Problem.class);
+
+        when(problemFinder.getProblem(problemId))
+                .thenReturn(problem);
+
+        when(problem.getProblemStatus())
+                .thenReturn(ProblemStatus.REVIEW_PENDING);
+
+        var pageable =
+                org.springframework.data.domain.PageRequest.of(0, 10);
+
+        // when & then
+        assertThatThrownBy(
+                () -> problemTagService.searchProblemTags(
+                        problemId,
+                        pageable
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception).getErrorCode()
+                        ).isEqualTo(ErrorCode.PROBLEM_NOT_FOUND)
+                );
+
+        verify(problemFinder)
+                .getProblem(problemId);
+
+        verify(problemTagRepository, never())
+                .searchTagsByProblemId(
+                        any(UUID.class),
+                        any()
+                );
     }
 }

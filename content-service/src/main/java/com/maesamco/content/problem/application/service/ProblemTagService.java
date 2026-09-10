@@ -4,11 +4,12 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
-import com.maesamco.content.tag.application.port.TagFinder;
+import com.maesamco.content.problem.domain.entity.Problem;
 import com.maesamco.content.problem.domain.entity.ProblemTag;
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
-import com.maesamco.content.problem.domain.repository.ProblemTagSearchRepository;
+import com.maesamco.content.tag.application.port.TagFinder;
+import com.maesamco.content.tag.domain.entity.Tag;
 import com.maesamco.content.tag.presentation.dto.response.TagResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,12 +30,33 @@ public class ProblemTagService {
 
     /** 특정 문제의 태그 목록 조회 */
     @Transactional(readOnly = true)
-    public PageResponse<TagResponse> searchProblemTags(UUID problemId, Pageable pageable) {
-        problemFinder.getProblem(problemId);
+    public PageResponse<TagResponse> searchProblemTags(
+            UUID problemId,
+            Pageable pageable
+    ) {
+        Problem problem = problemFinder.getProblem(problemId);
 
-        Page<Tag> tags = problemTagRepository.searchTagsByProblemId(problemId, pageable);
+        /*
+         * 공개 태그 조회에서는 발행된 문제의 태그만 노출한다.
+         * 미발행 문제의 존재 여부가 외부에 노출되지 않도록
+         * 사용자 문제 단건 조회와 동일하게 NOT_FOUND로 처리한다.
+         */
+        if (problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
+            throw new BusinessException(
+                    ErrorCode.PROBLEM_NOT_FOUND
+            );
+        }
 
-        return PageResponse.from(tags, TagResponse::from);
+        Page<Tag> tags =
+                problemTagRepository.searchTagsByProblemId(
+                        problemId,
+                        pageable
+                );
+
+        return PageResponse.from(
+                tags,
+                TagResponse::from
+        );
     }
 
     /** 문제에 태그 등록 */
