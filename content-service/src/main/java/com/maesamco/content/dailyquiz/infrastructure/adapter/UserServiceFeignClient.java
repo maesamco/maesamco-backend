@@ -4,6 +4,7 @@ import com.maesamco.content.global.response.SuccessResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
@@ -19,4 +20,10 @@ public interface UserServiceFeignClient {
 
     @GetMapping("/users/{userId}")
     SuccessResponse<UserInterestConceptResponse> getUser(@PathVariable("userId") UUID userId);
+
+    @GetMapping("/users/quiz-targets")
+    SuccessResponse<UserQuizTargetPageResponse> getQuizTargets(
+            @RequestParam(value = "cursor", required = false) UUID cursor,
+            @RequestParam("size") int size
+    );
 }

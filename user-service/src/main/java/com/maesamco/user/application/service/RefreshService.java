@@ -243,7 +243,9 @@ public class RefreshService {
                 );
 
                 throw new BusinessException(
-                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED
+                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED,
+                        ErrorCode.AUTH_REFRESH_TOKEN_REUSED.getMessage(),
+                        BusinessException.LogSeverity.DEBUG
                 );
             }
 

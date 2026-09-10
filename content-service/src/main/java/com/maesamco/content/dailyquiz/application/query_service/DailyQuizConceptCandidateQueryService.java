@@ -8,9 +8,10 @@ import com.maesamco.content.dailyquiz.domain.DailyQuizConceptCandidates;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+// import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,10 +21,9 @@ import java.util.UUID;
  * TODO: ProblemProgressQueryRepository와 ConceptRepository가 병합되면
  * 임시 Port 주입을 실제 Repository 주입으로 교체하고 @Service로 등록합니다.
  */
+// @Service
 @RequiredArgsConstructor
 public class DailyQuizConceptCandidateQueryService {
-
-    private static final ZoneId QUIZ_ZONE_ID = ZoneId.of("Asia/Seoul");
 
     private final ProblemProgressConceptPort problemProgressConceptPort;
 
@@ -32,6 +32,9 @@ public class DailyQuizConceptCandidateQueryService {
 
     // TODO: ConceptRepository가 병합되면 실제 Repository 주입으로 교체합니다.
     private final ConceptLookupPort conceptLookupPort;
+
+    // 배치 실행 날짜와 동일한 timezone으로 SOLVED 조회 cutoff를 계산합니다.
+    private final Clock dailyQuizClock;
 
     public DailyQuizConceptCandidates get(DailyQuizConceptCandidatesGetQuery query) {
         if (query == null) {
@@ -55,7 +58,7 @@ public class DailyQuizConceptCandidateQueryService {
 
         // 퀴즈 날짜의 시작 시각을 구하고, 그 전에 SOLVED된 개념을 조회합니다.
         Instant quizDateStart = query.attemptDate()
-                .atStartOfDay(QUIZ_ZONE_ID)
+                .atStartOfDay(dailyQuizClock.getZone())
                 .toInstant();
 
         List<String> solvedConcepts = problemProgressConceptPort.getSolvedConceptTagsBefore(
