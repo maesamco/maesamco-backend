@@ -17,11 +17,13 @@ public interface FollowUpAnswerApiDocs {
     @Operation(
             summary = "AI 역질문 답변 등록",
             description = "본인의 역질문에 답변을 등록한다. 답변 등록이 곧 코칭 세션 완료 트리거이며, "
-                    + "성공 응답의 coachingSessionStatus는 항상 COMPLETED다. 답변 등록 직후 AI 종합 "
-                    + "피드백 생성을 비동기로 시작하지만, 그 생성 실패는 이 응답에 영향을 주지 않는다."
+                    + "성공 응답의 coachingSessionStatus는 항상 COMPLETED다. 답변 등록 직후 이 요청 "
+                    + "안에서 AI 종합 피드백 생성까지 동기적으로 시도하므로(응답 지연 발생 가능), "
+                    + "그 생성 실패는 이 응답 자체(상태 코드·바디)에는 영향을 주지 않는다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "답변 등록 성공"),
+            @ApiResponse(responseCode = "400", description = "INVALID_INPUT_VALUE — 요청 값이 올바르지 않음"),
             @ApiResponse(responseCode = "404", description = "FOLLOW_UP_QUESTION_NOT_FOUND — 역질문이 없거나 본인 소유가 아님"),
             @ApiResponse(responseCode = "409", description = "FOLLOW_UP_ANSWER_ALREADY_EXISTS — 이미 해당 역질문에 답변이 존재함")
     })

@@ -33,7 +33,8 @@ public interface AiFeedbackApiDocs {
     @Operation(
             summary = "AI 종합 피드백 재시도",
             description = "이전 생성이 실패한 AI 종합 피드백을 재시도한다. 세션당 재시도 3회(최초 1회 "
-                    + "포함 총 4회)로 제한되며, 동시 재시도 요청은 세션 단위 락으로 직렬화된다."
+                    + "포함 총 4회)로 제한되며, 동시 재시도 요청은 세션 단위 락으로 방지된다 — 대기 후 "
+                    + "순차 실행되지 않고, 이미 진행 중인 요청이 있으면 나중 요청은 즉시 409로 거부된다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "재시도 성공"),
