@@ -1,1 +1,8 @@
+com.maesamco.content.curriculum.domain.repository.CurriculumSearchRepository=com.maesamco.content.curriculum.infrastructure.persistence.CurriculumSearchRepositoryImpl
+com.maesamco.content.lesson.domain.repository.LessonSearchRepository=com.maesamco.content.lesson.infrastructure.persistence.LessonSearchRepositoryImpl
 com.maesamco.content.problem.domain.repository.ProblemSearchRepository=com.maesamco.content.problem.infrastructure.persistence.ProblemSearchRepositoryImpl
+com.maesamco.content.problem.domain.repository.ProblemTagSearchRepository=com.maesamco.content.problem.infrastructure.persistence.ProblemTagSearchRepositoryImpl
+com.maesamco.content.tag.domain.repository.TagSearchRepository=com.maesamco.content.tag.infrastructure.persistence.TagSearchRepositoryImpl
+com.maesamco.content.testcase.domain.repository.TestCaseOrderRepository=com.maesamco.content.testcase.infrastructure.persistence.TestCaseOrderRepositoryImpl
+com.maesamco.content.testcase.domain.repository.TestCaseSearchRepository=com.maesamco.content.testcase.infrastructure.persistence.TestCaseSearchRepositoryImpl
+com.maesamco.content.unit.domain.repository.UnitSearchRepository=com.maesamco.content.unit.infrastructure.persistence.UnitSearchRepositoryImpl

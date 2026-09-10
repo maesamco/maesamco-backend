@@ -5,8 +5,10 @@ import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.domain.enums.ProblemStatus;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
+import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -29,13 +31,12 @@ import java.util.UUID;
 public class ProblemService {
 
     private final ProblemRepository problemRepository;
-    // private final ProblemVersionRepository problemVersionRepository;
+    private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
 
     /** 문제 생성 */
     @Transactional(rollbackFor = Exception.class)
     public ProblemCreateResponse createProblem(ProblemCreateRequest request) {
-
         Problem problem = Problem.create(
                 request.getTitle(),
                 request.getLanguage(),
@@ -54,6 +55,14 @@ public class ProblemService {
         problem.setProblemStatusReviewPending();
 
         Problem savedProblem = problemRepository.save(problem);
+
+        /*
+         * 생성된 문제의 현재 버전은 1이므로
+         * 최초 상태를 version 1 스냅샷으로 저장합니다.
+         */
+        ProblemVersion initialVersion = ProblemVersion.snapshot(savedProblem);
+
+        problemVersionRepository.save(initialVersion);
 
         return ProblemCreateResponse.from(savedProblem);
     }
@@ -92,8 +101,7 @@ public class ProblemService {
         // PUBLISHED 상태의 문제만 조회한다.
         request.setProblemStatus(ProblemStatus.PUBLISHED);
 
-        Page<Problem> problems =
-                problemRepository.searchProblems(request, pageable);
+        Page<Problem> problems = problemRepository.searchProblems(request, pageable);
 
         return PageResponse.from(
                 problems,
@@ -118,34 +126,6 @@ public class ProblemService {
             );
         }
 
-        // TODO: 수정하기 전에 version snapshot 남기기 (다른 브랜치에서 작업한 것과 merge해야 활성화할 수 있음)
-        // ProblemVersion snapshot = ProblemVersion.snapshot(problem);
-        // problemVersionRepository.save(snapshot);
-
-        boolean is_modified = false;
-
-        // 수정 요청이 있는 값들만 수정
-        if (request.getTitle() != null) {
-            problem.changeTitle(request.getTitle());
-            is_modified = true;
-        }
-        if (request.getLanguage() != null) {
-            problem.changeLanguage(request.getLanguage());
-            is_modified = true;
-        }
-        if (request.getDifficulty() != null) {
-            problem.changeDifficulty(request.getDifficulty());
-            is_modified = true;
-        }
-        if (request.getType() != null) {
-            problem.changeType(request.getType());
-            is_modified = true;
-        }
-        if (request.getDescription() != null) {
-            problem.changeDescription(request.getDescription());
-            is_modified = true;
-        }
-
         // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
         if (request.getStarterCode() == null) {
             throw new BusinessException(
@@ -153,44 +133,66 @@ public class ProblemService {
             );
         }
 
+        boolean isModified =
+                request.getTitle() != null
+                        || request.getLanguage() != null
+                        || request.getDifficulty() != null
+                        || request.getType() != null
+                        || request.getDescription() != null
+                        || request.getStarterCode().isPresent()
+                        || request.getRunningTimeLimit() != null
+                        || request.getRunningMemoryLimit() != null
+                        || request.getTimerPolicy() != null
+                        || request.getSource() != null;
+
+        // 수정 요청이 있는 값들만 수정
+        if (request.getTitle() != null) {
+            problem.changeTitle(request.getTitle());
+        }
+        if (request.getLanguage() != null) {
+            problem.changeLanguage(request.getLanguage());
+        }
+        if (request.getDifficulty() != null) {
+            problem.changeDifficulty(request.getDifficulty());
+        }
+        if (request.getType() != null) {
+            problem.changeType(request.getType());
+        }
+        if (request.getDescription() != null) {
+            problem.changeDescription(request.getDescription());
+        }
         // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
         if (request.getStarterCode().isPresent()) {
             problem.changeStarterCode(
                     request.getStarterCode().orElse(null)
             );
-            is_modified = true;
         }
-
         if (request.getRunningTimeLimit() != null) {
-            problem.changeRunningTimeLimit(
-                    request.getRunningTimeLimit()
-            );
-            is_modified = true;
+            problem.changeRunningTimeLimit(request.getRunningTimeLimit());
         }
         if (request.getRunningMemoryLimit() != null) {
-            problem.changeRunningMemoryLimit(
-                    request.getRunningMemoryLimit()
-            );
-            is_modified = true;
+            problem.changeRunningMemoryLimit(request.getRunningMemoryLimit());
         }
         if (request.getTimerPolicy() != null) {
-            problem.changeTimerPolicy(
-                    request.getTimerPolicy()
-            );
-            is_modified = true;
+            problem.changeTimerPolicy(request.getTimerPolicy());
         }
         if (request.getSource() != null) {
             problem.changeSource(request.getSource());
-            is_modified = true;
         }
 
-        if (is_modified) {
+        if (isModified) {
             problem.increaseVersion();
 
             /*
-             * 응답을 생성하기 전에 UPDATE를 실행하여
-             * JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
+             * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
+             * 새 버전 스냅샷으로 저장합니다.
              */
+            ProblemVersion snapshot =
+                    ProblemVersion.snapshot(problem);
+
+            problemVersionRepository.save(snapshot);
+
+            // 응답을 생성하기 전에 UPDATE를 실행하여 JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
             problemRepository.flush();
         }
 
@@ -206,6 +208,5 @@ public class ProblemService {
         problem.softDelete(userId);
 
         problemRepository.flush(); // 현재 영속성 컨텍스트에 쌓여 있는 변경사항을 즉시 DB SQL로 반영시킨다
-        // Update 실행, @Version의 lock_version 조건 검사
     }
 }
