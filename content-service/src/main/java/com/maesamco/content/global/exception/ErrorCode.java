@@ -53,7 +53,6 @@ public enum ErrorCode {
 
     /* Problem */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
-    PROBLEM_NOT_PUBLISHED(HttpStatus.NOT_FOUND, "공개(발행)되지 않은 문제입니다."),
     PROBLEM_MODIFIED_CONCURRENTLY(
             HttpStatus.CONFLICT,
             "문제가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."

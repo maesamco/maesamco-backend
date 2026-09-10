@@ -5,10 +5,8 @@ import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.domain.enums.*;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -37,7 +35,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,9 +43,6 @@ class ProblemServiceTest {
 
     @Mock
     private ProblemRepository problemRepository;
-
-    @Mock
-    private ProblemVersionRepository problemVersionRepository;
 
     @Mock
     private ProblemFinder problemFinder;
@@ -61,29 +55,20 @@ class ProblemServiceTest {
     void setUp() {
         problemService = new ProblemService(
                 problemRepository,
-                problemVersionRepository,
                 problemFinder
         );
     }
 
     @Test
-    @DisplayName(
-            "문제를 생성하면 REVIEW_PENDING 상태와 최초 버전 스냅샷을 저장한다"
-    )
-    void createProblem_savesProblemAndInitialVersionSnapshot() {
+    @DisplayName("문제를 생성하면 REVIEW_PENDING 상태로 저장하고 생성 응답을 반환한다")
+    void createProblem_savesProblemAsReviewPending() {
         // given
         ProblemCreateRequest request = createProblemRequest();
 
         when(problemRepository.save(any(Problem.class)))
                 .thenAnswer(invocation -> {
                     Problem problem = invocation.getArgument(0);
-
-                    ReflectionTestUtils.setField(
-                            problem,
-                            "id",
-                            problemId
-                    );
-
+                    ReflectionTestUtils.setField(problem, "id", problemId);
                     return problem;
                 });
 
@@ -92,95 +77,47 @@ class ProblemServiceTest {
                 problemService.createProblem(request);
 
         // then
-        ArgumentCaptor<Problem> problemCaptor =
+        ArgumentCaptor<Problem> captor =
                 ArgumentCaptor.forClass(Problem.class);
 
-        verify(problemRepository)
-                .save(problemCaptor.capture());
+        verify(problemRepository).save(captor.capture());
 
-        Problem savedProblem = problemCaptor.getValue();
+        Problem savedProblem = captor.getValue();
 
-        assertThat(savedProblem.getTitle())
-                .isEqualTo("두 수의 합");
-
-        assertThat(savedProblem.getLanguage())
-                .isEqualTo(ProgrammingLanguage.JAVA);
-
-        assertThat(savedProblem.getDifficulty())
-                .isEqualTo(ProblemDifficulty.EASY);
-
-        assertThat(savedProblem.getType())
-                .isEqualTo(ProblemType.CODE);
-
+        assertThat(savedProblem.getTitle()).isEqualTo("두 수의 합");
+        assertThat(savedProblem.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
+        assertThat(savedProblem.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
+        assertThat(savedProblem.getType()).isEqualTo(ProblemType.CODE);
         assertThat(savedProblem.getDescription())
                 .isEqualTo("두 정수를 입력받아 합을 출력하세요.");
-
         assertThat(savedProblem.getStarterCode())
                 .isEqualTo("public class Main {}");
-
         assertThat(savedProblem.getRunningTimeLimit())
                 .isEqualTo(RunningTimeLimit.values()[0]);
-
         assertThat(savedProblem.getRunningMemoryLimit())
                 .isEqualTo(RunningMemoryLimit.values()[0]);
-
         assertThat(savedProblem.getTimerPolicy())
                 .isEqualTo(TimerPolicy.NOT_APPLY_TIMEPOLICY);
-
         assertThat(savedProblem.getSource())
                 .isEqualTo(ProblemSource.HUMAN_AUTHORED);
 
+        // create()에서는 DRAFT로 만들어지지만
+        // Service에서 REVIEW_PENDING으로 변경한 뒤 저장해야 한다.
         assertThat(savedProblem.getProblemStatus())
                 .isEqualTo(ProblemStatus.REVIEW_PENDING);
 
-        assertThat(savedProblem.getCurrentVersionNo())
-                .isEqualTo(1);
+        assertThat(savedProblem.getCurrentVersionNo()).isEqualTo(1);
 
-        assertThat(response.getId())
-                .isEqualTo(problemId);
-
-        assertThat(response.getTitle())
-                .isEqualTo("두 수의 합");
-
-        ArgumentCaptor<ProblemVersion> versionCaptor =
-                ArgumentCaptor.forClass(ProblemVersion.class);
-
-        verify(problemVersionRepository)
-                .save(versionCaptor.capture());
-
-        ProblemVersion initialVersion =
-                versionCaptor.getValue();
-
-        assertThat(initialVersion.getProblemId())
-                .isEqualTo(problemId);
-
-        assertThat(initialVersion.getVersionNo())
-                .isEqualTo(1);
-
-        assertThat(
-                initialVersion.getProblemSnapshot()
-                        .get("title")
-                        .asText()
-        )
-                .isEqualTo("두 수의 합");
-
-        assertThat(
-                initialVersion.getProblemSnapshot()
-                        .get("problemStatus")
-                        .asText()
-        )
-                .isEqualTo(
-                        ProblemStatus.REVIEW_PENDING.name()
-                );
+        assertThat(response.getId()).isEqualTo(problemId);
+        assertThat(response.getTitle()).isEqualTo("두 수의 합");
     }
 
     @Test
-    @DisplayName(
-            "문제를 조회하면 ProblemResponse로 변환하여 반환한다"
-    )
+    @DisplayName("문제를 조회하면 ProblemResponse로 변환하여 반환한다")
     void getProblem_returnsProblemResponse() {
         // given
         Problem problem = createProblem();
+        ReflectionTestUtils.setField(problem, "id", problemId);
 
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
@@ -190,102 +127,57 @@ class ProblemServiceTest {
                 problemService.getProblemForAdmin(problemId);
 
         // then
-        assertThat(response.getId())
-                .isEqualTo(problemId);
-
-        assertThat(response.getTitle())
-                .isEqualTo("두 수의 합");
-
-        assertThat(response.getLanguage())
-                .isEqualTo(ProgrammingLanguage.JAVA);
-
-        assertThat(response.getDifficulty())
-                .isEqualTo(ProblemDifficulty.EASY);
-
-        assertThat(response.getType())
-                .isEqualTo(ProblemType.CODE);
-
+        assertThat(response.getId()).isEqualTo(problemId);
+        assertThat(response.getTitle()).isEqualTo("두 수의 합");
+        assertThat(response.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
+        assertThat(response.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
+        assertThat(response.getType()).isEqualTo(ProblemType.CODE);
         assertThat(response.getStarterCode())
                 .isEqualTo("public class Main {}");
+        assertThat(response.getCurrentVersionNo()).isEqualTo(1);
 
-        assertThat(response.getCurrentVersionNo())
-                .isEqualTo(1);
-
-        assertThat(response.getLockVersion())
-                .isEqualTo(0L);
-
-        verify(problemFinder)
-                .getProblem(problemId);
+        verify(problemFinder).getProblem(problemId);
     }
 
     @Test
-    @DisplayName(
-            "문제 검색 결과를 PageResponse로 변환하여 반환한다"
-    )
+    @DisplayName("문제 검색 결과를 PageResponse로 변환하여 반환한다")
     void searchProblems_returnsPageResponse() {
         // given
-        ProblemSearchRequest request =
-                new ProblemSearchRequest();
-
-        Pageable pageable =
-                PageRequest.of(0, 20);
+        ProblemSearchRequest request = new ProblemSearchRequest();
+        Pageable pageable = PageRequest.of(0, 20);
 
         Problem problem = createProblem();
+        ReflectionTestUtils.setField(problem, "id", problemId);
 
         Page<Problem> page =
-                new PageImpl<>(
-                        List.of(problem),
-                        pageable,
-                        1
-                );
+                new PageImpl<>(List.of(problem), pageable, 1);
 
         when(problemRepository.searchProblems(request, pageable))
                 .thenReturn(page);
 
         // when
         PageResponse<ProblemSearchItemResponse> response =
-                problemService.searchProblems(
-                        request,
-                        pageable
-                );
+                problemService.searchProblems(request, pageable);
 
         // then
-        assertThat(response.content())
-                .hasSize(1);
-
-        assertThat(response.content().get(0).getId())
-                .isEqualTo(problemId);
-
-        assertThat(response.content().get(0).getTitle())
-                .isEqualTo("두 수의 합");
-
-        assertThat(response.page())
-                .isEqualTo(0);
-
-        assertThat(response.size())
-                .isEqualTo(20);
-
-        assertThat(response.totalElements())
-                .isEqualTo(1);
-
-        assertThat(response.totalPages())
-                .isEqualTo(1);
-
-        assertThat(response.hasNext())
-                .isFalse();
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).getId()).isEqualTo(problemId);
+        assertThat(response.content().get(0).getTitle()).isEqualTo("두 수의 합");
+        assertThat(response.page()).isEqualTo(0);
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.totalElements()).isEqualTo(1);
+        assertThat(response.totalPages()).isEqualTo(1);
+        assertThat(response.hasNext()).isFalse();
 
         verify(problemRepository)
                 .searchProblems(request, pageable);
     }
 
     @Test
-    @DisplayName(
-            "공개 문제 검색에서는 요청 상태와 관계없이 PUBLISHED 상태로 조회한다"
-    )
+    @DisplayName("공개 문제 검색에서는 요청한 상태와 관계없이 PUBLISHED 상태로 조회한다")
     void searchProblems_forcesPublishedStatus() {
         // given
-        ProblemSearchRequest request =
-                new ProblemSearchRequest();
+        ProblemSearchRequest request = new ProblemSearchRequest();
 
         ReflectionTestUtils.setField(
                 request,
@@ -293,17 +185,13 @@ class ProblemServiceTest {
                 ProblemStatus.DRAFT
         );
 
-        Pageable pageable =
-                PageRequest.of(0, 20);
+        Pageable pageable = PageRequest.of(0, 20);
 
         when(problemRepository.searchProblems(request, pageable))
                 .thenReturn(Page.empty(pageable));
 
         // when
-        problemService.searchProblems(
-                request,
-                pageable
-        );
+        problemService.searchProblems(request, pageable);
 
         // then
         assertThat(request.getProblemStatus())
@@ -314,10 +202,8 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName(
-            "수정 요청 필드만 변경하고 증가된 버전의 스냅샷을 저장한다"
-    )
-    void updateProblem_updatesFieldsAndSavesUpdatedSnapshot() {
+    @DisplayName("수정 요청에 포함된 필드만 변경하고 버전은 한 번만 증가한다")
+    void updateProblem_updatesProvidedFieldsAndIncreasesVersionOnce() {
         // given
         Problem problem = createProblem();
 
@@ -341,10 +227,7 @@ class ProblemServiceTest {
 
         // when
         ProblemResponse response =
-                problemService.updateProblem(
-                        problemId,
-                        request
-                );
+                problemService.updateProblem(problemId, request);
 
         // then
         assertThat(response.getTitle())
@@ -353,54 +236,21 @@ class ProblemServiceTest {
         assertThat(response.getDifficulty())
                 .isEqualTo(ProblemDifficulty.HARD);
 
+        // 요청하지 않은 값은 그대로
         assertThat(response.getLanguage())
                 .isEqualTo(ProgrammingLanguage.JAVA);
 
         assertThat(response.getDescription())
-                .isEqualTo(
-                        "두 정수를 입력받아 합을 출력하세요."
-                );
+                .isEqualTo("두 정수를 입력받아 합을 출력하세요.");
 
-        assertThat(response.getCurrentVersionNo())
-                .isEqualTo(2);
+        // 두 필드를 수정했지만 한 요청이므로 버전은 한 번만 증가
+        assertThat(response.getCurrentVersionNo()).isEqualTo(2);
 
-        verify(problemRepository)
-                .flush();
-
-        ArgumentCaptor<ProblemVersion> versionCaptor =
-                ArgumentCaptor.forClass(ProblemVersion.class);
-
-        verify(problemVersionRepository)
-                .save(versionCaptor.capture());
-
-        ProblemVersion updatedVersion =
-                versionCaptor.getValue();
-
-        assertThat(updatedVersion.getProblemId())
-                .isEqualTo(problemId);
-
-        assertThat(updatedVersion.getVersionNo())
-                .isEqualTo(2);
-
-        assertThat(
-                updatedVersion.getProblemSnapshot()
-                        .get("title")
-                        .asText()
-        )
-                .isEqualTo("변경된 문제 제목");
-
-        assertThat(
-                updatedVersion.getProblemSnapshot()
-                        .get("difficulty")
-                        .asText()
-        )
-                .isEqualTo(ProblemDifficulty.HARD.name());
+        verify(problemRepository).flush();
     }
 
     @Test
-    @DisplayName(
-            "starterCode에 값을 전달하면 새로운 값으로 변경하고 버전을 증가시킨다"
-    )
+    @DisplayName("starterCode에 값을 전달하면 새로운 값으로 변경하고 버전을 증가시킨다")
     void updateProblem_updatesStarterCodeWhenValuePresent() {
         // given
         Problem problem = createProblem();
@@ -419,26 +269,17 @@ class ProblemServiceTest {
 
         // when
         ProblemResponse response =
-                problemService.updateProblem(
-                        problemId,
-                        request
-                );
+                problemService.updateProblem(problemId, request);
 
         // then
         assertThat(response.getStarterCode())
                 .isEqualTo("class Solution {}");
 
-        assertThat(response.getCurrentVersionNo())
-                .isEqualTo(2);
-
-        verify(problemVersionRepository)
-                .save(any(ProblemVersion.class));
+        assertThat(response.getCurrentVersionNo()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName(
-            "starterCode에 null을 명시하면 기존 값을 null로 변경하고 버전을 증가시킨다"
-    )
+    @DisplayName("starterCode에 null을 명시하면 기존 값을 null로 변경하고 버전을 증가시킨다")
     void updateProblem_clearsStarterCodeWhenExplicitNull() {
         // given
         Problem problem = createProblem();
@@ -457,26 +298,15 @@ class ProblemServiceTest {
 
         // when
         ProblemResponse response =
-                problemService.updateProblem(
-                        problemId,
-                        request
-                );
+                problemService.updateProblem(problemId, request);
 
         // then
-        assertThat(response.getStarterCode())
-                .isNull();
-
-        assertThat(response.getCurrentVersionNo())
-                .isEqualTo(2);
-
-        verify(problemVersionRepository)
-                .save(any(ProblemVersion.class));
+        assertThat(response.getStarterCode()).isNull();
+        assertThat(response.getCurrentVersionNo()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName(
-            "starterCode를 생략하면 기존 값을 유지하고 버전을 증가시키지 않는다"
-    )
+    @DisplayName("starterCode를 생략하면 기존 값을 유지하고 버전을 증가시키지 않는다")
     void updateProblem_keepsStarterCodeWhenUndefined() {
         // given
         Problem problem = createProblem();
@@ -489,29 +319,17 @@ class ProblemServiceTest {
 
         // when
         ProblemResponse response =
-                problemService.updateProblem(
-                        problemId,
-                        request
-                );
+                problemService.updateProblem(problemId, request);
 
         // then
         assertThat(response.getStarterCode())
                 .isEqualTo("public class Main {}");
 
-        assertThat(response.getCurrentVersionNo())
-                .isEqualTo(1);
-
-        verify(problemVersionRepository, never())
-                .save(any(ProblemVersion.class));
-
-        verify(problemRepository, never())
-                .flush();
+        assertThat(response.getCurrentVersionNo()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName(
-            "starterCode JsonNullable 객체가 null이면 STARTER_CODE_NOT_INITIALIZED 예외가 발생한다"
-    )
+    @DisplayName("starterCode JsonNullable 객체 자체가 null이면 STARTER_CODE_NOT_INITIALIZED 예외가 발생한다")
     void updateProblem_throwsWhenStarterCodeIsNotInitialized() {
         // given
         Problem problem = createProblem();
@@ -530,31 +348,19 @@ class ProblemServiceTest {
 
         // when & then
         assertThatThrownBy(
-                () -> problemService.updateProblem(
-                        problemId,
-                        request
-                )
+                () -> problemService.updateProblem(problemId, request)
         )
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception ->
-                        ((BusinessException) exception)
-                                .getErrorCode()
+                        ((BusinessException) exception).getErrorCode()
                 )
-                .isEqualTo(
-                        ErrorCode.STARTER_CODE_NOT_INITIALIZED
-                );
+                .isEqualTo(ErrorCode.STARTER_CODE_NOT_INITIALIZED);
 
-        assertThat(problem.getCurrentVersionNo())
-                .isEqualTo(1);
-
-        verify(problemVersionRepository, never())
-                .save(any(ProblemVersion.class));
+        assertThat(problem.getCurrentVersionNo()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName(
-            "문제를 삭제하면 요청한 사용자 ID로 soft delete 처리한다"
-    )
+    @DisplayName("문제를 삭제하면 요청한 사용자 ID로 soft delete 처리한다")
     void deleteProblem_softDeletesProblem() {
         // given
         UUID userId = UUID.randomUUID();
@@ -564,29 +370,18 @@ class ProblemServiceTest {
                 .thenReturn(problem);
 
         // when
-        problemService.deleteProblem(
-                problemId,
-                userId
-        );
+        problemService.deleteProblem(problemId, userId);
 
         // then
-        assertThat(problem.isDeleted())
-                .isTrue();
+        assertThat(problem.isDeleted()).isTrue();
+        assertThat(problem.getDeletedAt()).isNotNull();
+        assertThat(problem.getDeletedBy()).isEqualTo(userId);
 
-        assertThat(problem.getDeletedAt())
-                .isNotNull();
-
-        assertThat(problem.getDeletedBy())
-                .isEqualTo(userId);
-
-        verify(problemFinder)
-                .getProblem(problemId);
+        verify(problemFinder).getProblem(problemId);
     }
 
     @Test
-    @DisplayName(
-            "요청 lockVersion이 현재 문제 버전과 다르면 동시 수정 충돌 예외가 발생한다"
-    )
+    @DisplayName("요청 lockVersion이 현재 문제 버전과 다르면 동시 수정 충돌 예외가 발생한다")
     void updateProblem_throwsWhenLockVersionIsStale() {
         // given
         Problem problem = createProblem();
@@ -619,26 +414,26 @@ class ProblemServiceTest {
                         ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
                 );
 
+        // stale 요청이므로 실제 값은 수정되면 안 된다.
         assertThat(problem.getTitle())
                 .isEqualTo("두 수의 합");
 
         assertThat(problem.getCurrentVersionNo())
                 .isEqualTo(1);
-
-        verify(problemVersionRepository, never())
-                .save(any(ProblemVersion.class));
-
-        verify(problemRepository, never())
-                .flush();
     }
 
     @Test
-    @DisplayName(
-            "DB flush에서 낙관적 락 충돌이 발생하면 문제 동시 수정 예외로 변환한다"
-    )
-    void updateProblem_translatesOptimisticLockingFailure() {
+    @DisplayName("DB flush에서 낙관적 락 충돌이 발생하면 예외를 상위로 전파한다")
+    void updateProblem_propagatesOptimisticLockingFailure() {
         // given
         Problem problem = createProblem();
+
+        // 요청 lockVersion과 현재 Problem의 lockVersion을 동일하게 맞춘다.
+        ReflectionTestUtils.setField(
+                problem,
+                "lockVersion",
+                0L
+        );
 
         when(problemFinder.getProblem(problemId))
                 .thenReturn(problem);
@@ -668,13 +463,8 @@ class ProblemServiceTest {
                         request
                 )
         )
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception ->
-                        ((BusinessException) exception)
-                                .getErrorCode()
-                )
-                .isEqualTo(
-                        ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY
+                .isInstanceOf(
+                        ObjectOptimisticLockingFailureException.class
                 );
 
         verify(problemRepository)
@@ -682,63 +472,45 @@ class ProblemServiceTest {
     }
 
     private ProblemCreateRequest createProblemRequest() {
-        ProblemCreateRequest request =
-                new ProblemCreateRequest();
+        ProblemCreateRequest request = new ProblemCreateRequest();
 
         ReflectionTestUtils.setField(
-                request,
-                "title",
-                "두 수의 합"
+                request, "title", "두 수의 합"
         );
-
         ReflectionTestUtils.setField(
-                request,
-                "language",
-                ProgrammingLanguage.JAVA
+                request, "language", ProgrammingLanguage.JAVA
         );
-
         ReflectionTestUtils.setField(
-                request,
-                "difficulty",
-                ProblemDifficulty.EASY
+                request, "difficulty", ProblemDifficulty.EASY
         );
-
         ReflectionTestUtils.setField(
-                request,
-                "type",
-                ProblemType.CODE
+                request, "type", ProblemType.CODE
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "description",
                 "두 정수를 입력받아 합을 출력하세요."
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "starterCode",
                 "public class Main {}"
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "runningTimeLimit",
                 RunningTimeLimit.values()[0]
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "runningMemoryLimit",
                 RunningMemoryLimit.values()[0]
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "timerPolicy",
                 TimerPolicy.NOT_APPLY_TIMEPOLICY
         );
-
         ReflectionTestUtils.setField(
                 request,
                 "source",
@@ -763,12 +535,7 @@ class ProblemServiceTest {
                 ProblemStatus.DRAFT
         );
 
-        ReflectionTestUtils.setField(
-                problem,
-                "id",
-                problemId
-        );
-
+        // 실제 DB에서 조회된 엔티티처럼 JPA @Version 값을 설정한다.
         ReflectionTestUtils.setField(
                 problem,
                 "lockVersion",

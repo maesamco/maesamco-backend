@@ -11,7 +11,7 @@ spring:
     password: ${DB_PASSWORD}
 
   flyway:
-    enabled: false # 이슈 #10 — db/migration의 V1 베이스라인을 담당자가 검토 후 true로 전환
+    enabled: true # 이슈 #10 — V1~V3 PostgreSQL 마이그레이션 및 Hibernate validate 검증 완료, 활성화
     schemas: user_schema
 
   jpa:
