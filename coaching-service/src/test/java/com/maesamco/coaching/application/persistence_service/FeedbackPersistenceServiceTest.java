@@ -46,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @SpringBootTest(classes = {
         FeedbackPersistenceService.class,
+        WeakConceptPersistenceService.class,
         AiCallHistoryRepositoryImpl.class,
         AiFeedbackRepositoryImpl.class,
         WeakConceptRepositoryImpl.class,

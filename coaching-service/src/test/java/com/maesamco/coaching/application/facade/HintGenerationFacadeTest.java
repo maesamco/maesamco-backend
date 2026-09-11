@@ -1,11 +1,14 @@
 package com.maesamco.coaching.application.facade;
 
 import com.maesamco.coaching.application.CoachingSessionFinder;
+import com.maesamco.coaching.application.persistence_service.WeakConceptPersistenceService;
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import com.maesamco.coaching.application.port.ContentServicePort;
 import com.maesamco.coaching.application.port.HintGenerationLockPort;
 import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.ProblemSnapshot;
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
 import com.maesamco.coaching.domain.entity.CoachingSession;
@@ -31,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,6 +46,8 @@ class HintGenerationFacadeTest {
     @Mock
     private JudgeServicePort judgeServicePort;
     @Mock
+    private ContentServicePort contentServicePort;
+    @Mock
     private CoachingSessionRepository coachingSessionRepository;
     @Mock
     private HintRepository hintRepository;
@@ -51,12 +57,15 @@ class HintGenerationFacadeTest {
     private AiCallHistoryRepository aiCallHistoryRepository;
     @Mock
     private HintGenerationLockPort hintGenerationLockPort;
+    @Mock
+    private WeakConceptPersistenceService weakConceptPersistenceService;
 
     private HintGenerationFacade facade;
 
     private final UUID submissionId = UUID.randomUUID();
     private final UUID callerId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final ProblemSnapshot problemSnapshot = new ProblemSnapshot(problemId, "문제 설명", List.of("재귀"));
 
     @BeforeEach
     void setUp() {
@@ -65,13 +74,17 @@ class HintGenerationFacadeTest {
         // 여기서는 Facade가 그 결과를 올바르게 받아 쓰는지만 본다. mock인 coachingSessionRepository
         // 스텁은 기존 테스트들과 동일하게 그대로 유지된다.
         facade = new HintGenerationFacade(
-                judgeServicePort, new CoachingSessionFinder(coachingSessionRepository), hintRepository, aiModelPort,
-                aiCallHistoryRepository, hintGenerationLockPort
+                judgeServicePort, contentServicePort, new CoachingSessionFinder(coachingSessionRepository), hintRepository,
+                aiModelPort, aiCallHistoryRepository, hintGenerationLockPort, weakConceptPersistenceService
         );
         // 대부분의 테스트는 락 자체를 검증 대상이 아니라 "항상 획득 성공"으로 두고 기존
         // 흐름만 본다 — 락 관련 테스트에서만 개별적으로 재정의한다. lenient()라 다른
         // 테스트에서 이 스텁을 안 써도 Mockito가 UnnecessaryStubbingException을 안 던진다.
         org.mockito.Mockito.lenient().when(hintGenerationLockPort.tryLock(any(), any())).thenReturn(true);
+        // 이슈 #62 — 대부분의 테스트는 Content Service 연동 자체가 검증 대상이 아니므로
+        // 기본적으로 정상 응답을 반환하게 해둔다. 문제 조회 실패·WeakConcept 기록을 직접
+        // 검증하는 테스트에서만 개별적으로 재정의한다.
+        org.mockito.Mockito.lenient().when(contentServicePort.getProblem(any())).thenReturn(problemSnapshot);
     }
 
     private SubmissionSnapshot wrongSubmission(UUID owner, int attemptNo) {
@@ -366,6 +379,34 @@ class HintGenerationFacadeTest {
         verify(hintRepository, never()).save(any());
     }
 
+    /**
+     * 이슈 #148 — 같은 문제를 다른 접근으로 재도전하는 것 자체(세션의 submissionId 갈아타기)는
+     * 막지 않지만, 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지 않는다.
+     * 완료 이전에 1~4단계 중 몇 단계까지 썼는지(한도가 남았는지)는 무관하다 — 이 검증은
+     * existingHints/maxStage를 조회하기도 전에 세션 상태만으로 즉시 막는다.
+     */
+    @Test
+    void 이미_완료된_세션에_재도전_오답이_들어오면_힌트_한도가_남아있어도_힌트를_생성하지_않는다() {
+        UUID retrySubmissionId = UUID.randomUUID();
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(retrySubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        when(judgeServicePort.getSubmission(retrySubmissionId)).thenReturn(retrySubmission);
+        CoachingSession completedSession = persistedSession();
+        completedSession.complete();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(completedSession));
+        when(coachingSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThatThrownBy(() -> facade.requestHint(retrySubmissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
+
+        // 재도전 자체(세션이 최신 제출로 갈아타는 것)는 그대로 진행된다.
+        assertThat(completedSession.getSubmissionId()).isEqualTo(retrySubmissionId);
+        verify(hintRepository, never()).findByCoachingSessionId(any());
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintRepository, never()).save(any());
+    }
+
     @Test
     void 동시_요청으로_세션이_이미_생성됐으면_그_세션을_다시_조회해서_사용한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
@@ -382,5 +423,78 @@ class HintGenerationFacadeTest {
         HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
 
         assertThat(result.coachingSessionId()).isEqualTo(racedSession.getId());
+    }
+
+    // ===== 이슈 #62/#126 — Content Service 연동 =====
+
+    @Test
+    void 힌트_생성_시_문제_설명과_개념_태그를_프롬프트에_포함한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.requestHint(submissionId, callerId);
+
+        verify(aiModelPort).generate(any(), argThat(userPrompt ->
+                userPrompt.contains(problemSnapshot.description()) && userPrompt.contains("재귀")
+        ));
+    }
+
+    @Test
+    void 문제_조회에_실패하면_AI_GENERATION_FAILED를_던지고_LLM을_호출하지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
+
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(aiCallHistoryRepository).save(argThat(h -> "FAILED".equals(h.getRequestStatus())));
+        verify(hintRepository, never()).save(any());
+    }
+
+    @Test
+    void attemptNo가_8이상이면_문제의_개념_태그로_WeakConcept를_기록한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.requestHint(submissionId, callerId);
+
+        verify(weakConceptPersistenceService).recordOccurrences(callerId, problemSnapshot.conceptTags());
+    }
+
+    /**
+     * 이슈 #62 — WeakConcept 자동 기록은 힌트 응답의 필수 조건이 아닌 부가 집계라, 이걸
+     * 위한 문제 조회가 실패해도 힌트 요청 자체는 정상 진행돼야 한다(로그만 남김).
+     */
+    @Test
+    void 취약_개념_기록용_문제_조회가_실패해도_힌트_요청은_정상_진행된다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(contentServicePort.getProblem(problemId))
+                .thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR))
+                .thenReturn(problemSnapshot);
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.skipAvailable()).isTrue();
+        verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
     }
 }
