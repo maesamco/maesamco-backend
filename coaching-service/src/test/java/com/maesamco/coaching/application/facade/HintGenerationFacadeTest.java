@@ -366,6 +366,34 @@ class HintGenerationFacadeTest {
         verify(hintRepository, never()).save(any());
     }
 
+    /**
+     * 이슈 #148 — 같은 문제를 다른 접근으로 재도전하는 것 자체(세션의 submissionId 갈아타기)는
+     * 막지 않지만, 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지 않는다.
+     * 완료 이전에 1~4단계 중 몇 단계까지 썼는지(한도가 남았는지)는 무관하다 — 이 검증은
+     * existingHints/maxStage를 조회하기도 전에 세션 상태만으로 즉시 막는다.
+     */
+    @Test
+    void 이미_완료된_세션에_재도전_오답이_들어오면_힌트_한도가_남아있어도_힌트를_생성하지_않는다() {
+        UUID retrySubmissionId = UUID.randomUUID();
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(retrySubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        when(judgeServicePort.getSubmission(retrySubmissionId)).thenReturn(retrySubmission);
+        CoachingSession completedSession = persistedSession();
+        completedSession.complete();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(completedSession));
+        when(coachingSessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThatThrownBy(() -> facade.requestHint(retrySubmissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
+
+        // 재도전 자체(세션이 최신 제출로 갈아타는 것)는 그대로 진행된다.
+        assertThat(completedSession.getSubmissionId()).isEqualTo(retrySubmissionId);
+        verify(hintRepository, never()).findByCoachingSessionId(any());
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintRepository, never()).save(any());
+    }
+
     @Test
     void 동시_요청으로_세션이_이미_생성됐으면_그_세션을_다시_조회해서_사용한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));

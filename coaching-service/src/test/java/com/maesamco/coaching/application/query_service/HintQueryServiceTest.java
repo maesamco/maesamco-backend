@@ -78,22 +78,26 @@ class HintQueryServiceTest {
     }
 
     /**
-     * PR #70 리뷰(용현님 P2) — V4 시절엔 이미 COMPLETED된 회차의 옛 submissionId로 조회하면
-     * 그 사이 새로 시작된 다른 회차(세션)의 힌트가 반환되던 문제였다. V5(이슈 #84)로 세션이
-     * 문제당 유일해진 뒤에도, 같은 세션 안에서 더 예전 제출 ID로 조회하면 여전히 이 가드가
-     * 막아준다.
+     * 이슈 #165 — 재도전으로 세션의 submissionId가 최신 제출로 갈아탄 뒤에도, 그 이전
+     * 제출 ID로 조회하면 힌트가 사라진 것처럼 빈 배열을 반환하던 버그. 힌트는 제출 하나가
+     * 아니라 문제를 풀어가는 과정 전체에 누적되는 데이터이므로, 어떤 submissionId로
+     * 조회하든(그 submissionId가 실제로 이 사용자·문제에 속하기만 하면) 세션의 전체 힌트를
+     * 그대로 반환해야 한다. (PR #70 리뷰로 도입됐던 일치 검증 가드는 V5로 문제당 세션이
+     * 유일해지며 원래 목적이 사라져 제거됨 — HintQueryService 클래스 Javadoc 참고.)
      */
     @Test
-    void 요청한_submissionId가_세션의_최신_제출과_다르면_빈_목록을_반환한다() {
+    void 요청한_submissionId가_세션의_최신_제출과_달라도_힌트_목록을_그대로_반환한다() {
         UUID staleSubmissionId = UUID.randomUUID();
         when(judgeServicePort.getSubmission(staleSubmissionId)).thenReturn(submission(staleSubmissionId, callerId));
         // 세션의 최신 제출은 submissionId — staleSubmissionId는 그보다 이전에 있었던 제출
         CoachingSession session = persistedSession(submissionId);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
+        Hint stage1 = Hint.create(session.getId(), 1, "1단계");
+        when(hintRepository.findByCoachingSessionId(session.getId())).thenReturn(List.of(stage1));
 
         List<Hint> hints = queryService.getHints(staleSubmissionId, callerId);
 
-        assertThat(hints).isEmpty();
+        assertThat(hints).containsExactly(stage1);
     }
 
     @Test
