@@ -51,8 +51,7 @@ public class ProblemService {
                 ProblemStatus.DRAFT
         );
 
-        // TODO: 현재의 로직은 관리자가 생성한 문제는 검증을 거치지 않고 발행된다. 나중에 따로 흐름을 추가할 수도 있다.
-        problem.setProblemStatusReviewPending();
+        problem.requestPublicationReview();
 
         Problem savedProblem = problemRepository.save(problem);
 

@@ -69,6 +69,10 @@ public enum ErrorCode {
             HttpStatus.BAD_REQUEST,
             "허용되지 않은 문제 상태 변경입니다."
     ),
+    PROBLEM_PUBLICATION_TEST_CASE_REQUIRED(
+            HttpStatus.CONFLICT,
+            "문제를 발행하려면 승인된 테스트케이스가 최소 1개 이상 필요합니다."
+    ),
 
     /* Tag */
     TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "태그를 찾을 수 없습니다."),

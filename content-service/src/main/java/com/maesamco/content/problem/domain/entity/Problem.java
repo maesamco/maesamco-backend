@@ -120,7 +120,20 @@ public class Problem extends BaseEntity {
     public void setProblemStatusDraft() {
         this.problemStatus = ProblemStatus.DRAFT;
     }
-    public void setProblemStatusReviewPending() {
+
+    /**
+     * 문제 공개 심사를 요청합니다.
+     *
+     * <p>DRAFT 상태의 문제만 REVIEW_PENDING 상태로
+     * 전환할 수 있습니다.</p>
+     */
+    public void requestPublicationReview() {
+        if (this.problemStatus != ProblemStatus.DRAFT) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION
+            );
+        }
+
         this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
