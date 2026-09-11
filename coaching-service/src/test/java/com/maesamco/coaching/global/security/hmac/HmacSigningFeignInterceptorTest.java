@@ -9,12 +9,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 실제 content-service를 띄운 통합 검증(이슈 #126)에서 재현한 버그의 회귀 방지용 —
- * Feign은 RequestInterceptor를 적용한 다음에야 @FeignClient(path = ...)의 prefix를
- * 최종 URL에 합치므로(SynchronousMethodHandler.targetRequest()의 순서), apply()
- * 시점의 template.url()에는 그 prefix가 아직 없다. basePath를 직접 더해서 서명하지
- * 않으면, 수신측 HmacVerificationFilter가 request.getRequestURI()로 재구성하는 전체
- * 경로와 어긋나 정상 요청도 항상 401이 난다(이슈 #161).
+ * 실제 content-service를 띄운 통합 검증(이슈 #126)에서 재현한 버그(이슈 #161)의
+ * 회귀 방지용 — basePath가 왜 필요한지는 HmacSigningFeignInterceptor의 클래스
+ * Javadoc 참고.
  */
 class HmacSigningFeignInterceptorTest {
 
