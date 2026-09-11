@@ -93,6 +93,14 @@ public class HintGenerationFacade {
         // 이슈 #148 — 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지
         // 않는다. 재도전 자체는 여전히 허용되고, 이전 힌트 조회(HintQueryService)도 그대로
         // 열려 있다.
+        //
+        // TODO(#148): 재도전마다 새로 1~4단계 힌트를 생성해주는 방향(사이클마다 완전히
+        // 새로 도와주기)도 검토했으나 지금은 채택하지 않았다 — 나중에 "재도전인데 힌트를
+        // 하나도 못 받는 게 UX상 불편하다"는 피드백이 나오거나, 힌트 생성에 포인트·에너지
+        // 등 소비 자원을 걸어서 "제한된 자원을 어떻게 쓸지는 사용자가 결정"하는 기능이
+        // 추가되면 재검토할 만하다. 그때는 completedAt만으로는 몇 번째 재도전 사이클인지
+        // 구분이 안 되므로(completeSessionIfNeeded()가 재완료 시 completedAt을 갱신 안 함)
+        // 사이클 경계를 나타낼 별도 마커가 같이 필요하다.
         if (session.isCompleted()) {
             throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
         }
