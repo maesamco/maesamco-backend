@@ -216,16 +216,33 @@ public class ProblemEventOutbox {
     /**
      * Kafka 발행 실패를 기록합니다.
      *
-     * <p>실패하더라도 PENDING 상태와 기존 eventId는 유지하여
-     * 동일 이벤트를 다시 발행할 수 있도록 합니다.</p>
+     * <p>실패 횟수가 최대 재시도 횟수에 도달하기 전까지는
+     * PENDING 상태를 유지하여 동일 eventId로 다시 발행할 수 있습니다.</p>
+     *
+     * <p>최대 재시도 횟수에 도달하면 FAILED 상태로 전환하여
+     * 오래된 실패 이벤트가 Relay의 PENDING 배치를 계속 점유하지 않도록 합니다.</p>
      *
      * @param error 외부 노출이 없는 안전한 오류 요약
+     * @param maxRetryCount 최대 재시도 횟수
      */
     public void recordFailure(
-            String error
+            String error,
+            int maxRetryCount
     ) {
+        if (maxRetryCount < 1) {
+            throw new IllegalArgumentException(
+                    "maxRetryCount must be greater than 0"
+            );
+        }
+
         this.retryCount++;
         this.lastError = error;
+
+        if (this.retryCount >= maxRetryCount) {
+            this.status =
+                    ProblemEventOutboxStatus.FAILED;
+            this.publishedAt = null;
+        }
     }
 
     /**

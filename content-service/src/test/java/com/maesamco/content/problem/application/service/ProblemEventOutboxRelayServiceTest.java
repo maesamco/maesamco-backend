@@ -20,13 +20,15 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class ProblemEventOutboxRelayServiceTest {
@@ -34,6 +36,7 @@ class ProblemEventOutboxRelayServiceTest {
     private static final int BATCH_SIZE = 50;
     private static final long PUBLISH_TIMEOUT_MILLIS = 5_000L;
     private static final int MAX_PAYLOAD_BYTES = 900_000;
+    private static final int MAX_RETRY_COUNT = 10;
 
     @Mock
     private ProblemEventOutboxRepository outboxRepository;
@@ -55,7 +58,8 @@ class ProblemEventOutboxRelayServiceTest {
                         statusService,
                         BATCH_SIZE,
                         PUBLISH_TIMEOUT_MILLIS,
-                        MAX_PAYLOAD_BYTES
+                        MAX_PAYLOAD_BYTES,
+                        MAX_RETRY_COUNT
                 );
     }
 
@@ -120,7 +124,8 @@ class ProblemEventOutboxRelayServiceTest {
 
         verify(statusService, never()).recordFailure(
                 any(),
-                any()
+                any(),
+                anyInt()
         );
     }
 
@@ -210,7 +215,8 @@ class ProblemEventOutboxRelayServiceTest {
         // then
         verify(statusService).recordFailure(
                 eq(failedOutboxId),
-                anyString()
+                anyString(),
+                eq(MAX_RETRY_COUNT)
         );
 
         verify(statusService, never()).markPublished(
@@ -300,7 +306,8 @@ class ProblemEventOutboxRelayServiceTest {
         // then
         verify(statusService).recordFailure(
                 eq(failedOutboxId),
-                anyString()
+                anyString(),
+                eq(MAX_RETRY_COUNT)
         );
 
         verify(statusService).markPublished(
@@ -322,7 +329,8 @@ class ProblemEventOutboxRelayServiceTest {
                         statusService,
                         BATCH_SIZE,
                         1L,
-                        MAX_PAYLOAD_BYTES
+                        MAX_PAYLOAD_BYTES,
+                        MAX_RETRY_COUNT
                 );
 
         UUID outboxId =
@@ -367,8 +375,9 @@ class ProblemEventOutboxRelayServiceTest {
 
         // then
         verify(statusService).recordFailure(
-                outboxId,
-                "KAFKA_PUBLISH_TIMEOUT"
+                eq(outboxId),
+                eq("KAFKA_PUBLISH_TIMEOUT"),
+                eq(MAX_RETRY_COUNT)
         );
 
         verify(statusService, never()).markPublished(
@@ -463,8 +472,9 @@ class ProblemEventOutboxRelayServiceTest {
 
         // then
         verify(statusService, never()).recordFailure(
-                eq(firstOutboxId),
-                anyString()
+                any(),
+                any(),
+                anyInt()
         );
 
         verify(statusService).markPublished(
@@ -540,8 +550,9 @@ class ProblemEventOutboxRelayServiceTest {
         );
 
         verify(statusService, never()).recordFailure(
-                eq(outboxId),
-                anyString()
+                any(),
+                any(),
+                anyInt()
         );
 
         verify(statusService, never()).markPublished(

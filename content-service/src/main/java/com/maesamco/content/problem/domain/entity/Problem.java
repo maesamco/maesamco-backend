@@ -120,9 +120,6 @@ public class Problem extends BaseEntity {
     public void setProblemStatusDraft() {
         this.problemStatus = ProblemStatus.DRAFT;
     }
-    public void setProblemStatusReviewPending() {
-        this.problemStatus = ProblemStatus.REVIEW_PENDING;
-    }
 
     /**
      * 문제 공개 심사를 요청합니다.

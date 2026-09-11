@@ -100,7 +100,8 @@ class ProblemEventOutboxTest {
                 );
 
         outbox.recordFailure(
-                "Kafka publish failed"
+                "Kafka publish failed",
+                10
         );
 
         assertThat(outbox.getStatus())
@@ -122,6 +123,73 @@ class ProblemEventOutboxTest {
          */
         assertThat(outbox.getEventId())
                 .isEqualTo(eventId);
+
+        assertThat(outbox.getPublishedAt())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName(
+            "Kafka 발행 실패가 최대 재시도 횟수에 도달하면 "
+                    + "FAILED 상태로 전환된다"
+    )
+    void recordFailure_changesStatusToFailed_whenMaxRetryCountReached() {
+        ProblemEventOutbox outbox =
+                ProblemEventOutbox.createPending(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        1,
+                        "{}",
+                        Instant.parse(
+                                "2026-09-08T00:00:00Z"
+                        )
+                );
+
+        int maxRetryCount = 10;
+
+        /*
+         * 최대 횟수 직전까지는 재시도 가능한
+         * PENDING 상태를 유지합니다.
+         */
+        for (int attempt = 1;
+             attempt < maxRetryCount;
+             attempt++) {
+
+            outbox.recordFailure(
+                    "KAFKA_PUBLISH_FAILED",
+                    maxRetryCount
+            );
+
+            assertThat(outbox.getStatus())
+                    .isEqualTo(
+                            ProblemEventOutboxStatus.PENDING
+                    );
+
+            assertThat(outbox.getRetryCount())
+                    .isEqualTo(attempt);
+        }
+
+        /*
+         * 10번째 실패에서는 더 이상 PENDING으로 남지 않아
+         * 오래된 실패 이벤트가 Relay 배치를 계속 점유하지 않습니다.
+         */
+        outbox.recordFailure(
+                "KAFKA_PUBLISH_FAILED",
+                maxRetryCount
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(
+                        ProblemEventOutboxStatus.FAILED
+                );
+
+        assertThat(outbox.getRetryCount())
+                .isEqualTo(maxRetryCount);
+
+        assertThat(outbox.getLastError())
+                .isEqualTo(
+                        "KAFKA_PUBLISH_FAILED"
+                );
 
         assertThat(outbox.getPublishedAt())
                 .isNull();
@@ -179,7 +247,8 @@ class ProblemEventOutboxTest {
                 );
 
         outbox.recordFailure(
-                "temporary failure"
+                "temporary failure",
+                10
         );
 
         Instant publishedAt =

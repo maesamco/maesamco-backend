@@ -42,6 +42,7 @@ public class ProblemEventOutboxRelayService {
     private final int batchSize;
     private final long publishTimeoutMillis;
     private final int maxPayloadBytes;
+    private final int maxRetryCount;
 
     public ProblemEventOutboxRelayService(
             ProblemEventOutboxRepository outboxRepository,
@@ -58,7 +59,11 @@ public class ProblemEventOutboxRelayService {
             @Value(
                     "${outbox.problem-published.relay.max-payload-bytes:900000}"
             )
-            int maxPayloadBytes
+            int maxPayloadBytes,
+            @Value(
+                    "${outbox.problem-published.relay.max-retry-count:10}"
+            )
+            int maxRetryCount
     ) {
         this.outboxRepository = outboxRepository;
         this.kafkaProducer = kafkaProducer;
@@ -66,6 +71,7 @@ public class ProblemEventOutboxRelayService {
         this.batchSize = batchSize;
         this.publishTimeoutMillis = publishTimeoutMillis;
         this.maxPayloadBytes = maxPayloadBytes;
+        this.maxRetryCount = maxRetryCount;
     }
 
     /**
@@ -217,7 +223,8 @@ public class ProblemEventOutboxRelayService {
         try {
             statusService.recordFailure(
                     outbox.getId(),
-                    safeError
+                    safeError,
+                    maxRetryCount
             );
         } catch (RuntimeException exception) {
             log.error(

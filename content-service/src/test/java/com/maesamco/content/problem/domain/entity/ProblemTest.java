@@ -274,7 +274,7 @@ class ProblemTest {
     void setProblemStatusDraft_changesStatusToDraft() {
         // given
         Problem problem = createProblem();
-        problem.setProblemStatusReviewPending();
+        problem.requestPublicationReview();
 
         // when
         problem.setProblemStatusDraft();
@@ -285,25 +285,11 @@ class ProblemTest {
     }
 
     @Test
-    @DisplayName("문제 상태를 REVIEW_PENDING으로 변경할 수 있다")
-    void setProblemStatusReviewPending_changesStatusToReviewPending() {
-        // given
-        Problem problem = createProblem();
-
-        // when
-        problem.setProblemStatusReviewPending();
-
-        // then
-        assertThat(problem.getProblemStatus())
-                .isEqualTo(ProblemStatus.REVIEW_PENDING);
-    }
-
-    @Test
     @DisplayName("REVIEW_PENDING 상태의 문제를 승인하면 PUBLISHED 상태로 변경된다")
     void approvePublication_changesReviewPendingToPublished() {
         // given
         Problem problem = createProblem();
-        problem.setProblemStatusReviewPending();
+        problem.requestPublicationReview();
 
         // when
         problem.approvePublication();

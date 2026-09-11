@@ -73,6 +73,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 class ProblemEventOutboxStatusServiceIntegrationTest {
 
+    private static final int MAX_RETRY_COUNT = 10;
+
     @ServiceConnection
     static final PostgreSQLContainer postgres =
             new PostgreSQLContainer(
@@ -171,7 +173,8 @@ class ProblemEventOutboxStatusServiceIntegrationTest {
         // when
         statusService.recordFailure(
                 outboxId,
-                safeError
+                safeError,
+                MAX_RETRY_COUNT
         );
 
         // then
@@ -190,6 +193,66 @@ class ProblemEventOutboxStatusServiceIntegrationTest {
                 result.retryCount()
         ).isEqualTo(
                 1
+        );
+
+        assertThat(
+                result.lastError()
+        ).isEqualTo(
+                safeError
+        );
+
+        assertThat(
+                result.publishedAt()
+        ).isNull();
+    }
+
+    @Test
+    @DisplayName(
+            "recordFailure가 최대 재시도 횟수에 도달하면 "
+                    + "FAILED 상태를 DB에 commit한다"
+    )
+    void recordFailure_commitsFailedState_whenMaxRetryCountReached() {
+        // given
+        UUID outboxId =
+                createPendingOutboxFixture();
+
+        String safeError =
+                "KAFKA_PUBLISH_FAILED";
+
+        assertThat(
+                AopUtils.isAopProxy(
+                        statusService
+                )
+        ).isTrue();
+
+        // when
+        for (int attempt = 0;
+             attempt < MAX_RETRY_COUNT;
+             attempt++) {
+
+            statusService.recordFailure(
+                    outboxId,
+                    safeError,
+                    MAX_RETRY_COUNT
+            );
+        }
+
+        // then
+        OutboxState result =
+                readOutboxState(
+                        outboxId
+                );
+
+        assertThat(
+                result.status()
+        ).isEqualTo(
+                ProblemEventOutboxStatus.FAILED
+        );
+
+        assertThat(
+                result.retryCount()
+        ).isEqualTo(
+                MAX_RETRY_COUNT
         );
 
         assertThat(

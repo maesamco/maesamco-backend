@@ -47,22 +47,25 @@ public class ProblemEventOutboxStatusService {
     /**
      * Kafka 발행 실패 결과를 Outbox에 반영합니다.
      *
-     * <p>상태는 PENDING으로 유지되며,
-     * retryCount와 안전하게 정제된 실패 사유를 기록합니다.</p>
+     * <p>최대 재시도 횟수에 도달하기 전까지는 PENDING 상태를 유지하며,
+     * 상한에 도달하면 FAILED 상태로 전환됩니다.</p>
      *
      * @param outboxId Outbox ID
-     * @param error    payload를 포함하지 않는 실패 사유
+     * @param error payload를 포함하지 않는 실패 사유
+     * @param maxRetryCount 최대 재시도 횟수
      */
     @Transactional
     public void recordFailure(
             UUID outboxId,
-            String error
+            String error,
+            int maxRetryCount
     ) {
         ProblemEventOutbox outbox =
                 getOutbox(outboxId);
 
         outbox.recordFailure(
-                error
+                error,
+                maxRetryCount
         );
     }
 

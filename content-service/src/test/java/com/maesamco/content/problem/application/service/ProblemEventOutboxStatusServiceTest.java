@@ -130,7 +130,8 @@ class ProblemEventOutboxStatusServiceTest {
         // when
         statusService.recordFailure(
                 outboxId,
-                safeError
+                safeError,
+                10
         );
 
         // then
@@ -144,6 +145,74 @@ class ProblemEventOutboxStatusServiceTest {
                 outbox.getRetryCount()
         ).isEqualTo(
                 1
+        );
+
+        assertThat(
+                outbox.getLastError()
+        ).isEqualTo(
+                safeError
+        );
+
+        assertThat(
+                outbox.getPublishedAt()
+        ).isNull();
+    }
+
+    @Test
+    @DisplayName(
+            "Kafka 발행 실패가 최대 재시도 횟수에 도달하면 "
+                    + "Outbox를 FAILED 상태로 전환한다"
+    )
+    void recordFailure_changesStatusToFailed_whenMaxRetryCountReached() {
+        // given
+        UUID outboxId =
+                UUID.randomUUID();
+
+        ProblemEventOutbox outbox =
+                createPendingOutbox(
+                        Instant.parse(
+                                "2026-09-08T00:00:00Z"
+                        )
+                );
+
+        String safeError =
+                "KAFKA_PUBLISH_FAILED";
+
+        int maxRetryCount = 10;
+
+        when(
+                problemEventOutboxRepository.findById(
+                        outboxId
+                )
+        ).thenReturn(
+                Optional.of(
+                        outbox
+                )
+        );
+
+        // when
+        for (int attempt = 0;
+             attempt < maxRetryCount;
+             attempt++) {
+
+            statusService.recordFailure(
+                    outboxId,
+                    safeError,
+                    maxRetryCount
+            );
+        }
+
+        // then
+        assertThat(
+                outbox.getStatus()
+        ).isEqualTo(
+                ProblemEventOutboxStatus.FAILED
+        );
+
+        assertThat(
+                outbox.getRetryCount()
+        ).isEqualTo(
+                maxRetryCount
         );
 
         assertThat(
