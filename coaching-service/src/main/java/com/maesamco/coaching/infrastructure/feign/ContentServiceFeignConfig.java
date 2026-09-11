@@ -2,7 +2,6 @@ package com.maesamco.coaching.infrastructure.feign;
 
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.security.hmac.HmacSigningFeignInterceptor;
-import com.maesamco.coaching.global.security.hmac.InternalCallHeaders;
 import feign.RequestInterceptor;
 import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +27,7 @@ public class ContentServiceFeignConfig {
             @Value("${spring.application.name}") String serviceName,
             @Value("${internal.hmac.outbound.content-service}") String secretKeyForContent
     ) {
-        return new HmacSigningFeignInterceptor(serviceName, secretKeyForContent, InternalCallHeaders.INTERNAL_API_PREFIX);
+        return new HmacSigningFeignInterceptor(serviceName, secretKeyForContent, InternalApiPrefix.INTERNAL_API_PREFIX);
     }
 
     /**
