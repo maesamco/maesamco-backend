@@ -25,7 +25,10 @@ spring:
             - id: content-service
               uri: lb://content-service
               predicates:
-                - Path=/api/v1/contents/**, /api/v1/admin/contents/**
+                # /api/v1/daily-quiz는 /api/v1/contents/** 프리픽스 하위가 아니라
+                # top-level 경로가 실제 의도된 설계(매삼코 DB 테이블 명세, 팀 시연
+                # 점검 문서 기준) — 이슈 #153, PR #151 리뷰 중 라우트 누락 발견
+                - Path=/api/v1/contents/**, /api/v1/admin/contents/**, /api/v1/daily-quiz/**
             - id: judge-service
               uri: lb://judge-service
               predicates:
@@ -77,3 +80,4 @@ springdoc:
 rate-limit:
   submissions:
     per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:30}
+  trusted-proxy-ips: ${RATE_LIMIT_TRUSTED_PROXY_IPS:}

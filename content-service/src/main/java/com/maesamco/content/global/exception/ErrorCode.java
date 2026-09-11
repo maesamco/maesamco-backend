@@ -1,5 +1,6 @@
 package com.maesamco.content.global.exception;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
  *  - 다른 사용자의 리소스에 접근하는 경우 별도 코드를 만들지 않고
  *    존재하지 않는 리소스와 동일하게 404 + {DOMAIN}_NOT_FOUND 로 응답한다.
  */
+@Getter
 public enum ErrorCode {
 
     // ===== common =====
@@ -29,38 +31,68 @@ public enum ErrorCode {
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
 
     // ===== 서비스 간 통신 =====
-    FEIGN_CLIENT_ERROR(HttpStatus.BAD_GATEWAY, "서비스 간 통신 중 오류가 발생했습니다."),
+    FEIGN_CLIENT_ERROR(
+            HttpStatus.BAD_GATEWAY,
+            "서비스 간 통신 중 오류가 발생했습니다."
+    ),
     INTERNAL_CALL_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "내부 호출 서명이 유효하지 않습니다."),
     INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
     // ===== content =====
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
-    INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다.");
+    INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
-    // 이 아래에 서비스별 섹션을 추가하세요. 예)
-    // ===== user =====
-    // USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
-    //
-    // ===== judge =====
-    // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
-    // IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
-    //
-    // ===== coaching =====
-    // HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인의 오답 제출에만 힌트를 요청할 수 있습니다.");
+    /* Curriculum */
+    CURRICULUM_NOT_FOUND(HttpStatus.NOT_FOUND, "커리큘럼을 찾을 수 없습니다."),
+
+    /* Unit */
+    UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "유닛을 찾을 수 없습니다."),
+
+    /* Lesson */
+    LESSON_NOT_FOUND(HttpStatus.NOT_FOUND, "레슨을 찾을 수 없습니다."),
+
+    /* Problem */
+    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
+    PROBLEM_MODIFIED_CONCURRENTLY(
+            HttpStatus.CONFLICT,
+            "문제가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."
+    ),
+    STARTER_CODE_NOT_INITIALIZED(
+            HttpStatus.BAD_REQUEST,
+            "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."
+    ),
+    INVALID_PROBLEM_TYPE(
+            HttpStatus.BAD_REQUEST,
+            "현재 문제 도메인은 CODE 유형만 지원합니다."
+    ),
+    INVALID_PROBLEM_STATUS_TRANSITION(
+            HttpStatus.BAD_REQUEST,
+            "허용되지 않은 문제 상태 변경입니다."
+    ),
+
+    /* Tag */
+    TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "태그를 찾을 수 없습니다."),
+    TAG_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 태그 이름입니다."),
+
+    /* Problem Tag */
+    PROBLEM_TAG_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 문제에 등록된 태그입니다."),
+    PROBLEM_TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "문제에 등록된 태그를 찾을 수 없습니다."),
+
+    /* Testcase */
+    TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "테스트케이스를 찾을 수 없습니다."),
+    TEST_CASE_ACCESS_DENIED(
+            HttpStatus.FORBIDDEN,
+            "비공개 테스트케이스에 접근할 권한이 없습니다."
+    );
 
     private final HttpStatus status;
     private final String message;
 
-    ErrorCode(HttpStatus status, String message) {
+    ErrorCode(
+            HttpStatus status,
+            String message
+    ) {
         this.status = status;
         this.message = message;
-    }
-
-    public HttpStatus getStatus() {
-        return status;
-    }
-
-    public String getMessage() {
-        return message;
     }
 }

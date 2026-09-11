@@ -118,20 +118,22 @@ class SubmissionTest {
             assertThat(pendingSubmission.getResult()).isNull();
             assertThat(pendingSubmission.isTerminal()).isTrue();
         }
+
+        @Test
+        @DisplayName("전이 성공 - PENDING에서 바로 RUNNING으로 (Outbox Relay가 QUEUED를 커밋하기 전에 "
+                + "Consumer가 먼저 메시지를 처리하는 레이스 대응)")
+        void markRunning_success_fromPending() {
+            // when
+            pendingSubmission.markRunning();
+
+            // then
+            assertThat(pendingSubmission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
+        }
     }
 
     @Nested
     @DisplayName("금지된 상태 전이 테스트")
     class InvalidTransitionTest {
-
-        @Test
-        @DisplayName("전이 실패 - PENDING에서 바로 RUNNING으로 갈 수 없음")
-        void markRunning_fail_fromPending() {
-            // when & then
-            assertThatThrownBy(pendingSubmission::markRunning)
-                    .isInstanceOf(BusinessException.class);
-            assertThat(pendingSubmission.getStatus()).isEqualTo(SubmissionStatus.PENDING);
-        }
 
         @Test
         @DisplayName("전이 실패 - QUEUED에서 바로 RETRY_WAIT로 갈 수 없음")
@@ -249,6 +251,30 @@ class SubmissionTest {
 
             // then
             assertThat(pendingSubmission.getRetryCount()).isEqualTo(originalRetryCount);
+        }
+
+        @Test
+        @DisplayName("멱등 처리 - 이미 RUNNING으로 넘어간 뒤 뒤늦게 도착한 markQueued는 예외 없이 스킵됨 "
+                + "(Outbox Relay의 QUEUED 커밋이 Consumer의 RUNNING 전이보다 늦게 도착하는 레이스)")
+        void markQueued_idempotent_skipsWhenAlreadyRunning() {
+            // given
+            pendingSubmission.markRunning(); // PENDING -> RUNNING (Consumer가 먼저 처리한 상황 재현)
+
+            // when & then
+            assertThatCode(pendingSubmission::markQueued).doesNotThrowAnyException();
+            assertThat(pendingSubmission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
+        }
+
+        @Test
+        @DisplayName("멱등 처리 - 터미널 상태(COMPLETED)에서 뒤늦게 도착한 markQueued도 예외 없이 스킵됨")
+        void markQueued_idempotent_skipsWhenTerminal() {
+            // given
+            pendingSubmission.markRunning();
+            pendingSubmission.markCompleted(SubmissionResult.CORRECT, 100, 1024);
+
+            // when & then
+            assertThatCode(pendingSubmission::markQueued).doesNotThrowAnyException();
+            assertThat(pendingSubmission.getStatus()).isEqualTo(SubmissionStatus.COMPLETED);
         }
     }
 

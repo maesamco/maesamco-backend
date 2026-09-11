@@ -2,12 +2,15 @@ package com.maesamco.judge.domain.entity;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 제출 1건에 종속된 개별 테스트케이스 채점 결과.
@@ -23,6 +26,7 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "p_submission_test_results",
        indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id")
 )
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -52,6 +56,10 @@ public class SubmissionTestResult {
     @Enumerated(EnumType.STRING)
     @Column(name = "error_type", length = 30, updatable = false)
     private SubmissionTestErrorType errorType;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private Instant createdAt;
 
     private SubmissionTestResult(
             UUID submissionId,
