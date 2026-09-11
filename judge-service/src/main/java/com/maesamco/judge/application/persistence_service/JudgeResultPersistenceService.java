@@ -8,6 +8,7 @@ import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.domain.repository.SubmissionTestResultRepository;
+import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 
@@ -39,6 +40,7 @@ public class JudgeResultPersistenceService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
     private final ProblemExecutionSpecRepository problemExecutionSpecRepository;
+    private final JudgeExecutionPersistenceService judgeExecutionPersistenceService;
     private final JsonMapper jsonMapper;
 
     /**
@@ -53,6 +55,23 @@ public class JudgeResultPersistenceService {
             pendingJudge0ExecutionRepository.deleteAll(
                     pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
             completeSubmissionWithResult(pending.getSubmissionId(), SubmissionResult.COMPILE_ERROR, result);
+            return;
+        }
+
+        if (isSystemFailure(result.status())) {
+            // Judge0 자체 실패(INTERNAL_ERROR)나 매핑 불가능한 상태(UNKNOWN)는 학생 오답이 아니라
+            // 채점 시스템 실패 — WRONG_ANSWER로 흘려보내지 않고 FAILED로 종료한다.
+            log.error("[Judge] Judge0 실행 결과가 시스템 실패 상태({})로 반환됨 — FAILED 처리. "
+                            + "submissionId={}, testCaseId={}, token={}",
+                    result.status(), pending.getSubmissionId(), pending.getTestCaseId(), pending.getJudge0Token());
+            pendingJudge0ExecutionRepository.deleteAll(
+                    pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
+            try {
+                judgeExecutionPersistenceService.markFailed(pending.getSubmissionId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+            } catch (BusinessException e) {
+                log.warn("[Judge] 이미 종료 상태로 전이돼 있어 markFailed를 건너뜀. submissionId={}",
+                        pending.getSubmissionId(), e);
+            }
             return;
         }
 
@@ -152,6 +171,10 @@ public class JudgeResultPersistenceService {
             throw new IllegalStateException(
                     "SubmissionJudged payload 직렬화 실패. submissionId=" + submission.getId(), e);
         }
+    }
+
+    private boolean isSystemFailure(JudgeExecutionStatus status) {
+        return status == JudgeExecutionStatus.INTERNAL_ERROR || status == JudgeExecutionStatus.UNKNOWN;
     }
 
     private static final List<SubmissionTestErrorType> SEVERITY_ORDER = List.of(

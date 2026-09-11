@@ -1,7 +1,10 @@
 package com.maesamco.judge.application.persistence_service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.port.JudgeExecutionResult;
@@ -11,6 +14,8 @@ import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import com.maesamco.judge.domain.repository.SubmissionTestResultRepository;
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 import java.util.List;
@@ -23,7 +28,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -47,6 +51,9 @@ class JudgeResultPersistenceServiceTest {
     @Mock
     private ProblemExecutionSpecRepository problemExecutionSpecRepository;
 
+    @Mock
+    private JudgeExecutionPersistenceService judgeExecutionPersistenceService;
+
     private JudgeResultPersistenceService judgeResultPersistenceService;
 
     @BeforeEach
@@ -57,6 +64,7 @@ class JudgeResultPersistenceServiceTest {
                 submissionRepository,
                 submissionEventOutboxRepository,
                 problemExecutionSpecRepository,
+                judgeExecutionPersistenceService,
                 JsonMapper.builder().build());
     }
 
@@ -68,6 +76,10 @@ class JudgeResultPersistenceServiceTest {
         submission.markQueued();
         submission.markRunning();
         return submission;
+    }
+
+    private JudgeExecutionResult resultOf(JudgeExecutionStatus status) {
+        return new JudgeExecutionResult("token-1", status, null, null, null, null, null);
     }
 
     @Nested
@@ -85,26 +97,24 @@ class JudgeResultPersistenceServiceTest {
             PendingJudge0Execution lastPending =
                     PendingJudge0Execution.create(submissionId, lastTestCaseId, "token-last", true);
 
-            // 마지막 테스트케이스는 통과 — 이 호출로 allDone이 되면서 최종 판정이 일어남
             JudgeExecutionResult lastResult = new JudgeExecutionResult(
                     "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
 
-            // 앞서 저장되어 있던 실패 결과 2건 — WRONG_ANSWER가 리스트 앞쪽에 오도록 순서를 일부러 그렇게 둠
             SubmissionTestResult wrongAnswer = SubmissionTestResult.create(
                     submissionId, UUID.randomUUID(), true, false, "-1", SubmissionTestErrorType.WRONG_ANSWER);
             SubmissionTestResult runtimeError = SubmissionTestResult.create(
                     submissionId, UUID.randomUUID(), false, false, null, SubmissionTestErrorType.RUNTIME_ERROR);
 
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
-                    .willReturn(List.of()); // 마지막 건 삭제 후 남은 pending 없음 -> allDone
+                    .willReturn(List.of());
             given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))
-                    .willReturn(List.of(wrongAnswer, runtimeError)); // WRONG_ANSWER가 먼저 나옴
+                    .willReturn(List.of(wrongAnswer, runtimeError));
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
             // when
             judgeResultPersistenceService.reflectResult(lastPending, lastResult);
 
-            // then — 리스트 순서상 먼저 나온 WRONG_ANSWER가 아니라, 더 심각한 RUNTIME_ERROR가 최종 반영돼야 한다
+            // then
             assertThat(submission.getResult()).isEqualTo(SubmissionResult.RUNTIME_ERROR);
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.COMPLETED);
             verify(submissionRepository).save(submission);
@@ -141,6 +151,59 @@ class JudgeResultPersistenceServiceTest {
 
             // then
             assertThat(submission.getResult()).isEqualTo(SubmissionResult.MEMORY_LIMIT_EXCEEDED);
+        }
+    }
+
+    @Nested
+    @DisplayName("reflectResult — 시스템 실패 상태")
+    class SystemFailure {
+
+        @Test
+        @DisplayName("INTERNAL_ERROR면 WRONG_ANSWER로 기록하지 않고 markFailed(JUDGE0_RESPONSE_FAILURE)를 호출한다")
+        void marksFailedWhenInternalError() {
+            UUID submissionId = UUID.randomUUID();
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token-1", true);
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of(pending));
+
+            judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.INTERNAL_ERROR));
+
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+            verify(submissionTestResultRepository, never()).save(any());
+            verify(pendingJudge0ExecutionRepository).deleteAll(List.of(pending));
+        }
+
+        @Test
+        @DisplayName("UNKNOWN이면 WRONG_ANSWER로 기록하지 않고 markFailed(JUDGE0_RESPONSE_FAILURE)를 호출한다")
+        void marksFailedWhenUnknown() {
+            UUID submissionId = UUID.randomUUID();
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token-2", false);
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of(pending));
+
+            judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.UNKNOWN));
+
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+            verify(submissionTestResultRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("이미 종료 상태라 markFailed가 실패해도 예외를 전파하지 않는다")
+        void doesNotPropagateWhenAlreadyTerminal() {
+            UUID submissionId = UUID.randomUUID();
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token-3", true);
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of(pending));
+            willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND))
+                    .given(judgeExecutionPersistenceService)
+                    .markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.INTERNAL_ERROR));
+
+            // 예외가 여기까지 전파되지 않고 조용히 끝나면 성공
         }
     }
 }

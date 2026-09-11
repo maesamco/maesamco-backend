@@ -47,7 +47,7 @@ public class PendingJudge0Execution {
         this.testCaseId = testCaseId;
         this.judge0Token = judge0Token;
         this.createdAt = Instant.now();
-        this.isPublic = isPublic();
+        this.isPublic = isPublic;
     }
 
     public static PendingJudge0Execution create(UUID submissionId, UUID testCaseId, String judge0Token, boolean isPublic) {
