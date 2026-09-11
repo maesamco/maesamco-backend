@@ -7,7 +7,9 @@ import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -42,6 +44,12 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
                 conceptTagArray,
                 limitPerConcept
         );
+    }
+
+    @Override
+    public List<DailyQuizQuestion> findAllById(Collection<UUID> questionIds) {
+        // Spring Data Repository에서 배정된 문제 버전들을 ID로 한 번에 조회
+        return springDataRepository.findAllById(questionIds);
     }
 
     private static BusinessException invalidInput(String message) {

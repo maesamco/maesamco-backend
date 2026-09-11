@@ -39,6 +39,7 @@ public enum ErrorCode {
     INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
     // ===== content =====
+    QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "오늘 생성된 퀴즈 세트가 없습니다."),
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
     INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
