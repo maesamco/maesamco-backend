@@ -44,6 +44,8 @@ public enum ErrorCode {
     // 확인한 뒤라 실제로는 거의 발생하지 않는다(세션 삭제 기능 자체가 없음).
     COACHING_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "코칭 세션을 찾을 수 없습니다."),
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
+    // 이슈 #62 — Content Service GET /internal/v1/problems/{problemId} 조회 실패 시.
+    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
     HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 오답 상태일 때만 힌트를 요청할 수 있습니다."),
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다."),
     EXPLANATION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 정답 상태일 때만 설명을 등록할 수 있습니다."),
@@ -73,7 +75,11 @@ public enum ErrorCode {
     // 수 있어 추가했다.
     AI_FEEDBACK_RETRY_IN_PROGRESS(HttpStatus.CONFLICT, "이미 AI 피드백 재시도가 진행 중입니다. 잠시 후 다시 시도해주세요."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
-    WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다.");
+    WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다."),
+    // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
+    // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
+    // 대상이 아닌 서비스가 호출한 경우에 쓴다(PR #124 리뷰, 용현님).
+    INTERNAL_CALLER_NOT_ALLOWED(HttpStatus.FORBIDDEN, "이 내부 API를 호출할 수 없는 서비스입니다.");
 
     // 이 아래에 서비스별 섹션을 추가하세요. 예)
     // ===== user =====

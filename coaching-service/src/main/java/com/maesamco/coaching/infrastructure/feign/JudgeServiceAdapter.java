@@ -25,6 +25,11 @@ public class JudgeServiceAdapter implements JudgeServicePort {
      * 핵심 경로의 호출이라, 서킷이 열려도(Judge Service 장애) 빈 값으로 조용히 넘기지
      * 않고 재시도 가능한 실패(FEIGN_CLIENT_ERROR)로 명확히 응답한다 —
      * getSubmissionFallback() 참고.
+     *
+     * 404는 JudgeServiceFeignConfig에 등록한 JudgeServiceErrorDecoder가 이미
+     * SUBMISSION_NOT_FOUND/FEIGN_CLIENT_ERROR 중 하나의 BusinessException으로 변환해서
+     * 던진다(PR #127 리뷰, 용현님 지적) — 그래서 여기서는 FeignException.NotFound를
+     * 따로 안 잡는다. 그 외 상태 코드(5xx 등)만 일반 FeignException으로 남는다.
      */
     @Override
     @CircuitBreaker(name = "judge-service", fallbackMethod = "getSubmissionFallback")
@@ -38,8 +43,6 @@ public class JudgeServiceAdapter implements JudgeServicePort {
                     data.submissionId(), data.userId(), data.problemId(), data.code(),
                     data.result(), failedTests, data.attemptNo()
             );
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND);
         } catch (FeignException e) {
             throw new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR);
         }
