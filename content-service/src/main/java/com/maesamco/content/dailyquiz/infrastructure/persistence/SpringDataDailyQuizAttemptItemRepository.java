@@ -44,4 +44,14 @@ interface SpringDataDailyQuizAttemptItemRepository
             @Param("correct") boolean correct,
             @Param("answeredAt") Instant answeredAt
     );
+
+    /**
+     * 특정 세트에서 아직 제출하지 않은 문항 수를 조회합니다.
+     */
+    long countByAttemptIdAndUserAnswerIsNull(UUID attemptId);
+
+    /**
+     * 특정 세트에서 정답으로 제출된 문항 수를 조회합니다.
+     */
+    long countByAttemptIdAndCorrectTrue(UUID attemptId);
 }
