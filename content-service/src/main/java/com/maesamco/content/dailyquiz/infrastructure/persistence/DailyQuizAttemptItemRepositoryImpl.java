@@ -5,6 +5,7 @@ import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptItemRepo
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,5 +33,22 @@ public class DailyQuizAttemptItemRepositoryImpl implements DailyQuizAttemptItemR
             UUID questionId
     ) {
         return springDataRepository.findByAttemptIdAndQuestionId(attemptId, questionId);
+    }
+
+    @Override
+    public int submitIfUnanswered(
+            UUID attemptId,
+            UUID questionId,
+            String userAnswer,
+            boolean correct,
+            Instant answeredAt
+    ) {
+        return springDataRepository.submitIfUnanswered(
+                attemptId,
+                questionId,
+                userAnswer,
+                correct,
+                answeredAt
+        );
     }
 }
