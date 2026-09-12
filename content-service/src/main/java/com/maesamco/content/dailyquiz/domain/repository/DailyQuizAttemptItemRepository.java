@@ -31,4 +31,14 @@ public interface DailyQuizAttemptItemRepository {
             boolean correct,
             Instant answeredAt
     );
+
+    /**
+     * 특정 세트에서 아직 제출하지 않은 문항 수를 조회합니다.
+     */
+    long countUnansweredByAttemptId(UUID attemptId);
+
+    /**
+     * 특정 세트에서 정답으로 제출된 문항 수를 조회합니다.
+     */
+    long countCorrectByAttemptId(UUID attemptId);
 }
