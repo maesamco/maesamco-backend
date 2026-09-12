@@ -51,4 +51,14 @@ public class DailyQuizAttemptItemRepositoryImpl implements DailyQuizAttemptItemR
                 answeredAt
         );
     }
+
+    @Override
+    public long countUnansweredByAttemptId(UUID attemptId) {
+        return springDataRepository.countByAttemptIdAndUserAnswerIsNull(attemptId);
+    }
+
+    @Override
+    public long countCorrectByAttemptId(UUID attemptId) {
+        return springDataRepository.countByAttemptIdAndCorrectTrue(attemptId);
+    }
 }
