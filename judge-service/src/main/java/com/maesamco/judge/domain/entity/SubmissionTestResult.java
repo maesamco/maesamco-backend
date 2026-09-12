@@ -24,8 +24,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
 @Table(name = "p_submission_test_results",
-       indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id")
-)
+        indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id"),
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_submission_test_results_submission_test_case",
+                columnNames = {"submission_id", "test_case_id"})
+        )
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Slf4j

@@ -219,29 +219,29 @@ class SubmissionEventOutboxPersistenceServiceTest {
         @DisplayName("재시도 없이 즉시 Outbox를 FAILED로, Submission을 INTERNAL_SYSTEM_ERROR로 종료 처리한다")
         void terminatesImmediately() {
             UUID submissionId = UUID.randomUUID();
-            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(submissionId, "SubmissionJudged", "{}");
+            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(submissionId, "UnknownEvent", "{}"); // 수정
             Submission submission = queuableSubmission(submissionId);
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
             submissionEventOutboxPersistenceService.markUnsupportedEventType(outbox);
 
             assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.FAILED);
-            assertThat(outbox.getAttemptCount()).isZero(); // 재시도 카운트를 소진시킨 게 아니라 즉시 종료된 것
+            assertThat(outbox.getAttemptCount()).isZero();
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
             assertThat(submission.getFailureCode()).isEqualTo(FailureCode.INTERNAL_SYSTEM_ERROR);
         }
 
         @Test
-        @DisplayName("이미 종료 상태(COMPLETED)인 Outbox면 아무것도 하지 않고 멱등하게 종료한다")
-        void skipsWhenOutboxAlreadyTerminated() {
-            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(UUID.randomUUID(), "SubmissionJudged", "{}");
-            outbox.markPublished(); // 다른 경로로 이미 COMPLETED 처리된 상황을 재현
+        @DisplayName("SubmissionJudged 발행 성공 시에는 Submission 상태를 건드리지 않는다")
+        void doesNotTouchSubmissionForSubmissionJudged() {
+            UUID submissionId = UUID.randomUUID();
+            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(submissionId, "SubmissionJudged", "{}");
 
-            submissionEventOutboxPersistenceService.markUnsupportedEventType(outbox);
+            submissionEventOutboxPersistenceService.markPublished(outbox);
 
-            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED);
-            verify(submissionEventOutboxRepository, never()).save(any());
+            verify(submissionEventOutboxRepository).save(outbox);
             verify(submissionRepository, never()).findById(any());
+            verify(submissionRepository, never()).save(any());
         }
     }
 }

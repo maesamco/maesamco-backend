@@ -42,6 +42,8 @@ class SubmissionEventRelayFacadeTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(submissionEventRelayFacade, "judgeRequestedTopic", "judge-requested");
+        ReflectionTestUtils.setField(submissionEventRelayFacade, "submissionJudgedTopic", "submission-judged"); // 추가
+
     }
 
     private SubmissionEventOutbox pendingOutbox(String eventType) {
@@ -84,7 +86,7 @@ class SubmissionEventRelayFacadeTest {
         @Test
         @DisplayName("알 수 없는 event_type이면 발행을 시도하지 않고 즉시 markUnsupportedEventType으로 종료 처리한다")
         void marksUnsupportedEventTypeWithoutPublishing() {
-            SubmissionEventOutbox outbox = pendingOutbox("SubmissionJudged"); // 이슈 9 몫, 아직 미지원
+            SubmissionEventOutbox outbox = pendingOutbox("UnknownEvent");
             given(submissionEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
                     .willReturn(List.of(outbox));
 
@@ -111,6 +113,20 @@ class SubmissionEventRelayFacadeTest {
             verify(submissionEventOutboxPersistenceService).markPublished(outbox);
             verify(submissionEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId());
             verify(submissionEventOutboxPersistenceService, never()).recordFailedAttempt(any());
+        }
+
+        @Test
+        @DisplayName("SubmissionJudged Outbox는 submission-judged 토픽으로 발행하고 markPublished를 호출한다")
+        void marksPublishedForSubmissionJudged() {
+            SubmissionEventOutbox outbox = pendingOutbox("SubmissionJudged");
+            given(submissionEventOutboxRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+                    .willReturn(List.of(outbox));
+
+            submissionEventRelayFacade.relay();
+
+            verify(eventPublisherPort).publish("submission-judged", outbox.getAggregateId().toString(), outbox.getPayload());
+            verify(submissionEventOutboxPersistenceService).markPublished(outbox);
+            verify(submissionEventOutboxPersistenceService, never()).markUnsupportedEventType(any());
         }
     }
 }
