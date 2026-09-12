@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -20,6 +21,11 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
     @Override
     public DailyQuizQuestion save(DailyQuizQuestion question) {
         return springDataRepository.save(question);
+    }
+
+    @Override
+    public Optional<DailyQuizQuestion> findById(UUID questionId) {
+        return springDataRepository.findById(questionId);
     }
 
     @Override
