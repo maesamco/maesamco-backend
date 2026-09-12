@@ -192,6 +192,21 @@ public class DailyQuizQuestion {
         return this.status == DailyQuizQuestionStatus.ACTIVE;
     }
 
+    /**
+     * 문제 유형별 규칙에 따라 사용자 답안을 동기 채점합니다.
+     * 대소문자와 내부 공백은 변경하지 않고 문자열을 완전일치로 비교합니다.
+     */
+    public boolean isCorrect(String userAnswer) {
+        String validatedUserAnswer = requireUserAnswer(userAnswer);
+
+        return switch (this.problemType) {
+            case MULTIPLE_CHOICE -> this.answer.equals(validatedUserAnswer);
+            case FILL_IN_BLANK -> this.answer.equals(validatedUserAnswer.strip());
+            case SHORT_ANSWER -> this.answer.equals(validatedUserAnswer)
+                    || containsAllowedAnswer(validatedUserAnswer);
+        };
+    }
+
     private static ValidatedContent validateContent(
             DailyQuizProblemType problemType,
             String questionText,
@@ -230,6 +245,24 @@ public class DailyQuizQuestion {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "문제 유형은 필수입니다.");
         }
         return problemType;
+    }
+
+    private static String requireUserAnswer(String userAnswer) {
+        if (userAnswer == null || userAnswer.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "답안은 필수입니다.");
+        }
+        if (userAnswer.length() > MAX_RESPONSE_LENGTH) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "답안은 " + MAX_RESPONSE_LENGTH + "자를 초과할 수 없습니다."
+            );
+        }
+        return userAnswer;
+    }
+
+    private boolean containsAllowedAnswer(String userAnswer) {
+        return this.allowedAnswerVariants != null
+                && this.allowedAnswerVariants.contains(userAnswer);
     }
 
     private void validateCanCreateNextVersion() {
