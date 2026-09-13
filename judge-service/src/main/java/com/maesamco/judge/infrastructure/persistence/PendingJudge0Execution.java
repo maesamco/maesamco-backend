@@ -42,13 +42,6 @@ public class PendingJudge0Execution {
     @Column(name = "is_public", nullable = false, updatable = false)
     private boolean isPublic;
 
-    @Column(name = "retry_count", nullable = false)
-    private int retryCount = 0;
-
-    public void increaseRetryCount() {
-        this.retryCount++;
-    }
-
     private PendingJudge0Execution(UUID submissionId, UUID testCaseId, String judge0Token, boolean isPublic) {
         this.submissionId = submissionId;
         this.testCaseId = testCaseId;

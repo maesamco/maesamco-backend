@@ -1,6 +1,6 @@
 package com.maesamco.judge.application.persistence_service;
 
-import com.maesamco.judge.application.exception.ProblemExecutionSpecNotFoundException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.maesamco.judge.application.port.JudgeExecutionResult;
 import com.maesamco.judge.application.port.JudgeExecutionStatus;
 import com.maesamco.judge.domain.entity.*;
@@ -34,7 +34,6 @@ public class JudgeResultPersistenceService {
 
     private static final String SUBMISSION_JUDGED_EVENT_TYPE = "SubmissionJudged";
     private static final int KB_PER_MB = 1024;
-    private static final int MAX_MEMORY_CHECK_RETRY = 3;
 
     private final PendingJudge0ExecutionRepository pendingJudge0ExecutionRepository;
     private final SubmissionTestResultRepository submissionTestResultRepository;
@@ -50,25 +49,12 @@ public class JudgeResultPersistenceService {
      * SubmissionJudged 발행용 Outbox 행을 남김.
      */
     public void reflectResult(PendingJudge0Execution pending, JudgeExecutionResult result) {
-        Submission submission = submissionRepository.findById(pending.getSubmissionId())
-                .orElseThrow(() -> new IllegalArgumentException("Submission not found: " + pending.getSubmissionId()));
-
-        if (isTerminal(submission.getStatus())) {
-            // 같은 폴링 배치 안에서 COMPILE_ERROR(또는 시스템 실패)가 먼저 이 제출을 종료시킨 경우 —
-            // 나머지 결과가 이어서 반영되며 이미 terminal인 제출에 결과가 덧붙는 것을 방지.
-            log.warn("[Judge] 이미 종료 상태({})인 제출에 결과 반영이 호출됨 — 결과는 버리고 pending만 정리. "
-                            + "submissionId={}, testCaseId={}",
-                    submission.getStatus(), pending.getSubmissionId(), pending.getTestCaseId());
-            pendingJudge0ExecutionRepository.delete(pending);
-            return;
-        }
-
         if (result.status() == JudgeExecutionStatus.COMPILE_ERROR) {
             // 컴파일 에러는 제출 전체 단위 결과라 테스트케이스별 SubmissionTestResult를 만들지 않음.
             // 남은 pending 건 전부 정리하고 즉시 COMPILE_ERROR로 종료.
             pendingJudge0ExecutionRepository.deleteAll(
                     pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
-            completeSubmissionWithResult(submission, SubmissionResult.COMPILE_ERROR, result);
+            completeSubmissionWithResult(pending.getSubmissionId(), SubmissionResult.COMPILE_ERROR, result);
             return;
         }
 
@@ -90,17 +76,7 @@ public class JudgeResultPersistenceService {
         }
 
         boolean passed = result.status() == JudgeExecutionStatus.ACCEPTED;
-        SubmissionTestErrorType errorType;
-        if (passed) {
-            errorType = null;
-        } else {
-            try {
-                errorType = resolveErrorType(submission, pending, result);
-            } catch (ProblemExecutionSpecNotFoundException e) {
-                handleUnresolvableReference(pending, e);
-                return;
-            }
-        }
+        SubmissionTestErrorType errorType = passed ? null : resolveErrorType(pending, result);
 
         SubmissionTestResult testResult = SubmissionTestResult.create(
                 pending.getSubmissionId(), pending.getTestCaseId(), pending.isPublic(), passed, result.stdout(), errorType);
@@ -117,54 +93,40 @@ public class JudgeResultPersistenceService {
             SubmissionResult overallResult = failed.isEmpty()
                     ? SubmissionResult.CORRECT
                     : toSubmissionResult(pickMostSevere(failed));
-            completeSubmissionWithResult(submission, overallResult, result);
+            completeSubmissionWithResult(pending.getSubmissionId(), overallResult, result);
         }
     }
 
-    private SubmissionTestErrorType resolveErrorType(Submission submission, PendingJudge0Execution pending, JudgeExecutionResult result) {
-        if (isMemoryLimitExceeded(submission, pending, result)) {
+    private SubmissionTestErrorType resolveErrorType(PendingJudge0Execution pending, JudgeExecutionResult result) {
+        if (isMemoryLimitExceeded(pending, result)) {
             return SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED;
         }
         return toErrorType(result.status());
     }
 
-    private boolean isMemoryLimitExceeded(Submission submission, PendingJudge0Execution pending, JudgeExecutionResult result) {
+    private boolean isMemoryLimitExceeded(PendingJudge0Execution pending,JudgeExecutionResult result) {
         if (result.memoryUsedKb() == null) {
             return false;
         }
+        Submission submission = submissionRepository.findById(pending.getSubmissionId())
+                .orElseThrow(()-> new IllegalStateException("제출을 찾을 수 없습니다.:" + pending.getSubmissionId()));
         ProblemExecutionSpec spec = problemExecutionSpecRepository
                 .findByProblemIdAndProblemVersionId(submission.getProblemId(), submission.getProblemVersionId())
-                .orElseThrow(() -> new ProblemExecutionSpecNotFoundException(
+                .orElseThrow(()-> new IllegalStateException(
                         "채점 기준을 찾을 수 없습니다. submissionId=" + pending.getSubmissionId()));
         return result.memoryUsedKb() > spec.getMemoryLimitMb() * KB_PER_MB;
     }
 
-    private void handleUnresolvableReference(PendingJudge0Execution pending, ProblemExecutionSpecNotFoundException e) {
-        pending.increaseRetryCount();
+    private void completeSubmissionWithResult(UUID submissionId, SubmissionResult overallResult, JudgeExecutionResult lastResult) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new IllegalStateException("Submission not found: " + submissionId));
 
-        if (pending.getRetryCount() >= MAX_MEMORY_CHECK_RETRY) {
-            log.error("[Judge] 참조 데이터 누락으로 {}회 재시도 후 포기 — FAILED 처리. submissionId={}, testCaseId={}",
-                    pending.getRetryCount(), pending.getSubmissionId(), pending.getTestCaseId(), e);
-            pendingJudge0ExecutionRepository.deleteAll(
-                    pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
-            try {
-                judgeExecutionPersistenceService.markFailed(pending.getSubmissionId(), FailureCode.INTERNAL_SYSTEM_ERROR);
-            } catch (BusinessException be) {
-                log.warn("[Judge] 이미 종료 상태로 전이돼 있어 markFailed를 건너뜀. submissionId={}",
-                        pending.getSubmissionId(), be);
-            }
+        if (submission.getStatus() == SubmissionStatus.COMPLETED) {
+            log.warn("[Judge] 이미 COMPLETED 처리된 제출에 완료 처리가 중복 호출됨 — SubmissionJudged 재발행 스킵. submissionId={}",
+                    submissionId);
             return;
         }
 
-        log.warn("[Judge] 참조 데이터 누락 — {}회째 재시도 예정. submissionId={}, testCaseId={}",
-                pending.getRetryCount(), pending.getSubmissionId(), pending.getTestCaseId(), e);
-        pendingJudge0ExecutionRepository.save(pending);
-    }
-
-    private void completeSubmissionWithResult(Submission submission, SubmissionResult overallResult, JudgeExecutionResult lastResult) {
-        // reflectResult()가 진입 시점에 이미 terminal 여부를 확인했으므로 여기서는 별도 가드 없이 진행.
-        // (멀티 인스턴스 동시 완료는 Submission.version 기반 낙관적 락 + 상위 호출부(JudgeResultPollingFacade)의
-        // try/catch가 방어
         int executionTimeMs = lastResult.executionTimeMs() != null ? lastResult.executionTimeMs().intValue() : 0;
         int memoryUsedKb = lastResult.memoryUsedKb() != null ? lastResult.memoryUsedKb() : 0;
 
@@ -174,7 +136,7 @@ public class JudgeResultPersistenceService {
         String payload = writeSubmissionJudgedPayload(submission, overallResult);
 
         submissionEventOutboxRepository.save(
-                SubmissionEventOutbox.create(submission.getId(), SUBMISSION_JUDGED_EVENT_TYPE, payload));
+                SubmissionEventOutbox.create(submissionId, SUBMISSION_JUDGED_EVENT_TYPE, payload));
     }
 
     private SubmissionTestErrorType toErrorType(JudgeExecutionStatus status) {
@@ -213,10 +175,6 @@ public class JudgeResultPersistenceService {
 
     private boolean isSystemFailure(JudgeExecutionStatus status) {
         return status == JudgeExecutionStatus.INTERNAL_ERROR || status == JudgeExecutionStatus.UNKNOWN;
-    }
-
-    private boolean isTerminal(SubmissionStatus status) {
-        return status == SubmissionStatus.COMPLETED || status == SubmissionStatus.FAILED;
     }
 
     private static final List<SubmissionTestErrorType> SEVERITY_ORDER = List.of(
