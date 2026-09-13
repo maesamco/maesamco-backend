@@ -64,14 +64,7 @@ public class SignUpPersistenceService {
      * 이메일 또는 닉네임이
      * 미삭제 사용자와 중복되는지 확인합니다.
      *
-     * <p>회원가입 흐름에서는 이메일 암호화와 비밀번호 해싱 전에
-     * 이 메서드를 호출하여 명백한 중복 요청에 불필요한 고비용 작업이
-     * 수행되지 않도록 합니다.</p>
-     *
-     * <p>{@link #saveUser(User)}에서도 저장 직전에 다시 호출하지만,
-     * 동일 클래스 내부 호출이므로 새로운 read-only 트랜잭션을 시작하지 않고
-     * {@code saveUser}의 기존 쓰기 트랜잭션에 참여합니다. 이 두 번째 검사는
-     * 사용자에게 구체적인 중복 오류를 조기에 반환하기 위한 보조 검사이며,
+     * <p>저장 직전 최종 보조 검사로 사용하며,
      * 동시 가입 경쟁의 최종적인 정합성은 DB UNIQUE 인덱스가 보장합니다.</p>
      *
      * @param emailLookupHash 정규화된 이메일의 조회용 hash
@@ -91,6 +84,24 @@ public class SignUpPersistenceService {
             );
         }
 
+        validateNicknameNotDuplicated(nickname);
+    }
+
+    /**
+     * 회원가입 인증 토큰을 소비하기 전에
+     * 닉네임 중복 여부만 확인합니다.
+     *
+     * <p>이 단계에서는 이메일 존재 여부를 조회하지 않아
+     * 유효하지 않은 회원가입 인증 토큰을 이용한
+     * 이메일 계정 존재 여부 확인을 방지합니다.</p>
+     *
+     * @param nickname 중복 여부를 확인할 닉네임
+     * @throws BusinessException 닉네임이 중복된 경우
+     */
+    @Transactional(readOnly = true)
+    public void validateNicknameNotDuplicated(
+            String nickname
+    ) {
         if (nickname != null
                 && !nickname.isBlank()
                 && userRepository.existsByNicknameIgnoreCase(

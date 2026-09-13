@@ -4,6 +4,8 @@ import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
 import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.EmailLookupHasher;
+import com.maesamco.user.application.port.EmailVerificationSecretHasher;
+import com.maesamco.user.application.port.EmailVerificationStore;
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.application.port.RefreshTokenHasher;
@@ -41,6 +43,8 @@ public class SignUpService {
     private final RefreshTokenHasher refreshTokenHasher;
     private final AuthSessionStore authSessionStore;
     private final Clock clock;
+    private final EmailVerificationSecretHasher emailVerificationSecretHasher;
+    private final EmailVerificationStore emailVerificationStore;
 
     /**
      * 신규 사용자를 생성하고 자동 로그인용 인증 세션을 발급합니다.
@@ -64,10 +68,26 @@ public class SignUpService {
         String normalizedNickname =
                 normalizeNickname(command.nickname());
 
-        signUpPersistenceService.validateNotDuplicated(
-                emailLookupHash,
+        signUpPersistenceService.validateNicknameNotDuplicated(
                 normalizedNickname
         );
+
+        String signupTokenHash =
+                emailVerificationSecretHasher.hashSignupToken(
+                        command.signupToken()
+                );
+
+        boolean verificationTokenConsumed =
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                );
+
+        if (!verificationTokenConsumed) {
+            throw new BusinessException(
+                    ErrorCode.SIGNUP_VERIFICATION_TOKEN_INVALID
+            );
+        }
 
         String encryptedEmail =
                 emailCipher.encrypt(normalizedEmail);

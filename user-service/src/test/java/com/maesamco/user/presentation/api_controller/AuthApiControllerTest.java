@@ -1,10 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.port.IssuedTokens;
-import com.maesamco.user.application.service.LoginResult;
-import com.maesamco.user.application.service.LoginService;
-import com.maesamco.user.application.service.SignUpResult;
-import com.maesamco.user.application.service.SignUpService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
@@ -30,18 +27,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * AuthApiController의 회원가입 및 로그인 HTTP 계약을 검증합니다.
@@ -64,6 +54,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthApiControllerTest {
+
+    @Mock
+    private EmailVerificationService emailVerificationService;
 
     @Mock
     private SignUpService signUpService;
@@ -105,6 +98,131 @@ class AuthApiControllerTest {
                         messageConverter
                 )
                 .build();
+    }
+
+    @Test
+    @DisplayName("이메일 인증 요청을 접수하면 202 Accepted를 반환한다")
+    void requestEmailVerification() throws Exception {
+        // given
+        String requestBody = """
+            {
+              "email": "learner@example.com"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isAccepted()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
+                .andExpect(
+                        jsonPath("$.data")
+                                .doesNotExist()
+                );
+
+        verify(emailVerificationService)
+                .requestVerification(any());
+    }
+
+    @Test
+    @DisplayName("가입 여부와 관계없이 이메일 인증 요청의 외부 응답은 동일하다")
+    void requestEmailVerification_returnsSameResponseRegardlessOfAccountExistence()
+            throws Exception {
+
+        // given
+        String existingEmailRequest = """
+            {
+              "email": "existing@example.com"
+            }
+            """;
+
+        String nonExistingEmailRequest = """
+            {
+              "email": "new@example.com"
+            }
+            """;
+
+        // when
+        var existingEmailResult = mockMvc.perform(
+                        post("/api/v1/auth/email-verifications")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(existingEmailRequest)
+                )
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andReturn();
+
+        var nonExistingEmailResult = mockMvc.perform(
+                        post("/api/v1/auth/email-verifications")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(nonExistingEmailRequest)
+                )
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andReturn();
+
+        // then
+        org.assertj.core.api.Assertions.assertThat(
+                nonExistingEmailResult.getResponse().getContentAsString()
+        ).isEqualTo(
+                existingEmailResult.getResponse().getContentAsString()
+        );
+    }
+
+    @Test
+    @DisplayName("이메일 인증 요청의 이메일 형식이 올바르지 않으면 400을 반환한다")
+    void requestEmailVerification_invalidEmail()
+            throws Exception {
+
+        // given
+        String requestBody = """
+            {
+              "email": "invalid-email"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("INVALID_INPUT_VALUE")
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors"
+                                        + "[?(@.field == 'email')]"
+                        ).exists()
+                );
+
+        verify(
+                emailVerificationService,
+                never()
+        ).requestVerification(any());
     }
 
     @Test
@@ -160,6 +278,7 @@ class AuthApiControllerTest {
         String requestBody = """
                 {
                   "email": "learner@example.com",
+                  "signupToken": "signup-token",
                   "password": "Abcd1234!",
                   "nickname": "김티암",
                   "javaExperienceMonths": 3,
@@ -412,6 +531,7 @@ class AuthApiControllerTest {
         String requestBody = """
                 {
                   "email": "learner@example.com",
+                  "signupToken": "signup-token",
                   "password": "Abcd1234!",
                   "nickname": "김티암",
                   "javaExperienceMonths": 3,
@@ -476,6 +596,7 @@ class AuthApiControllerTest {
         String requestBody = """
                 {
                   "email": "learner@example.com",
+                  "signupToken": "signup-token",
                   "password": "Abcd1234!",
                   "nickname": "김티암",
                   "javaExperienceMonths": 3,
@@ -1075,5 +1196,212 @@ class AuthApiControllerTest {
                 loginService,
                 never()
         ).login(any());
+    }
+
+    @Test
+    @DisplayName("이메일 인증 코드 확인에 성공하면 회원가입 인증 토큰을 반환한다")
+    void confirmEmailVerification() throws Exception {
+        // given
+        when(
+                emailVerificationService.confirmVerification(any())
+        ).thenReturn(
+                new ConfirmEmailVerificationResult(
+                        "signup-token",
+                        600L
+                )
+        );
+
+        String requestBody = """
+            {
+              "email": "learner@example.com",
+              "verificationCode": "123456"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications/confirm")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
+                .andExpect(
+                        jsonPath("$.data.signupToken")
+                                .value("signup-token")
+                )
+                .andExpect(
+                        jsonPath("$.data.expiresInSeconds")
+                                .value(600)
+                );
+
+        verify(emailVerificationService)
+                .confirmVerification(any());
+    }
+
+    @Test
+    @DisplayName("이메일 인증 코드가 올바르지 않으면 400을 반환한다")
+    void confirmEmailVerification_invalidCode()
+            throws Exception {
+
+        // given
+        when(
+                emailVerificationService.confirmVerification(any())
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.EMAIL_VERIFICATION_INVALID_CODE
+                )
+        );
+
+        String requestBody = """
+            {
+              "email": "learner@example.com",
+              "verificationCode": "123456"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications/confirm")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "EMAIL_VERIFICATION_INVALID_CODE"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.error.message")
+                                .value(
+                                        "인증 코드가 올바르지 않습니다."
+                                )
+                );
+
+        verify(emailVerificationService)
+                .confirmVerification(any());
+    }
+
+    @Test
+    @DisplayName("이메일 인증 코드가 만료되면 400을 반환한다")
+    void confirmEmailVerification_expired()
+            throws Exception {
+
+        // given
+        when(
+                emailVerificationService.confirmVerification(any())
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.EMAIL_VERIFICATION_EXPIRED
+                )
+        );
+
+        String requestBody = """
+            {
+              "email": "learner@example.com",
+              "verificationCode": "123456"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications/confirm")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "EMAIL_VERIFICATION_EXPIRED"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.error.message")
+                                .value(
+                                        "인증 코드가 만료되었습니다. 이메일 인증을 다시 요청해주세요."
+                                )
+                );
+
+        verify(emailVerificationService)
+                .confirmVerification(any());
+    }
+
+    @Test
+    @DisplayName("이메일 인증 시도 횟수를 초과하면 429를 반환한다")
+    void confirmEmailVerification_attemptsExceeded()
+            throws Exception {
+
+        // given
+        when(
+                emailVerificationService.confirmVerification(any())
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED
+                )
+        );
+
+        String requestBody = """
+            {
+              "email": "learner@example.com",
+              "verificationCode": "123456"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/email-verifications/confirm")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isTooManyRequests()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.error.message")
+                                .value(
+                                        "인증 시도 횟수를 초과했습니다. 이메일 인증을 다시 요청해주세요."
+                                )
+                );
+
+        verify(emailVerificationService)
+                .confirmVerification(any());
     }
 }

@@ -4,6 +4,8 @@ import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
 import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.EmailLookupHasher;
+import com.maesamco.user.application.port.EmailVerificationSecretHasher;
+import com.maesamco.user.application.port.EmailVerificationStore;
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.application.port.RefreshTokenHasher;
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.when;
 /**
  * SignUpService의 회원가입 오케스트레이션을 검증하는 단위 테스트입니다.
  *
- * <p>사용자 생성, DB 저장 서비스 호출,
+ * <p>이메일 인증 토큰의 일회성 소비부터 사용자 저장,
  * 인증 토큰 발급 및 Redis 인증 세션 저장까지의 흐름을 검증합니다.</p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +54,12 @@ class SignUpServiceTest {
 
     @Mock
     private EmailLookupHasher emailLookupHasher;
+
+    @Mock
+    private EmailVerificationSecretHasher emailVerificationSecretHasher;
+
+    @Mock
+    private EmailVerificationStore emailVerificationStore;
 
     @Mock
     private PasswordHasher passwordHasher;
@@ -75,13 +83,17 @@ class SignUpServiceTest {
     private SignUpService signUpService;
 
     @Test
-    @DisplayName("회원가입하면 사용자를 저장하고 인증 세션을 생성한다")
+    @DisplayName("유효한 이메일 인증 토큰으로 회원가입하면 사용자를 저장하고 인증 세션을 생성한다")
     void signUp() {
         // given
         String rawEmail = " Learner@Example.com ";
         String trimmedEmail = "Learner@Example.com";
         String normalizedEmail = "learner@example.com";
         String emailLookupHash = "a".repeat(64);
+
+        String signupToken = "signup-token";
+        String signupTokenHash = "c".repeat(64);
+
         String encryptedEmail = "encrypted-email";
         String rawPassword = "Abcd1234!";
         String passwordHash = "argon2-password-hash";
@@ -105,6 +117,7 @@ class SignUpServiceTest {
 
         SignUpCommand command = new SignUpCommand(
                 rawEmail,
+                signupToken,
                 rawPassword,
                 " 김티암 ",
                 3,
@@ -116,6 +129,19 @@ class SignUpServiceTest {
 
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
+
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        signupToken
+                )
+        ).thenReturn(signupTokenHash);
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                )
+        ).thenReturn(true);
 
         when(emailCipher.encrypt(normalizedEmail))
                 .thenReturn(encryptedEmail);
@@ -150,6 +176,18 @@ class SignUpServiceTest {
         verify(emailNormalizer)
                 .normalize(trimmedEmail);
 
+        verify(signUpPersistenceService)
+                .validateNicknameNotDuplicated("김티암");
+
+        verify(emailVerificationSecretHasher)
+                .hashSignupToken(signupToken);
+
+        verify(emailVerificationStore)
+                .consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                );
+
         ArgumentCaptor<User> userCaptor =
                 ArgumentCaptor.forClass(User.class);
 
@@ -160,20 +198,28 @@ class SignUpServiceTest {
 
         assertThat(savedUser.getId())
                 .isNotNull();
+
         assertThat(savedUser.getEncryptedEmail())
                 .isEqualTo(encryptedEmail);
+
         assertThat(savedUser.getEmailLookupHash())
                 .isEqualTo(emailLookupHash);
+
         assertThat(savedUser.getPasswordHash())
                 .isEqualTo(passwordHash);
+
         assertThat(savedUser.getNickname())
                 .isEqualTo("김티암");
+
         assertThat(savedUser.getRole())
                 .isEqualTo(UserRole.USER);
+
         assertThat(savedUser.getStatus())
                 .isEqualTo(UserStatus.ACTIVE);
+
         assertThat(savedUser.getJavaExperienceMonths())
                 .isEqualTo(3);
+
         assertThat(savedUser.getLearningLevel())
                 .isEqualTo(LearningLevel.BEGINNER);
 
@@ -198,37 +244,45 @@ class SignUpServiceTest {
 
         assertThat(authSession.sessionId())
                 .isEqualTo(sessionIdCaptor.getValue());
+
         assertThat(authSession.familyId())
                 .isNotNull();
+
         assertThat(authSession.userId())
                 .isEqualTo(savedUser.getId());
+
         assertThat(authSession.refreshTokenHash())
                 .isEqualTo(refreshTokenHash);
+
         assertThat(authSession.createdAt())
                 .isEqualTo(now);
+
         assertThat(authSession.expiresAt())
                 .isEqualTo(refreshTokenExpiresAt);
 
         assertThat(result.userId())
                 .isEqualTo(savedUser.getId());
+
         assertThat(result.issuedTokens())
                 .isSameAs(issuedTokens);
     }
 
     @Test
-    @DisplayName("중복 이메일이면 암호화와 비밀번호 해시 전에 회원가입을 거부한다")
-    void signUp_duplicateEmailBeforeExpensiveOperations() {
+    @DisplayName("유효하지 않은 이메일 인증 토큰이면 회원가입 저장과 고비용 작업을 수행하지 않는다")
+    void signUp_invalidVerificationToken() {
         // given
-        String rawEmail = " Learner@Example.com ";
         String trimmedEmail = "Learner@Example.com";
         String normalizedEmail = "learner@example.com";
         String emailLookupHash = "a".repeat(64);
-        String normalizedNickname = "김티암";
+
+        String signupToken = "invalid-signup-token";
+        String signupTokenHash = "c".repeat(64);
 
         SignUpCommand command = new SignUpCommand(
-                rawEmail,
+                trimmedEmail,
+                signupToken,
                 "Abcd1234!",
-                normalizedNickname,
+                "김티암",
                 3,
                 LearningLevel.BEGINNER
         );
@@ -239,52 +293,142 @@ class SignUpServiceTest {
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
 
-        doThrow(
-                new BusinessException(
-                        ErrorCode.USER_DUPLICATE_EMAIL
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        signupToken
                 )
-        )
-                .when(signUpPersistenceService)
-                .validateNotDuplicated(
-                        emailLookupHash,
-                        normalizedNickname
-                );
+        ).thenReturn(signupTokenHash);
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                )
+        ).thenReturn(false);
 
         // when & then
         assertThatThrownBy(() -> signUpService.signUp(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(
                         exception ->
-                                ((BusinessException) exception).getErrorCode()
+                                ((BusinessException) exception)
+                                        .getErrorCode()
                 )
-                .isEqualTo(ErrorCode.USER_DUPLICATE_EMAIL);
-
-        verify(emailNormalizer)
-                .normalize(trimmedEmail);
-
-        verify(emailLookupHasher)
-                .hash(normalizedEmail);
+                .isEqualTo(
+                        ErrorCode.SIGNUP_VERIFICATION_TOKEN_INVALID
+                );
 
         verify(signUpPersistenceService)
-                .validateNotDuplicated(
-                        emailLookupHash,
-                        normalizedNickname
+                .validateNicknameNotDuplicated("김티암");
+
+        verify(emailVerificationSecretHasher)
+                .hashSignupToken(signupToken);
+
+        verify(emailVerificationStore)
+                .consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
                 );
 
         verify(
                 emailCipher,
                 never()
-        ).encrypt(normalizedEmail);
+        ).encrypt(any(String.class));
 
         verify(
                 passwordHasher,
                 never()
-        ).hash("Abcd1234!");
+        ).hash(any(String.class));
 
         verify(
                 signUpPersistenceService,
                 never()
         ).saveUser(any(User.class));
+
+        verify(
+                tokenIssuer,
+                never()
+        ).issueTokens(any(), any(), any());
+
+        verify(
+                authSessionStore,
+                never()
+        ).save(any(AuthSession.class));
+    }
+
+    @Test
+    @DisplayName("유효한 인증 토큰을 소비한 뒤 저장 단계에서 중복 이메일이면 회원가입을 거부한다")
+    void signUp_duplicateEmailAtPersistenceStep() {
+        // given
+        String trimmedEmail = "Learner@Example.com";
+        String normalizedEmail = "learner@example.com";
+        String emailLookupHash = "a".repeat(64);
+
+        String signupToken = "signup-token";
+        String signupTokenHash = "c".repeat(64);
+
+        SignUpCommand command = new SignUpCommand(
+                trimmedEmail,
+                signupToken,
+                "Abcd1234!",
+                "김티암",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        when(emailNormalizer.normalize(trimmedEmail))
+                .thenReturn(normalizedEmail);
+
+        when(emailLookupHasher.hash(normalizedEmail))
+                .thenReturn(emailLookupHash);
+
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        signupToken
+                )
+        ).thenReturn(signupTokenHash);
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                )
+        ).thenReturn(true);
+
+        when(emailCipher.encrypt(normalizedEmail))
+                .thenReturn("encrypted-email");
+
+        when(passwordHasher.hash("Abcd1234!"))
+                .thenReturn("argon2-password-hash");
+
+        when(
+                signUpPersistenceService.saveUser(
+                        any(User.class)
+                )
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.USER_DUPLICATE_EMAIL
+                )
+        );
+
+        // when & then
+        assertThatThrownBy(() -> signUpService.signUp(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.USER_DUPLICATE_EMAIL);
+
+        verify(emailVerificationStore)
+                .consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                );
+
+        verify(signUpPersistenceService)
+                .saveUser(any(User.class));
 
         verify(
                 tokenIssuer,
@@ -305,6 +449,9 @@ class SignUpServiceTest {
         String normalizedEmail = "learner@example.com";
         String emailLookupHash = "b".repeat(64);
 
+        String signupToken = "signup-token";
+        String signupTokenHash = "c".repeat(64);
+
         Instant now =
                 Instant.parse("2026-09-02T11:00:00Z");
 
@@ -323,6 +470,7 @@ class SignUpServiceTest {
 
         SignUpCommand command = new SignUpCommand(
                 " Learner@Example.com ",
+                signupToken,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -334,6 +482,19 @@ class SignUpServiceTest {
 
         when(emailLookupHasher.hash(normalizedEmail))
                 .thenReturn(emailLookupHash);
+
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        signupToken
+                )
+        ).thenReturn(signupTokenHash);
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                )
+        ).thenReturn(true);
 
         when(emailCipher.encrypt(normalizedEmail))
                 .thenReturn("encrypted-email");
@@ -372,7 +533,8 @@ class SignUpServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(
                         exception ->
-                                ((BusinessException) exception).getErrorCode()
+                                ((BusinessException) exception)
+                                        .getErrorCode()
                 )
                 .isEqualTo(
                         ErrorCode.SIGNUP_AUTO_LOGIN_FAILED
@@ -391,8 +553,8 @@ class SignUpServiceTest {
     }
 
     @Test
-    @DisplayName("중복 닉네임이면 암호화와 비밀번호 해시 전에 회원가입을 거부한다")
-    void signUp_duplicateNicknameBeforeExpensiveOperations() {
+    @DisplayName("중복 닉네임이면 이메일 인증 토큰을 소비하지 않고 회원가입을 거부한다")
+    void signUp_duplicateNicknameBeforeVerificationTokenConsumption() {
         // given
         String trimmedEmail = "Learner@Example.com";
         String normalizedEmail = "learner@example.com";
@@ -401,6 +563,7 @@ class SignUpServiceTest {
 
         SignUpCommand command = new SignUpCommand(
                 trimmedEmail,
+                "signup-token",
                 "Abcd1234!",
                 normalizedNickname,
                 3,
@@ -419,8 +582,7 @@ class SignUpServiceTest {
                 )
         )
                 .when(signUpPersistenceService)
-                .validateNotDuplicated(
-                        emailLookupHash,
+                .validateNicknameNotDuplicated(
                         normalizedNickname
                 );
 
@@ -429,31 +591,38 @@ class SignUpServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(
                         exception ->
-                                ((BusinessException) exception).getErrorCode()
+                                ((BusinessException) exception)
+                                        .getErrorCode()
                 )
                 .isEqualTo(ErrorCode.USER_DUPLICATE_NICKNAME);
 
-        verify(emailNormalizer)
-                .normalize(trimmedEmail);
-
-        verify(emailLookupHasher)
-                .hash(normalizedEmail);
-
         verify(signUpPersistenceService)
-                .validateNotDuplicated(
-                        emailLookupHash,
+                .validateNicknameNotDuplicated(
                         normalizedNickname
                 );
 
         verify(
+                emailVerificationSecretHasher,
+                never()
+        ).hashSignupToken(any(String.class));
+
+        verify(
+                emailVerificationStore,
+                never()
+        ).consumeSignupToken(
+                any(String.class),
+                any(String.class)
+        );
+
+        verify(
                 emailCipher,
                 never()
-        ).encrypt(normalizedEmail);
+        ).encrypt(any(String.class));
 
         verify(
                 passwordHasher,
                 never()
-        ).hash("Abcd1234!");
+        ).hash(any(String.class));
 
         verify(
                 signUpPersistenceService,

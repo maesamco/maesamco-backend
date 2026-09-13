@@ -1,9 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.LoginService;
-import com.maesamco.user.application.service.LogoutService;
-import com.maesamco.user.application.service.RefreshService;
-import com.maesamco.user.application.service.SignUpService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +48,9 @@ class AuthApiControllerSecurityContractTest {
 
     @MockitoBean
     private LogoutService logoutService;
+
+    @MockitoBean
+    private EmailVerificationService emailVerificationService;
 
     @MockitoBean
     private Clock clock;
