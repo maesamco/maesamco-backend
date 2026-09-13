@@ -27,4 +27,15 @@ class PendingJudge0ExecutionTest {
 
         assertThat(execution.isPublic()).isFalse();
     }
+
+    @Test
+    void increaseRetryCount_incrementsCount() {
+        PendingJudge0Execution pending = PendingJudge0Execution.create(
+                UUID.randomUUID(), UUID.randomUUID(), "token", true);
+
+        pending.increaseRetryCount();
+        pending.increaseRetryCount();
+
+        assertThat(pending.getRetryCount()).isEqualTo(2);
+    }
 }
