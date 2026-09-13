@@ -4,6 +4,7 @@ import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
 import com.maesamco.content.problem.application.service.ProblemService;
+import com.maesamco.content.problem.application.service.ProblemPublicationService;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -38,6 +39,7 @@ public class ProblemController {
 
     /** 문제 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final ProblemService problemService;
+    private final ProblemPublicationService problemPublicationService;
 
     /**
      * 새로운 문제를 생성합니다.
@@ -191,6 +193,24 @@ public class ProblemController {
             @AuthenticationPrincipal UUID userId
     ) {
         problemService.deleteProblem(problemId, userId);
+
+        return ResponseEntity.ok(
+                SuccessResponse.empty()
+        );
+    }
+
+    /**
+     * REVIEW_PENDING 상태의 문제 발행을 승인합니다.
+     *
+     * @param problemId 발행을 승인할 문제의 고유 ID
+     * @return 응답 데이터가 없는 성공 응답
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{problemId}/publication")
+    public ResponseEntity<SuccessResponse<Void>> approvePublication(
+            @PathVariable UUID problemId
+    ) {
+        problemPublicationService.approvePublication(problemId);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

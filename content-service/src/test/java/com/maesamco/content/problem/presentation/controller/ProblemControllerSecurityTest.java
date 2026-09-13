@@ -2,6 +2,7 @@ package com.maesamco.content.problem.presentation.controller;
 
 import com.maesamco.content.global.config.SecurityConfig;
 import com.maesamco.content.problem.application.service.ProblemService;
+import com.maesamco.content.problem.application.service.ProblemPublicationService;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,10 @@ import java.util.Date;
 import java.util.UUID;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @WebMvcTest(ProblemController.class)
 @Import(SecurityConfig.class)
@@ -35,6 +38,9 @@ class ProblemControllerSecurityTest {
 
     @MockitoBean
     private ProblemService problemService;
+
+    @MockitoBean
+    private ProblemPublicationService problemPublicationService;
 
     private static final KeyPair KEY_PAIR = generateKeyPair();
 
@@ -85,6 +91,68 @@ class ProblemControllerSecurityTest {
                         problemId,
                         adminId
                 );
+    }
+
+    @Test
+    @DisplayName("유효한 ADMIN Access Token이면 문제 발행 승인에 성공한다")
+    void approvePublication_validAdminAccessToken_returns200()
+            throws Exception {
+
+        // given
+        UUID problemId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+
+        String accessToken =
+                createAccessToken(
+                        adminId,
+                        "ADMIN"
+                );
+
+        // when & then
+        mockMvc.perform(
+                        post(
+                                "/api/v1/contents/problems/{problemId}/publication",
+                                problemId
+                        )
+                                .header(
+                                        HttpHeaders.AUTHORIZATION,
+                                        "Bearer " + accessToken
+                                )
+                )
+                .andExpect(status().isOk());
+
+        verify(problemPublicationService)
+                .approvePublication(problemId);
+    }
+
+    @Test
+    @DisplayName("USER Access Token으로 문제 발행 승인을 요청하면 403을 반환한다")
+    void approvePublication_userAccessToken_returns403()
+            throws Exception {
+
+        // given
+        UUID problemId = UUID.randomUUID();
+
+        String accessToken =
+                createAccessToken(
+                        UUID.randomUUID(),
+                        "USER"
+                );
+
+        // when & then
+        mockMvc.perform(
+                        post(
+                                "/api/v1/contents/problems/{problemId}/publication",
+                                problemId
+                        )
+                                .header(
+                                        HttpHeaders.AUTHORIZATION,
+                                        "Bearer " + accessToken
+                                )
+                )
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(problemPublicationService);
     }
 
     /**

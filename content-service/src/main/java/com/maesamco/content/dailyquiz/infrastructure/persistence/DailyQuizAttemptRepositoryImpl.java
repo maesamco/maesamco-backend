@@ -5,8 +5,13 @@ import com.maesamco.content.dailyquiz.domain.repository.DailyQuizAttemptReposito
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
+
+import static com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptStatus.IN_PROGRESS;
+import static com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptStatus.READY;
 
 @Repository
 @RequiredArgsConstructor
@@ -22,5 +27,23 @@ public class DailyQuizAttemptRepositoryImpl implements DailyQuizAttemptRepositor
     @Override
     public boolean existsByUserIdAndAttemptDate(UUID userId, LocalDate attemptDate) {
         return springDataRepository.existsByUserIdAndAttemptDate(userId, attemptDate);
+    }
+
+    @Override
+    public Optional<DailyQuizAttempt> findByUserIdAndAttemptDate(
+            UUID userId,
+            LocalDate attemptDate
+    ) {
+        return springDataRepository.findByUserIdAndAttemptDate(userId, attemptDate);
+    }
+
+    @Override
+    public int startIfReady(UUID attemptId, Instant startedAt) {
+        return springDataRepository.updateStatusAndStartedAtIfStatus(
+                attemptId,
+                READY,
+                IN_PROGRESS,
+                startedAt
+        );
     }
 }
