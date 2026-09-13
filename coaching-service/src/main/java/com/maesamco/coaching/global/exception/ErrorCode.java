@@ -44,6 +44,8 @@ public enum ErrorCode {
     // 확인한 뒤라 실제로는 거의 발생하지 않는다(세션 삭제 기능 자체가 없음).
     COACHING_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "코칭 세션을 찾을 수 없습니다."),
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
+    // 이슈 #62 — Content Service GET /internal/v1/problems/{problemId} 조회 실패 시.
+    PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
     HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 오답 상태일 때만 힌트를 요청할 수 있습니다."),
     HINT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 단계의 힌트가 존재합니다."),
     EXPLANATION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인 제출이 정답 상태일 때만 설명을 등록할 수 있습니다."),

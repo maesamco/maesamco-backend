@@ -5,6 +5,7 @@ import com.maesamco.coaching.application.query_service.ExplanationQueryService;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@Tag(name = "Explanation", description = "60초 설명·역질문 조회 API")
 @RestController
 @RequestMapping("/api/v1/coaching/submissions/{submissionId}/explanations")
-public class ExplanationApiController {
+public class ExplanationApiController implements ExplanationApiDocs {
 
     private final ExplanationGenerationFacade explanationGenerationFacade;
     private final ExplanationQueryService explanationQueryService;
@@ -33,6 +35,7 @@ public class ExplanationApiController {
         this.explanationQueryService = explanationQueryService;
     }
 
+    @Override
     @PostMapping
     public ResponseEntity<SuccessResponse<ExplanationRegisterResponse>> registerExplanation(
             @PathVariable UUID submissionId,
@@ -50,6 +53,7 @@ public class ExplanationApiController {
                 .body(SuccessResponse.success(ExplanationRegisterResponse.from(result)));
     }
 
+    @Override
     @GetMapping
     public ResponseEntity<SuccessResponse<ExplanationDetailResponse>> getExplanation(
             @PathVariable UUID submissionId,

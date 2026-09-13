@@ -5,8 +5,10 @@ import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.domain.enums.*;
 import com.maesamco.content.problem.domain.repository.ProblemRepository;
+import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
 import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
@@ -37,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ProblemServiceTest {
@@ -47,6 +50,9 @@ class ProblemServiceTest {
     @Mock
     private ProblemFinder problemFinder;
 
+    @Mock
+    private ProblemVersionRepository problemVersionRepository;
+
     private ProblemService problemService;
 
     private final UUID problemId = UUID.randomUUID();
@@ -55,6 +61,7 @@ class ProblemServiceTest {
     void setUp() {
         problemService = new ProblemService(
                 problemRepository,
+                problemVersionRepository,
                 problemFinder
         );
     }
@@ -85,6 +92,29 @@ class ProblemServiceTest {
         Problem savedProblem = captor.getValue();
 
         assertThat(savedProblem.getTitle()).isEqualTo("두 수의 합");
+
+        ArgumentCaptor<ProblemVersion> versionCaptor =
+                ArgumentCaptor.forClass(ProblemVersion.class);
+
+        verify(problemVersionRepository)
+                .save(versionCaptor.capture());
+
+        ProblemVersion initialVersion =
+                versionCaptor.getValue();
+
+        assertThat(initialVersion.getProblemId())
+                .isEqualTo(problemId);
+
+        assertThat(initialVersion.getVersionNo())
+                .isEqualTo(1);
+
+        assertThat(
+                initialVersion
+                        .getProblemSnapshot()
+                        .get("problemStatus")
+                        .asText()
+        ).isEqualTo("REVIEW_PENDING");
+
         assertThat(savedProblem.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
         assertThat(savedProblem.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
         assertThat(savedProblem.getType()).isEqualTo(ProblemType.CODE);
@@ -247,6 +277,29 @@ class ProblemServiceTest {
         assertThat(response.getCurrentVersionNo()).isEqualTo(2);
 
         verify(problemRepository).flush();
+
+        ArgumentCaptor<ProblemVersion> versionCaptor =
+                ArgumentCaptor.forClass(ProblemVersion.class);
+
+        verify(problemVersionRepository)
+                .save(versionCaptor.capture());
+
+        ProblemVersion savedVersion =
+                versionCaptor.getValue();
+
+        assertThat(savedVersion.getProblemId())
+                .isEqualTo(problemId);
+
+        assertThat(savedVersion.getVersionNo())
+                .isEqualTo(2);
+
+        assertThat(
+                savedVersion.getProblemSnapshot().get("title").asText()
+        ).isEqualTo("변경된 문제 제목");
+
+        assertThat(
+                savedVersion.getProblemSnapshot().get("difficulty").asText()
+        ).isEqualTo("HARD");
     }
 
     @Test
@@ -326,6 +379,8 @@ class ProblemServiceTest {
                 .isEqualTo("public class Main {}");
 
         assertThat(response.getCurrentVersionNo()).isEqualTo(1);
+
+        verifyNoInteractions(problemVersionRepository);
     }
 
     @Test
@@ -533,6 +588,12 @@ class ProblemServiceTest {
                 TimerPolicy.NOT_APPLY_TIMEPOLICY,
                 ProblemSource.HUMAN_AUTHORED,
                 ProblemStatus.DRAFT
+        );
+
+        ReflectionTestUtils.setField(
+                problem,
+                "id",
+                problemId
         );
 
         // 실제 DB에서 조회된 엔티티처럼 JPA @Version 값을 설정한다.

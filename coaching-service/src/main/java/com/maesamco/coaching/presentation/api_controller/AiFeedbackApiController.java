@@ -6,6 +6,7 @@ import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +20,10 @@ import java.util.UUID;
 /**
  * AI 종합 피드백 조회/재시도 API(코칭 서비스 API 명세 6번 API, 이슈 #52).
  */
+@Tag(name = "AI Feedback", description = "AI 종합 피드백 조회·재시도 API")
 @RestController
 @RequestMapping("/api/v1/coaching/submissions/{submissionId}/feedback")
-public class AiFeedbackApiController {
+public class AiFeedbackApiController implements AiFeedbackApiDocs {
 
     private final AiFeedbackQueryService aiFeedbackQueryService;
     private final AiFeedbackRetryFacade aiFeedbackRetryFacade;
@@ -34,6 +36,7 @@ public class AiFeedbackApiController {
         this.aiFeedbackRetryFacade = aiFeedbackRetryFacade;
     }
 
+    @Override
     @GetMapping
     public ResponseEntity<SuccessResponse<AiFeedbackResponse>> getFeedback(
             @PathVariable UUID submissionId,
@@ -44,6 +47,7 @@ public class AiFeedbackApiController {
         return ResponseEntity.ok(SuccessResponse.success(AiFeedbackResponse.from(feedback)));
     }
 
+    @Override
     @PostMapping("/retry")
     public ResponseEntity<SuccessResponse<AiFeedbackResponse>> retryFeedback(
             @PathVariable UUID submissionId,

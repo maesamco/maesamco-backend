@@ -23,7 +23,20 @@ public class ProblemFinderService implements ProblemFinder {
     public Problem getProblem(UUID problemId) {
         return problemRepository.findById(problemId)
                 .orElseThrow(() ->
-                        new BusinessException(ErrorCode.PROBLEM_NOT_FOUND)
+                        new BusinessException(
+                                ErrorCode.PROBLEM_NOT_FOUND
+                        )
+                );
+    }
+
+    @Override
+    @Transactional
+    public Problem getProblemForUpdate(UUID problemId) {
+        return problemRepository.findByIdForUpdate(problemId)
+                .orElseThrow(() ->
+                        new BusinessException(
+                                ErrorCode.PROBLEM_NOT_FOUND
+                        )
                 );
     }
 }

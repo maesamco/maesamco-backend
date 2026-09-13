@@ -4,6 +4,7 @@ import com.maesamco.coaching.application.facade.FollowUpAnswerFacade;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,9 +27,10 @@ import java.util.UUID;
  * 룰이 아직 없다 — 성공 시 LLM 호출(AI 종합 피드백 생성)까지 트리거하는데도 힌트/설명
  * 엔드포인트와 달리 Rate Limit 보호가 빠져있다.
  */
+@Tag(name = "Follow-up Answer", description = "AI 역질문 답변 등록 API")
 @RestController
 @RequestMapping("/api/v1/coaching/follow-up-questions/{followUpQuestionId}/answers")
-public class FollowUpAnswerApiController {
+public class FollowUpAnswerApiController implements FollowUpAnswerApiDocs {
 
     private final FollowUpAnswerFacade followUpAnswerFacade;
 
@@ -36,6 +38,7 @@ public class FollowUpAnswerApiController {
         this.followUpAnswerFacade = followUpAnswerFacade;
     }
 
+    @Override
     @PostMapping
     public ResponseEntity<SuccessResponse<FollowUpAnswerRegisterResponse>> registerAnswer(
             @PathVariable UUID followUpQuestionId,
