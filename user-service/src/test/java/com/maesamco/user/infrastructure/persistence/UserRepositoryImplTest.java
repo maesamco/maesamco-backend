@@ -4,6 +4,8 @@ import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,16 +19,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
-import com.maesamco.user.global.exception.BusinessException;
-import com.maesamco.user.global.exception.ErrorCode;
-import org.springframework.test.context.jdbc.Sql;
-
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * UserRepository 구현체의 PostgreSQL 통합 테스트입니다.
@@ -34,18 +32,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>H2가 아닌 실제 PostgreSQL Testcontainers를 사용하여
  * 엔티티 매핑, 저장, 조회 및 소프트 삭제 조건을 검증합니다.</p>
  *
- * <p>Flyway를 사용하지 않으며, 테스트 실행 중에만
- * user_schema와 p_users 테이블을 임시로 생성합니다.</p>
+ * <p>테스트 실행 중에만 user_schema와 p_users 테이블을 임시로 생성합니다.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
 @Import(JpaAuditingConfig.class)
-@Sql(
-        scripts = "/db/migration/V2__add_active_user_unique_indexes.sql",
-        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS
-)
 @Testcontainers
 class UserRepositoryImplTest {
 

@@ -1,8 +1,9 @@
 spring:
   jpa:
     hibernate:
-      # 테스트가 시작될 때 테이블을 생성하고 종료될 때 제거합니다.
-      ddl-auto: create-drop
+      # Flyway가 실제 PostgreSQL 스키마와 인덱스를 생성하므로
+      # Hibernate는 엔티티 매핑과 스키마의 일치 여부만 검증합니다.
+      ddl-auto: validate
 
     properties:
       hibernate:

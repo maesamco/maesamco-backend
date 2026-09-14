@@ -17,12 +17,19 @@ class AesGcmEmailCipherTest {
 
     private static final String ENCRYPTION_KEY =
             "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
     private static final String LOOKUP_HMAC_KEY =
             "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=";
+
+    private static final String VERIFICATION_HMAC_KEY =
+            "MDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmY=";
+
     private static final String VERSION_PREFIX = "v1:";
 
     private final AesGcmEmailCipher emailCipher =
             createEmailCipher(ENCRYPTION_KEY);
+
+
 
     @Test
     @DisplayName("이메일을 암호화한 뒤 원문으로 복호화할 수 있다")
@@ -160,7 +167,8 @@ class AesGcmEmailCipherTest {
         EmailSecurityProperties properties =
                 new EmailSecurityProperties(
                         encryptionKey,
-                        LOOKUP_HMAC_KEY
+                        LOOKUP_HMAC_KEY,
+                        VERIFICATION_HMAC_KEY
                 );
 
         return new AesGcmEmailCipher(properties);

@@ -12,10 +12,11 @@ import jakarta.validation.constraints.Size;
 /**
  * 회원가입 애플리케이션 서비스에 전달하는 입력값입니다.
  *
- * <p>이메일과 비밀번호는 아직 보호 처리되지 않은 원문이므로
+ * <p>이메일, 비밀번호, 회원가입 인증 토큰은 보호되지 않은 원문이므로
  * 저장하거나 로그에 기록해서는 안 됩니다.</p>
  *
  * @param email 사용자 이메일 원문
+ * @param signupToken 이메일 인증 후 발급된 일회용 회원가입 인증 토큰
  * @param password 사용자 비밀번호 원문
  * @param nickname 사용자 닉네임
  * @param javaExperienceMonths Java 경험 개월 수
@@ -28,6 +29,13 @@ public record SignUpCommand(
         @Email(message = "올바른 이메일 형식이어야 합니다.")
         @Size(max = 255, message = "이메일은 255자 이하여야 합니다.")
         String email,
+
+        @NotBlank(message = "회원가입 인증 토큰은 필수입니다.")
+        @Size(
+                max = 256,
+                message = "회원가입 인증 토큰은 256자 이하여야 합니다."
+        )
+        String signupToken,
 
         @NotBlank(message = "비밀번호는 필수입니다.")
         @Size(
@@ -66,7 +74,7 @@ public record SignUpCommand(
      * API 입력 정책에 따라 이메일과 닉네임의 앞뒤 공백을 제거합니다.
      *
      * <p>이메일 소문자 변환은 EmailNormalizer가 담당하며,
-     * 비밀번호는 가공하지 않고 입력값 그대로 유지합니다.</p>
+     * 비밀번호와 회원가입 인증 토큰은 가공하지 않고 입력값 그대로 유지합니다.</p>
      */
     public SignUpCommand {
         if (email != null) {
@@ -79,7 +87,8 @@ public record SignUpCommand(
     }
 
     /**
-     * 이메일과 비밀번호가 로그에 노출되지 않도록 민감값을 숨깁니다.
+     * 이메일, 비밀번호, 회원가입 인증 토큰이 로그에 노출되지 않도록
+     * 민감값을 숨깁니다.
      */
     @Override
     public String toString() {
