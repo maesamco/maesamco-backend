@@ -1,13 +1,13 @@
-package com.maesamco.content.unit.presentation.controller;
+package com.maesamco.content.presentation.unit.controller;
 
+import com.maesamco.content.application.unit.service.UnitService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
-import com.maesamco.content.unit.application.service.UnitService;
-import com.maesamco.content.unit.presentation.dto.request.UnitCreateRequest;
-import com.maesamco.content.unit.presentation.dto.request.UnitUpdateRequest;
-import com.maesamco.content.unit.presentation.dto.response.UnitCreateResponse;
-import com.maesamco.content.unit.presentation.dto.response.UnitResponse;
+import com.maesamco.content.presentation.unit.dto.request.UnitCreateRequest;
+import com.maesamco.content.presentation.unit.dto.request.UnitUpdateRequest;
+import com.maesamco.content.presentation.unit.dto.response.UnitCreateResponse;
+import com.maesamco.content.presentation.unit.dto.response.UnitResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;

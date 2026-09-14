@@ -1,4 +1,4 @@
-package com.maesamco.content.unit.domain.enums;
+package com.maesamco.content.domain.unit.enums;
 
 /** 문제 개발 언어 */
 public enum ProgrammingLanguage {

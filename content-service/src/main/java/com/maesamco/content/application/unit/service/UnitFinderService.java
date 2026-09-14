@@ -1,11 +1,11 @@
-package com.maesamco.content.unit.application.service;
+package com.maesamco.content.application.unit.service;
 
-import com.maesamco.content.curriculum.domain.repository.CurriculumRepository;
+import com.maesamco.content.application.unit.port.UnitFinder;
+import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
+import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.unit.repository.UnitRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.unit.application.port.UnitFinder;
-import com.maesamco.content.unit.domain.entity.Unit;
-import com.maesamco.content.unit.domain.repository.UnitRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

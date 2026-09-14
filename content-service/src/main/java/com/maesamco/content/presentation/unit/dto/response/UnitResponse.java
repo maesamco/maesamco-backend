@@ -1,7 +1,7 @@
-package com.maesamco.content.unit.presentation.dto.response;
+package com.maesamco.content.presentation.unit.dto.response;
 
-import com.maesamco.content.unit.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.unit.domain.entity.Unit;
+import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.unit.enums.ProgrammingLanguage;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

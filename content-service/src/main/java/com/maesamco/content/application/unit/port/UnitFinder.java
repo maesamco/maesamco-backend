@@ -1,6 +1,6 @@
-package com.maesamco.content.unit.application.port;
+package com.maesamco.content.application.unit.port;
 
-import com.maesamco.content.unit.domain.entity.Unit;
+import com.maesamco.content.domain.unit.entity.Unit;
 
 import java.util.UUID;
 

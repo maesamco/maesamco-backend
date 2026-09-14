@@ -1,14 +1,14 @@
-package com.maesamco.content.unit.application.service;
+package com.maesamco.content.application.unit.service;
 
-import com.maesamco.content.curriculum.application.port.CurriculumFinder;
+import com.maesamco.content.application.curriculum.port.CurriculumFinder;
+import com.maesamco.content.application.unit.port.UnitFinder;
+import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.unit.repository.UnitRepository;
 import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.unit.application.port.UnitFinder;
-import com.maesamco.content.unit.domain.entity.Unit;
-import com.maesamco.content.unit.domain.repository.UnitRepository;
-import com.maesamco.content.unit.presentation.dto.request.UnitCreateRequest;
-import com.maesamco.content.unit.presentation.dto.request.UnitUpdateRequest;
-import com.maesamco.content.unit.presentation.dto.response.UnitCreateResponse;
-import com.maesamco.content.unit.presentation.dto.response.UnitResponse;
+import com.maesamco.content.presentation.unit.dto.request.UnitCreateRequest;
+import com.maesamco.content.presentation.unit.dto.request.UnitUpdateRequest;
+import com.maesamco.content.presentation.unit.dto.response.UnitCreateResponse;
+import com.maesamco.content.presentation.unit.dto.response.UnitResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
