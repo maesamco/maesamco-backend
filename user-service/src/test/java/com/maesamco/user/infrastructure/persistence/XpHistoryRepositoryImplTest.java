@@ -1,9 +1,8 @@
 package com.maesamco.user.infrastructure.persistence;
 
-import com.maesamco.user.domain.entity.RewardType;
-import com.maesamco.user.domain.entity.XpHistory;
-import com.maesamco.user.domain.entity.XpSourceType;
+import com.maesamco.user.domain.entity.*;
 import com.maesamco.user.domain.repository.XpHistoryRepository;
+import com.maesamco.user.global.config.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.context.annotation.Import;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -35,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
-@EnableJpaAuditing
+@Import(JpaAuditingConfig.class)
 @Testcontainers
 class XpHistoryRepositoryImplTest {
 
@@ -72,7 +71,11 @@ class XpHistoryRepositoryImplTest {
     @DisplayName("XP 이력을 저장할 수 있다")
     void save_persistsXpHistory() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "a".repeat(64),
+                        "XpHistoryUserOne"
+                );
         UUID problemId = UUID.randomUUID();
 
         XpHistory xpHistory = createFirstCorrectHistory(
@@ -109,7 +112,11 @@ class XpHistoryRepositoryImplTest {
     @DisplayName("사용자의 XP 이력을 획득 시각 기준 최신순으로 조회한다")
     void findAllByUserIdOrderByEarnedAtDesc_returnsLatestFirst() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "b".repeat(64),
+                        "XpHistoryUserTwo"
+                );
 
         XpHistory olderHistory = createFirstCorrectHistory(
                 userId,
@@ -153,11 +160,18 @@ class XpHistoryRepositoryImplTest {
     @DisplayName("동일한 원천 이벤트 ID의 XP 이력 존재 여부를 확인한다")
     void existsBySourceEventId_returnsCorrectResult() {
         // given
+        // given
         UUID sourceEventId = UUID.randomUUID();
+
+        UUID userId =
+                persistUser(
+                        "c".repeat(64),
+                        "XpHistoryUserThree"
+                );
 
         xpHistoryRepository.save(
                 createFirstCorrectHistory(
-                        UUID.randomUUID(),
+                        userId,
                         sourceEventId,
                         UUID.randomUUID(),
                         10,
@@ -187,7 +201,11 @@ class XpHistoryRepositoryImplTest {
     @DisplayName("동일 사용자와 문제의 최초 정답 보상 존재 여부를 확인한다")
     void existsFirstCorrectReward_returnsCorrectResult() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "d".repeat(64),
+                        "XpHistoryUserFour"
+                );
         UUID problemId = UUID.randomUUID();
 
         xpHistoryRepository.save(
@@ -230,7 +248,11 @@ class XpHistoryRepositoryImplTest {
     @DisplayName("동일 사용자와 날짜의 일일 목표 보상 존재 여부를 확인한다")
     void existsDailyGoalReward_returnsCorrectResult() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "e".repeat(64),
+                        "XpHistoryUserFive"
+                );
         LocalDate rewardDate = LocalDate.of(2026, 9, 1);
 
         xpHistoryRepository.save(
@@ -319,5 +341,32 @@ class XpHistoryRepositoryImplTest {
                 "일일 목표 완료 보상",
                 earnedAt
         );
+    }
+    /**
+     * XP 이력의 사용자 FK 제약을 만족하도록
+     * 테스트용 사용자를 실제 PostgreSQL에 먼저 저장합니다.
+     *
+     * @param emailLookupHash 중복되지 않는 이메일 조회 해시
+     * @param nickname 중복되지 않는 닉네임
+     * @return 저장된 사용자의 ID
+     */
+    private UUID persistUser(
+            String emailLookupHash,
+            String nickname
+    ) {
+        User user =
+                User.create(
+                        "encrypted-email",
+                        emailLookupHash,
+                        "argon2-password-hash",
+                        nickname,
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        entityManager.persist(user);
+        entityManager.flush();
+
+        return user.getId();
     }
 }

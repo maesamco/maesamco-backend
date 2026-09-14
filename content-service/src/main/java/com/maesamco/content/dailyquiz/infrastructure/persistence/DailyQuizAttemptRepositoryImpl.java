@@ -38,6 +38,11 @@ public class DailyQuizAttemptRepositoryImpl implements DailyQuizAttemptRepositor
     }
 
     @Override
+    public Optional<DailyQuizAttempt> findByIdForUpdate(UUID attemptId) {
+        return springDataRepository.findByIdForUpdate(attemptId);
+    }
+
+    @Override
     public int startIfReady(UUID attemptId, Instant startedAt) {
         return springDataRepository.updateStatusAndStartedAtIfStatus(
                 attemptId,

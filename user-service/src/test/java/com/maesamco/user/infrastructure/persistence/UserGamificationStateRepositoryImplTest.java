@@ -1,7 +1,10 @@
 package com.maesamco.user.infrastructure.persistence;
 
+import com.maesamco.user.domain.entity.LearningLevel;
+import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserGamificationState;
 import com.maesamco.user.domain.repository.UserGamificationStateRepository;
+import com.maesamco.user.global.config.JpaAuditingConfig;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
@@ -12,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -35,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
-@EnableJpaAuditing
+@Import(JpaAuditingConfig.class)
 @Testcontainers
 class UserGamificationStateRepositoryImplTest {
 
@@ -66,7 +70,11 @@ class UserGamificationStateRepositoryImplTest {
     @DisplayName("게이미피케이션 상태를 저장한 뒤 사용자 ID로 조회할 수 있다")
     void saveAndFindByUserId_returnsState() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "a".repeat(64),
+                        "GamificationUserOne"
+                );
         UserGamificationState state =
                 UserGamificationState.create(userId);
 
@@ -100,7 +108,11 @@ class UserGamificationStateRepositoryImplTest {
     @DisplayName("XP와 스트릭 변경 내용을 PostgreSQL에 반영한다")
     void saveChangedState_persistsChanges() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "b".repeat(64),
+                        "GamificationUserTwo"
+                );
         UserGamificationState state = repository.save(
                 UserGamificationState.create(userId)
         );
@@ -132,7 +144,11 @@ class UserGamificationStateRepositoryImplTest {
     @DisplayName("오래된 버전으로 저장하면 게이미피케이션 상태 충돌 예외를 반환한다")
     void saveWithStaleVersion_throwsConflict() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "c".repeat(64),
+                        "GamificationUserThree"
+                );
         repository.save(UserGamificationState.create(userId));
         entityManager.clear();
 
@@ -163,5 +179,33 @@ class UserGamificationStateRepositoryImplTest {
                                     );
                         }
                 );
+    }
+
+    /**
+     * 게이미피케이션 상태의 FK 제약을 만족하도록
+     * 테스트용 사용자를 실제 PostgreSQL에 먼저 저장합니다.
+     *
+     * @param emailLookupHash 중복되지 않는 이메일 조회 해시
+     * @param nickname 중복되지 않는 닉네임
+     * @return 저장된 사용자의 ID
+     */
+    private UUID persistUser(
+            String emailLookupHash,
+            String nickname
+    ) {
+        User user =
+                User.create(
+                        "encrypted-email",
+                        emailLookupHash,
+                        "argon2-password-hash",
+                        nickname,
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        entityManager.persist(user);
+        entityManager.flush();
+
+        return user.getId();
     }
 }

@@ -16,6 +16,8 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MAX_RESPONSE_LENGTH;
+
 /**
  * 일일 퀴즈 세트에 배정된 문제 한 개와 사용자의 답변 결과를 나타냅니다.
  *
@@ -41,8 +43,6 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DailyQuizAttemptItem {
-
-    private static final int MAX_RESPONSE_LENGTH = 200;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
