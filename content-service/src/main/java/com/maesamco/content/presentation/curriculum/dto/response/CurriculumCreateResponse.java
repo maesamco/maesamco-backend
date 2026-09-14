@@ -1,6 +1,6 @@
-package com.maesamco.content.curriculum.presentation.dto.response;
+package com.maesamco.content.presentation.curriculum.dto.response;
 
-import com.maesamco.content.curriculum.domain.entity.Curriculum;
+import com.maesamco.content.domain.curriculum.entity.Curriculum;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

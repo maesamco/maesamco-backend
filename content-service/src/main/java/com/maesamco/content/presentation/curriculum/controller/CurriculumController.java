@@ -1,13 +1,13 @@
-package com.maesamco.content.curriculum.presentation.controller;
+package com.maesamco.content.presentation.curriculum.controller;
 
-import com.maesamco.content.curriculum.application.service.CurriculumService;
-import com.maesamco.content.curriculum.presentation.dto.request.CurriculumCreateRequest;
-import com.maesamco.content.curriculum.presentation.dto.request.CurriculumUpdateRequest;
-import com.maesamco.content.curriculum.presentation.dto.response.CurriculumCreateResponse;
-import com.maesamco.content.curriculum.presentation.dto.response.CurriculumResponse;
+import com.maesamco.content.application.curriculum.service.CurriculumService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.presentation.curriculum.dto.request.CurriculumCreateRequest;
+import com.maesamco.content.presentation.curriculum.dto.request.CurriculumUpdateRequest;
+import com.maesamco.content.presentation.curriculum.dto.response.CurriculumCreateResponse;
+import com.maesamco.content.presentation.curriculum.dto.response.CurriculumResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;

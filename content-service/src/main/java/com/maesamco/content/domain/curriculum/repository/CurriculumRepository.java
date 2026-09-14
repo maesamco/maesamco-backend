@@ -1,6 +1,6 @@
-package com.maesamco.content.curriculum.domain.repository;
+package com.maesamco.content.domain.curriculum.repository;
 
-import com.maesamco.content.curriculum.domain.entity.Curriculum;
+import com.maesamco.content.domain.curriculum.entity.Curriculum;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 
