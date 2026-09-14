@@ -3,6 +3,8 @@ package com.maesamco.content.dailyquiz.presentation.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MAX_RESPONSE_LENGTH;
+
 /**
  * Daily Quiz 문항 제출 API 요청 DTO
  *
@@ -11,7 +13,7 @@ import jakarta.validation.constraints.Size;
  */
 public record DailyQuizSubmitRequest(
         @NotBlank(message = "답안은 필수입니다.")
-        @Size(max = 200, message = "답안은 200자를 초과할 수 없습니다.")
+        @Size(max = MAX_RESPONSE_LENGTH, message = "답안은 200자를 초과할 수 없습니다.")
         String response
 ) {
 }

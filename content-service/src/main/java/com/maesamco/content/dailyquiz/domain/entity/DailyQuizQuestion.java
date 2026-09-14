@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MAX_RESPONSE_LENGTH;
+
 /**
  * 일일 퀴즈 문제은행의 특정 버전 한 건을 나타냅니다.
  *
@@ -48,7 +50,6 @@ import java.util.stream.IntStream;
 public class DailyQuizQuestion {
 
     private static final int MAX_QUESTION_TEXT_LENGTH = 1_000;
-    private static final int MAX_RESPONSE_LENGTH = 200;
     private static final int MAX_CONCEPT_TAG_LENGTH = 50;
     private static final int MULTIPLE_CHOICE_OPTION_COUNT = 4;
     private static final String FILL_IN_BLANK_MARKER = "___";

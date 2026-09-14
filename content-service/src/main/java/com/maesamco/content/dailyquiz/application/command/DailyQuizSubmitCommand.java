@@ -5,6 +5,8 @@ import com.maesamco.content.global.exception.ErrorCode;
 
 import java.util.UUID;
 
+import static com.maesamco.content.dailyquiz.domain.DailyQuizPolicy.MAX_RESPONSE_LENGTH;
+
 /**
  * 인증된 사용자의 Daily Quiz 문항 제출에 필요한 입력
  */
@@ -14,8 +16,6 @@ public record DailyQuizSubmitCommand(
         UUID questionVersionId,
         String response
 ) {
-
-    private static final int MAX_RESPONSE_LENGTH = 200;
 
     public DailyQuizSubmitCommand {
         if (userId == null) {
