@@ -162,8 +162,10 @@ class JudgeResultPersistenceServiceTest {
         @DisplayName("INTERNAL_ERROR면 WRONG_ANSWER로 기록하지 않고 markFailed(JUDGE0_RESPONSE_FAILURE)를 호출한다")
         void marksFailedWhenInternalError() {
             UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
             PendingJudge0Execution pending = PendingJudge0Execution.create(
                     submissionId, UUID.randomUUID(), "token-1", true);
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of(pending));
 
@@ -178,8 +180,10 @@ class JudgeResultPersistenceServiceTest {
         @DisplayName("UNKNOWN이면 WRONG_ANSWER로 기록하지 않고 markFailed(JUDGE0_RESPONSE_FAILURE)를 호출한다")
         void marksFailedWhenUnknown() {
             UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
             PendingJudge0Execution pending = PendingJudge0Execution.create(
                     submissionId, UUID.randomUUID(), "token-2", false);
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of(pending));
 
@@ -193,8 +197,10 @@ class JudgeResultPersistenceServiceTest {
         @DisplayName("이미 종료 상태라 markFailed가 실패해도 예외를 전파하지 않는다")
         void doesNotPropagateWhenAlreadyTerminal() {
             UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
             PendingJudge0Execution pending = PendingJudge0Execution.create(
                     submissionId, UUID.randomUUID(), "token-3", true);
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of(pending));
             willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND))
@@ -202,8 +208,76 @@ class JudgeResultPersistenceServiceTest {
                     .markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
 
             judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.INTERNAL_ERROR));
+        }
+    }
 
-            // 예외가 여기까지 전파되지 않고 조용히 끝나면 성공
+    @Nested
+    @DisplayName("reflectResult — 이미 종료된 제출")
+    class AlreadyTerminal {
+
+        @Test
+        @DisplayName("이미 COMPLETED인 제출에 결과가 늦게 도착하면 반영하지 않고 pending만 정리한다")
+        void skipsWhenAlreadyCompletedByCompileError() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+            submission.markCompleted(SubmissionResult.CORRECT, 100, 1024);
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token-late", true);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.COMPILE_ERROR));
+
+            verify(pendingJudge0ExecutionRepository).delete(pending);
+            verify(submissionRepository, never()).save(any());
+            verify(submissionEventOutboxRepository, never()).save(any());
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+        }
+
+        @Test
+        @DisplayName("이미 FAILED인 제출에 결과가 늦게 도착하면 반영하지 않고 pending만 정리한다")
+        void skipsWhenAlreadyFailed() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+            submission.markFailed(FailureCode.JUDGE0_RESPONSE_FAILURE);
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token-late", true);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            judgeResultPersistenceService.reflectResult(pending, resultOf(JudgeExecutionStatus.ACCEPTED));
+
+            verify(pendingJudge0ExecutionRepository).delete(pending);
+            verify(submissionTestResultRepository, never()).save(any());
+            verify(submissionRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("reflectResult — 채점 기준 조회 실패")
+    class MissingSpec {
+
+        @Test
+        @DisplayName("ProblemExecutionSpec을 찾을 수 없으면 재시도 없이 즉시 FAILED 처리한다")
+        void marksFailedImmediatelyWhenSpecNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+            PendingJudge0Execution pending = PendingJudge0Execution.create(
+                    submissionId, UUID.randomUUID(), "token", true);
+            JudgeExecutionResult result = new JudgeExecutionResult(
+                    "token", JudgeExecutionStatus.WRONG_ANSWER, "output", null, null, 100L, 1024);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(any(), any()))
+                    .willReturn(Optional.empty());
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of(pending));
+
+            judgeResultPersistenceService.reflectResult(pending, result);
+
+            verify(pendingJudge0ExecutionRepository).deleteAll(List.of(pending));
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(submissionTestResultRepository, never()).save(any());
         }
     }
 }

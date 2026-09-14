@@ -1,6 +1,7 @@
 package com.maesamco.judge.application.persistence_service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.maesamco.judge.application.exception.ProblemExecutionSpecNotFoundException;
 import com.maesamco.judge.application.port.JudgeExecutionResult;
 import com.maesamco.judge.application.port.JudgeExecutionStatus;
 import com.maesamco.judge.domain.entity.*;
@@ -49,12 +50,23 @@ public class JudgeResultPersistenceService {
      * SubmissionJudged 발행용 Outbox 행을 남김.
      */
     public void reflectResult(PendingJudge0Execution pending, JudgeExecutionResult result) {
+        Submission submission = submissionRepository.findById(pending.getSubmissionId())
+                .orElseThrow(() -> new IllegalArgumentException("Submission not found: " + pending.getSubmissionId()));
+
+        if (isTerminal(submission.getStatus())) {
+            log.warn("[Judge] 이미 종료 상태({})인 제출에 결과 반영이 호출됨 — 결과는 버리고 pending만 정리. "
+                            + "submissionId={}, testCaseId={}",
+                    submission.getStatus(), pending.getSubmissionId(), pending.getTestCaseId());
+            pendingJudge0ExecutionRepository.delete(pending);
+            return;
+        }
+
         if (result.status() == JudgeExecutionStatus.COMPILE_ERROR) {
             // 컴파일 에러는 제출 전체 단위 결과라 테스트케이스별 SubmissionTestResult를 만들지 않음.
             // 남은 pending 건 전부 정리하고 즉시 COMPILE_ERROR로 종료.
             pendingJudge0ExecutionRepository.deleteAll(
                     pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
-            completeSubmissionWithResult(pending.getSubmissionId(), SubmissionResult.COMPILE_ERROR, result);
+            completeSubmissionWithResult(submission, SubmissionResult.COMPILE_ERROR, result);
             return;
         }
 
@@ -76,7 +88,17 @@ public class JudgeResultPersistenceService {
         }
 
         boolean passed = result.status() == JudgeExecutionStatus.ACCEPTED;
-        SubmissionTestErrorType errorType = passed ? null : resolveErrorType(pending, result);
+        SubmissionTestErrorType errorType;
+        if (passed) {
+            errorType = null;
+        } else {
+            try {
+                errorType = resolveErrorType(submission, pending, result);
+            } catch (ProblemExecutionSpecNotFoundException e) {
+                handleMissingSpec(submission, pending, e);
+                return;
+            }
+        }
 
         SubmissionTestResult testResult = SubmissionTestResult.create(
                 pending.getSubmissionId(), pending.getTestCaseId(), pending.isPublic(), passed, result.stdout(), errorType);
@@ -93,40 +115,43 @@ public class JudgeResultPersistenceService {
             SubmissionResult overallResult = failed.isEmpty()
                     ? SubmissionResult.CORRECT
                     : toSubmissionResult(pickMostSevere(failed));
-            completeSubmissionWithResult(pending.getSubmissionId(), overallResult, result);
+            completeSubmissionWithResult(submission, overallResult, result);
         }
     }
 
-    private SubmissionTestErrorType resolveErrorType(PendingJudge0Execution pending, JudgeExecutionResult result) {
-        if (isMemoryLimitExceeded(pending, result)) {
+    private void handleMissingSpec(Submission submission, PendingJudge0Execution pending, ProblemExecutionSpecNotFoundException e) {
+        log.error("[Judge] 채점 기준을 찾을 수 없어 즉시 FAILED 처리. submissionId={}, testCaseId={}, problemId={}, problemVersionId={}",
+                pending.getSubmissionId(), pending.getTestCaseId(), submission.getProblemId(), submission.getProblemVersionId(), e);
+        pendingJudge0ExecutionRepository.deleteAll(
+                pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
+        try {
+            judgeExecutionPersistenceService.markFailed(pending.getSubmissionId(), FailureCode.INTERNAL_SYSTEM_ERROR);
+        } catch (BusinessException be) {
+            log.warn("[Judge] 이미 종료 상태로 전이돼 있어 markFailed를 건너뜀. submissionId={}",
+                    pending.getSubmissionId(), be);
+        }
+    }
+
+    private SubmissionTestErrorType resolveErrorType(Submission submission, PendingJudge0Execution pending, JudgeExecutionResult result) {
+        if (isMemoryLimitExceeded(submission, pending, result)) {
             return SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED;
         }
         return toErrorType(result.status());
     }
 
-    private boolean isMemoryLimitExceeded(PendingJudge0Execution pending,JudgeExecutionResult result) {
+    private boolean isMemoryLimitExceeded(Submission submission, PendingJudge0Execution pending, JudgeExecutionResult result) {
         if (result.memoryUsedKb() == null) {
             return false;
         }
-        Submission submission = submissionRepository.findById(pending.getSubmissionId())
-                .orElseThrow(()-> new IllegalStateException("제출을 찾을 수 없습니다.:" + pending.getSubmissionId()));
         ProblemExecutionSpec spec = problemExecutionSpecRepository
                 .findByProblemIdAndProblemVersionId(submission.getProblemId(), submission.getProblemVersionId())
-                .orElseThrow(()-> new IllegalStateException(
+                .orElseThrow(() -> new ProblemExecutionSpecNotFoundException(
                         "채점 기준을 찾을 수 없습니다. submissionId=" + pending.getSubmissionId()));
         return result.memoryUsedKb() > spec.getMemoryLimitMb() * KB_PER_MB;
     }
 
-    private void completeSubmissionWithResult(UUID submissionId, SubmissionResult overallResult, JudgeExecutionResult lastResult) {
-        Submission submission = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new IllegalStateException("Submission not found: " + submissionId));
-
-        if (submission.getStatus() == SubmissionStatus.COMPLETED) {
-            log.warn("[Judge] 이미 COMPLETED 처리된 제출에 완료 처리가 중복 호출됨 — SubmissionJudged 재발행 스킵. submissionId={}",
-                    submissionId);
-            return;
-        }
-
+    private void completeSubmissionWithResult(Submission submission, SubmissionResult overallResult, JudgeExecutionResult lastResult) {
+        // reflectResult()가 진입 시점에 이미 terminal 여부를 확인했으므로 여기서는 별도 가드 없이 진행.
         int executionTimeMs = lastResult.executionTimeMs() != null ? lastResult.executionTimeMs().intValue() : 0;
         int memoryUsedKb = lastResult.memoryUsedKb() != null ? lastResult.memoryUsedKb() : 0;
 
@@ -136,7 +161,7 @@ public class JudgeResultPersistenceService {
         String payload = writeSubmissionJudgedPayload(submission, overallResult);
 
         submissionEventOutboxRepository.save(
-                SubmissionEventOutbox.create(submissionId, SUBMISSION_JUDGED_EVENT_TYPE, payload));
+                SubmissionEventOutbox.create(submission.getId(), SUBMISSION_JUDGED_EVENT_TYPE, payload));
     }
 
     private SubmissionTestErrorType toErrorType(JudgeExecutionStatus status) {
@@ -177,6 +202,10 @@ public class JudgeResultPersistenceService {
         return status == JudgeExecutionStatus.INTERNAL_ERROR || status == JudgeExecutionStatus.UNKNOWN;
     }
 
+    private boolean isTerminal(SubmissionStatus status) {
+        return status == SubmissionStatus.COMPLETED || status == SubmissionStatus.FAILED;
+    }
+
     private static final List<SubmissionTestErrorType> SEVERITY_ORDER = List.of(
             SubmissionTestErrorType.RUNTIME_ERROR,
             SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED,
@@ -185,19 +214,12 @@ public class JudgeResultPersistenceService {
     );
 
     private record SubmissionJudgedPayload(
-            UUID submissionId,
-            UUID userId,
-            UUID problemId,
-            String status,
-            String result
+            UUID submissionId, UUID userId, UUID problemId, String status, String result
     ) {
         static SubmissionJudgedPayload of(Submission submission, SubmissionResult overallResult) {
             return new SubmissionJudgedPayload(
-                    submission.getId(),
-                    submission.getUserId(),
-                    submission.getProblemId(),
-                    SubmissionStatus.COMPLETED.name(),
-                    overallResult.name());
+                    submission.getId(), submission.getUserId(), submission.getProblemId(),
+                    SubmissionStatus.COMPLETED.name(), overallResult.name());
         }
     }
 }
