@@ -1,17 +1,17 @@
-package com.maesamco.content.problem.presentation.controller;
+package com.maesamco.content.presentation.problem.controller;
 
+import com.maesamco.content.application.problem.service.ProblemPublicationService;
+import com.maesamco.content.application.problem.service.ProblemService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
-import com.maesamco.content.problem.application.service.ProblemService;
-import com.maesamco.content.problem.application.service.ProblemPublicationService;
-import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
-import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
-import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
-import com.maesamco.content.problem.presentation.dto.response.ProblemCreateResponse;
-import com.maesamco.content.problem.presentation.dto.response.ProblemResponse;
-import com.maesamco.content.problem.presentation.dto.response.ProblemSearchItemResponse;
-import com.maesamco.content.problem.presentation.dto.response.ProblemShortResponse;
+import com.maesamco.content.presentation.problem.dto.request.ProblemCreateRequest;
+import com.maesamco.content.presentation.problem.dto.request.ProblemSearchRequest;
+import com.maesamco.content.presentation.problem.dto.request.ProblemUpdateRequest;
+import com.maesamco.content.presentation.problem.dto.response.ProblemCreateResponse;
+import com.maesamco.content.presentation.problem.dto.response.ProblemResponse;
+import com.maesamco.content.presentation.problem.dto.response.ProblemSearchItemResponse;
+import com.maesamco.content.presentation.problem.dto.response.ProblemShortResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;

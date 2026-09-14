@@ -1,7 +1,7 @@
-package com.maesamco.content.problem.domain.repository;
+package com.maesamco.content.domain.problem.repository;
 
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.presentation.problem.dto.request.ProblemSearchRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

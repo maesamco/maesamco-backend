@@ -1,5 +1,6 @@
 package com.maesamco.content.application.testcase.service;
 
+import com.maesamco.content.application.problem.port.ProblemFinder;
 import com.maesamco.content.application.testcase.port.TestCaseFinder;
 import com.maesamco.content.domain.testcase.entity.TestCase;
 import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
@@ -10,7 +11,6 @@ import com.maesamco.content.presentation.testcase.dto.request.TestCaseCreateRequ
 import com.maesamco.content.presentation.testcase.dto.request.TestCaseUpdateRequest;
 import com.maesamco.content.presentation.testcase.dto.response.TestCaseCreateResponse;
 import com.maesamco.content.presentation.testcase.dto.response.TestCaseResponse;
-import com.maesamco.content.problem.application.port.ProblemFinder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

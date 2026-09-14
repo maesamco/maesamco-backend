@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.enums;
+package com.maesamco.content.domain.problem.enums;
 
 /** 문제 유형 */
 public enum ProblemType {

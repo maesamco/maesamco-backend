@@ -1,6 +1,6 @@
-package com.maesamco.content.problem.domain.repository;
+package com.maesamco.content.domain.problem.repository;
 
-import com.maesamco.content.problem.domain.entity.ProblemTag;
+import com.maesamco.content.domain.problem.entity.ProblemTag;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

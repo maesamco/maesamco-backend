@@ -1,12 +1,12 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.problem.service;
 
-import com.maesamco.content.problem.application.port.ProblemFinder;
-import com.maesamco.content.problem.application.port.ProblemTagFinder;
-import com.maesamco.content.problem.application.port.ProblemVersionFinder;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.application.problem.port.ProblemFinder;
+import com.maesamco.content.application.problem.port.ProblemTagFinder;
+import com.maesamco.content.application.problem.port.ProblemVersionFinder;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.presentation.problem.dto.response.InternalProblemResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

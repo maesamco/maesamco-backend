@@ -1,10 +1,10 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.problem.service;
 
+import com.maesamco.content.application.problem.port.ProblemVersionFinder;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.application.port.ProblemVersionFinder;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

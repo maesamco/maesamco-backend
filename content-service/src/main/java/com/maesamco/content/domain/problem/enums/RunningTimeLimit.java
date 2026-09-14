@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.enums;
+package com.maesamco.content.domain.problem.enums;
 
 /** 문제 시간 제한 */
 public enum RunningTimeLimit {

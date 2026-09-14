@@ -1,7 +1,7 @@
-package com.maesamco.content.problem.application.port;
+package com.maesamco.content.application.problem.port;
 
-import com.maesamco.content.problem.domain.entity.ProblemTag;
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.domain.problem.entity.ProblemTag;
+import com.maesamco.content.domain.tag.entity.Tag;
 
 import java.util.List;
 import java.util.UUID;

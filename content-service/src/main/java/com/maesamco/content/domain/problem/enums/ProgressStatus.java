@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.enums;
+package com.maesamco.content.domain.problem.enums;
 
 /** 문제 풀이 진행 상태 */
 public enum ProgressStatus {

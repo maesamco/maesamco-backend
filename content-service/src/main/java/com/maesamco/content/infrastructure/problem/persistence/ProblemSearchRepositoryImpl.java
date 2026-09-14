@@ -1,11 +1,10 @@
-package com.maesamco.content.problem.infrastructure.persistence;
+package com.maesamco.content.infrastructure.problem.persistence;
 
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.QProblem;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.repository.ProblemSearchRepository;
-import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.QProblem;
+import com.maesamco.content.domain.problem.enums.ProblemDifficulty;
+import com.maesamco.content.domain.problem.repository.ProblemSearchRepository;
+import com.maesamco.content.presentation.problem.dto.request.ProblemSearchRequest;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;

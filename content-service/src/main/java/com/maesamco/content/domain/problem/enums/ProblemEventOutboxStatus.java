@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.enums;
+package com.maesamco.content.domain.problem.enums;
 
 /**
  * 문제 이벤트 Outbox의 발행 상태입니다.

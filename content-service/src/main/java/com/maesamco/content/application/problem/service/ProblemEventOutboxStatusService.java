@@ -1,9 +1,9 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.problem.service;
 
+import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
+import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
-import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

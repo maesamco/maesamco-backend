@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.problem.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

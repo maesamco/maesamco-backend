@@ -1,16 +1,10 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.problem.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
-import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.domain.problem.enums.*;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

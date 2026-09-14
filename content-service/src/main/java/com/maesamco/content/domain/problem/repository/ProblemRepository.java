@@ -1,6 +1,6 @@
-package com.maesamco.content.problem.domain.repository;
+package com.maesamco.content.domain.problem.repository;
 
-import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.domain.problem.entity.Problem;
 import jakarta.persistence.LockModeType;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;

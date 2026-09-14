@@ -1,7 +1,7 @@
-package com.maesamco.content.problem.domain.repository;
+package com.maesamco.content.domain.problem.repository;
 
-import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
-import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
+import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

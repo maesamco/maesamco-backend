@@ -1,9 +1,9 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.problem.entity;
 
+import com.maesamco.content.domain.problem.enums.*;
 import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.domain.enums.*;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

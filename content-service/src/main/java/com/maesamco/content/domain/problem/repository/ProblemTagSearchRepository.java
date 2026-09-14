@@ -1,6 +1,6 @@
-package com.maesamco.content.problem.domain.repository;
+package com.maesamco.content.domain.problem.repository;
 
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.domain.tag.entity.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

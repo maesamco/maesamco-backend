@@ -1,12 +1,6 @@
-package com.maesamco.content.problem.presentation.dto.request;
+package com.maesamco.content.presentation.problem.dto.request;
 
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
-import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
+import com.maesamco.content.domain.problem.enums.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;

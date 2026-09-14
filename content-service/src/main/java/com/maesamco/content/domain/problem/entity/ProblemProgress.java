@@ -1,13 +1,12 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.problem.entity;
 
-import com.maesamco.content.problem.domain.enums.ProgressStatus;
+import com.maesamco.content.domain.problem.enums.ProgressStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**

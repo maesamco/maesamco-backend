@@ -1,6 +1,6 @@
-package com.maesamco.content.problem.infrastructure.messaging.event;
+package com.maesamco.content.infrastructure.problem.messaging.event;
 
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
 
 import java.time.Instant;
 import java.util.List;

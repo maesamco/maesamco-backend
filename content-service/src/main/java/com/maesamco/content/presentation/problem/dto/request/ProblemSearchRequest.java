@@ -1,10 +1,6 @@
-package com.maesamco.content.problem.presentation.dto.request;
+package com.maesamco.content.presentation.problem.dto.request;
 
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
+import com.maesamco.content.domain.problem.enums.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -1,6 +1,6 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.problem.entity;
 
-import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

@@ -1,9 +1,9 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.problem.service;
 
-import com.maesamco.content.problem.application.port.ProblemTagFinder;
-import com.maesamco.content.problem.domain.entity.ProblemTag;
-import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.application.problem.port.ProblemTagFinder;
+import com.maesamco.content.domain.problem.entity.ProblemTag;
+import com.maesamco.content.domain.problem.repository.ProblemTagRepository;
+import com.maesamco.content.domain.tag.entity.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

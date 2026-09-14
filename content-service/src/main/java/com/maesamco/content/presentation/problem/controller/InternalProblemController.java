@@ -1,8 +1,8 @@
-package com.maesamco.content.problem.presentation.controller;
+package com.maesamco.content.presentation.problem.controller;
 
+import com.maesamco.content.application.problem.service.ProblemInternalService;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.problem.application.service.ProblemInternalService;
-import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
+import com.maesamco.content.presentation.problem.dto.response.InternalProblemResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
