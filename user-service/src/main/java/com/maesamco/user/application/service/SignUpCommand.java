@@ -71,9 +71,10 @@ public record SignUpCommand(
         String password,
 
         @Schema(
-                description = "서비스에서 사용할 닉네임",
+                description = "서비스에서 사용할 닉네임 (한글, 영문, 숫자만 허용)",
                 minLength = 2,
                 maxLength = 20,
+                pattern = "^[가-힣A-Za-z0-9]+$",
                 requiredMode = Schema.RequiredMode.REQUIRED
         )
         @NotBlank(message = "닉네임은 필수입니다.")
