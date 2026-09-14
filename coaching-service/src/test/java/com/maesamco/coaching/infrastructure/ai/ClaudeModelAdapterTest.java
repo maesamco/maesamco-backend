@@ -103,7 +103,7 @@ class ClaudeModelAdapterTest {
         // response.getResult() 단계에서 NPE가 나는 상황을 재현한다. CircuitBreaker의
         // fallbackMethod는 서킷 상태와 무관하게 generate()가 던지는 모든 예외를 가로채므로,
         // 이 NPE도 generateFallback()으로 들어간다 — CallNotPermittedException이 아니므로
-        // AiModelCallException(circuitOpen=true)으로 잘못 감싸지 않고 원본 그대로
+        // AiModelCallException으로 잘못 감싸지 않고 원본 그대로
         // 다시 던져져야 한다(GlobalExceptionHandler의 500 안전망으로 가야 정상).
         when(chatModel.call(any(Prompt.class))).thenReturn(null);
 

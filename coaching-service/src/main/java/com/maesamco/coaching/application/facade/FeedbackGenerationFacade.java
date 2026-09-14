@@ -128,13 +128,15 @@ public class FeedbackGenerationFacade {
                         buildSystemPrompt(), buildUserPrompt(problem, submission, explanation, followUpQuestion, followUpAnswer)
                 );
             } catch (AiModelCallException e) {
-                // 재검증(PR #111) — 서킷브레이커(ai-model)가 힌트/역질문 생성 실패로 열려서
-                // 실제 LLM 호출 자체가 차단된 경우(circuitOpen)는 "FAILED"가 아니라
-                // "SKIPPED"로 남긴다. AiFeedbackRetryFacade의 재시도 횟수 카운트가 SKIPPED를
-                // 제외하므로, 무관한 기능의 장애로 이 사용자의 재시도 예산이 소모되지 않는다.
+                // 이슈 #173 — AiModelCallException은 정의상 chatModel.call() 자체가 실패한
+                // 경우라(응답은 왔는데 내용이 나쁜 경우는 아래 별도 분기에서 처리) 원인이
+                // quota든 네트워크든 서킷오픈이든 상관없이 토큰이 청구되지 않은 시도다.
+                // AiFeedbackRetryFacade의 재시도 예산 계산이 SKIPPED만 제외하므로, 전부
+                // SKIPPED로 남겨서 무관한 인프라 사정으로 재시도 예산이 소모되지 않게 한다.
+                log.warn("AI 모델 호출 실패 - coachingSessionId={}", session.getId(), e);
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
-                        e.isCircuitOpen() ? "SKIPPED" : "FAILED", null, null, e.getMessage(), 0
+                        "SKIPPED", null, null, e.getMessage(), 0
                 ));
                 return;
             }

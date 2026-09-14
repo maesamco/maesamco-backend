@@ -60,15 +60,14 @@ public class ClaudeModelAdapter implements AiModelPort {
      * JudgeServiceAdapter.getSubmissionFallback()과 동일한 이유 — generate()가 이미
      * AiModelCallException으로 분류해서 던진 경우(서킷이 닫혀 있어 실제로 호출까지 됐던
      * 경우)는 그대로 다시 던진다. 서킷이 열려 호출 자체가 차단된 경우(CallNotPermittedException)만
-     * 새로 AiModelCallException(circuitOpen=true)으로 감싼다.
+     * 새로 AiModelCallException으로 감싼다.
      *
      * 재검증(PR #111) — CircuitBreaker의 fallbackMethod는 서킷 상태와 무관하게 generate()가
      * 던지는 모든 예외를 가로챈다. 그래서 generate()의 응답 파싱 단계(위 주석, PR #70)에서
      * NPE 등 우리 코드 버그가 나도 여기로 들어오는데, CallNotPermittedException이 아닌
      * RuntimeException은 여기서 삼키지 않고 그대로 다시 던져야 "파싱 버그는 500 안전망으로
-     * 간다"는 PR #70의 원래 의도가 지켜진다 — circuitOpen=true로 잘못 표시하면
-     * FeedbackGenerationFacade가 실제 버그로 인한 실패를 SKIPPED로 기록해 재시도 예산
-     * 계산에서 숨겨버린다.
+     * 간다"는 PR #70의 원래 의도가 지켜진다(이슈 #173 — circuitOpen 구분 자체는 없어졌지만,
+     * "파싱 버그는 AiModelCallException으로 감싸지 않는다"는 이 판별 로직은 그대로 유지).
      */
     @SuppressWarnings("unused")
     AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
@@ -76,7 +75,7 @@ public class ClaudeModelAdapter implements AiModelPort {
             throw aiModelCallException;
         }
         if (t instanceof CallNotPermittedException) {
-            throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t, true);
+            throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t);
         }
         if (t instanceof RuntimeException runtimeException) {
             throw runtimeException;

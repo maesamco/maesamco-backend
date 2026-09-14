@@ -3,28 +3,17 @@ package com.maesamco.coaching.application.port;
 /**
  * LLM 호출 실패·타임아웃 — AiModelPort 구현체(어댑터)가 던지고, Facade가 잡아서
  * AiCallHistory 실패 기록 후 BusinessException(AI_GENERATION_FAILED)으로 변환한다.
+ *
+ * 이슈 #173 정리 — 예전엔 서킷브레이커가 OPEN이라 호출 자체가 차단된 경우
+ * (CallNotPermittedException)만 circuitOpen=true로 구분해서 AiFeedbackRetryFacade의
+ * 재시도 예산 계산에서 제외했는데, 재검토 결과 이 예외로 들어오는 모든 경우(quota
+ * 소진·네트워크 오류 등)가 전부 "호출 자체가 실패해 토큰이 청구되지 않은 시도"라
+ * 원인과 무관하게 똑같이 재시도 예산에서 제외해야 한다는 결론으로 바뀌었다 — 그래서
+ * circuitOpen 구분 자체가 불필요해져 제거했다.
  */
 public class AiModelCallException extends RuntimeException {
 
-    /**
-     * 외부 AI 리뷰 지적(PR #111 재검증) — 서킷브레이커가 OPEN이라 실제 LLM 호출 자체가
-     * 차단된 경우(CallNotPermittedException)와, 서킷은 닫혀 있었지만 실제로 호출했다가
-     * 실패한 경우를 구분한다. 힌트/역질문/피드백 세 기능이 서킷(ai-model)을 공유하다 보니,
-     * 구분 없이 둘 다 "FAILED"로 기록하면 무관한 기능의 장애로 서킷이 열렸을 때 피드백
-     * 재시도(AiFeedbackRetryFacade)가 실제 LLM 호출 없이도 3회 재시도 예산을 소모하게 된다.
-     */
-    private final boolean circuitOpen;
-
     public AiModelCallException(String message, Throwable cause) {
-        this(message, cause, false);
-    }
-
-    public AiModelCallException(String message, Throwable cause, boolean circuitOpen) {
         super(message, cause);
-        this.circuitOpen = circuitOpen;
-    }
-
-    public boolean isCircuitOpen() {
-        return circuitOpen;
     }
 }

@@ -176,29 +176,17 @@ class FeedbackGenerationFacadeTest {
         verifyNoInteractions(feedbackPersistenceService);
     }
 
-    @Test
-    void LLM_호출이_실패해도_예외_없이_종료한다() {
-        stubSubmission();
-        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("timeout", new RuntimeException()));
-
-        assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
-                .doesNotThrowAnyException();
-
-        verifyNoInteractions(feedbackPersistenceService);
-        verify(aiCallHistoryRepository).save(argThat(h -> "FAILED".equals(h.getRequestStatus())));
-    }
-
     /**
-     * 재검증(PR #111, 외부 AI 리뷰) — 서킷브레이커가 열려서 실제 LLM 호출 자체가 없었던
-     * 경우(circuitOpen=true)는 "FAILED"가 아니라 "SKIPPED"로 남겨야
-     * AiFeedbackRetryFacade의 재시도 카운트에서 제외된다. 힌트/역질문 생성 쪽 장애로 서킷이
-     * 열렸을 때, 이 사용자의 피드백 재시도 예산이 실제 시도 없이 소모되는 걸 막기 위함.
+     * 이슈 #173 — AiModelCallException은 원인(quota 소진·네트워크 오류·서킷오픈 등)과
+     * 무관하게 chatModel.call() 자체가 실패해 토큰이 청구되지 않은 시도이므로, 전부
+     * SKIPPED로 남겨서 AiFeedbackRetryFacade의 재시도 예산 계산에서 제외돼야 한다.
+     * circuitOpen 여부로 SKIPPED/FAILED를 가르던 예전 분류(PR #111)는 이슈 #173으로
+     * 폐기됐다 — 이 테스트가 그 통합된 동작을 검증한다.
      */
     @Test
-    void 서킷브레이커가_열려서_호출이_차단되면_FAILED_대신_SKIPPED_이력을_남긴다() {
+    void LLM_호출이_실패하면_원인과_무관하게_SKIPPED_이력을_남기고_예외_없이_종료한다() {
         stubSubmission();
-        when(aiModelPort.generate(any(), any()))
-                .thenThrow(new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", new RuntimeException(), true));
+        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("timeout", new RuntimeException()));
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();

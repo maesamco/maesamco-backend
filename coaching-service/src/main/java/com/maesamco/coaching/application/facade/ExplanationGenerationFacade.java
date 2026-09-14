@@ -221,6 +221,7 @@ public class ExplanationGenerationFacade {
                     FollowUpQuestion.create(explanation.getId(), parsed.questionText(), parsed.category())
             );
         } catch (AiModelCallException e) {
+            log.warn("AI 역질문 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, "unknown", PROMPT_VERSION,
                     "FAILED", null, null, e.getMessage(), 0

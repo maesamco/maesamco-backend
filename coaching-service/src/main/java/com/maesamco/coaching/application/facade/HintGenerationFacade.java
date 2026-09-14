@@ -324,6 +324,7 @@ public class HintGenerationFacade {
             ));
             return response.content();
         } catch (AiModelCallException e) {
+            log.warn("AI 힌트 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
                     "FAILED", null, null, e.getMessage(), 0
