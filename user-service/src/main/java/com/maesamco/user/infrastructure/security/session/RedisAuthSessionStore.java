@@ -39,6 +39,89 @@ public class RedisAuthSessionStore implements AuthSessionStore {
 
     private static final long ROTATION_TOKEN_REUSED = 3L;
 
+    private static final String USER_KEY_PREFIX =
+            "user:";
+
+    private static final String USER_SESSION_INDEX_KEY_SUFFIX =
+            ":sessions";
+
+    private static final String USER_INVALIDATED_AT_KEY_SUFFIX =
+            ":invalidatedAt";
+
+    private static final long SAVE_REJECTED_BY_USER_INVALIDATION = 0L;
+    private static final long SAVE_SUCCESS = 1L;
+
+    /**
+     * 인증 세션 저장과 사용자별 세션 인덱스 등록을
+     * 하나의 Redis 원자 연산으로 수행합니다.
+     *
+     * <p>사용자 세션 인덱스 TTL은 현재 TTL보다 새 세션 TTL이 길 때만
+     * 연장합니다. 따라서 가장 오래 살아 있는 인증 세션보다
+     * 인덱스가 먼저 만료되지 않습니다.</p>
+     */
+    private static final DefaultRedisScript<Long> SAVE_SESSION_SCRIPT =
+            new DefaultRedisScript<>(
+                    """
+                    local invalidatedAtValue =
+                        redis.call(
+                            'GET',
+                            KEYS[3]
+                        )
+
+                    if invalidatedAtValue then
+                        local invalidatedAtMillis =
+                            tonumber(invalidatedAtValue)
+
+                        local sessionCreatedAtMillis =
+                            tonumber(ARGV[4])
+
+                        if invalidatedAtMillis
+                            and sessionCreatedAtMillis
+                            and sessionCreatedAtMillis
+                                < invalidatedAtMillis
+                        then
+                            return 0
+                        end
+                    end
+
+                    redis.call(
+                        'PSETEX',
+                        KEYS[1],
+                        ARGV[3],
+                        ARGV[1]
+                    )
+
+                    redis.call(
+                        'SADD',
+                        KEYS[2],
+                        ARGV[2]
+                    )
+
+                    local currentIndexTtlMillis =
+                        redis.call(
+                            'PTTL',
+                            KEYS[2]
+                        )
+
+                    local requestedTtlMillis =
+                        tonumber(ARGV[3])
+
+                    if currentIndexTtlMillis == -1
+                        or currentIndexTtlMillis == -2
+                        or currentIndexTtlMillis < requestedTtlMillis
+                    then
+                        redis.call(
+                            'PEXPIRE',
+                            KEYS[2],
+                            requestedTtlMillis
+                        )
+                    end
+
+                    return 1
+                    """,
+                    Long.class
+            );
+
     /**
      * Refresh Token hash 비교와 교체를 원자적으로 수행하는 Lua Script입니다.
      *
@@ -160,10 +243,11 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                 "인증 세션은 필수입니다."
         );
 
-        Duration ttl = Duration.between(
-                clock.instant(),
-                session.expiresAt()
-        );
+        Duration ttl =
+                Duration.between(
+                        clock.instant(),
+                        session.expiresAt()
+                );
 
         if (ttl.isZero() || ttl.isNegative()) {
             throw new IllegalArgumentException(
@@ -171,11 +255,49 @@ public class RedisAuthSessionStore implements AuthSessionStore {
             );
         }
 
-        redisTemplate.opsForValue().set(
-                createKey(session.sessionId()),
-                serialize(session),
-                ttl
-        );
+        Long result =
+                redisTemplate.execute(
+                        SAVE_SESSION_SCRIPT,
+                        List.of(
+                                createKey(
+                                        session.sessionId()
+                                ),
+                                createUserSessionIndexKey(
+                                        session.userId()
+                                ),
+                                createUserInvalidatedAtKey(
+                                        session.userId()
+                                )
+                        ),
+                        serialize(session),
+                        session.sessionId().toString(),
+                        Long.toString(
+                                ttl.toMillis()
+                        ),
+                        Long.toString(
+                                session.createdAt()
+                                        .toEpochMilli()
+                        )
+                );
+
+        if (result == null) {
+            throw new IllegalStateException(
+                    "인증 세션 저장 결과를 확인할 수 없습니다."
+            );
+        }
+
+        if (result == SAVE_REJECTED_BY_USER_INVALIDATION) {
+            throw new IllegalStateException(
+                    "전체 로그아웃 이전에 시작된 인증 세션은 저장할 수 없습니다."
+            );
+        }
+
+        if (result != SAVE_SUCCESS) {
+            throw new IllegalStateException(
+                    "알 수 없는 인증 세션 저장 결과입니다: "
+                            + result
+            );
+        }
     }
 
     /**
@@ -336,5 +458,27 @@ public class RedisAuthSessionStore implements AuthSessionStore {
      */
     private String createKey(UUID sessionId) {
         return KEY_PREFIX + sessionId;
+    }
+
+    /**
+     * 사용자 식별자로 전체 인증 세션 인덱스 Key를 생성합니다.
+     */
+    private String createUserSessionIndexKey(
+            UUID userId
+    ) {
+        return USER_KEY_PREFIX
+                + userId
+                + USER_SESSION_INDEX_KEY_SUFFIX;
+    }
+
+    /**
+     * 사용자 단위 Access Token 무효화 Redis Key를 생성합니다.
+     */
+    private String createUserInvalidatedAtKey(
+            UUID userId
+    ) {
+        return USER_KEY_PREFIX
+                + userId
+                + USER_INVALIDATED_AT_KEY_SUFFIX;
     }
 }

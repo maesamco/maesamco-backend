@@ -1,10 +1,7 @@
 package com.maesamco.user.infrastructure.security.session;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionLogoutResult;
-import com.maesamco.user.application.port.AuthSessionLogoutStore;
-import com.maesamco.user.application.port.AuthSessionRotationResult;
-import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.application.port.*;
+import com.maesamco.user.global.security.JwtProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 실제 Redis를 이용해 인증 세션 저장, TTL,
@@ -44,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({
         RedisAuthSessionStore.class,
         RedisAuthSessionLogoutStore.class,
+        RedisAuthSessionLogoutAllStore.class,
         RedisAuthSessionStoreIntegrationTest.TestConfig.class
 })
 @Testcontainers
@@ -93,6 +92,9 @@ class RedisAuthSessionStoreIntegrationTest {
     private static final String SESSION_KEY =
             "session:" + SESSION_ID;
 
+    private static final String USER_SESSION_INDEX_KEY =
+            "user:" + USER_ID + ":sessions";
+
     private static final String SESSION_BLACKLIST_KEY =
             SESSION_KEY + ":blacklisted";
 
@@ -117,6 +119,31 @@ class RedisAuthSessionStoreIntegrationTest {
     private static final String SECOND_SESSION_REFRESH_TOKEN_HASH =
             "refresh-token-hash-second-session";
 
+    private static final Duration ACCESS_TOKEN_TTL =
+            Duration.ofMinutes(15);
+
+    private static final UUID OTHER_SESSION_ID =
+            UUID.fromString(
+                    "77777777-7777-7777-7777-777777777777"
+            );
+
+    private static final UUID OTHER_FAMILY_ID =
+            UUID.fromString(
+                    "88888888-8888-8888-8888-888888888888"
+            );
+
+    private static final String USER_INVALIDATED_AT_KEY =
+            "user:" + USER_ID + ":invalidatedAt";
+
+    private static final String OTHER_SESSION_KEY =
+            "session:" + OTHER_SESSION_ID;
+
+    private static final String OTHER_USER_SESSION_INDEX_KEY =
+            "user:" + OTHER_USER_ID + ":sessions";
+
+    private static final String OTHER_USER_INVALIDATED_AT_KEY =
+            "user:" + OTHER_USER_ID + ":invalidatedAt";
+
     @Container
     private static final GenericContainer<?> REDIS =
             new GenericContainer<>(
@@ -128,6 +155,9 @@ class RedisAuthSessionStoreIntegrationTest {
 
     @Autowired
     private AuthSessionLogoutStore authSessionLogoutStore;
+
+    @Autowired
+    private AuthSessionLogoutAllStore authSessionLogoutAllStore;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -154,7 +184,12 @@ class RedisAuthSessionStoreIntegrationTest {
                         SESSION_KEY,
                         SESSION_BLACKLIST_KEY,
                         SECOND_SESSION_KEY,
-                        SECOND_SESSION_BLACKLIST_KEY
+                        SECOND_SESSION_BLACKLIST_KEY,
+                        USER_SESSION_INDEX_KEY,
+                        USER_INVALIDATED_AT_KEY,
+                        OTHER_SESSION_KEY,
+                        OTHER_USER_SESSION_INDEX_KEY,
+                        OTHER_USER_INVALIDATED_AT_KEY
                 )
         );
     }
@@ -178,6 +213,118 @@ class RedisAuthSessionStoreIntegrationTest {
         )
                 .contains("\"refreshTokenHash\"")
                 .contains(ORIGINAL_REFRESH_TOKEN_HASH);
+    }
+
+    @Test
+    @DisplayName(
+            "인증 세션 저장 시 사용자별 세션 인덱스와 TTL도 함께 저장한다"
+    )
+    void save_registersSessionInUserIndexWithTtl() {
+        // given
+        AuthSession session =
+                createSession();
+
+        // when
+        authSessionStore.save(
+                session
+        );
+
+        // then
+        assertThat(
+                redisTemplate
+                        .opsForSet()
+                        .members(
+                                USER_SESSION_INDEX_KEY
+                        )
+        )
+                .containsExactly(
+                        SESSION_ID.toString()
+                );
+
+        Long remainingIndexTtl =
+                redisTemplate.getExpire(
+                        USER_SESSION_INDEX_KEY,
+                        TimeUnit.SECONDS
+                );
+
+        assertThat(remainingIndexTtl)
+                .isBetween(
+                        SESSION_TTL
+                                .minusSeconds(5)
+                                .getSeconds(),
+                        SESSION_TTL.getSeconds()
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "짧은 세션을 추가해도 사용자 세션 인덱스 TTL을 줄이지 않는다"
+    )
+    void save_shorterSessionDoesNotShortenUserIndexTtl() {
+        // given
+        AuthSession longLivedSession =
+                createSession();
+
+        authSessionStore.save(
+                longLivedSession
+        );
+
+        Long ttlBefore =
+                redisTemplate.getExpire(
+                        USER_SESSION_INDEX_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        AuthSession shortLivedSession =
+                new AuthSession(
+                        SECOND_SESSION_ID,
+                        SECOND_FAMILY_ID,
+                        USER_ID,
+                        SECOND_SESSION_REFRESH_TOKEN_HASH,
+                        NOW,
+                        NOW.plus(Duration.ofDays(1))
+                );
+
+        // when
+        authSessionStore.save(
+                shortLivedSession
+        );
+
+        Long ttlAfter =
+                redisTemplate.getExpire(
+                        USER_SESSION_INDEX_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        // then
+        assertThat(
+                redisTemplate
+                        .opsForSet()
+                        .members(
+                                USER_SESSION_INDEX_KEY
+                        )
+        )
+                .containsExactlyInAnyOrder(
+                        SESSION_ID.toString(),
+                        SECOND_SESSION_ID.toString()
+                );
+
+        assertThat(ttlBefore)
+                .isPositive();
+
+        assertThat(ttlAfter)
+                .isPositive();
+
+        assertThat(ttlAfter)
+                .isGreaterThan(
+                        Duration.ofDays(13)
+                                .toMillis()
+                );
+
+        assertThat(ttlAfter)
+                .isLessThanOrEqualTo(
+                        ttlBefore
+                );
     }
 
     @Test
@@ -796,6 +943,17 @@ class RedisAuthSessionStoreIntegrationTest {
         );
     }
 
+    private AuthSession createOtherUserSession() {
+        return new AuthSession(
+                OTHER_SESSION_ID,
+                OTHER_FAMILY_ID,
+                OTHER_USER_ID,
+                "refresh-token-hash-other-user",
+                NOW,
+                NOW.plus(SESSION_TTL)
+        );
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class TestConfig {
 
@@ -804,6 +962,18 @@ class RedisAuthSessionStoreIntegrationTest {
             return Clock.fixed(
                     NOW,
                     ZoneOffset.UTC
+            );
+        }
+
+        @Bean
+        JwtProperties testJwtProperties() {
+            return new JwtProperties(
+                    null,
+                    null,
+                    null,
+                    null,
+                    ACCESS_TOKEN_TTL,
+                    SESSION_TTL
             );
         }
 
@@ -890,5 +1060,217 @@ class RedisAuthSessionStoreIntegrationTest {
                         SESSION_ID
                 )
         ).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃하면 같은 사용자의 모든 세션과 인덱스를 삭제하고 "
+                    + "다른 사용자의 세션은 유지한다"
+    )
+    void logoutAll_deletesOnlyTargetUsersSessions() {
+        // given
+        AuthSession firstSession =
+                createSession();
+
+        AuthSession secondSession =
+                createSecondSession();
+
+        AuthSession otherUserSession =
+                createOtherUserSession();
+
+        authSessionStore.save(firstSession);
+        authSessionStore.save(secondSession);
+        authSessionStore.save(otherUserSession);
+
+        // when
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                NOW
+        );
+
+        // then
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SESSION_ID
+                )
+        ).isEmpty();
+
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SECOND_SESSION_ID
+                )
+        ).isEmpty();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        USER_SESSION_INDEX_KEY
+                )
+        ).isFalse();
+
+        assertThat(
+                authSessionStore.findBySessionId(
+                        OTHER_SESSION_ID
+                )
+        ).contains(otherUserSession);
+
+        assertThat(
+                redisTemplate.hasKey(
+                        OTHER_SESSION_KEY
+                )
+        ).isTrue();
+
+        assertThat(
+                redisTemplate
+                        .opsForSet()
+                        .members(
+                                OTHER_USER_SESSION_INDEX_KEY
+                        )
+        ).containsExactly(
+                OTHER_SESSION_ID.toString()
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃 시 사용자 무효화 시각을 Access Token TTL 동안 저장한다"
+    )
+    void logoutAll_storesUserInvalidatedAtWithAccessTokenTtl() {
+        // given
+        authSessionStore.save(
+                createSession()
+        );
+
+        // when
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                NOW
+        );
+
+        // then
+        assertThat(
+                redisTemplate
+                        .opsForValue()
+                        .get(
+                                USER_INVALIDATED_AT_KEY
+                        )
+        ).isEqualTo(
+                Long.toString(
+                        NOW.toEpochMilli()
+                )
+        );
+
+        Long remainingTtl =
+                redisTemplate.getExpire(
+                        USER_INVALIDATED_AT_KEY,
+                        TimeUnit.MILLISECONDS
+                );
+
+        assertThat(remainingTtl)
+                .isBetween(
+                        ACCESS_TOKEN_TTL.toMillis() - 5_000L,
+                        ACCESS_TOKEN_TTL.toMillis()
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃을 반복 호출해도 안전하게 성공하고 무효화 정보를 유지한다"
+    )
+    void logoutAll_repeatedRequestIsIdempotent() {
+        // given
+        authSessionStore.save(
+                createSession()
+        );
+
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                NOW
+        );
+
+        // when
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                NOW
+        );
+
+        // then
+        assertThat(
+                authSessionStore.findBySessionId(
+                        SESSION_ID
+                )
+        ).isEmpty();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        USER_SESSION_INDEX_KEY
+                )
+        ).isFalse();
+
+        assertThat(
+                redisTemplate
+                        .opsForValue()
+                        .get(
+                                USER_INVALIDATED_AT_KEY
+                        )
+        ).isEqualTo(
+                Long.toString(
+                        NOW.toEpochMilli()
+                )
+        );
+
+        assertThat(
+                redisTemplate.getExpire(
+                        USER_INVALIDATED_AT_KEY,
+                        TimeUnit.MILLISECONDS
+                )
+        ).isPositive();
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃 이전에 시작된 인증 세션이 "
+                    + "뒤늦게 저장되면 거부한다"
+    )
+    void save_afterLogoutAllRejectsSessionStartedBeforeInvalidation() {
+        // given
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                NOW
+        );
+
+        AuthSession staleSession =
+                new AuthSession(
+                        SECOND_SESSION_ID,
+                        SECOND_FAMILY_ID,
+                        USER_ID,
+                        SECOND_SESSION_REFRESH_TOKEN_HASH,
+                        NOW.minusMillis(1),
+                        NOW.plus(SESSION_TTL)
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> authSessionStore.save(
+                        staleSession
+                )
+        )
+                .isInstanceOf(
+                        IllegalStateException.class
+                )
+                .hasMessage(
+                        "전체 로그아웃 이전에 시작된 인증 세션은 저장할 수 없습니다."
+                );
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SECOND_SESSION_KEY
+                )
+        ).isFalse();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        USER_SESSION_INDEX_KEY
+                )
+        ).isFalse();
     }
 }
