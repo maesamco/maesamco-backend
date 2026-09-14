@@ -44,13 +44,12 @@ class SubmissionQueryServiceTest {
 
     private final UUID userId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
 
     private Submission pendingSubmission(UUID id) {
         Submission submission = Submission.create(
-                userId, problemId, UUID.randomUUID(), 3,
+                userId, problemId, problemVersionId, 3,
                 "public class Main {}", SubmissionLanguage.JAVA17, "idem-" + id);
-        // Submission.create()는 실제 JPA persist 없이는 @UuidGenerator가 안 돌아서 id가 null임 —
-        // submissionId 응답 필드를 의미 있게 검증하려고 테스트에서 id를 직접 심어줌 (리뷰 반영)
         ReflectionTestUtils.setField(submission, "id", id);
         return submission;
     }
@@ -82,6 +81,7 @@ class SubmissionQueryServiceTest {
             assertThat(result.submissionId()).isEqualTo(submissionId);
             assertThat(result.userId()).isEqualTo(userId);
             assertThat(result.problemId()).isEqualTo(problemId);
+            assertThat(result.problemVersionId()).isEqualTo(problemVersionId);
             assertThat(result.code()).isEqualTo("public class Main {}");
             assertThat(result.status()).isEqualTo(SubmissionStatus.COMPLETED);
             assertThat(result.result()).isEqualTo(SubmissionResult.WRONG);
