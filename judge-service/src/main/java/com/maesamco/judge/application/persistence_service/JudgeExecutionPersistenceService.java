@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,9 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class JudgeExecutionPersistenceService {
 
+    private static final int MAX_RETRY_COUNT = 3;
+
     private final SubmissionRepository submissionRepository;
     private final ProblemExecutionSpecRepository problemExecutionSpecRepository;
     private final PendingJudge0ExecutionRepository pendingJudge0ExecutionRepository;
+    private final MeterRegistry meterRegistry;
 
     // Judge0 호출 전 준비 단계 — Submission을 RUNNING으로 전이시키고, 채점에 필요한
     // 실행 명세를 같이 조회해서 Facade에 넘긴다. 이미 RUNNING이면(중복 이벤트) 빈 값을
@@ -81,5 +86,27 @@ public class JudgeExecutionPersistenceService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
         submission.markFailed(failureCode);
+    }
+
+    /**
+     * 일시적 시스템 오류(Judge0 통신 실패, 토큰 저장 실패) 발생 시 호출.
+     * 재시도 횟수가 남아있으면 RETRY_WAIT로, 소진됐으면 FAILED로 전이한다.
+     */
+    @Transactional
+    public void handleRetryableFailure(UUID submissionId, FailureCode failureCode) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+
+        if (submission.getRetryCount() >= MAX_RETRY_COUNT) {
+            submission.markFailed(failureCode);
+            meterRegistry.counter("judge.submission.retry.exhausted", "failureCode", failureCode.name()).increment();
+            log.warn("[Judge] 재시도 소진(retryCount={}) — FAILED 처리. submissionId={}, failureCode={}",
+                    submission.getRetryCount(), submissionId, failureCode);
+        } else {
+            submission.markRetryWait();
+            meterRegistry.counter("judge.submission.retry.wait", "failureCode", failureCode.name()).increment();
+            log.warn("[Judge] 일시적 실패 — RETRY_WAIT 전이(retryCount={}). submissionId={}, failureCode={}",
+                    submission.getRetryCount(), submissionId, failureCode);
+        }
     }
 }

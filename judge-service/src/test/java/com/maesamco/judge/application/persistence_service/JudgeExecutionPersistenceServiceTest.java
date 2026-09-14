@@ -21,6 +21,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,8 +46,14 @@ class JudgeExecutionPersistenceServiceTest {
     @Mock
     private PendingJudge0ExecutionRepository pendingJudge0ExecutionRepository;
 
-    @InjectMocks
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private JudgeExecutionPersistenceService judgeExecutionPersistenceService;
+
+    @BeforeEach
+    void setUp() {
+        judgeExecutionPersistenceService = new JudgeExecutionPersistenceService(
+                submissionRepository, problemExecutionSpecRepository, pendingJudge0ExecutionRepository, meterRegistry);
+    }
 
     private Submission queuedSubmission() {
         Submission submission = Submission.create(
@@ -186,6 +196,58 @@ class JudgeExecutionPersistenceServiceTest {
 
             assertThatThrownBy(() ->
                     judgeExecutionPersistenceService.markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("handleRetryableFailure")
+    class HandleRetryableFailure {
+
+        @Test
+        @DisplayName("재시도 횟수가 남아있으면 RETRY_WAIT로 전이시키고 카운터를 증가시킨다")
+        void marksRetryWaitWhenRetriesRemain() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RETRY_WAIT);
+            assertThat(submission.getRetryCount()).isEqualTo(1);
+            assertThat(meterRegistry.counter("judge.submission.retry.wait", "failureCode", "JUDGE0_RESPONSE_FAILURE").count())
+                    .isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("재시도 횟수가 소진되면 FAILED로 전이시키고 카운터를 증가시킨다")
+        void marksFailedWhenRetriesExhausted() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            submission.markRetryWait(); submission.markRunning(); // retryCount=1
+            submission.markRetryWait(); submission.markRunning(); // retryCount=2
+            submission.markRetryWait(); submission.markRunning(); // retryCount=3 (MAX)
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.RESULT_SAVE_FAILURE);
+
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
+            assertThat(submission.getFailureCode()).isEqualTo(FailureCode.RESULT_SAVE_FAILURE);
+            assertThat(meterRegistry.counter("judge.submission.retry.exhausted", "failureCode", "RESULT_SAVE_FAILURE").count())
+                    .isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
+        void throwsWhenSubmissionNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.handleRetryableFailure(
+                    submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
         }
