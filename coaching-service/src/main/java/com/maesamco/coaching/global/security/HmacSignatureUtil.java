@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security.hmac;
+package com.maesamco.coaching.global.security;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;

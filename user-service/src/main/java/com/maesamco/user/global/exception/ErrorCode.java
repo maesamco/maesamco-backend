@@ -31,6 +31,10 @@ public enum ErrorCode {
             "Refresh Token 재사용이 감지되었습니다. 다시 로그인해주세요."
     ),
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
+    // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
+    // 대상이 아닌 서비스가 호출한 경우에 쓴다(이슈 #138, PR #124 리뷰 — 용현님).
+    INTERNAL_CALLER_NOT_ALLOWED(HttpStatus.FORBIDDEN, "이 내부 API를 호출할 수 없는 서비스입니다."),
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,
             "이메일 또는 비밀번호가 올바르지 않습니다."

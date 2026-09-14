@@ -2,7 +2,7 @@ package com.maesamco.coaching.presentation.internal_controller;
 
 import com.maesamco.coaching.application.query_service.WeakConceptQueryService;
 import com.maesamco.coaching.domain.entity.WeakConcept;
-import com.maesamco.coaching.global.security.hmac.InternalCallHeaders;
+import com.maesamco.coaching.global.security.InternalCallHeaders;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

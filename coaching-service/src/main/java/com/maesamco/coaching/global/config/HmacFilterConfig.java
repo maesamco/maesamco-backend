@@ -1,7 +1,7 @@
 package com.maesamco.coaching.global.config;
 
-import com.maesamco.coaching.global.security.hmac.HmacVerificationFilter;
-import com.maesamco.coaching.global.security.hmac.InternalServiceKeyProperties;
+import com.maesamco.coaching.global.security.HmacVerificationFilter;
+import com.maesamco.coaching.global.security.InternalServiceKeyProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
