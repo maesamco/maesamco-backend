@@ -18,7 +18,6 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -26,9 +25,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
+import java.util.concurrent.*;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
 /**
@@ -50,13 +53,6 @@ import static org.mockito.Mockito.doThrow;
         UserGamificationStateRepositoryImpl.class,
         SignUpPersistenceService.class
 })
-@Sql(
-        scripts =
-                "/db/migration/"
-                        + "V2__add_active_user_unique_indexes.sql",
-        executionPhase =
-                Sql.ExecutionPhase.BEFORE_TEST_CLASS
-)
 @Testcontainers
 @Transactional(
         propagation = Propagation.NOT_SUPPORTED
@@ -79,7 +75,7 @@ class SignUpPersistenceServiceIntegrationTest {
     private SignUpPersistenceService
             signUpPersistenceService;
 
-    @Autowired
+    @MockitoSpyBean
     private UserRepository userRepository;
 
     /**
@@ -273,6 +269,126 @@ class SignUpPersistenceServiceIntegrationTest {
                 .isEqualTo(
                         ErrorCode.USER_DUPLICATE_EMAIL
                 );
+    }
+
+    @Test
+    @DisplayName(
+            "같은 이메일로 동시에 회원가입하면 "
+                    + "DB UNIQUE 제약으로 하나의 요청만 성공한다"
+    )
+    void saveUser_concurrentDuplicateEmailIsRejectedByDatabase()
+            throws Exception {
+
+        // given
+        String emailLookupHash =
+                "f".repeat(64);
+
+        User firstUser =
+                createUser(
+                        emailLookupHash,
+                        "ConcurrentUserOne"
+                );
+
+        User secondUser =
+                createUser(
+                        emailLookupHash,
+                        "ConcurrentUserTwo"
+                );
+
+        /*
+         * 두 요청이 이메일 사전 중복 검사를 모두 통과한 뒤
+         * 실제 INSERT에서 경쟁하도록 동기화합니다.
+         *
+         * 이를 통해 애플리케이션의 선행 조회가 아니라
+         * PostgreSQL UNIQUE 인덱스가 최종 방어선으로
+         * 동작하는지를 검증합니다.
+         */
+        CyclicBarrier emailCheckBarrier =
+                new CyclicBarrier(2);
+
+        doAnswer(invocation -> {
+            emailCheckBarrier.await(
+                    5,
+                    TimeUnit.SECONDS
+            );
+            return false;
+        }).when(userRepository)
+                .existsByEmailLookupHash(
+                        emailLookupHash
+                );
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            // when
+            Future<Object> firstFuture =
+                    executorService.submit(
+                            () -> {
+                                try {
+                                    return signUpPersistenceService
+                                            .saveUser(firstUser);
+                                } catch (RuntimeException exception) {
+                                    return exception;
+                                }
+                            }
+                    );
+
+            Future<Object> secondFuture =
+                    executorService.submit(
+                            () -> {
+                                try {
+                                    return signUpPersistenceService
+                                            .saveUser(secondUser);
+                                } catch (RuntimeException exception) {
+                                    return exception;
+                                }
+                            }
+                    );
+
+            Object firstResult =
+                    firstFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    );
+
+            Object secondResult =
+                    secondFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    );
+
+            List<Object> results =
+                    List.of(
+                            firstResult,
+                            secondResult
+                    );
+
+            // then
+            assertThat(results)
+                    .filteredOn(User.class::isInstance)
+                    .hasSize(1);
+
+            assertThat(results)
+                    .filteredOn(BusinessException.class::isInstance)
+                    .singleElement()
+                    .satisfies(result ->
+                            assertThat(
+                                    ((BusinessException) result)
+                                            .getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.USER_DUPLICATE_EMAIL
+                            )
+                    );
+
+            assertThat(
+                    userRepository.findByEmailLookupHash(
+                            emailLookupHash
+                    )
+            ).isPresent();
+        } finally {
+            executorService.shutdownNow();
+        }
     }
 
     @Test

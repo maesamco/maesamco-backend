@@ -1,6 +1,8 @@
 package com.maesamco.coaching.application.facade;
 
 import com.maesamco.coaching.application.port.AiFeedbackRetryLockPort;
+import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
@@ -44,6 +46,8 @@ class AiFeedbackRetryFacadeTest {
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     @Mock
+    private JudgeServicePort judgeServicePort;
+    @Mock
     private CoachingSessionRepository coachingSessionRepository;
     @Mock
     private AiFeedbackRepository aiFeedbackRepository;
@@ -71,6 +75,7 @@ class AiFeedbackRetryFacadeTest {
     @BeforeEach
     void setUp() {
         retryFacade = new AiFeedbackRetryFacade(
+                judgeServicePort,
                 coachingSessionRepository,
                 aiFeedbackRepository,
                 aiCallHistoryRepository,
@@ -83,6 +88,19 @@ class AiFeedbackRetryFacadeTest {
         // 세션이 없거나 소유권이 안 맞는 극초반 실패 테스트는 락 획득 단계까지 안 가서
         // 이 스텁을 안 쓴다 — lenient()로 strict-stub 검증에서 제외한다.
         lenient().when(aiFeedbackRetryLockPort.tryLock(any(), any())).thenReturn(true);
+    }
+
+    /**
+     * PR #164 리뷰(용현님 P1) 대응 — CoachingSession.getSubmissionId()가 아니라 Judge
+     * Service가 돌려준 (userId, problemId)로 세션을 찾도록 바뀌어서, 대부분의 테스트는
+     * "이 세션의 실제 소유자"를 기준으로 두 스텁(Judge 조회 + 세션 조회)을 함께 걸어야
+     * 한다.
+     */
+    private void stubOwnedSession(CoachingSession session) {
+        when(judgeServicePort.getSubmission(submissionId))
+                .thenReturn(new SubmissionSnapshot(submissionId, session.getUserId(), problemId, "code", "CORRECT", List.of(), 1));
+        when(coachingSessionRepository.findByUserIdAndProblemId(session.getUserId(), problemId))
+                .thenReturn(Optional.of(session));
     }
 
     private CoachingSession completedSession(UUID owner) {
@@ -130,7 +148,9 @@ class AiFeedbackRetryFacadeTest {
 
     @Test
     void 세션이_없으면_SUBMISSION_NOT_FOUND() {
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.empty());
+        when(judgeServicePort.getSubmission(submissionId))
+                .thenReturn(new SubmissionSnapshot(submissionId, callerId, problemId, "code", "CORRECT", List.of(), 1));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -140,8 +160,10 @@ class AiFeedbackRetryFacadeTest {
 
     @Test
     void 본인_소유가_아닌_세션이면_SUBMISSION_NOT_FOUND() {
-        CoachingSession session = completedSession(UUID.randomUUID());
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        // 소유권 검증이 Judge Service가 돌려준 실제 소유자로 이뤄지므로, 여기서는
+        // findByUserIdAndProblemId까지 갈 일이 없다 — Judge 조회 단계에서 이미 거부된다.
+        when(judgeServicePort.getSubmission(submissionId))
+                .thenReturn(new SubmissionSnapshot(submissionId, UUID.randomUUID(), problemId, "code", "CORRECT", List.of(), 1));
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -152,7 +174,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 이미_피드백이_존재하면_AI_FEEDBACK_ALREADY_EXISTS() {
         CoachingSession session = completedSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId()))
                 .thenReturn(Optional.of(feedback(session.getId())));
 
@@ -168,7 +190,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 재시도_횟수를_초과하면_AI_FEEDBACK_RETRY_LIMIT_EXCEEDED() {
         CoachingSession session = completedSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
         when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
                 .thenReturn(4L);
@@ -191,7 +213,7 @@ class AiFeedbackRetryFacadeTest {
         FollowUpAnswer answer = followUpAnswer(question.getId());
         AiFeedback createdFeedback = feedback(session.getId());
 
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId()))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(createdFeedback));
@@ -219,7 +241,7 @@ class AiFeedbackRetryFacadeTest {
         FollowUpQuestion question = followUpQuestion(explanation.getId());
         FollowUpAnswer answer = followUpAnswer(question.getId());
 
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
         when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
                 .thenReturn(1L);
@@ -246,7 +268,7 @@ class AiFeedbackRetryFacadeTest {
         FollowUpAnswer answer = followUpAnswer(question.getId());
         AiFeedback createdFeedback = feedback(session.getId());
 
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId()))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(createdFeedback));
@@ -277,7 +299,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 세션이_아직_완료되지_않았으면_설명이_여러_개여도_NPE_대신_AI_FEEDBACK_NOT_FOUND() {
         CoachingSession session = inProgressSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -304,7 +326,7 @@ class AiFeedbackRetryFacadeTest {
         FollowUpAnswer answer = followUpAnswer(question.getId());
         AiFeedback createdFeedback = feedback(session.getId());
 
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId()))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(createdFeedback));
@@ -332,7 +354,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 락을_못_얻으면_LLM을_호출하지_않고_AI_FEEDBACK_RETRY_IN_PROGRESS() {
         CoachingSession session = completedSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRetryLockPort.tryLock(eq(session.getId()), any())).thenReturn(false);
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
@@ -352,7 +374,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 처리가_끝나면_락을_해제한다() {
         CoachingSession session = completedSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        stubOwnedSession(session);
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId()))
                 .thenReturn(Optional.of(feedback(session.getId())));
 

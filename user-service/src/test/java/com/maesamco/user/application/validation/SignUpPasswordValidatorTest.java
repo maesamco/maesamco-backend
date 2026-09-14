@@ -27,6 +27,7 @@ class SignUpPasswordValidatorTest {
         SignUpCommand command =
                 new SignUpCommand(
                         "learner@example.com",
+                        "signup-token",
                         "aBCD1234!",
                         "Abcd1234!",
                         3,

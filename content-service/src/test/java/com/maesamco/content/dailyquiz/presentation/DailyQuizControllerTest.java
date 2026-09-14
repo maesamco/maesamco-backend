@@ -4,6 +4,7 @@ import com.maesamco.content.dailyquiz.application.query.DailyQuizGetQuery;
 import com.maesamco.content.dailyquiz.application.query_service.DailyQuizGetQueryService;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizGetResult;
 import com.maesamco.content.dailyquiz.application.result.DailyQuizQuestionGetResult;
+import com.maesamco.content.dailyquiz.application.service.DailyQuizSubmitService;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizAttemptStatus;
 import com.maesamco.content.dailyquiz.domain.entity.DailyQuizProblemType;
 import com.maesamco.content.global.exception.BusinessException;
@@ -47,6 +48,9 @@ class DailyQuizControllerTest {
 
     @MockitoBean
     private DailyQuizGetQueryService queryService;
+
+    @MockitoBean
+    private DailyQuizSubmitService submitService;
 
     @TestConfiguration
     @EnableMethodSecurity

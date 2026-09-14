@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "judge-service", path = "/internal/v1", configuration = JudgeServiceFeignConfig.class)
+@FeignClient(name = "judge-service", path = InternalApiPrefix.INTERNAL_API_PREFIX, configuration = JudgeServiceFeignConfig.class)
 public interface JudgeServiceFeignClient {
 
     @GetMapping("/submissions/{submissionId}")

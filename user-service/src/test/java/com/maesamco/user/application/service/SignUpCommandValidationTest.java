@@ -19,6 +19,9 @@ class SignUpCommandValidationTest {
     private static final String SAME_PASSWORD_MESSAGE =
             "비밀번호는 이메일 또는 닉네임과 동일할 수 없습니다.";
 
+    private static final String VALID_SIGNUP_TOKEN =
+            "signup-token";
+
     private static ValidatorFactory validatorFactory;
     private static Validator validator;
 
@@ -39,6 +42,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -59,6 +63,7 @@ class SignUpCommandValidationTest {
         // when
         SignUpCommand command = new SignUpCommand(
                 "  Learner@Example.com  ",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -79,6 +84,7 @@ class SignUpCommandValidationTest {
         // when
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "  김티암  ",
                 3,
@@ -91,11 +97,85 @@ class SignUpCommandValidationTest {
     }
 
     @Test
+    @DisplayName("회원가입 인증 토큰이 없으면 검증에 실패한다")
+    void blankSignupToken() {
+        // given
+        SignUpCommand command = new SignUpCommand(
+                "learner@example.com",
+                " ",
+                "Abcd1234!",
+                "김티암",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        // when
+        Set<ConstraintViolation<SignUpCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(
+                hasViolation(
+                        violations,
+                        "signupToken"
+                )
+        ).isTrue();
+    }
+
+    @Test
+    @DisplayName("회원가입 인증 토큰이 256자를 초과하면 검증에 실패한다")
+    void signupTokenTooLong() {
+        // given
+        SignUpCommand command = new SignUpCommand(
+                "learner@example.com",
+                "a".repeat(257),
+                "Abcd1234!",
+                "김티암",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        // when
+        Set<ConstraintViolation<SignUpCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(
+                hasViolation(
+                        violations,
+                        "signupToken"
+                )
+        ).isTrue();
+    }
+
+    @Test
+    @DisplayName("회원가입 인증 토큰은 앞뒤 공백을 가공하지 않는다")
+    void doesNotTrimSignupToken() {
+        // given
+        String signupToken = "  signup-token  ";
+
+        // when
+        SignUpCommand command = new SignUpCommand(
+                "learner@example.com",
+                signupToken,
+                "Abcd1234!",
+                "김티암",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        // then
+        assertThat(command.signupToken())
+                .isEqualTo(signupToken);
+    }
+
+    @Test
     @DisplayName("이메일 형식이 올바르지 않으면 검증에 실패한다")
     void invalidEmail() {
         // given
         SignUpCommand command = new SignUpCommand(
                 "invalid-email",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -118,6 +198,7 @@ class SignUpCommandValidationTest {
 
         SignUpCommand command = new SignUpCommand(
                 longEmail,
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -138,6 +219,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Ab1!",
                 "김티암",
                 3,
@@ -160,6 +242,7 @@ class SignUpCommandValidationTest {
 
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 password,
                 "김티암",
                 3,
@@ -206,6 +289,7 @@ class SignUpCommandValidationTest {
 
         SignUpCommand command = new SignUpCommand(
                 email,
+                VALID_SIGNUP_TOKEN,
                 email,
                 "김티암",
                 3,
@@ -232,6 +316,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "Abcd1!@example.com",
+                VALID_SIGNUP_TOKEN,
                 "aBCD1!@EXAMPLE.COM",
                 "김티암",
                 3,
@@ -258,6 +343,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "김티암",
                 "김티암",
                 3,
@@ -284,6 +370,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김",
                 3,
@@ -304,6 +391,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "가".repeat(21),
                 3,
@@ -324,6 +412,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암!",
                 3,
@@ -344,6 +433,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 -1,
@@ -369,6 +459,7 @@ class SignUpCommandValidationTest {
         // given
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 "Abcd1234!",
                 "김티암",
                 3,
@@ -391,6 +482,7 @@ class SignUpCommandValidationTest {
     private void assertPasswordInvalid(String password) {
         SignUpCommand command = new SignUpCommand(
                 "learner@example.com",
+                VALID_SIGNUP_TOKEN,
                 password,
                 "김티암",
                 3,

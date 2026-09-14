@@ -4,11 +4,17 @@ import com.maesamco.content.dailyquiz.domain.entity.DailyQuizQuestion;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DailyQuizQuestionRepository {
 
     DailyQuizQuestion save(DailyQuizQuestion question);
+
+    /**
+     * 특정 Daily Quiz 문제 버전을 ID로 단건 조회합니다.
+     */
+    Optional<DailyQuizQuestion> findById(UUID questionId);
 
     List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags);
 

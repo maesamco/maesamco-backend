@@ -7,6 +7,9 @@ import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+import java.util.UUID;
+
 /**
  * 문제당 세션은 상태와 무관하게 평생 최대 1개다(2026-09-03 재검토, 이슈 #84 — V4의
  * "IN_PROGRESS인 세션만 이어서 쓰고 COMPLETED 후 재도전 시 새 세션"에서 변경). 오답 힌트
@@ -36,6 +39,15 @@ public class CoachingSessionFinder {
      * 자체 방어하므로, 과거 제출로 들어온 요청은 advanceToSubmission()이 false를 반환해
      * save() 자체가 일어나지 않는다.
      */
+    /**
+     * PR #164 리뷰(용현님 P1) — 완료된 세션에 재도전 오답이 들어오면, findOrCreate()가
+     * 거부 전에 이미 advanceToSubmission()+save()로 submission_id를 갈아태워 버린다.
+     * 완료 여부만 먼저 읽고 싶은 호출자를 위해 mutation 없는 순수 조회를 별도로 둔다.
+     */
+    public Optional<CoachingSession> find(UUID userId, UUID problemId) {
+        return coachingSessionRepository.findByUserIdAndProblemId(userId, problemId);
+    }
+
     public CoachingSession findOrCreate(SubmissionSnapshot submission) {
         return coachingSessionRepository.findByUserIdAndProblemId(submission.userId(), submission.problemId())
                 .map(session -> {

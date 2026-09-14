@@ -17,8 +17,12 @@ class HmacSha256EmailLookupHasherTest {
 
     private static final String ENCRYPTION_KEY =
             "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
     private static final String LOOKUP_HMAC_KEY =
             "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=";
+
+    private static final String VERIFICATION_HMAC_KEY =
+            "MDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmY=";
 
     private final HmacSha256EmailLookupHasher emailLookupHasher =
             createEmailLookupHasher(LOOKUP_HMAC_KEY);
@@ -150,7 +154,8 @@ class HmacSha256EmailLookupHasherTest {
         EmailSecurityProperties properties =
                 new EmailSecurityProperties(
                         ENCRYPTION_KEY,
-                        lookupHmacKey
+                        lookupHmacKey,
+                        VERIFICATION_HMAC_KEY
                 );
 
         return new HmacSha256EmailLookupHasher(properties);

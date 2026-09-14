@@ -67,7 +67,8 @@ public class JudgeExecutionPersistenceService {
                 log.error("[Judge] Judge0 토큰 누락 submissionId={}, testCaseId={}", submissionId, testCases.get(i).testCaseId());
                 continue;
             }
-            pendingExecutions.add(PendingJudge0Execution.create(submissionId, testCases.get(i).testCaseId(), token));
+            pendingExecutions.add(PendingJudge0Execution.create(
+                    submissionId, testCases.get(i).testCaseId(), token, testCases.get(i).isPublic()));
         }
         pendingJudge0ExecutionRepository.saveAll(pendingExecutions);
     }

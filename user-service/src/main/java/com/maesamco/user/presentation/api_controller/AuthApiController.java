@@ -41,11 +41,67 @@ public class AuthApiController {
     private static final String REFRESH_TOKEN_SAME_SITE =
             "Lax";
 
+    private final EmailVerificationService emailVerificationService;
     private final SignUpService signUpService;
     private final LoginService loginService;
     private final RefreshService refreshService;
     private final LogoutService logoutService;
     private final Clock clock;
+
+    /**
+     * 회원가입을 위한 이메일 인증 코드를 요청합니다.
+     *
+     * <p>이미 가입된 이메일인지 여부와 관계없이 동일한
+     * 202 Accepted 응답과 응답 구조를 반환합니다.</p>
+     *
+     * <p>재전송 cooldown 또는 요청 횟수 제한이 적용된 경우에도
+     * 외부 응답을 통해 내부 상태를 구분할 수 없도록 동일하게 응답합니다.</p>
+     *
+     * @param command 이메일 인증 요청 입력값
+     * @return 인증 요청 접수 응답
+     */
+    @PostMapping("/email-verifications")
+    public ResponseEntity<SuccessResponse<Void>> requestEmailVerification(
+            @Valid @RequestBody RequestEmailVerificationCommand command
+    ) {
+        emailVerificationService.requestVerification(
+                command
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(
+                        SuccessResponse.empty()
+                );
+    }
+
+    /**
+     * 이메일 인증 코드를 확인하고
+     * 회원가입에 사용할 일회용 인증 토큰을 발급합니다.
+     *
+     * <p>인증 코드가 올바른 경우 짧은 TTL의 회원가입 인증 토큰을 반환하며,
+     * 해당 토큰은 이후 회원가입 요청에서 한 번만 사용할 수 있습니다.</p>
+     *
+     * @param command 이메일 및 인증 코드 확인 입력값
+     * @return 회원가입 인증 토큰과 만료 시간
+     */
+    @PostMapping("/email-verifications/confirm")
+    public ResponseEntity<SuccessResponse<ConfirmEmailVerificationResult>>
+    confirmEmailVerification(
+            @Valid @RequestBody ConfirmEmailVerificationCommand command
+    ) {
+        ConfirmEmailVerificationResult result =
+                emailVerificationService.confirmVerification(
+                        command
+                );
+
+        return ResponseEntity
+                .ok(
+                        SuccessResponse.success(
+                                result
+                        )
+                );
+    }
 
     /**
      * 신규 사용자를 생성하고 자동 로그인용 인증 정보를 발급합니다.

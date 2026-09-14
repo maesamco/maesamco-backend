@@ -1,5 +1,7 @@
 package com.maesamco.user.infrastructure.persistence;
 
+import com.maesamco.user.domain.entity.LearningLevel;
+import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
@@ -118,8 +120,17 @@ class UserInterestConceptRepositoryImplTest {
     @DisplayName("사용자별로 활성 관심 개념 목록을 조회한다")
     void findAllByUserId() {
         // given
-        UUID firstUserId = UUID.randomUUID();
-        UUID secondUserId = UUID.randomUUID();
+        UUID firstUserId =
+                persistUser(
+                        "a".repeat(64),
+                        "InterestUserOne"
+                );
+
+        UUID secondUserId =
+                persistUser(
+                        "b".repeat(64),
+                        "InterestUserTwo"
+                );
 
         UUID firstConceptId = UUID.randomUUID();
         UUID secondConceptId = UUID.randomUUID();
@@ -171,7 +182,11 @@ class UserInterestConceptRepositoryImplTest {
     @DisplayName("사용자와 개념 조합의 중복 등록 여부를 확인한다")
     void existsByUserIdAndConceptId() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "c".repeat(64),
+                        "InterestUserThree"
+                );
         UUID conceptId = UUID.randomUUID();
 
         interestConceptRepository.save(
@@ -212,7 +227,11 @@ class UserInterestConceptRepositoryImplTest {
     @DisplayName("논리 삭제된 관심 개념은 조회와 중복 확인에서 제외된다")
     void excludeSoftDeletedInterestConcept() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "d".repeat(64),
+                        "InterestUserFour"
+                );
         UUID conceptId = UUID.randomUUID();
 
         UserInterestConcept savedInterestConcept =
@@ -266,7 +285,11 @@ class UserInterestConceptRepositoryImplTest {
     @DisplayName("논리 삭제 후 동일한 관심 개념을 다시 등록할 수 있다")
     void recreateAfterSoftDelete() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "e".repeat(64),
+                        "InterestUserFive"
+                );
         UUID conceptId = UUID.randomUUID();
 
         UserInterestConcept deletedInterestConcept =
@@ -312,10 +335,50 @@ class UserInterestConceptRepositoryImplTest {
     /**
      * 테스트에서 사용할 사용자 관심 개념을 생성합니다.
      */
+    /**
+     * 테스트에서 사용할 사용자 관심 개념을 생성합니다.
+     *
+     * <p>실제 FK 제약을 만족하도록 사용자부터 PostgreSQL에 저장한 뒤
+     * 해당 사용자 ID로 관심 개념을 생성합니다.</p>
+     */
     private UserInterestConcept createInterestConcept() {
+        UUID userId =
+                persistUser(
+                        "f".repeat(64),
+                        "InterestUserSix"
+                );
+
         return UserInterestConcept.create(
-                UUID.randomUUID(),
+                userId,
                 UUID.randomUUID()
         );
+    }
+
+    /**
+     * 관심 개념의 사용자 FK 제약을 만족하도록
+     * 테스트용 사용자를 실제 PostgreSQL에 먼저 저장합니다.
+     *
+     * @param emailLookupHash 중복되지 않는 이메일 조회 해시
+     * @param nickname 중복되지 않는 닉네임
+     * @return 저장된 사용자의 ID
+     */
+    private UUID persistUser(
+            String emailLookupHash,
+            String nickname
+    ) {
+        User user =
+                User.create(
+                        "encrypted-email",
+                        emailLookupHash,
+                        "argon2-password-hash",
+                        nickname,
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        entityManager.persist(user);
+        entityManager.flush();
+
+        return user.getId();
     }
 }

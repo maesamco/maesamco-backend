@@ -24,8 +24,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
 @Table(name = "p_submission_test_results",
-       indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id")
-)
+        indexes = @Index(name = "idx_submission_test_results_submission", columnList = "submission_id"),
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_submission_test_results_submission_test_case",
+                columnNames = {"submission_id", "test_case_id"})
+        )
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Slf4j
@@ -61,21 +64,30 @@ public class SubmissionTestResult {
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
 
+    @Column(name = "execution_time_ms")
+    private Integer executionTimeMs;
+
+    @Column(name = "memory_used_kb")
+    private Integer memoryUsedKb;
+
     private SubmissionTestResult(
             UUID submissionId,
             UUID testCaseId,
             boolean isPublic,
             boolean passed,
             String actualOutput,
-            SubmissionTestErrorType errorType
+            SubmissionTestErrorType errorType,
+            Integer executionTimeMs,
+            Integer memoryUsedKb
     ) {
         this.submissionId = submissionId;
         this.testCaseId = testCaseId;
         this.isPublic = isPublic;
         this.passed = passed;
-        // 비공개 테스트케이스는 실제 값을 저장하지 않음
         this.actualOutput = isPublic ? actualOutput : null;
         this.errorType = passed ? null : errorType;
+        this.executionTimeMs = executionTimeMs;
+        this.memoryUsedKb = memoryUsedKb;
 
         if (!passed && errorType == null) {
             log.warn("[Judge] 오답 테스트 결과에 실패 유형 미분류 submissionId={}, testCaseId={}",
@@ -89,8 +101,11 @@ public class SubmissionTestResult {
             boolean isPublic,
             boolean passed,
             String actualOutput,
-            SubmissionTestErrorType errorType
+            SubmissionTestErrorType errorType,
+            Integer executionTimeMs,
+            Integer memoryUsedKb
     ) {
-        return new SubmissionTestResult(submissionId, testCaseId, isPublic, passed, actualOutput, errorType);
+        return new SubmissionTestResult(
+                submissionId, testCaseId, isPublic, passed, actualOutput, errorType, executionTimeMs, memoryUsedKb);
     }
 }

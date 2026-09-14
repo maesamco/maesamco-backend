@@ -100,11 +100,16 @@ public class HintGenerationFacade {
             throw new BusinessException(ErrorCode.HINT_NOT_ALLOWED);
         }
 
-        CoachingSession session = coachingSessionFinder.findOrCreate(submission);
-
         // 이슈 #148 — 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지
         // 않는다. 재도전 자체는 여전히 허용되고, 이전 힌트 조회(HintQueryService)도 그대로
         // 열려 있다.
+        //
+        // PR #164 리뷰(용현님 P1) — 이 완료 검사는 findOrCreate() 호출 *전에* 한다.
+        // findOrCreate()가 내부적으로 advanceToSubmission()+save()를 수행해서
+        // submission_id를 갈아태우는데, 이걸 먼저 하고 나서 완료 여부로 거부하면 요청은
+        // 실패해도 DB의 submission_id는 이미 바뀐 뒤다 — AiFeedbackQueryService/
+        // AiFeedbackRetryFacade가 그 submission_id로 세션을 조회하므로, 존재하는 피드백을
+        // 옛 submission_id로 더 이상 찾을 수 없게 되는 회귀가 생긴다.
         //
         // TODO(#148): 재도전마다 새로 1~4단계 힌트를 생성해주는 방향(사이클마다 완전히
         // 새로 도와주기)도 검토했으나 지금은 채택하지 않았다 — 나중에 "재도전인데 힌트를
@@ -113,9 +118,13 @@ public class HintGenerationFacade {
         // 추가되면 재검토할 만하다. 그때는 completedAt만으로는 몇 번째 재도전 사이클인지
         // 구분이 안 되므로(completeSessionIfNeeded()가 재완료 시 completedAt을 갱신 안 함)
         // 사이클 경계를 나타낼 별도 마커가 같이 필요하다.
-        if (session.isCompleted()) {
+        Optional<CoachingSession> existingSession =
+                coachingSessionFinder.find(submission.userId(), submission.problemId());
+        if (existingSession.isPresent() && existingSession.get().isCompleted()) {
             throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
         }
+
+        CoachingSession session = coachingSessionFinder.findOrCreate(submission);
 
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
