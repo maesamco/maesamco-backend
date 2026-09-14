@@ -1,10 +1,10 @@
-package com.maesamco.content.tag.application.service;
+package com.maesamco.content.application.tag.service;
 
+import com.maesamco.content.application.tag.port.TagFinder;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.tag.repository.TagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.tag.application.port.TagFinder;
-import com.maesamco.content.tag.domain.entity.Tag;
-import com.maesamco.content.tag.domain.repository.TagRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

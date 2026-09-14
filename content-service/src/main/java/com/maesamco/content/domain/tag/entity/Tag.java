@@ -1,7 +1,7 @@
-package com.maesamco.content.tag.domain.entity;
+package com.maesamco.content.domain.tag.entity;
 
+import com.maesamco.content.domain.tag.enums.TagAttribute;
 import com.maesamco.content.global.common.BaseEntity;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

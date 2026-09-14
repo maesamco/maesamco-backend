@@ -1,14 +1,14 @@
-package com.maesamco.content.tag.presentation.controller;
+package com.maesamco.content.presentation.tag.controller;
 
+import com.maesamco.content.application.tag.service.TagService;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
-import com.maesamco.content.tag.application.service.TagService;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
-import com.maesamco.content.tag.presentation.dto.request.TagCreateRequest;
-import com.maesamco.content.tag.presentation.dto.request.TagUpdateRequest;
-import com.maesamco.content.tag.presentation.dto.response.TagCreateResponse;
-import com.maesamco.content.tag.presentation.dto.response.TagResponse;
+import com.maesamco.content.presentation.tag.dto.request.TagCreateRequest;
+import com.maesamco.content.presentation.tag.dto.request.TagUpdateRequest;
+import com.maesamco.content.presentation.tag.dto.response.TagCreateResponse;
+import com.maesamco.content.presentation.tag.dto.response.TagResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;

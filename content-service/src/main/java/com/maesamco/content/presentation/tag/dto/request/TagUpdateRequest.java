@@ -1,6 +1,6 @@
-package com.maesamco.content.tag.presentation.dto.request;
+package com.maesamco.content.presentation.tag.dto.request;
 
-import com.maesamco.content.tag.domain.enums.TagAttribute;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;

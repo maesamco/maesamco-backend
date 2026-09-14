@@ -1,7 +1,7 @@
-package com.maesamco.content.tag.presentation.dto.response;
+package com.maesamco.content.presentation.tag.dto.response;
 
-import com.maesamco.content.tag.domain.entity.Tag;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

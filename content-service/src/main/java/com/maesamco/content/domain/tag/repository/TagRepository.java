@@ -1,6 +1,6 @@
-package com.maesamco.content.tag.domain.repository;
+package com.maesamco.content.domain.tag.repository;
 
-import com.maesamco.content.tag.domain.entity.Tag;
+import com.maesamco.content.domain.tag.entity.Tag;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 

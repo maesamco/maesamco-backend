@@ -1,17 +1,17 @@
-package com.maesamco.content.tag.application.service;
+package com.maesamco.content.application.tag.service;
 
+import com.maesamco.content.application.tag.port.TagFinder;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
+import com.maesamco.content.domain.tag.repository.TagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
+import com.maesamco.content.presentation.tag.dto.request.TagCreateRequest;
+import com.maesamco.content.presentation.tag.dto.request.TagUpdateRequest;
+import com.maesamco.content.presentation.tag.dto.response.TagCreateResponse;
+import com.maesamco.content.presentation.tag.dto.response.TagResponse;
 import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
-import com.maesamco.content.tag.application.port.TagFinder;
-import com.maesamco.content.tag.domain.entity.Tag;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
-import com.maesamco.content.tag.domain.repository.TagRepository;
-import com.maesamco.content.tag.presentation.dto.request.TagCreateRequest;
-import com.maesamco.content.tag.presentation.dto.request.TagUpdateRequest;
-import com.maesamco.content.tag.presentation.dto.response.TagCreateResponse;
-import com.maesamco.content.tag.presentation.dto.response.TagResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

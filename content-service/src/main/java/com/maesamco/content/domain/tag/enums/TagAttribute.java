@@ -1,4 +1,4 @@
-package com.maesamco.content.tag.domain.enums;
+package com.maesamco.content.domain.tag.enums;
 
 /** 태그의 분류 속성을 정의합니다. */
 public enum TagAttribute {
