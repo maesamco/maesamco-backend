@@ -65,6 +65,7 @@ class HintGenerationFacadeTest {
     private final UUID submissionId = UUID.randomUUID();
     private final UUID callerId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
     private final ProblemSnapshot problemSnapshot = new ProblemSnapshot(problemId, "문제 설명", List.of("재귀"));
 
     @BeforeEach
@@ -84,11 +85,11 @@ class HintGenerationFacadeTest {
         // 이슈 #62 — 대부분의 테스트는 Content Service 연동 자체가 검증 대상이 아니므로
         // 기본적으로 정상 응답을 반환하게 해둔다. 문제 조회 실패·WeakConcept 기록을 직접
         // 검증하는 테스트에서만 개별적으로 재정의한다.
-        org.mockito.Mockito.lenient().when(contentServicePort.getProblem(any())).thenReturn(problemSnapshot);
+        org.mockito.Mockito.lenient().when(contentServicePort.getProblemVersion(any())).thenReturn(problemSnapshot);
     }
 
     private SubmissionSnapshot wrongSubmission(UUID owner, int attemptNo) {
-        return new SubmissionSnapshot(submissionId, owner, problemId, "public class Main {}", "WRONG", List.of(), attemptNo);
+        return new SubmissionSnapshot(submissionId, owner, problemId, problemVersionId,"public class Main {}", "WRONG", List.of(), attemptNo);
     }
 
     /**
@@ -128,7 +129,7 @@ class HintGenerationFacadeTest {
 
     @Test
     void 본인_소유이지만_오답이_아니면_HINT_NOT_ALLOWED() {
-        SubmissionSnapshot correct = new SubmissionSnapshot(submissionId, callerId, problemId, "code", "CORRECT", List.of(), 1);
+        SubmissionSnapshot correct = new SubmissionSnapshot(submissionId, callerId, problemId, problemVersionId,"code", "CORRECT", List.of(), 1);
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(correct);
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
@@ -145,7 +146,7 @@ class HintGenerationFacadeTest {
     @ParameterizedTest
     @ValueSource(strings = {"WRONG", "COMPILE_ERROR", "RUNTIME_ERROR", "TIME_LIMIT_EXCEEDED", "MEMORY_LIMIT_EXCEEDED"})
     void 오답으로_분류되는_모든_result값에_대해_힌트를_생성한다(String result) {
-        SubmissionSnapshot submission = new SubmissionSnapshot(submissionId, callerId, problemId, "code", result, List.of(), 1);
+        SubmissionSnapshot submission = new SubmissionSnapshot(submissionId, callerId, problemId, problemVersionId,"code", result, List.of(), 1);
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission);
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
@@ -160,7 +161,7 @@ class HintGenerationFacadeTest {
 
     @Test
     void result가_null이면_아직_채점_중이므로_HINT_NOT_ALLOWED() {
-        SubmissionSnapshot pending = new SubmissionSnapshot(submissionId, callerId, problemId, "code", null, List.of(), 0);
+        SubmissionSnapshot pending = new SubmissionSnapshot(submissionId, callerId, problemId, problemVersionId,"code", null, List.of(), 0);
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(pending);
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
@@ -274,7 +275,7 @@ class HintGenerationFacadeTest {
     @Test
     void 재시도로_submissionId가_바뀌면_세션의_submissionId를_최신으로_갱신한다() {
         UUID newSubmissionId = UUID.randomUUID();
-        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(newSubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(newSubmissionId, callerId, problemId, problemVersionId,"code", "WRONG", List.of(), 2);
         when(judgeServicePort.getSubmission(newSubmissionId)).thenReturn(retrySubmission);
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
@@ -394,7 +395,7 @@ class HintGenerationFacadeTest {
     @Test
     void 이미_완료된_세션에_재도전_오답이_들어오면_힌트_한도가_남아있어도_힌트를_생성하지_않는다() {
         UUID retrySubmissionId = UUID.randomUUID();
-        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(retrySubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(retrySubmissionId, callerId, problemId, problemVersionId,"code", "WRONG", List.of(), 2);
         when(judgeServicePort.getSubmission(retrySubmissionId)).thenReturn(retrySubmission);
         CoachingSession completedSession = persistedSession();
         completedSession.complete();
@@ -455,13 +456,34 @@ class HintGenerationFacadeTest {
         ));
     }
 
+    /**
+     * 이슈 #172/#178 회귀 테스트 — 문제가 수정된 뒤 과거 제출로 힌트를 요청해도, 현재
+     * 문제(problemId)가 아니라 제출 시점 문제 버전(problemVersionId)으로 조회해야 한다.
+     * problemId와 problemVersionId를 일부러 서로 다른 값으로 둬서(setUp() 참고), 코드가
+     * 실수로 problemId를 넘기면 이 스텁이 매칭되지 않아 테스트가 실패한다.
+     */
+    @Test
+    void 힌트_생성_시_문제가_아니라_제출_시점_문제_버전으로_조회한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.requestHint(submissionId, callerId);
+
+        verify(contentServicePort).getProblemVersion(problemVersionId);
+        verify(contentServicePort, never()).getProblemVersion(problemId);
+    }
+
     @Test
     void 문제_조회에_실패하면_AI_GENERATION_FAILED를_던지고_LLM을_호출하지_않는다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
-        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -497,7 +519,7 @@ class HintGenerationFacadeTest {
         CoachingSession existingSession = persistedSession(8);
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
-        when(contentServicePort.getProblem(problemId))
+        when(contentServicePort.getProblemVersion(problemVersionId))
                 .thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR))
                 .thenReturn(problemSnapshot);
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
@@ -527,6 +549,6 @@ class HintGenerationFacadeTest {
         HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
 
         assertThat(result.created()).isTrue();
-        verify(contentServicePort, org.mockito.Mockito.times(1)).getProblem(problemId);
+        verify(contentServicePort, org.mockito.Mockito.times(1)).getProblemVersion(problemVersionId);
     }
 }

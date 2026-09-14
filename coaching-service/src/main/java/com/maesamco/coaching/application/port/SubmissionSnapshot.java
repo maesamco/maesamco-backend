@@ -15,6 +15,7 @@ public record SubmissionSnapshot(
         UUID submissionId,
         UUID userId,
         UUID problemId,
+        UUID problemVersionId,
         String code,
         String result,
         List<FailedTest> failedTestSummary,

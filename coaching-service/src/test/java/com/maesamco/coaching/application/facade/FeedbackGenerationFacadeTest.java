@@ -62,6 +62,7 @@ class FeedbackGenerationFacadeTest {
     private final UUID submissionId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
     private final ProblemSnapshot problemSnapshot = new ProblemSnapshot(problemId, "문제 설명", List.of("재귀"));
 
     private CoachingSession session;
@@ -74,7 +75,7 @@ class FeedbackGenerationFacadeTest {
         facade = new FeedbackGenerationFacade(judgeServicePort, contentServicePort, aiModelPort, aiCallHistoryRepository, feedbackPersistenceService);
         // 이슈 #62 — Content Service 연동 자체가 검증 대상이 아닌 테스트는 기본적으로
         // 정상 응답을 받는다. 문제 조회 실패를 직접 검증하는 테스트에서만 재정의한다.
-        org.mockito.Mockito.lenient().when(contentServicePort.getProblem(any())).thenReturn(problemSnapshot);
+        org.mockito.Mockito.lenient().when(contentServicePort.getProblemVersion(any())).thenReturn(problemSnapshot);
 
         session = CoachingSession.create(submissionId, userId, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
@@ -92,7 +93,7 @@ class FeedbackGenerationFacadeTest {
 
     private void stubSubmission() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(
-                new SubmissionSnapshot(submissionId, userId, problemId, "public class Main {}", "CORRECT", List.of(), 1)
+                new SubmissionSnapshot(submissionId, userId, problemId, problemVersionId,"public class Main {}", "CORRECT", List.of(), 1)
         );
     }
 
@@ -223,7 +224,7 @@ class FeedbackGenerationFacadeTest {
         sessionWithNewerSubmission.complete();
 
         when(judgeServicePort.getSubmission(staleExplanationSubmissionId)).thenReturn(
-                new SubmissionSnapshot(staleExplanationSubmissionId, userId, problemId, "public class Main {}", "CORRECT", List.of(), 1)
+                new SubmissionSnapshot(staleExplanationSubmissionId, userId, problemId, problemVersionId,"public class Main {}", "CORRECT", List.of(), 1)
         );
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
                 "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
@@ -282,6 +283,25 @@ class FeedbackGenerationFacadeTest {
     }
 
     /**
+     * 이슈 #172/#178 회귀 테스트 — 문제가 수정된 뒤 과거 제출로 피드백을 생성해도, 현재
+     * 문제(problemId)가 아니라 제출 시점 문제 버전(problemVersionId)으로 조회해야 한다.
+     */
+    @Test
+    void 피드백_생성_시_문제가_아니라_제출_시점_문제_버전으로_조회한다() {
+        stubSubmission();
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
+                "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
+                        + "\"weakConcepts\":[],\"syntaxToImprove\":null,\"recommendedProblems\":null,\"nextDirection\":null}",
+                "claude-sonnet-5", 5
+        ));
+
+        facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
+
+        verify(contentServicePort).getProblemVersion(problemVersionId);
+        verify(contentServicePort, never()).getProblemVersion(problemId);
+    }
+
+    /**
      * "지문 없이는 생성 시도 안 함" 정책(이슈 #126) — 이 Facade는 실패를 던지지 않고 전부
      * 삼킨다(클래스 Javadoc).
      *
@@ -292,7 +312,7 @@ class FeedbackGenerationFacadeTest {
     @Test
     void 문제_조회가_일시적으로_실패하면_예외_없이_종료하고_SKIPPED_이력만_남긴다() {
         stubSubmission();
-        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();
@@ -310,7 +330,7 @@ class FeedbackGenerationFacadeTest {
     @Test
     void 문제가_존재하지_않으면_예외_없이_종료하고_FAILED_이력만_남긴다() {
         stubSubmission();
-        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();

@@ -159,7 +159,7 @@ public class HintGenerationFacade {
 
     private Optional<ProblemSnapshot> recordWeakConceptsForSkip(CoachingSession session, SubmissionSnapshot submission) {
         try {
-            ProblemSnapshot problem = contentServicePort.getProblem(submission.problemId());
+            ProblemSnapshot problem = contentServicePort.getProblemVersion(submission.problemVersionId());
             weakConceptPersistenceService.recordOccurrences(submission.userId(), problem.conceptTags());
             return Optional.of(problem);
         } catch (BusinessException e) {
@@ -274,7 +274,7 @@ public class HintGenerationFacade {
             problem = cachedProblem.get();
         } else {
             try {
-                problem = contentServicePort.getProblem(submission.problemId());
+                problem = contentServicePort.getProblemVersion(submission.problemVersionId());
             } catch (BusinessException e) {
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,

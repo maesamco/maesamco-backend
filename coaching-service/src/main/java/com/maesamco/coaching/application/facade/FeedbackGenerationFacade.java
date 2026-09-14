@@ -112,7 +112,7 @@ public class FeedbackGenerationFacade {
             // 데이터 문제라 재시도해도 해결되지 않으므로 그대로 FAILED로 남긴다.
             ProblemSnapshot problem;
             try {
-                problem = contentServicePort.getProblem(submission.problemId());
+                problem = contentServicePort.getProblemVersion(submission.problemVersionId());
             } catch (BusinessException e) {
                 boolean transientFailure = e.getErrorCode() != ErrorCode.PROBLEM_NOT_FOUND;
                 recordAiCallHistory(AiCallHistory.create(

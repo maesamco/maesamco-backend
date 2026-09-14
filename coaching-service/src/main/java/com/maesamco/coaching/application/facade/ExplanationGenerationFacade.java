@@ -188,7 +188,7 @@ public class ExplanationGenerationFacade {
         // 참고.
         ProblemSnapshot problem;
         try {
-            problem = contentServicePort.getProblem(submission.problemId());
+            problem = contentServicePort.getProblemVersion(submission.problemVersionId());
         } catch (BusinessException e) {
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, "unknown", PROMPT_VERSION,

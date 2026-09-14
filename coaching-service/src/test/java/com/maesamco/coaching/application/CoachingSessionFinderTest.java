@@ -45,7 +45,7 @@ class CoachingSessionFinderTest {
     }
 
     private SubmissionSnapshot submission(UUID subId, int attemptNo) {
-        return new SubmissionSnapshot(subId, callerId, problemId, "code", "WRONG", List.of(), attemptNo);
+        return new SubmissionSnapshot(subId, callerId, problemId, UUID.randomUUID(),"code", "WRONG", List.of(), attemptNo);
     }
 
     private CoachingSession persistedSession(UUID sessionSubmissionId, int attemptNo) {

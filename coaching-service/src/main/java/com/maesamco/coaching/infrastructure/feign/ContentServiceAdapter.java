@@ -31,10 +31,10 @@ public class ContentServiceAdapter implements ContentServicePort {
      * 따로 안 잡는다. 그 외 상태 코드(5xx 등)만 일반 FeignException으로 남는다.
      */
     @Override
-    @CircuitBreaker(name = "content-service", fallbackMethod = "getProblemFallback")
-    public ProblemSnapshot getProblem(UUID problemId) {
+    @CircuitBreaker(name = "content-service", fallbackMethod = "getProblemVersionFallback")
+    public ProblemSnapshot getProblemVersion(UUID problemVersionId) {
         try {
-            ProblemDetailResponse data = feignClient.getProblem(problemId).data();
+            ProblemDetailResponse data = feignClient.getProblemVersion(problemVersionId).data();
             return new ProblemSnapshot(data.id(), data.description(), data.conceptTags());
         } catch (FeignException e) {
             throw new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR);
@@ -42,12 +42,12 @@ public class ContentServiceAdapter implements ContentServicePort {
     }
 
     /**
-     * JudgeServiceAdapter.getSubmissionFallback()과 동일한 이유 — getProblem()이 이미
-     * BusinessException으로 분류해서 던진 경우는 그대로 다시 던지고, 서킷이 열려 호출
-     * 자체가 차단된 경우(CallNotPermittedException 등)만 FEIGN_CLIENT_ERROR로 변환한다.
+     * JudgeServiceAdapter.getSubmissionFallback()과 동일한 이유 — getProblemVersion()이
+     * 이미 BusinessException으로 분류해서 던진 경우는 그대로 다시 던지고, 서킷이 열려
+     * 호출 자체가 차단된 경우(CallNotPermittedException 등)만 FEIGN_CLIENT_ERROR로 변환한다.
      */
     @SuppressWarnings("unused")
-    ProblemSnapshot getProblemFallback(UUID problemId, Throwable t) {
+    ProblemSnapshot getProblemVersionFallback(UUID problemVersionId, Throwable t) {
         if (t instanceof BusinessException businessException) {
             throw businessException;
         }

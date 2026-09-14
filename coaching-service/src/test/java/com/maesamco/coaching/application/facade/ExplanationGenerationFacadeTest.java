@@ -59,6 +59,7 @@ class ExplanationGenerationFacadeTest {
     private final UUID submissionId = UUID.randomUUID();
     private final UUID callerId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
     private final ProblemSnapshot problemSnapshot = new ProblemSnapshot(problemId, "문제 설명", List.of("재귀"));
 
     @BeforeEach
@@ -72,11 +73,11 @@ class ExplanationGenerationFacadeTest {
         );
         // 이슈 #62 — Content Service 연동 자체가 검증 대상이 아닌 테스트는 기본적으로
         // 정상 응답을 받는다. 문제 조회 실패를 직접 검증하는 테스트에서만 재정의한다.
-        org.mockito.Mockito.lenient().when(contentServicePort.getProblem(any())).thenReturn(problemSnapshot);
+        org.mockito.Mockito.lenient().when(contentServicePort.getProblemVersion(any())).thenReturn(problemSnapshot);
     }
 
     private SubmissionSnapshot correctSubmission(UUID owner) {
-        return new SubmissionSnapshot(submissionId, owner, problemId, "public class Main {}", "CORRECT", List.of(), 1);
+        return new SubmissionSnapshot(submissionId, owner, problemId, problemVersionId,"public class Main {}", "CORRECT", List.of(), 1);
     }
 
     /**
@@ -112,7 +113,7 @@ class ExplanationGenerationFacadeTest {
 
     @Test
     void 본인_소유이지만_정답이_아니면_EXPLANATION_NOT_ALLOWED() {
-        SubmissionSnapshot wrong = new SubmissionSnapshot(submissionId, callerId, problemId, "code", "WRONG", List.of(), 1);
+        SubmissionSnapshot wrong = new SubmissionSnapshot(submissionId, callerId, problemId, problemVersionId,"code", "WRONG", List.of(), 1);
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrong);
 
         assertThatThrownBy(() -> facade.registerExplanation(submissionId, "설명", callerId))
@@ -376,6 +377,26 @@ class ExplanationGenerationFacadeTest {
     }
 
     /**
+     * 이슈 #172/#178 회귀 테스트 — 문제가 수정된 뒤 과거 제출로 역질문을 생성해도, 현재
+     * 문제(problemId)가 아니라 제출 시점 문제 버전(problemVersionId)으로 조회해야 한다.
+     */
+    @Test
+    void 역질문_생성_시_문제가_아니라_제출_시점_문제_버전으로_조회한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        when(aiModelPort.generate(any(), any()))
+                .thenReturn(new AiModelResponse("{\"category\":\"동작원리\",\"question\":\"질문\"}", "claude-sonnet-5", 1));
+        when(followUpQuestionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        facade.registerExplanation(submissionId, "설명", callerId);
+
+        verify(contentServicePort).getProblemVersion(problemVersionId);
+        verify(contentServicePort, never()).getProblemVersion(problemId);
+    }
+
+    /**
      * "지문 없이는 생성 시도 안 함" 정책(이슈 #126) — Content Service 조회 실패도 AI 호출
      * 실패와 동일하게 "설명은 저장, 역질문만 null" 원칙을 따른다.
      */
@@ -385,7 +406,7 @@ class ExplanationGenerationFacadeTest {
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
-        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         ExplanationGenerationFacade.ExplanationRegistrationResult result =
                 facade.registerExplanation(submissionId, "설명", callerId);
