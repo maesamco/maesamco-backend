@@ -1,6 +1,7 @@
 package com.maesamco.content.problem.domain.entity;
 
-import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
+import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
