@@ -146,7 +146,7 @@ class JudgeExecutionFacadeTest {
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
-            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
             verify(judgeExecutionPersistenceService, never())
                     .savePendingExecutions(any(), any(), any());
         }
@@ -168,7 +168,7 @@ class JudgeExecutionFacadeTest {
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
-            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
         }
 
         @Test
@@ -190,8 +190,7 @@ class JudgeExecutionFacadeTest {
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
-            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.RESULT_SAVE_FAILURE);
-        }
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.RESULT_SAVE_FAILURE);        }
 
         @Test
         @DisplayName("FAILED 처리 자체가 실패해도 예외를 전파하지 않는다")

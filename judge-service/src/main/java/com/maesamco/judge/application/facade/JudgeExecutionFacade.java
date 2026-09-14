@@ -69,7 +69,7 @@ public class JudgeExecutionFacade {
             }
         } catch (Exception e) {
             log.error("[Judge] Judge0 제출 단계 실패 — FAILED 처리. submissionId={}", submissionId, e);
-            markFailedSafely(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+            handleRetryableFailureSafely(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
             return;
         }
 
@@ -77,7 +77,7 @@ public class JudgeExecutionFacade {
             judgeExecutionPersistenceService.savePendingExecutions(submissionId, testCases, tokens);
         } catch (Exception e) {
             log.error("[Judge] 토큰 저장 단계 실패 — FAILED 처리. submissionId={}", submissionId, e);
-            markFailedSafely(submissionId, FailureCode.RESULT_SAVE_FAILURE);
+            handleRetryableFailureSafely(submissionId, FailureCode.RESULT_SAVE_FAILURE);
         }
     }
 
@@ -96,6 +96,15 @@ public class JudgeExecutionFacade {
             return jsonMapper.readValue(testCasesJson, new TypeReference<List<ExecutionTestCase>>() {});
         } catch (Exception e) {
             throw new IllegalStateException("testCases JSON 파싱 실패", e);
+        }
+    }
+
+    private void handleRetryableFailureSafely (UUID submissionId, FailureCode failureCode) {
+        try {
+            judgeExecutionPersistenceService.handleRetryableFailure(submissionId, failureCode);
+        } catch (Exception e) {
+            log.error("[Judge] 재시도/FAILED 처리 자체가 실패함 — 수동 확인 필요. submissionId={}, failureCode={}",
+                    submissionId, failureCode, e);
         }
     }
 }
