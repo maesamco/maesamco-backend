@@ -1,5 +1,6 @@
 package com.maesamco.coaching.infrastructure.redis;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +41,7 @@ class RedisHintGenerationLockAdapterTest {
 
         StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
-        lockAdapter = new RedisHintGenerationLockAdapter(redisTemplate);
+        lockAdapter = new RedisHintGenerationLockAdapter(redisTemplate, new SimpleMeterRegistry());
     }
 
     @AfterAll

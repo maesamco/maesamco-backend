@@ -1,6 +1,7 @@
 package com.maesamco.coaching.infrastructure.redis;
 
 import com.maesamco.coaching.application.port.HintGenerationLockPort;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -23,9 +24,12 @@ import java.util.UUID;
  * Redis 장애 시에는 락 없이 그냥 진행한다(fail-open) — 이 락은 비용 보호용 부가 장치라,
  * Redis가 죽었다고 힌트 생성 핵심 기능까지 막을 이유는 없다.
  *
- * TODO(#74): 지금은 fail-open 발생 시 log.warn 한 줄만 남긴다 — Redis가 죽어도 서비스는
- * 정상처럼 계속 동작해서, 로그를 따로 안 보면 "비용 보호 장치가 꺼진 상태"가 한참
- * 방치될 수 있다. Micrometer 카운터 + Grafana 알림 추가할 것.
+ * fail-open이 발생하면 Micrometer 카운터(이슈 #74)를 증가시켜 관측한다. tryLock
+ * 실패(operation=try_lock)는 락 없이 진행되어 중복 LLM 호출이 실제로 가능해지는
+ * 상태라 알림 대상이지만, unlock 실패(operation=unlock)는 TTL로 자연 만료될 뿐
+ * 비용 리스크가 아니라서 같은 카운터에 태그로만 구분해 기록하고 알림 조건에서는
+ * 제외한다(infra/grafana/provisioning/alerting/hint-lock-fallback-alert.yml 참고
+ * — try_lock에만 Warning/Critical 2단계 임계치가 걸려있다).
  */
 @Slf4j
 @Component
@@ -33,8 +37,11 @@ import java.util.UUID;
 public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
 
     private static final Duration LOCK_TTL = Duration.ofSeconds(30);
+    private static final String FALLBACK_METRIC_NAME = "hint.generation.lock.fallback";
+    private static final String OPERATION_TAG = "operation";
 
     private final StringRedisTemplate redisTemplate;
+    private final MeterRegistry meterRegistry;
     private final RedisScript<Long> unlockScript = RedisScript.of(
             new ClassPathResource("scripts/hint_lock_unlock.lua"), Long.class);
 
@@ -44,6 +51,7 @@ public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key(coachingSessionId), lockToken, LOCK_TTL);
             return Boolean.TRUE.equals(acquired);
         } catch (RuntimeException e) {
+            meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "try_lock").increment();
             log.warn("힌트 생성 락 획득 실패(Redis 오류) - coachingSessionId={}, 락 없이 진행합니다.", coachingSessionId, e);
             return true;
         }
@@ -54,6 +62,7 @@ public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
         try {
             redisTemplate.execute(unlockScript, List.of(key(coachingSessionId)), lockToken);
         } catch (RuntimeException e) {
+            meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "unlock").increment();
             // 못 지워도 TTL이 있어서 언젠가 자연 만료된다 — 핵심 기능을 막을 이유는 없다.
             log.warn("힌트 생성 락 해제 실패(Redis 오류) - coachingSessionId={}, TTL로 자연 만료됩니다.", coachingSessionId, e);
         }
