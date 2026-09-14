@@ -7,6 +7,7 @@ import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.response.SuccessResponse;
 import com.maesamco.user.global.security.AccessTokenAuthenticationDetails;
 import com.maesamco.user.global.security.TokenExpirationCalculator;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -27,10 +28,14 @@ import java.util.UUID;
  * <p>Access Token은 응답 본문으로 전달하고,
  * Refresh Token은 HttpOnly Cookie로만 전달합니다.</p>
  */
+@Tag(
+        name = "Auth",
+        description = "이메일 인증, 회원가입 및 로그인 세션 관리 API"
+)
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class AuthApiController {
+public class AuthApiController implements AuthApiDocs {
 
     private static final String REFRESH_TOKEN_COOKIE_NAME =
             "refreshToken";
@@ -60,6 +65,7 @@ public class AuthApiController {
      * @param command 이메일 인증 요청 입력값
      * @return 인증 요청 접수 응답
      */
+    @Override
     @PostMapping("/email-verifications")
     public ResponseEntity<SuccessResponse<Void>> requestEmailVerification(
             @Valid @RequestBody RequestEmailVerificationCommand command
@@ -85,6 +91,7 @@ public class AuthApiController {
      * @param command 이메일 및 인증 코드 확인 입력값
      * @return 회원가입 인증 토큰과 만료 시간
      */
+    @Override
     @PostMapping("/email-verifications/confirm")
     public ResponseEntity<SuccessResponse<ConfirmEmailVerificationResult>>
     confirmEmailVerification(
@@ -109,6 +116,7 @@ public class AuthApiController {
      * @param command 회원가입 입력값
      * @return 생성된 사용자 정보와 Access Token
      */
+    @Override
     @PostMapping("/signup")
     public ResponseEntity<SuccessResponse<SignUpResult>> signUp(
             @Valid @RequestBody SignUpCommand command
