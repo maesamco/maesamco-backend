@@ -1,13 +1,13 @@
-package com.maesamco.content.lesson.application.service;
+package com.maesamco.content.application.lesson.service;
 
-import com.maesamco.content.curriculum.domain.repository.CurriculumRepository;
+import com.maesamco.content.application.lesson.port.LessonFinder;
+import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
+import com.maesamco.content.domain.lesson.entity.Lesson;
+import com.maesamco.content.domain.lesson.repository.LessonRepository;
+import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.unit.repository.UnitRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.lesson.application.port.LessonFinder;
-import com.maesamco.content.lesson.domain.entity.Lesson;
-import com.maesamco.content.lesson.domain.repository.LessonRepository;
-import com.maesamco.content.unit.domain.entity.Unit;
-import com.maesamco.content.unit.domain.repository.UnitRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

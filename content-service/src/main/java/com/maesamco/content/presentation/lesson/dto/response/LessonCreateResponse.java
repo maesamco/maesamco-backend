@@ -1,6 +1,6 @@
-package com.maesamco.content.lesson.presentation.dto.response;
+package com.maesamco.content.presentation.lesson.dto.response;
 
-import com.maesamco.content.lesson.domain.entity.Lesson;
+import com.maesamco.content.domain.lesson.entity.Lesson;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

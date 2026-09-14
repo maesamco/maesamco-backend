@@ -1,7 +1,7 @@
-package com.maesamco.content.lesson.domain.entity;
+package com.maesamco.content.domain.lesson.entity;
 
+import com.maesamco.content.domain.lesson.enums.ProgrammingLanguage;
 import com.maesamco.content.global.common.BaseEntity;
-import com.maesamco.content.lesson.domain.enums.ProgrammingLanguage;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
