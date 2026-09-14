@@ -2,6 +2,7 @@ package com.maesamco.judge.domain.repository;
 
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,6 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             + "where s.userId = :userId and s.problemId = :problemId")
     int findMaxAttemptNoByUserIdAndProblemId(@Param("userId") UUID userId, @Param("problemId") UUID problemId);
 
-    /** 재시도 스케줄러가 폴링 배치로 쓰는 조회 — 오래된 것부터 최대 100건. */
-    List<Submission> findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus status);
+    /** 재시도 스케줄러가 폴링 배치로 쓰는 조회 — 오래된 것부터 batchSize만큼. */
+    List<Submission> findByStatusOrderBySubmittedAtAsc(SubmissionStatus status, Pageable pageable);
 }

@@ -6,6 +6,8 @@ import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,10 +22,13 @@ public class JudgeRetryScheduler {
     private final SubmissionRepository submissionRepository;
     private final JudgeExecutionFacade  judgeExecutionFacade;
 
+    @Value("${judge.retry.batch-size:100}")
+    private int batchSize;
+
     @Scheduled(fixedDelayString = "${judge.retry.fixed-delay-ms:10000}") // Judge0 재시도는 폴링만큼 자주 돌 필요는 없어서 일단 여유롭게 10초로 잡음.
     public void retryPendingSubmissions() {
         List<Submission> retryTargets =
-                submissionRepository.findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT);
+                submissionRepository.findByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT, PageRequest.of(0, batchSize));
 
         for(Submission submission : retryTargets) {
             try {

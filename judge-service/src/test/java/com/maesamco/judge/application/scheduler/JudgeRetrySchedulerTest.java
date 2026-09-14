@@ -1,6 +1,7 @@
 package com.maesamco.judge.application.scheduler;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -13,6 +14,7 @@ import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -34,6 +37,11 @@ class JudgeRetrySchedulerTest {
 
     @InjectMocks
     private JudgeRetryScheduler judgeRetryScheduler;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(judgeRetryScheduler, "batchSize", 100);
+    }
 
     private Submission retryWaitSubmission(UUID id) {
         Submission submission = Submission.create(
@@ -52,7 +60,8 @@ class JudgeRetrySchedulerTest {
         void callsExecuteForEachRetryTarget() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -64,7 +73,8 @@ class JudgeRetrySchedulerTest {
         @Test
         @DisplayName("재시도 대상이 없으면 execute를 호출하지 않는다")
         void doesNothingWhenNoRetryTargets() {
-            given(submissionRepository.findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
                     .willReturn(List.of());
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -77,7 +87,8 @@ class JudgeRetrySchedulerTest {
         void continuesAfterOptimisticLockingFailure() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
             doThrow(new ObjectOptimisticLockingFailureException(Submission.class, id1))
                     .when(judgeExecutionFacade).execute(id1);
@@ -93,7 +104,8 @@ class JudgeRetrySchedulerTest {
         void continuesAfterUnexpectedException() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findTop100ByStatusOrderBySubmittedAtAsc(SubmissionStatus.RETRY_WAIT))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
             doThrow(new IllegalStateException("prepareForExecution 실패"))
                     .when(judgeExecutionFacade).execute(id1);
