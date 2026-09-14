@@ -92,6 +92,19 @@ class SubmissionEventOutboxPersistenceServiceTest {
             assertThatThrownBy(() -> submissionEventOutboxPersistenceService.markPublished(outbox))
                     .isInstanceOf(BusinessException.class);
         }
+
+        @Test
+        @DisplayName("SubmissionJudged 발행 성공 시에는 Submission 상태를 건드리지 않는다")
+        void doesNotTouchSubmissionForSubmissionJudged() {
+            UUID submissionId = UUID.randomUUID();
+            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(submissionId, "SubmissionJudged", "{}");
+
+            submissionEventOutboxPersistenceService.markPublished(outbox);
+
+            verify(submissionEventOutboxRepository).save(outbox);
+            verify(submissionRepository, never()).findById(any());
+            verify(submissionRepository, never()).save(any());
+        }
     }
 
     @Nested
@@ -232,16 +245,17 @@ class SubmissionEventOutboxPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("SubmissionJudged 발행 성공 시에는 Submission 상태를 건드리지 않는다")
-        void doesNotTouchSubmissionForSubmissionJudged() {
-            UUID submissionId = UUID.randomUUID();
-            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(submissionId, "SubmissionJudged", "{}");
+        @DisplayName("이미 종료 상태(COMPLETED)인 Outbox면 아무것도 하지 않고 멱등하게 종료한다")
+        void skipsWhenOutboxAlreadyTerminated() {
+            SubmissionEventOutbox outbox = SubmissionEventOutbox.create(UUID.randomUUID(), "UnknownEvent", "{}");
+            outbox.markPublished(); // 다른 경로로 이미 COMPLETED 처리된 상황을 재현
 
-            submissionEventOutboxPersistenceService.markPublished(outbox);
+            submissionEventOutboxPersistenceService.markUnsupportedEventType(outbox);
 
-            verify(submissionEventOutboxRepository).save(outbox);
+            assertThat(outbox.getStatus()).isEqualTo(OutboxStatus.COMPLETED);
+            assertThat(outbox.getAttemptCount()).isZero();
+            verify(submissionEventOutboxRepository, never()).save(any());
             verify(submissionRepository, never()).findById(any());
-            verify(submissionRepository, never()).save(any());
         }
     }
 }
