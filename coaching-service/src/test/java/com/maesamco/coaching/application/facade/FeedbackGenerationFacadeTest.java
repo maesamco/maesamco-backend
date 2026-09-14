@@ -283,13 +283,34 @@ class FeedbackGenerationFacadeTest {
 
     /**
      * "지문 없이는 생성 시도 안 함" 정책(이슈 #126) — 이 Facade는 실패를 던지지 않고 전부
-     * 삼키므로(클래스 Javadoc), Content Service 조회 실패도 다른 실패 경로와 동일하게
-     * FAILED 이력만 남기고 조용히 반환한다.
+     * 삼킨다(클래스 Javadoc).
+     *
+     * PR #166 리뷰(용현님/준영님 P2) 대응 — Content Service의 일시적 장애(FEIGN_CLIENT_ERROR)는
+     * 실제 LLM 호출을 한 번도 안 했으므로 SKIPPED로 남겨서 재시도 예산을 보호한다. 아래
+     * PROBLEM_NOT_FOUND(영구적인 실패) 테스트와 구분해서 검증한다.
      */
     @Test
-    void 문제_조회에_실패하면_예외_없이_종료하고_FAILED_이력만_남긴다() {
+    void 문제_조회가_일시적으로_실패하면_예외_없이_종료하고_SKIPPED_이력만_남긴다() {
         stubSubmission();
         when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
+
+        assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
+                .doesNotThrowAnyException();
+
+        verify(aiModelPort, never()).generate(any(), any());
+        verifyNoInteractions(feedbackPersistenceService);
+        verify(aiCallHistoryRepository).save(argThat(h -> "SKIPPED".equals(h.getRequestStatus())));
+    }
+
+    /**
+     * PR #166 리뷰(용현님/준영님 P2) 대응 — 문제 자체가 존재하지 않는 경우(PROBLEM_NOT_FOUND)는
+     * 재시도해도 해결되지 않는 영구적인 실패이므로, 위 일시적 장애와 달리 그대로 FAILED로
+     * 남긴다.
+     */
+    @Test
+    void 문제가_존재하지_않으면_예외_없이_종료하고_FAILED_이력만_남긴다() {
+        stubSubmission();
+        when(contentServicePort.getProblem(problemId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();

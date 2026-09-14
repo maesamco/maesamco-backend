@@ -125,8 +125,17 @@ public class HintGenerationFacade {
         // FeedbackGenerationFacade와 로직 공유). 이건 힌트 응답 자체의 필수 조건이 아니라
         // 부가 집계이므로, Content Service 조회가 실패해도(이력 저장 실패와 같은 성격)
         // 로그만 남기고 힌트 요청 자체는 계속 진행한다.
+        //
+        // PR #166 리뷰(용현님 P2) 대응 — 이 조회가 성공하면 그 ProblemSnapshot을 실제 힌트
+        // 생성(generateHintContent())까지 재사용한다. 원래는 skipAvailable일 때 같은
+        // problemId를 Content Service에 두 번(WeakConcept용, 힌트 생성용) 요청했는데,
+        // 첫 조회가 성공했는데 두 번째만 일시적으로 실패하면 이미 확보한 지문이 있는데도
+        // 힌트 요청이 503으로 끝나고, 한 사용자 요청이 Content Service/CircuitBreaker에
+        // 두 건으로 잡혔다. 첫 조회가 실패한 경우에만(cachedProblem이 비어있을 때만)
+        // generateHintContent()가 자체적으로 다시 시도한다.
+        Optional<ProblemSnapshot> cachedProblem = Optional.empty();
         if (skipAvailable) {
-            recordWeakConceptsForSkip(session, submission);
+            cachedProblem = recordWeakConceptsForSkip(session, submission);
         }
 
         List<Hint> existingHints = hintRepository.findByCoachingSessionId(session.getId());
@@ -136,15 +145,17 @@ public class HintGenerationFacade {
             return new HintGenerationResult(session.getId(), maxStageHint(existingHints), skipAvailable, false);
         }
 
-        return generateNextStageHint(session, submission, maxStage + 1, skipAvailable);
+        return generateNextStageHint(session, submission, maxStage + 1, skipAvailable, cachedProblem);
     }
 
-    private void recordWeakConceptsForSkip(CoachingSession session, SubmissionSnapshot submission) {
+    private Optional<ProblemSnapshot> recordWeakConceptsForSkip(CoachingSession session, SubmissionSnapshot submission) {
         try {
             ProblemSnapshot problem = contentServicePort.getProblem(submission.problemId());
             weakConceptPersistenceService.recordOccurrences(submission.userId(), problem.conceptTags());
+            return Optional.of(problem);
         } catch (BusinessException e) {
             log.warn("취약 개념 자동 기록을 위한 문제 조회 실패 - coachingSessionId={}", session.getId(), e);
+            return Optional.empty();
         }
     }
 
@@ -158,7 +169,10 @@ public class HintGenerationFacade {
      * 락을 못 얻으면(다른 요청이 이미 생성 중) LLM을 호출하지 않고, 그 요청이 저장을
      * 마칠 때까지 짧게 대기했다가 결과를 그대로 반환한다(waitForConcurrentHint()).
      */
-    private HintGenerationResult generateNextStageHint(CoachingSession session, SubmissionSnapshot submission, int nextStage, boolean skipAvailable) {
+    private HintGenerationResult generateNextStageHint(
+            CoachingSession session, SubmissionSnapshot submission, int nextStage, boolean skipAvailable,
+            Optional<ProblemSnapshot> cachedProblem
+    ) {
         String lockToken = UUID.randomUUID().toString();
         if (!hintGenerationLockPort.tryLock(session.getId(), lockToken)) {
             return waitForConcurrentHint(session.getId(), nextStage, skipAvailable);
@@ -174,7 +188,8 @@ public class HintGenerationFacade {
                 return new HintGenerationResult(session.getId(), alreadyGenerated.get(), skipAvailable, false);
             }
 
-            Hint hint = Hint.create(session.getId(), nextStage, generateHintContent(session, submission, nextStage, freshHints));
+            Hint hint = Hint.create(session.getId(), nextStage,
+                    generateHintContent(session, submission, nextStage, freshHints, cachedProblem));
             try {
                 Hint savedHint = hintRepository.save(hint);
                 return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
@@ -231,21 +246,33 @@ public class HintGenerationFacade {
      * 정도로 두고, 실제 악용 사례가 확인되면 더 강한 방어(코드 길이 제한, 별도 검증 등)를
      * 추가로 검토할 것.
      */
-    private String generateHintContent(CoachingSession session, SubmissionSnapshot submission, int stage, List<Hint> previousHints) {
+    private String generateHintContent(
+            CoachingSession session, SubmissionSnapshot submission, int stage, List<Hint> previousHints,
+            Optional<ProblemSnapshot> cachedProblem
+    ) {
         // 이슈 #62 — 문제 지문·개념 태그 없이는 힌트를 생성하지 않는다("지문 없이는 생성
         // 시도 안 함" 정책, 이슈 #126). Content Service 조회 실패도 AI 호출 실패와 동일하게
         // AI_GENERATION_FAILED(503)로 응답한다 — 클라이언트 계약(이 API가 던지는 에러
         // 코드)에 Content Service 내부 사정(PROBLEM_NOT_FOUND/FEIGN_CLIENT_ERROR)을 그대로
         // 노출하지 않는다.
+        //
+        // PR #166 리뷰(용현님 P2) 대응 — skipAvailable일 때 이미 조회에 성공한
+        // ProblemSnapshot이 있으면 그대로 재사용하고, Content Service를 다시 호출하지
+        // 않는다(cachedProblem이 비어있는 경우 — skipAvailable이 아니었거나 그 조회
+        // 자체가 실패했던 경우만 여기서 새로 조회한다).
         ProblemSnapshot problem;
-        try {
-            problem = contentServicePort.getProblem(submission.problemId());
-        } catch (BusinessException e) {
-            recordAiCallHistory(AiCallHistory.create(
-                    session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
-                    "FAILED", null, null, "문제 조회 실패: " + e.getMessage(), 0
-            ));
-            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+        if (cachedProblem.isPresent()) {
+            problem = cachedProblem.get();
+        } else {
+            try {
+                problem = contentServicePort.getProblem(submission.problemId());
+            } catch (BusinessException e) {
+                recordAiCallHistory(AiCallHistory.create(
+                        session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
+                        "FAILED", null, null, "문제 조회 실패: " + e.getMessage(), 0
+                ));
+                throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+            }
         }
 
         String systemPrompt = """

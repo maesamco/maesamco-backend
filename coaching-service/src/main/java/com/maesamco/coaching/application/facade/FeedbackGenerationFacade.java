@@ -16,6 +16,7 @@ import com.maesamco.coaching.domain.entity.FollowUpAnswer;
 import com.maesamco.coaching.domain.entity.FollowUpQuestion;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
+import com.maesamco.coaching.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
@@ -98,16 +99,25 @@ public class FeedbackGenerationFacade {
             }
 
             // 이슈 #62 — 문제 지문 없이는 피드백 생성을 시도하지 않는다("지문 없이는
-            // 생성 시도 안 함" 정책, 이슈 #126). Content Service 조회 실패도 다른 실패
-            // 경로와 동일하게 FAILED 이력만 남기고 조용히 반환한다(클래스 Javadoc 참고 —
-            // 이 메서드는 실패를 던지지 않고 전부 삼킨다).
+            // 생성 시도 안 함" 정책, 이슈 #126). 이 메서드는 실패를 던지지 않고 전부
+            // 삼킨다(클래스 Javadoc 참고).
+            //
+            // PR #166 리뷰(용현님/준영님 P2) 대응 — 아래 AI 서킷오픈 분기와 동일한 이유로,
+            // Content Service의 일시적 장애(FEIGN_CLIENT_ERROR — timeout/5xx/서킷오픈)는
+            // 실제 LLM 호출을 한 번도 안 했으므로 SKIPPED로 남긴다.
+            // countRealAttemptsByCoachingSessionIdAndPurpose()가 SKIPPED를 재시도 예산에서
+            // 제외하므로, Content Service가 일시적으로 죽어 있던 동안 반복 재시도해도
+            // AI_FEEDBACK_RETRY_LIMIT_EXCEEDED에 도달해 복구 후에도 피드백을 영영 못 만드는
+            // 상황을 막는다. 반면 PROBLEM_NOT_FOUND는 문제 자체가 존재하지 않는 영구적인
+            // 데이터 문제라 재시도해도 해결되지 않으므로 그대로 FAILED로 남긴다.
             ProblemSnapshot problem;
             try {
                 problem = contentServicePort.getProblem(submission.problemId());
             } catch (BusinessException e) {
+                boolean transientFailure = e.getErrorCode() != ErrorCode.PROBLEM_NOT_FOUND;
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
-                        "FAILED", null, null, "문제 조회 실패: " + e.getMessage(), 0
+                        transientFailure ? "SKIPPED" : "FAILED", null, null, "문제 조회 실패: " + e.getMessage(), 0
                 ));
                 return;
             }

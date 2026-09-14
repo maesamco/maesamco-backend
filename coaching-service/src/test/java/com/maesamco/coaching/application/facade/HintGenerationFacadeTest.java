@@ -497,4 +497,24 @@ class HintGenerationFacadeTest {
         assertThat(result.skipAvailable()).isTrue();
         verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
     }
+
+    /**
+     * PR #166 리뷰(용현님 P2) 대응 회귀 테스트 — WeakConcept 기록용 문제 조회가 성공했으면
+     * 그 ProblemSnapshot을 힌트 생성까지 재사용해야 한다. 원래는 skipAvailable일 때 같은
+     * problemId를 Content Service에 두 번(WeakConcept용, 힌트 생성용) 요청했다.
+     */
+    @Test
+    void 취약_개념_기록용_문제_조회가_성공하면_힌트_생성에_재사용하고_두_번_조회하지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isTrue();
+        verify(contentServicePort, org.mockito.Mockito.times(1)).getProblem(problemId);
+    }
 }
