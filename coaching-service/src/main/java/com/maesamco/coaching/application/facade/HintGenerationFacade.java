@@ -18,6 +18,8 @@ import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.HintRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -67,6 +69,7 @@ public class HintGenerationFacade {
     private final AiCallHistoryRepository aiCallHistoryRepository;
     private final HintGenerationLockPort hintGenerationLockPort;
     private final WeakConceptPersistenceService weakConceptPersistenceService;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
 
     public HintGenerationFacade(
             JudgeServicePort judgeServicePort,
@@ -76,7 +79,8 @@ public class HintGenerationFacade {
             AiModelPort aiModelPort,
             AiCallHistoryRepository aiCallHistoryRepository,
             HintGenerationLockPort hintGenerationLockPort,
-            WeakConceptPersistenceService weakConceptPersistenceService
+            WeakConceptPersistenceService weakConceptPersistenceService,
+            CircuitBreakerRegistry circuitBreakerRegistry
     ) {
         this.judgeServicePort = judgeServicePort;
         this.contentServicePort = contentServicePort;
@@ -86,6 +90,7 @@ public class HintGenerationFacade {
         this.aiCallHistoryRepository = aiCallHistoryRepository;
         this.hintGenerationLockPort = hintGenerationLockPort;
         this.weakConceptPersistenceService = weakConceptPersistenceService;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
     public HintGenerationResult requestHint(UUID submissionId, UUID callerId) {
@@ -309,8 +314,13 @@ public class HintGenerationFacade {
                 problem.description(), String.join(", ", problem.conceptTags()),
                 submission.code(), submission.failedTestSummary(), formatPreviousHints(previousHints));
 
+        // 이슈 #150 — 응답시간 계측 인프라. AiCallHistory.responseTimeMs가 지금까지 항상
+        // null로 하드코딩돼 있어 실제 병목(네트워크/모델 추론/재시도 대기)을 데이터로 확인할
+        // 방법이 없었다 — aiModelPort.generate() 호출 전후 시간만 재서 채운다.
+        long startedAt = System.currentTimeMillis();
         try {
             AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
             // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 —
             // 그대로 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
             // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
@@ -320,17 +330,34 @@ public class HintGenerationFacade {
             }
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", null, response.tokenUsage(), null, 0
+                    "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
             ));
             return response.content();
         } catch (AiModelCallException e) {
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
             log.warn("AI 힌트 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
-                    "FAILED", null, null, e.getMessage(), 0
+                    "FAILED", responseTimeMs, null, e.getMessage(), 0
             ));
-            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED, hintGenerationFailedMessage());
         }
+    }
+
+    /**
+     * 이슈 #149 — 힌트는 재시도 예산 개념이 없어(Feedback과 달리) 학생이 언제든 다시
+     * 요청할 수 있지만, "언제까지 기다려야 하는지" 신호가 없으면 quota 소진처럼 오래
+     * 걸리는 장애 동안에도 계속 헛되이 재시도하게 된다. 예외 타입을 다시 식별하는
+     * 화이트리스트 대신, 서킷브레이커(ai-model)의 현재 상태를 직접 조회한다 — quota
+     * 소진 같은 원인이 무엇이든 지속되는 장애면 결국 서킷이 열리므로, "지금 시스템이
+     * 실제로 안 좋은 상태인가"를 정확히 반영하는 신호다. quota 자체를 노출하지 않는다.
+     */
+    private String hintGenerationFailedMessage() {
+        CircuitBreaker.State state = circuitBreakerRegistry.circuitBreaker("ai-model").getState();
+        if (state == CircuitBreaker.State.OPEN || state == CircuitBreaker.State.FORCED_OPEN) {
+            return "지금 일시적으로 이용이 어렵습니다. 시간을 두고 다시 시도해주세요.";
+        }
+        return "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
     }
 
     /**
@@ -352,6 +379,9 @@ public class HintGenerationFacade {
      * AiModelPort는 단발성 호출이라 대화 이력을 서버에 유지하지 않는다 — 대신 이전 단계
      * 힌트 내용을 매 호출의 프롬프트에 텍스트로 포함시켜, 다음 단계가 앞 단계를 반복하거나
      * 결이 다른 방향으로 튀지 않고 자연스럽게 이어지게 한다.
+     *
+     * TODO(#180): 단계가 올라갈수록 이전 힌트 전문이 계속 누적돼 입력 토큰이 불어난다 —
+     * 전문 대신 요약만 남기는 것도 검토 대상(이슈 #150에서 이관).
      */
     private String formatPreviousHints(List<Hint> previousHints) {
         if (previousHints.isEmpty()) {

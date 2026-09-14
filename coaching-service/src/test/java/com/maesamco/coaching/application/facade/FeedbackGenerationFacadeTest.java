@@ -112,7 +112,7 @@ class FeedbackGenerationFacadeTest {
         facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
 
         verify(feedbackPersistenceService).saveFeedback(
-                eq(session.getId()), eq(userId), eq("claude-sonnet-5"), anyString(), eq(30),
+                eq(session.getId()), eq(userId), eq("claude-sonnet-5"), anyString(), any(), eq(30),
                 argThat(node -> node.get(0).asString().equals("반복문")),
                 any(JsonNode.class),
                 argThat(node -> node.get(0).asString().equals("재귀")),
@@ -142,7 +142,7 @@ class FeedbackGenerationFacadeTest {
                 "claude-sonnet-5", 30
         ));
         doThrow(new RuntimeException("DB 오류")).when(feedbackPersistenceService)
-                .saveFeedback(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+                .saveFeedback(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();
@@ -250,7 +250,7 @@ class FeedbackGenerationFacadeTest {
         facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
 
         verify(feedbackPersistenceService).saveFeedback(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq("계속 진행하세요")
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq("계속 진행하세요")
         );
     }
 

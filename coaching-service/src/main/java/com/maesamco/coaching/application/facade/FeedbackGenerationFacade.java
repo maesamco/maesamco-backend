@@ -122,6 +122,8 @@ public class FeedbackGenerationFacade {
                 return;
             }
 
+            // 이슈 #150 — 응답시간 계측(HintGenerationFacade와 동일한 이유).
+            long startedAt = System.currentTimeMillis();
             AiModelResponse response;
             try {
                 response = aiModelPort.generate(
@@ -133,18 +135,20 @@ public class FeedbackGenerationFacade {
                 // quota든 네트워크든 서킷오픈이든 상관없이 토큰이 청구되지 않은 시도다.
                 // AiFeedbackRetryFacade의 재시도 예산 계산이 SKIPPED만 제외하므로, 전부
                 // SKIPPED로 남겨서 무관한 인프라 사정으로 재시도 예산이 소모되지 않게 한다.
+                int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
                 log.warn("AI 모델 호출 실패 - coachingSessionId={}", session.getId(), e);
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
-                        "SKIPPED", null, null, e.getMessage(), 0
+                        "SKIPPED", responseTimeMs, null, e.getMessage(), 0
                 ));
                 return;
             }
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
 
             if (response.content() == null || response.content().isBlank()) {
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, response.modelName(), PROMPT_VERSION,
-                        "FAILED", null, response.tokenUsage(), "AI가 빈 응답을 반환했습니다.", 0
+                        "FAILED", responseTimeMs, response.tokenUsage(), "AI가 빈 응답을 반환했습니다.", 0
                 ));
                 return;
             }
@@ -153,21 +157,22 @@ public class FeedbackGenerationFacade {
             if (parsed == null) {
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, response.modelName(), PROMPT_VERSION,
-                        "FAILED", null, response.tokenUsage(), "필수 필드 파싱 실패", 0
+                        "FAILED", responseTimeMs, response.tokenUsage(), "필수 필드 파싱 실패", 0
                 ));
                 return;
             }
 
             try {
                 feedbackPersistenceService.saveFeedback(
-                        session.getId(), session.getUserId(), response.modelName(), PROMPT_VERSION, response.tokenUsage(),
+                        session.getId(), session.getUserId(), response.modelName(), PROMPT_VERSION,
+                        responseTimeMs, response.tokenUsage(),
                         parsed.understoodConcepts(), parsed.explanationGaps(), parsed.weakConcepts(),
                         parsed.syntaxToImprove(), parsed.recommendedProblems(), parsed.nextDirection()
                 );
             } catch (RuntimeException e) {
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, response.modelName(), PROMPT_VERSION,
-                        "FAILED", null, response.tokenUsage(), "피드백 저장 실패: " + e.getMessage(), 0
+                        "FAILED", responseTimeMs, response.tokenUsage(), "피드백 저장 실패: " + e.getMessage(), 0
                 ));
                 log.warn("AI 종합 피드백 저장 실패 - coachingSessionId={}", session.getId(), e);
             }
@@ -200,6 +205,9 @@ public class FeedbackGenerationFacade {
                 """;
     }
 
+    // TODO(#180): submission.code()가 길이 제한 없이 그대로 들어간다 — 긴 제출 코드가
+    // 출력 응답 truncation(max_tokens=4096 기본값)과 결합해 파싱 실패를 반복시킬 수
+    // 있는지 계측 데이터로 확인 필요(이슈 #150에서 이관).
     private String buildUserPrompt(
             ProblemSnapshot problem, SubmissionSnapshot submission, Explanation explanation,
             FollowUpQuestion followUpQuestion, FollowUpAnswer followUpAnswer

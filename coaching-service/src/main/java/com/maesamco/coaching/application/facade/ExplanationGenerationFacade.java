@@ -207,24 +207,28 @@ public class ExplanationGenerationFacade {
                 %s
                 """.formatted(problem.description(), submission.code(), explanation.getContent());
 
+        // 이슈 #150 — 응답시간 계측(HintGenerationFacade와 동일한 이유).
+        long startedAt = System.currentTimeMillis();
         try {
             AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
             if (response.content() == null || response.content().isBlank()) {
                 throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
             }
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", null, response.tokenUsage(), null, 0
+                    "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
             ));
             ParsedFollowUp parsed = parseFollowUp(response.content());
             return followUpQuestionRepository.save(
                     FollowUpQuestion.create(explanation.getId(), parsed.questionText(), parsed.category())
             );
         } catch (AiModelCallException e) {
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
             log.warn("AI 역질문 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, "unknown", PROMPT_VERSION,
-                    "FAILED", null, null, e.getMessage(), 0
+                    "FAILED", responseTimeMs, null, e.getMessage(), 0
             ));
             return null;
         }

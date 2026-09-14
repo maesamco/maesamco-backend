@@ -34,6 +34,12 @@ public class ClaudeModelAdapter implements AiModelPort {
      * 튜터님 피드백 — 외부 LLM 장애가 내부 장애로 전파되지 않도록 CircuitBreaker를 적용한다.
      * Feign이 아니라서 팀 컨벤션 2절("모든 FeignAdapter 메서드에 CircuitBreaker 적용")의
      * 문자 그대로의 적용 대상은 아니지만, "외부 호출 장애 격리"라는 같은 원칙을 적용한다.
+     *
+     * TODO(#180): spring.ai.anthropic.chat.options.max-tokens를 명시적으로 설정 안 해도
+     * Spring AI 기본값(AnthropicChatOptions.DEFAULT_MAX_TOKENS=4096)이 이미 적용되고
+     * 있다(바이트코드로 확인, Anthropic API가 max_tokens를 필수 파라미터로 요구하기 때문
+     * — "제한이 아예 없다"는 이슈 #150의 원래 서술은 부정확했음). 4096이 충분한지는
+     * responseTimeMs/tokenUsage 계측 데이터로 실제 truncation 여부를 본 뒤 결정한다.
      */
     @Override
     @CircuitBreaker(name = "ai-model", fallbackMethod = "generateFallback")

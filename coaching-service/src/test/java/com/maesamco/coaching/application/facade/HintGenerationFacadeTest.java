@@ -18,6 +18,7 @@ import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.domain.repository.HintRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,6 +61,14 @@ class HintGenerationFacadeTest {
     @Mock
     private WeakConceptPersistenceService weakConceptPersistenceService;
 
+    /**
+     * 이슈 #149 — Mock이 아니라 실제 CircuitBreakerRegistry를 쓴다(Resilience4j
+     * 객체는 Spring 없이도 동작하는 순수 POJO). 서킷 상태에 따라 실패 문구가 달라지는지
+     * 검증하려면 실제로 OPEN 상태로 전이시켜봐야 하는데, mock으로는 그 상태 전이 자체를
+     * 흉내낼 수 없다(ContentServiceAdapterTest의 transitionToForcedOpenState()와 동일한 이유).
+     */
+    private final CircuitBreakerRegistry circuitBreakerRegistry = CircuitBreakerRegistry.ofDefaults();
+
     private HintGenerationFacade facade;
 
     private final UUID submissionId = UUID.randomUUID();
@@ -76,7 +85,8 @@ class HintGenerationFacadeTest {
         // 스텁은 기존 테스트들과 동일하게 그대로 유지된다.
         facade = new HintGenerationFacade(
                 judgeServicePort, contentServicePort, new CoachingSessionFinder(coachingSessionRepository), hintRepository,
-                aiModelPort, aiCallHistoryRepository, hintGenerationLockPort, weakConceptPersistenceService
+                aiModelPort, aiCallHistoryRepository, hintGenerationLockPort, weakConceptPersistenceService,
+                circuitBreakerRegistry
         );
         // 대부분의 테스트는 락 자체를 검증 대상이 아니라 "항상 획득 성공"으로 두고 기존
         // 흐름만 본다 — 락 관련 테스트에서만 개별적으로 재정의한다. lenient()라 다른
@@ -270,6 +280,41 @@ class HintGenerationFacadeTest {
 
     private AiCallHistory argThatFailed() {
         return org.mockito.ArgumentMatchers.argThat(history -> "FAILED".equals(history.getRequestStatus()));
+    }
+
+    /**
+     * 이슈 #149 — 힌트는 재시도 예산이 없어 언제든 다시 요청 가능하지만, 서킷(ai-model)이
+     * 열려 있을 만큼 지속되는 장애(quota 소진 등)일 때는 "당장 재시도해도 소용없을 수
+     * 있다"는 신호를 문구로 줘야 한다. 서킷 상태를 실제로 OPEN까지 전이시켜서 검증한다.
+     */
+    @Test
+    void 서킷이_열려있으면_힌트_실패_메시지가_대기를_권한다() {
+        circuitBreakerRegistry.circuitBreaker("ai-model").transitionToOpenState();
+
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("circuit open", new RuntimeException()));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(Throwable::getMessage)
+                .isEqualTo("지금 일시적으로 이용이 어렵습니다. 시간을 두고 다시 시도해주세요.");
+    }
+
+    @Test
+    void 서킷이_닫혀있으면_힌트_실패_메시지가_일반_재시도_문구다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("timeout", new RuntimeException()));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(Throwable::getMessage)
+                .isEqualTo("힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
 
     @Test
