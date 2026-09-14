@@ -1,7 +1,9 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.port.IssuedTokens;
+import com.maesamco.user.application.service.EmailVerificationService;
 import com.maesamco.user.application.service.LoginService;
+import com.maesamco.user.application.service.LogoutService;
 import com.maesamco.user.application.service.RefreshResult;
 import com.maesamco.user.application.service.RefreshService;
 import com.maesamco.user.application.service.SignUpService;
@@ -21,7 +23,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
-import com.maesamco.user.application.service.LogoutService;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -57,6 +58,9 @@ class AuthApiControllerRefreshTest {
             Instant.parse("2026-09-04T00:00:00Z");
 
     @Mock
+    private EmailVerificationService emailVerificationService;
+
+    @Mock
     private SignUpService signUpService;
 
     @Mock
@@ -79,6 +83,7 @@ class AuthApiControllerRefreshTest {
 
         AuthApiController authApiController =
                 new AuthApiController(
+                        emailVerificationService,
                         signUpService,
                         loginService,
                         refreshService,

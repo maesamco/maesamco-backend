@@ -1,18 +1,7 @@
 package com.maesamco.user.application.service;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionStore;
-import com.maesamco.user.application.port.EmailCipher;
-import com.maesamco.user.application.port.EmailLookupHasher;
-import com.maesamco.user.application.port.IssuedTokens;
-import com.maesamco.user.application.port.PasswordHasher;
-import com.maesamco.user.application.port.RefreshTokenHasher;
-import com.maesamco.user.application.port.TokenIssuer;
-import com.maesamco.user.domain.entity.LearningLevel;
-import com.maesamco.user.domain.entity.User;
-import com.maesamco.user.domain.entity.UserGamificationState;
-import com.maesamco.user.domain.entity.UserRole;
-import com.maesamco.user.domain.entity.UserStatus;
+import com.maesamco.user.application.port.*;
+import com.maesamco.user.domain.entity.*;
 import com.maesamco.user.domain.repository.UserGamificationStateRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
@@ -28,7 +17,6 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -44,10 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * 회원가입 애플리케이션 서비스의 실제 PostgreSQL 연동을 검증합니다.
@@ -57,7 +42,8 @@ import static org.mockito.Mockito.when;
  * 회원가입 전체 흐름이 정상적으로 이어지는지 검증합니다.</p>
  *
  * <p>Redis 저장소 자체의 동작은 별도 통합 테스트에서 검증하므로
- * 이 테스트에서는 AuthSessionStore를 Mock으로 사용합니다.</p>
+ * 이 테스트에서는 EmailVerificationStore와 AuthSessionStore를
+ * Mock으로 사용합니다.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(
@@ -70,10 +56,6 @@ import static org.mockito.Mockito.when;
         SignUpPersistenceService.class,
         SignUpService.class
 })
-@Sql(
-        scripts = "/db/migration/V2__add_active_user_unique_indexes.sql",
-        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS
-)
 @Testcontainers
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class SignUpServiceIntegrationTest {
@@ -95,6 +77,9 @@ class SignUpServiceIntegrationTest {
 
     private static final String REFRESH_TOKEN_HASH =
             "refresh-token-hash";
+
+    private static final String SIGNUP_TOKEN_HASH =
+            "c".repeat(64);
 
     private static final Instant NOW =
             Instant.parse("2026-09-03T00:00:00Z");
@@ -137,6 +122,12 @@ class SignUpServiceIntegrationTest {
 
     @MockitoBean
     private EmailLookupHasher emailLookupHasher;
+
+    @MockitoBean
+    private EmailVerificationSecretHasher emailVerificationSecretHasher;
+
+    @MockitoBean
+    private EmailVerificationStore emailVerificationStore;
 
     @MockitoBean
     private PasswordHasher passwordHasher;
@@ -376,6 +367,7 @@ class SignUpServiceIntegrationTest {
     ) {
         return new SignUpCommand(
                 "Learner@Example.com",
+                "signup-token",
                 "Abcd1234!",
                 nickname,
                 3,
@@ -405,6 +397,23 @@ class SignUpServiceIntegrationTest {
                 )
         ).thenReturn(
                 emailLookupHash
+        );
+
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        command.signupToken()
+                )
+        ).thenReturn(
+                SIGNUP_TOKEN_HASH
+        );
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        SIGNUP_TOKEN_HASH,
+                        emailLookupHash
+                )
+        ).thenReturn(
+                true
         );
 
         when(

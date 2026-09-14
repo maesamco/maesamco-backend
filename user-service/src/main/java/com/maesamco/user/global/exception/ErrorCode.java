@@ -49,6 +49,22 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 사용 중인 닉네임입니다."
     ),
+    EMAIL_VERIFICATION_INVALID_CODE(
+            HttpStatus.BAD_REQUEST,
+            "인증 코드가 올바르지 않습니다."
+    ),
+    EMAIL_VERIFICATION_EXPIRED(
+            HttpStatus.BAD_REQUEST,
+            "인증 코드가 만료되었습니다. 이메일 인증을 다시 요청해주세요."
+    ),
+    EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "인증 시도 횟수를 초과했습니다. 이메일 인증을 다시 요청해주세요."
+    ),
+    SIGNUP_VERIFICATION_TOKEN_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "이메일 인증 정보가 유효하지 않습니다. 이메일 인증을 다시 진행해주세요."
+    ),
     SIGNUP_AUTO_LOGIN_FAILED(
             HttpStatus.SERVICE_UNAVAILABLE,
             "회원가입은 완료되었지만 자동 로그인에 실패했습니다. 로그인해주세요."

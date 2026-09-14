@@ -5,6 +5,20 @@ spring:
   application:
     name: user-service
 
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLE:true}
+            required: ${MAIL_STARTTLS_REQUIRED:true}
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/maesamco
     username: ${DB_USERNAME}
@@ -17,6 +31,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
     properties:
       hibernate:
         default_schema: user_schema
@@ -45,6 +60,15 @@ security:
   email:
     encryption-key: ${EMAIL_ENCRYPTION_KEY}
     lookup-hmac-key: ${EMAIL_LOOKUP_HMAC_KEY}
+    verification-hmac-key: ${EMAIL_VERIFICATION_HMAC_KEY}
+
+  email-verification:
+    challenge-ttl: ${EMAIL_VERIFICATION_CHALLENGE_TTL:10m}
+    signup-token-ttl: ${EMAIL_VERIFICATION_SIGNUP_TOKEN_TTL:10m}
+    resend-cooldown: ${EMAIL_VERIFICATION_RESEND_COOLDOWN:1m}
+    request-limit-window: ${EMAIL_VERIFICATION_REQUEST_LIMIT_WINDOW:1h}
+    max-verification-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+    max-requests-per-window: ${EMAIL_VERIFICATION_MAX_REQUESTS_PER_WINDOW:5}
 
   auth-session:
     refresh-token-rotation-grace-period: ${AUTH_SESSION_REFRESH_TOKEN_ROTATION_GRACE_PERIOD:5s}
