@@ -120,7 +120,7 @@ class SubmissionInternalControllerAuthorizationTest {
 
     private void mockValidSubmission(UUID submissionId) {
         SubmissionGetResult result = new SubmissionGetResult(
-                submissionId, UUID.randomUUID(), UUID.randomUUID(), "code",
+                submissionId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "code",
                 SubmissionStatus.COMPLETED, SubmissionResult.WRONG, null,
                 List.of(new SubmissionGetResult.FailedTestItem(true, "WRONG_ANSWER")),
                 3
