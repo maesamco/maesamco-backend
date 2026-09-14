@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
-@FeignClient(name = "content-service", path = "/internal/v1", configuration = ContentServiceFeignConfig.class)
+@FeignClient(name = "content-service", path = InternalApiPrefix.INTERNAL_API_PREFIX, configuration = ContentServiceFeignConfig.class)
 public interface ContentServiceFeignClient {
 
-    @GetMapping("/problems/{problemId}")
-    SuccessResponse<ProblemDetailResponse> getProblem(@PathVariable UUID problemId);
+    @GetMapping("/problem-versions/{problemVersionId}")
+    SuccessResponse<ProblemDetailResponse> getProblemVersion(@PathVariable UUID problemVersionId);
 }

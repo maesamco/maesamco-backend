@@ -39,8 +39,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * JudgeServiceAdapterTest와 동일한 이유 — getProblem()의 예외 매핑뿐 아니라 그 위에
- * 붙인 @CircuitBreaker가 Spring AOP 프록시를 통해 실제로 개입하는지까지 검증한다.
+ * JudgeServiceAdapterTest와 동일한 이유 — getProblemVersion()의 예외 매핑뿐 아니라 그
+ * 위에 붙인 @CircuitBreaker가 Spring AOP 프록시를 통해 실제로 개입하는지까지 검증한다.
  *
  * CircuitBreakerIgnorableFailureConfig도 같이 등록한다(PR #127 심층 재검토,
  * 2026-09-09) — 이전엔 이 config가 빠진 채로 CircuitBreakerRegistry만 있어서, 실제
@@ -114,11 +114,11 @@ class ContentServiceAdapterTest {
      */
     @Test
     void 서킷이_닫혀있으면_디코더가_분류한_PROBLEM_NOT_FOUND가_그대로_전파된다() {
-        UUID problemId = UUID.randomUUID();
-        when(feignClient.getProblem(problemId))
+        UUID problemVersionId = UUID.randomUUID();
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId))
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);
@@ -126,11 +126,11 @@ class ContentServiceAdapterTest {
 
     @Test
     void 디코더가_구분한_통신_계약_실패는_FEIGN_CLIENT_ERROR로_전파된다() {
-        UUID problemId = UUID.randomUUID();
-        when(feignClient.getProblem(problemId))
+        UUID problemVersionId = UUID.randomUUID();
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId))
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR);
@@ -138,13 +138,13 @@ class ContentServiceAdapterTest {
 
     @Test
     void 디코더를_거치지_않은_일반_FeignException은_FEIGN_CLIENT_ERROR로_변환된다() {
-        UUID problemId = UUID.randomUUID();
-        Request request = Request.create(HttpMethod.GET, "/internal/v1/problems/" + problemId,
+        UUID problemVersionId = UUID.randomUUID();
+        Request request = Request.create(HttpMethod.GET, "/internal/v1/problem-versions/" + problemVersionId,
                 Collections.emptyMap(), null, StandardCharsets.UTF_8);
-        when(feignClient.getProblem(problemId))
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenThrow(new FeignException.InternalServerError("boom", request, null, null));
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId))
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR);
@@ -155,11 +155,11 @@ class ContentServiceAdapterTest {
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("content-service");
         long before = circuitBreaker.getMetrics().getNumberOfFailedCalls();
 
-        UUID problemId = UUID.randomUUID();
-        when(feignClient.getProblem(problemId))
+        UUID problemVersionId = UUID.randomUUID();
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId)).isInstanceOf(BusinessException.class);
 
         assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(before);
     }
@@ -169,11 +169,11 @@ class ContentServiceAdapterTest {
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("content-service");
         long before = circuitBreaker.getMetrics().getNumberOfFailedCalls();
 
-        UUID problemId = UUID.randomUUID();
-        when(feignClient.getProblem(problemId))
+        UUID problemVersionId = UUID.randomUUID();
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId)).isInstanceOf(BusinessException.class);
 
         assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(before + 1);
     }
@@ -183,9 +183,9 @@ class ContentServiceAdapterTest {
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("content-service");
         circuitBreaker.transitionToForcedOpenState();
 
-        UUID problemId = UUID.randomUUID();
+        UUID problemVersionId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> contentServiceAdapter.getProblem(problemId))
+        assertThatThrownBy(() -> contentServiceAdapter.getProblemVersion(problemVersionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR);
@@ -196,14 +196,15 @@ class ContentServiceAdapterTest {
 
     @Test
     void 정상_조회는_실제로_매핑까지_끝까지_동작한다() {
+        UUID problemVersionId = UUID.randomUUID();
         UUID problemId = UUID.randomUUID();
         ProblemDetailResponse data = new ProblemDetailResponse(
                 problemId, "문제 지문...", List.of("반복문", "배열")
         );
-        when(feignClient.getProblem(problemId))
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenReturn(new SuccessResponse<>(true, data));
 
-        ProblemSnapshot snapshot = contentServiceAdapter.getProblem(problemId);
+        ProblemSnapshot snapshot = contentServiceAdapter.getProblemVersion(problemVersionId);
 
         assertThat(snapshot.problemId()).isEqualTo(problemId);
         assertThat(snapshot.description()).isEqualTo("문제 지문...");
@@ -212,12 +213,13 @@ class ContentServiceAdapterTest {
 
     @Test
     void conceptTags가_빈_배열이어도_정상_매핑된다() {
+        UUID problemVersionId = UUID.randomUUID();
         UUID problemId = UUID.randomUUID();
         ProblemDetailResponse data = new ProblemDetailResponse(problemId, "문제 지문...", List.of());
-        when(feignClient.getProblem(problemId))
+        when(feignClient.getProblemVersion(problemVersionId))
                 .thenReturn(new SuccessResponse<>(true, data));
 
-        ProblemSnapshot snapshot = contentServiceAdapter.getProblem(problemId);
+        ProblemSnapshot snapshot = contentServiceAdapter.getProblemVersion(problemVersionId);
 
         assertThat(snapshot.conceptTags()).isEmpty();
     }

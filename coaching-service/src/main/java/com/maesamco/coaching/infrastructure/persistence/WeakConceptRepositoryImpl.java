@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,5 +55,14 @@ public class WeakConceptRepositoryImpl implements WeakConceptRepository {
     @Override
     public List<WeakConcept> findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(UUID userId) {
         return springDataWeakConceptRepository.findByUserIdOrderByImprovedAscOccurrenceCountDescLastDetectedAtDesc(userId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void recordOccurrence(UUID userId, String conceptTag, Instant detectedAt) {
+        String trimmedConceptTag = conceptTag == null ? null : conceptTag.trim();
+        springDataWeakConceptRepository.upsertOccurrence(userId, trimmedConceptTag, detectedAt);
     }
 }

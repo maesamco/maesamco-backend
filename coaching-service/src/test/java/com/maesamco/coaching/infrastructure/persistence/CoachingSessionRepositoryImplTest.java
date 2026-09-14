@@ -228,6 +228,30 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
         assertThat(found.get().getStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
     }
 
+    /**
+     * 이슈 #45(PR #8 후속 정리) — V13에서 추가한 CHECK 제약(status='COMPLETED'이면
+     * completed_at도 NOT NULL이어야 함) 검증. CoachingSession 엔티티는 자체 API로는 이
+     * 조합을 만들 방법이 없어서(complete()가 항상 둘을 함께 세팅), 제약이 실제로 DB
+     * 레벨에서 막는지는 엔티티를 우회한 네이티브 INSERT로만 증명할 수 있다.
+     */
+    @Test
+    @DisplayName("status=COMPLETED인데 completed_at이 NULL인 행은 CHECK 제약 위반으로 저장할 수 없다")
+    void nativeInsert_violatesCheckConstraint_whenCompletedWithoutCompletedAt() {
+        // when & then
+        assertThatThrownBy(() -> {
+            entityManager.createNativeQuery(
+                            "INSERT INTO coaching_schema.p_coaching_sessions "
+                                    + "(id, submission_id, user_id, problem_id, last_attempt_no, status, created_at, completed_at) "
+                                    + "VALUES (gen_random_uuid(), :submissionId, :userId, :problemId, 1, 'COMPLETED', now(), NULL)"
+                    )
+                    .setParameter("submissionId", UUID.randomUUID())
+                    .setParameter("userId", UUID.randomUUID())
+                    .setParameter("problemId", UUID.randomUUID())
+                    .executeUpdate();
+            entityManager.flush();
+        }).hasMessageContaining("chk_coaching_sessions_status_completed_at");
+    }
+
     @Test
     @DisplayName("동일한 submissionId로 두 번 저장하면 COACHING_SESSION_ALREADY_EXISTS(409)로 실패한다")
     void save_throwsWhenSubmissionIdAlreadyExists() {

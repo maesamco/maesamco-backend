@@ -13,16 +13,28 @@ import org.springframework.beans.factory.annotation.Value;
  * 이 인터셉터가 쓰는 키는 "내가 보낼 때 상대가 나를 검증할 키"다.
  * 두 방향의 키가 반드시 같은 값이어야 하므로(대칭키), 서비스 쌍마다
  * "누가 발신자일 때 어떤 키를 쓰는지"를 인프라 설계도/설정에 명확히 표로 남겨둘 것.
+ *
+ * ⚠️ basePath를 별도 파라미터로 받는 이유 — Feign은 RequestInterceptor를 적용한
+ * *다음에* Target이 @FeignClient(path = ...)의 prefix를 최종 URL에 합친다
+ * (SynchronousMethodHandler.targetRequest()의 순서: 인터셉터 적용 → target.apply()).
+ * 그래서 이 apply() 시점의 template.url()은 그 prefix가 아직 안 붙은
+ * "/problems/{id}" 같은 값만 보인다. 반면 수신 측 HmacVerificationFilter는
+ * request.getRequestURI()로 실제 도착한 전체 경로("/internal/v1/problems/{id}")를
+ * 재구성해서 검증하므로, 이 prefix를 서명 문자열에 직접 더해주지 않으면 정상 요청도
+ * 서명 불일치로 항상 401이 난다(실제 content-service를 띄운 통합 검증에서 재현·확인).
  */
 public class HmacSigningFeignInterceptor implements RequestInterceptor {
 
     private final String serviceName;
     private final String secretKeyForTarget;
+    private final String basePath;
 
     public HmacSigningFeignInterceptor(@Value("${spring.application.name}") String serviceName,
-                                       String secretKeyForTarget) {
+                                       String secretKeyForTarget,
+                                       String basePath) {
         this.serviceName = serviceName;
         this.secretKeyForTarget = secretKeyForTarget;
+        this.basePath = basePath;
     }
 
     @Override
@@ -31,7 +43,7 @@ public class HmacSigningFeignInterceptor implements RequestInterceptor {
         String nonce = UUID.randomUUID().toString();
         String method = template.method();
         String url = template.url();
-        String path = stripQuery(url);
+        String path = basePath + stripQuery(url);
         String normalizedQuery = HmacSignatureUtil.normalizeQuery(extractQuery(url));
         String bodyHash = HmacSignatureUtil.hashBody(template.body());
 

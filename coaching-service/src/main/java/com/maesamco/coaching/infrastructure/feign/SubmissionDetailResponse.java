@@ -13,6 +13,7 @@ public record SubmissionDetailResponse(
         UUID submissionId,
         UUID userId,
         UUID problemId,
+        UUID problemVersionId,
         String code,
         String result,
         List<FailedTestSummary> failedTestSummary,
