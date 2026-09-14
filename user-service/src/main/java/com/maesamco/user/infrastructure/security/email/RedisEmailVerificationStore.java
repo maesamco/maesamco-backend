@@ -390,6 +390,34 @@ public class RedisEmailVerificationStore
      * {@inheritDoc}
      */
     @Override
+    public boolean isSignupTokenValid(
+            String signupTokenHash,
+            String emailLookupHash
+    ) {
+        requireHash(
+                signupTokenHash,
+                "회원가입 인증 토큰 hash는 필수입니다."
+        );
+        requireHash(
+                emailLookupHash,
+                "이메일 조회 hash는 필수입니다."
+        );
+
+        String storedEmailLookupHash =
+                redisTemplate.opsForValue().get(
+                        createSignupTokenKey(
+                                emailLookupHash,
+                                signupTokenHash
+                        )
+                );
+
+        return emailLookupHash.equals(storedEmailLookupHash);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean consumeSignupToken(
             String signupTokenHash,
             String emailLookupHash

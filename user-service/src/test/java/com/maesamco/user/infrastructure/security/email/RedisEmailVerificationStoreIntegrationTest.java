@@ -453,6 +453,140 @@ class RedisEmailVerificationStoreIntegrationTest {
 
     @Test
     @DisplayName(
+            "유효한 signup token을 사전 검증해도 토큰은 소비되지 않는다"
+    )
+    void isSignupTokenValid_doesNotConsumeToken() {
+        // given
+        issueSignupToken();
+
+        // when
+        boolean validationResult =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(validationResult).isTrue();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).isTrue();
+
+        assertThat(
+                redisTemplate.opsForValue().get(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).isEqualTo(
+                EMAIL_LOOKUP_HASH
+        );
+
+        /*
+         * 사전 검증 이후에도 실제 일회성 소비가 가능해야 합니다.
+         */
+        boolean consumeResult =
+                emailVerificationStore.consumeSignupToken(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        assertThat(consumeResult).isTrue();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName(
+            "다른 이메일로 signup token을 사전 검증하면 실패하고 "
+                    + "원래 이메일은 계속 사용할 수 있다"
+    )
+    void isSignupTokenValid_rejectsDifferentEmailWithoutConsumingToken() {
+        // given
+        issueSignupToken();
+
+        // when
+        boolean wrongEmailResult =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        OTHER_EMAIL_LOOKUP_HASH
+                );
+
+        boolean correctEmailResult =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(wrongEmailResult).isFalse();
+        assertThat(correctEmailResult).isTrue();
+
+        /*
+         * 잘못된 이메일의 사전 검증 때문에
+         * 정상 signup token이 삭제되면 안 됩니다.
+         */
+        assertThat(
+                redisTemplate.hasKey(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).isTrue();
+
+        boolean consumeResult =
+                emailVerificationStore.consumeSignupToken(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        assertThat(consumeResult).isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "사전 검증 후 signup token을 소비하면 이후 검증은 실패한다"
+    )
+    void isSignupTokenValid_returnsFalseAfterTokenConsumption() {
+        // given
+        issueSignupToken();
+
+        boolean beforeConsumption =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // when
+        boolean consumed =
+                emailVerificationStore.consumeSignupToken(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        boolean afterConsumption =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(beforeConsumption).isTrue();
+        assertThat(consumed).isTrue();
+        assertThat(afterConsumption).isFalse();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName(
             "signup token은 발급된 이메일에만 사용할 수 있다"
     )
     void consumeSignupToken_rejectsDifferentEmail() {
