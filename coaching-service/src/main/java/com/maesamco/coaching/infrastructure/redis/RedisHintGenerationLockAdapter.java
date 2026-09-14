@@ -1,8 +1,8 @@
 package com.maesamco.coaching.infrastructure.redis;
 
 import com.maesamco.coaching.application.port.HintGenerationLockPort;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -30,10 +30,15 @@ import java.util.UUID;
  * 비용 리스크가 아니라서 같은 카운터에 태그로만 구분해 기록하고 알림 조건에서는
  * 제외한다(infra/grafana/provisioning/alerting/hint-lock-fallback-alert.yml 참고
  * — try_lock에만 Warning/Critical 2단계 임계치가 걸려있다).
+ *
+ * 실제 로컬 환경에서 붙여서 검증하다가 발견한 함정 — Micrometer는 카운터를 처음
+ * increment()할 때에야 등록하므로, 딱 한 번뿐인 첫 fail-open은 Prometheus 입장에서
+ * "0에서 시작해 1이 됨"이 아니라 "갑자기 1로 나타남"으로 보여서 increase()가 이를
+ * 못 잡는다(두 번째 이후 실패부터만 정상 감지됨). 그래서 카운터를 increment 시점이
+ * 아니라 생성자에서 미리 등록해, 앱 기동 시점부터 0이라는 표본이 항상 존재하게 한다.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
 
     private static final Duration LOCK_TTL = Duration.ofSeconds(30);
@@ -41,9 +46,16 @@ public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
     private static final String OPERATION_TAG = "operation";
 
     private final StringRedisTemplate redisTemplate;
-    private final MeterRegistry meterRegistry;
     private final RedisScript<Long> unlockScript = RedisScript.of(
             new ClassPathResource("scripts/hint_lock_unlock.lua"), Long.class);
+    private final Counter tryLockFallbackCounter;
+    private final Counter unlockFallbackCounter;
+
+    public RedisHintGenerationLockAdapter(StringRedisTemplate redisTemplate, MeterRegistry meterRegistry) {
+        this.redisTemplate = redisTemplate;
+        this.tryLockFallbackCounter = meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "try_lock");
+        this.unlockFallbackCounter = meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "unlock");
+    }
 
     @Override
     public boolean tryLock(UUID coachingSessionId, String lockToken) {
@@ -51,7 +63,7 @@ public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key(coachingSessionId), lockToken, LOCK_TTL);
             return Boolean.TRUE.equals(acquired);
         } catch (RuntimeException e) {
-            meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "try_lock").increment();
+            tryLockFallbackCounter.increment();
             log.warn("힌트 생성 락 획득 실패(Redis 오류) - coachingSessionId={}, 락 없이 진행합니다.", coachingSessionId, e);
             return true;
         }
@@ -62,7 +74,7 @@ public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
         try {
             redisTemplate.execute(unlockScript, List.of(key(coachingSessionId)), lockToken);
         } catch (RuntimeException e) {
-            meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "unlock").increment();
+            unlockFallbackCounter.increment();
             // 못 지워도 TTL이 있어서 언젠가 자연 만료된다 — 핵심 기능을 막을 이유는 없다.
             log.warn("힌트 생성 락 해제 실패(Redis 오류) - coachingSessionId={}, TTL로 자연 만료됩니다.", coachingSessionId, e);
         }
