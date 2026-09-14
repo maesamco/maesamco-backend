@@ -49,6 +49,12 @@ groups:
         title: 힌트 생성 락 fail-open 발생 (Warning, 5분 내 1건 이상)
         condition: C
         for: 0m
+        # fail-open이 한 번도 없으면 Micrometer 카운터 자체가 아직 생성되지 않아
+        # Prometheus에 시계열이 없다 — 즉 "정상 상태"가 곧 "데이터 없음"이다.
+        # 기본값(Alerting)으로 두면 실제 장애 없이 Grafana를 새로 띄우자마자
+        # NoData가 Alerting으로 취급돼 오탐이 나가므로 반드시 OK로 지정한다.
+        noDataState: OK
+        execErrState: Error
         annotations:
           recent_count: '{{ $values.A }}'
         data:
@@ -77,6 +83,8 @@ groups:
         title: 힌트 생성 락 fail-open 지속 (Critical, 15분 내 5건 이상)
         condition: C
         for: 0m
+        noDataState: OK
+        execErrState: Error
         annotations:
           recent_count: '{{ $values.A }}'
         data:
