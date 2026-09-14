@@ -2,11 +2,15 @@ package com.maesamco.content.Internal;
 
 import com.maesamco.content.problem.application.port.ProblemFinder;
 import com.maesamco.content.problem.application.port.ProblemTagFinder;
+import com.maesamco.content.problem.application.port.ProblemVersionFinder;
 import com.maesamco.content.problem.application.service.ProblemInternalService;
 import com.maesamco.content.problem.domain.entity.Problem;
+import com.maesamco.content.problem.domain.entity.ProblemVersion;
 import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
 import com.maesamco.content.tag.domain.entity.Tag;
 import com.maesamco.content.tag.domain.enums.TagAttribute;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +34,13 @@ class ProblemInternalServiceTest {
     private ProblemTagFinder problemTagFinder;
 
     @Mock
+    private ProblemVersionFinder problemVersionFinder;
+
+    @Mock
     private Problem problem;
+
+    @Mock
+    private ProblemVersion problemVersion;
 
     @Mock
     private Tag conceptTag;
@@ -44,7 +54,8 @@ class ProblemInternalServiceTest {
     void setUp() {
         problemInternalService = new ProblemInternalService(
                 problemFinder,
-                problemTagFinder
+                problemTagFinder,
+                problemVersionFinder
         );
     }
 
@@ -259,5 +270,52 @@ class ProblemInternalServiceTest {
 
         assertThat(response.getConceptTags())
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("문제 버전 조회 시 버전 스냅샷의 지문과 problemId 기준 현재 개념 태그를 반환한다.")
+    void getProblemVersionMetaData_success() {
+
+        // given
+        UUID problemVersionId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+
+        ObjectNode snapshot = JsonNodeFactory.instance.objectNode();
+        snapshot.put("description", "제출 시점 지문");
+
+        when(problemVersionFinder.getProblemVersion(problemVersionId))
+                .thenReturn(problemVersion);
+
+        when(problemVersion.getProblemId())
+                .thenReturn(problemId);
+
+        when(problemVersion.getProblemSnapshot())
+                .thenReturn(snapshot);
+
+        when(conceptTag.getAttribute())
+                .thenReturn(TagAttribute.CONCEPT);
+
+        when(conceptTag.getName())
+                .thenReturn("반복문");
+
+        when(problemTagFinder.getTagsByProblemId(problemId))
+                .thenReturn(List.of(conceptTag, algorithmTag));
+
+        when(algorithmTag.getAttribute())
+                .thenReturn(TagAttribute.ALGORITHM);
+
+        // when
+        InternalProblemResponse response =
+                problemInternalService.getProblemVersionMetaData(problemVersionId);
+
+        // then — 지문은 버전 스냅샷 기준, id/개념 태그는 problemId 기준 현재 값
+        assertThat(response.getId())
+                .isEqualTo(problemId);
+
+        assertThat(response.getDescription())
+                .isEqualTo("제출 시점 지문");
+
+        assertThat(response.getConceptTags())
+                .containsExactly("반복문");
     }
 }

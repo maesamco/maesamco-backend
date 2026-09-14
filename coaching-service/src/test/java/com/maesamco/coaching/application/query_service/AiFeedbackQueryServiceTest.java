@@ -56,7 +56,7 @@ class AiFeedbackQueryServiceTest {
     }
 
     private SubmissionSnapshot submission(UUID owner) {
-        return new SubmissionSnapshot(submissionId, owner, problemId, "code", "CORRECT", java.util.List.of(), 1);
+        return new SubmissionSnapshot(submissionId, owner, problemId, UUID.randomUUID(),"code", "CORRECT", java.util.List.of(), 1);
     }
 
     /** 완료된 세션 — 대부분의 테스트가 "완료 이후" 시나리오(피드백 있음/없음)를 다룬다. */

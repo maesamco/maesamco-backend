@@ -8,11 +8,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -206,5 +214,81 @@ class WeakConceptRepositoryImplTest extends AbstractCoachingRepositoryTest {
 
         // then
         assertThat(found).isEmpty();
+    }
+
+    @Test
+    @DisplayName("신규 (userId, conceptTag)를 원자적으로 생성한다")
+    void recordOccurrence_createsNewRow() {
+        // given
+        UUID userId = UUID.randomUUID();
+        Instant detectedAt = Instant.parse("2026-01-01T00:00:00Z");
+
+        // when
+        weakConceptRepository.recordOccurrence(userId, "재귀", detectedAt);
+
+        // then
+        WeakConcept found = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
+        assertThat(found.getOccurrenceCount()).isEqualTo(1);
+        assertThat(found.getLastDetectedAt()).isEqualTo(detectedAt);
+        assertThat(found.isImproved()).isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 있는 (userId, conceptTag)는 발견 횟수·시각만 원자적으로 갱신한다")
+    void recordOccurrence_updatesExistingRow() {
+        // given
+        UUID userId = UUID.randomUUID();
+        weakConceptRepository.recordOccurrence(userId, "재귀", Instant.parse("2026-01-01T00:00:00Z"));
+        entityManager.flush();
+        entityManager.clear();
+
+        Instant secondDetectedAt = Instant.parse("2026-01-02T00:00:00Z");
+
+        // when
+        weakConceptRepository.recordOccurrence(userId, "재귀", secondDetectedAt);
+
+        // then
+        WeakConcept found = weakConceptRepository.findByUserIdAndConceptTag(userId, "재귀").orElseThrow();
+        assertThat(found.getOccurrenceCount()).isEqualTo(2);
+        assertThat(found.getLastDetectedAt()).isEqualTo(secondDetectedAt);
+    }
+
+    /**
+     * PR #166 리뷰(용현님 P1) 대응 회귀 테스트 — 기존 find-then-branch-then-save 방식은
+     * 두 트랜잭션이 동시에 같은 (userId, conceptTag)를 최초 발견하면, 나중에 flush되는
+     * 쪽이 UNIQUE 위반으로 트랜잭션이 abort되고 그 안에서의 재조회 복구도 실패했다(같은
+     * 트랜잭션에서는 abort 이후 어떤 명령도 성공할 수 없음, PostgreSQL). 실제로 서로 다른
+     * 스레드(=서로 다른 커넥션·트랜잭션)에서 정확히 같은 (userId, conceptTag)를 동시에
+     * INSERT 시도해도, 원자적 upsert라 예외 없이 둘 다 성공하고 발견 횟수가 정확히 2로
+     * 반영되는지 검증한다.
+     */
+    @Test
+    @DisplayName("동시에 두 트랜잭션이 같은 (userId, conceptTag)를 최초 발견해도 예외 없이 둘 다 반영된다")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void recordOccurrence_isAtomicUnderConcurrentFirstDiscovery() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        String conceptTag = "동시성 테스트";
+        Instant detectedAt = Instant.now();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Callable<Void> task = () -> {
+            barrier.await(5, TimeUnit.SECONDS);
+            weakConceptRepository.recordOccurrence(userId, conceptTag, detectedAt);
+            return null;
+        };
+
+        // when — 두 스레드(=서로 다른 커넥션·트랜잭션)가 거의 동시에 같은 행을 최초 생성 시도
+        List<Future<Void>> futures = executor.invokeAll(List.of(task, task));
+        executor.shutdown();
+
+        // then — 어느 쪽도 예외 없이 끝나야 한다(둘 중 하나는 INSERT, 하나는 ON CONFLICT UPDATE)
+        for (Future<Void> future : futures) {
+            future.get(5, TimeUnit.SECONDS);
+        }
+
+        WeakConcept result = weakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag).orElseThrow();
+        assertThat(result.getOccurrenceCount()).isEqualTo(2);
     }
 }

@@ -138,8 +138,9 @@ class JudgeServiceAdapterTest {
         UUID submissionId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID problemId = UUID.randomUUID();
+        UUID problemVersionId = UUID.randomUUID();
         SubmissionDetailResponse data = new SubmissionDetailResponse(
-                submissionId, userId, problemId, "code", "WRONG",
+                submissionId, userId, problemId, problemVersionId, "code", "WRONG",
                 List.of(new SubmissionDetailResponse.FailedTestSummary(true, "WRONG_ANSWER")), 3
         );
         when(feignClient.getSubmission(submissionId))
@@ -149,6 +150,7 @@ class JudgeServiceAdapterTest {
 
         assertThat(snapshot.submissionId()).isEqualTo(submissionId);
         assertThat(snapshot.userId()).isEqualTo(userId);
+        assertThat(snapshot.problemVersionId()).isEqualTo(problemVersionId);
         assertThat(snapshot.isIncorrect()).isTrue();
     }
 

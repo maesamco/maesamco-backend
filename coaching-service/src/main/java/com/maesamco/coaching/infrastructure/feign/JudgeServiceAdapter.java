@@ -40,7 +40,7 @@ public class JudgeServiceAdapter implements JudgeServicePort {
                     .map(f -> new SubmissionSnapshot.FailedTest(f.isPublic(), f.errorType()))
                     .toList();
             return new SubmissionSnapshot(
-                    data.submissionId(), data.userId(), data.problemId(), data.code(),
+                    data.submissionId(), data.userId(), data.problemId(), data.problemVersionId(), data.code(),
                     data.result(), failedTests, data.attemptNo()
             );
         } catch (FeignException e) {

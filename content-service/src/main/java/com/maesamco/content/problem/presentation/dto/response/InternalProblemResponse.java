@@ -30,6 +30,33 @@ public class InternalProblemResponse {
             Problem problem,
             List<Tag> tags
     ) {
+        return new InternalProblemResponse(
+                problem.getId(),
+                problem.getDescription(),
+                conceptTagNames(tags)
+        );
+    }
+
+    /**
+     * 문제 버전 스냅샷과 태그 정보를 내부 서비스용 응답 DTO로 변환합니다.
+     *
+     * 개념 태그는 버전 스냅샷에 포함되지 않으므로(도메인 모델 한계),
+     * problemId 기준 현재 태그를 그대로 사용합니다 — 지문(description)만
+     * 제출 시점 버전 기준입니다.
+     */
+    public static InternalProblemResponse fromVersion(
+            UUID problemId,
+            String versionDescription,
+            List<Tag> tags
+    ) {
+        return new InternalProblemResponse(
+                problemId,
+                versionDescription,
+                conceptTagNames(tags)
+        );
+    }
+
+    private static List<String> conceptTagNames(List<Tag> tags) {
         List<String> conceptTags = new ArrayList<>();
 
         for (Tag tag : tags) {
@@ -38,10 +65,6 @@ public class InternalProblemResponse {
             }
         }
 
-        return new InternalProblemResponse(
-                problem.getId(),
-                problem.getDescription(),
-                conceptTags
-        );
+        return conceptTags;
     }
 }

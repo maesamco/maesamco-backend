@@ -45,7 +45,7 @@ class HintQueryServiceTest {
     }
 
     private SubmissionSnapshot submission(UUID id, UUID owner) {
-        return new SubmissionSnapshot(id, owner, problemId, "code", "WRONG", List.of(), 1);
+        return new SubmissionSnapshot(id, owner, problemId, UUID.randomUUID(),"code", "WRONG", List.of(), 1);
     }
 
     private CoachingSession persistedSession(UUID sessionSubmissionId) {

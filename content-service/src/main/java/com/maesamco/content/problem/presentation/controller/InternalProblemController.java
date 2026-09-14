@@ -30,4 +30,16 @@ public class InternalProblemController {
                 SuccessResponse.success(response)
         );
     }
+
+    /** 내부 서비스용 문제 버전 단건 조회 — 제출 시점 문제 버전 기준 조회가 필요한 호출자용(이슈 #178) */
+    @GetMapping("/problem-versions/{problemVersionId}")
+    public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblemVersion(
+            @PathVariable UUID problemVersionId
+    ) {
+        InternalProblemResponse response = problemInternalService.getProblemVersionMetaData(problemVersionId);
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(response)
+        );
+    }
 }

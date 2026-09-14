@@ -51,7 +51,7 @@ class ExplanationQueryServiceTest {
     }
 
     private SubmissionSnapshot submission(UUID owner) {
-        return new SubmissionSnapshot(submissionId, owner, problemId, "code", "CORRECT", List.of(), 1);
+        return new SubmissionSnapshot(submissionId, owner, problemId, UUID.randomUUID(),"code", "CORRECT", List.of(), 1);
     }
 
     private <T> T withId(T entity) {

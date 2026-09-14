@@ -98,7 +98,7 @@ class AiFeedbackRetryFacadeTest {
      */
     private void stubOwnedSession(CoachingSession session) {
         when(judgeServicePort.getSubmission(submissionId))
-                .thenReturn(new SubmissionSnapshot(submissionId, session.getUserId(), problemId, "code", "CORRECT", List.of(), 1));
+                .thenReturn(new SubmissionSnapshot(submissionId, session.getUserId(), problemId, UUID.randomUUID(),"code", "CORRECT", List.of(), 1));
         when(coachingSessionRepository.findByUserIdAndProblemId(session.getUserId(), problemId))
                 .thenReturn(Optional.of(session));
     }
@@ -149,7 +149,7 @@ class AiFeedbackRetryFacadeTest {
     @Test
     void 세션이_없으면_SUBMISSION_NOT_FOUND() {
         when(judgeServicePort.getSubmission(submissionId))
-                .thenReturn(new SubmissionSnapshot(submissionId, callerId, problemId, "code", "CORRECT", List.of(), 1));
+                .thenReturn(new SubmissionSnapshot(submissionId, callerId, problemId, UUID.randomUUID(),"code", "CORRECT", List.of(), 1));
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
@@ -163,7 +163,7 @@ class AiFeedbackRetryFacadeTest {
         // 소유권 검증이 Judge Service가 돌려준 실제 소유자로 이뤄지므로, 여기서는
         // findByUserIdAndProblemId까지 갈 일이 없다 — Judge 조회 단계에서 이미 거부된다.
         when(judgeServicePort.getSubmission(submissionId))
-                .thenReturn(new SubmissionSnapshot(submissionId, UUID.randomUUID(), problemId, "code", "CORRECT", List.of(), 1));
+                .thenReturn(new SubmissionSnapshot(submissionId, UUID.randomUUID(), problemId, UUID.randomUUID(),"code", "CORRECT", List.of(), 1));
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
