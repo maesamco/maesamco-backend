@@ -27,7 +27,7 @@ public class JudgeServiceFeignConfig {
             @Value("${spring.application.name}") String serviceName,
             @Value("${internal.hmac.outbound.judge-service}") String secretKeyForJudge
     ) {
-        return new HmacSigningFeignInterceptor(serviceName, secretKeyForJudge);
+        return new HmacSigningFeignInterceptor(serviceName, secretKeyForJudge, InternalApiPrefix.INTERNAL_API_PREFIX);
     }
 
     /**
