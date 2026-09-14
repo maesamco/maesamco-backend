@@ -1,7 +1,7 @@
 package com.maesamco.content.problem;
 
 import com.maesamco.content.global.config.JacksonConfig;
-import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
+import com.maesamco.content.presentation.problem.dto.request.ProblemUpdateRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
