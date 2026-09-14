@@ -23,6 +23,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Slf4j
 public class JudgeExecutionFacade {
 
+    private static final int SAVE_RETRY_MAX_ATTEMPTS = 3;
+    private static final long SAVE_RETRY_BACKOFF_MS = 200L;
+
     private final JudgeExecutionPersistenceService judgeExecutionPersistenceService;
     private final JudgeExecutionPort judgeExecutionPort;
     private final JsonMapper jsonMapper;
@@ -74,13 +77,39 @@ public class JudgeExecutionFacade {
         }
 
         try {
-            judgeExecutionPersistenceService.savePendingExecutions(submissionId, testCases, tokens);
+            savePendingExecutionsWithRetry(submissionId, testCases, tokens);
         } catch (Exception e) {
-            log.error("[Judge] 토큰 저장 단계 실패 — FAILED 처리. submissionId={}", submissionId, e);
-            handleRetryableFailureSafely(submissionId, FailureCode.RESULT_SAVE_FAILURE);
+            log.error("[Judge] 토큰 저장 단계에서 실패함 (재시도 {}회 소진) - Judge0 중복 제출 방지를 위해 재시도 스케쥴링 없이 FAILED 처리. "
+                    + "submissionId={}, tokens={}", SAVE_RETRY_MAX_ATTEMPTS, submissionId, tokens, e);
+            markFailedSafely(submissionId, FailureCode.RESULT_SAVE_FAILURE);
         }
     }
 
+    private void savePendingExecutionsWithRetry(UUID submissionId, List<ExecutionTestCase> testCases, List<String> tokens) {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= SAVE_RETRY_MAX_ATTEMPTS; attempt++) {
+            try {
+                judgeExecutionPersistenceService.savePendingExecutions(submissionId, testCases, tokens);
+                return;
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("[Judge] 토큰 저장 실패 — 재시도 {}/{}. submissionId={}",
+                        attempt, SAVE_RETRY_MAX_ATTEMPTS, submissionId, e);
+                if (attempt < SAVE_RETRY_MAX_ATTEMPTS) {
+                    sleepBeforeRetry(attempt);
+                }
+            }
+        }
+        throw new IllegalStateException("토큰 저장 재시도 소진. submissionId=" + submissionId, lastException);
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(SAVE_RETRY_BACKOFF_MS * attempt);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     private void markFailedSafely(UUID submissionId, FailureCode failureCode) {
         try {

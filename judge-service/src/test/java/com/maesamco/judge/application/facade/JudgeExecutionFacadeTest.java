@@ -6,9 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 import com.maesamco.judge.application.command.ExecutionTestCase;
 import com.maesamco.judge.application.persistence_service.JudgeExecutionPersistenceService;
@@ -172,8 +170,8 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("토큰 저장이 실패하면 예외를 전파하지 않고 RESULT_SAVE_FAILURE로 FAILED 처리한다")
-        void marksFailedWhenSavePendingExecutionsThrows() {
+        @DisplayName("토큰 저장이 계속 실패하면 재시도(3회) 소진 후 재시도 큐에 태우지 않고 RESULT_SAVE_FAILURE로 FAILED 처리한다")
+        void marksFailedWithoutRetryQueueWhenSavePendingExecutionsKeepsFailing() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
                     new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1)
@@ -190,7 +188,38 @@ class JudgeExecutionFacadeTest {
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
-            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.RESULT_SAVE_FAILURE);        }
+            verify(judgeExecutionPersistenceService, times(3))
+                    .savePendingExecutions(eq(submissionId), any(), eq(List.of("token-1")));
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.RESULT_SAVE_FAILURE);
+            verify(judgeExecutionPersistenceService, never())
+                    .handleRetryableFailure(any(), eq(FailureCode.RESULT_SAVE_FAILURE));
+        }
+
+        @Test
+        @DisplayName("토큰 저장이 재시도 중 성공하면 FAILED 처리하지 않는다")
+        void doesNotMarkFailedWhenSavePendingExecutionsSucceedsOnRetry() {
+            UUID submissionId = UUID.randomUUID();
+            String testCasesJson = jsonMapper.writeValueAsString(List.of(
+                    new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1)
+            ));
+            ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
+            JudgeExecutionPreparation preparation =
+                    new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willReturn(Optional.of(preparation));
+            given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
+            doThrow(new RuntimeException("DB 저장 실패 1회차"))
+                    .doNothing()
+                    .when(judgeExecutionPersistenceService)
+                    .savePendingExecutions(any(), any(), any());
+
+            judgeExecutionFacade.execute(submissionId);
+
+            verify(judgeExecutionPersistenceService, times(2))
+                    .savePendingExecutions(eq(submissionId), any(), eq(List.of("token-1")));
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+        }
 
         @Test
         @DisplayName("FAILED 처리 자체가 실패해도 예외를 전파하지 않는다")
