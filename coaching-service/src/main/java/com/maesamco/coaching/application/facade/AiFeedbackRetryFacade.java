@@ -1,6 +1,8 @@
 package com.maesamco.coaching.application.facade;
 
 import com.maesamco.coaching.application.port.AiFeedbackRetryLockPort;
+import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
@@ -61,6 +63,7 @@ public class AiFeedbackRetryFacade {
     // 클래스라 여기서만 값을 관리한다.
     public static final long MAX_ATTEMPTS = MAX_RETRY_COUNT + 1L;
 
+    private final JudgeServicePort judgeServicePort;
     private final CoachingSessionRepository coachingSessionRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
     private final AiCallHistoryRepository aiCallHistoryRepository;
@@ -71,6 +74,7 @@ public class AiFeedbackRetryFacade {
     private final AiFeedbackRetryLockPort aiFeedbackRetryLockPort;
 
     public AiFeedbackRetryFacade(
+            JudgeServicePort judgeServicePort,
             CoachingSessionRepository coachingSessionRepository,
             AiFeedbackRepository aiFeedbackRepository,
             AiCallHistoryRepository aiCallHistoryRepository,
@@ -80,6 +84,7 @@ public class AiFeedbackRetryFacade {
             FeedbackGenerationFacade feedbackGenerationFacade,
             AiFeedbackRetryLockPort aiFeedbackRetryLockPort
     ) {
+        this.judgeServicePort = judgeServicePort;
         this.coachingSessionRepository = coachingSessionRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.aiCallHistoryRepository = aiCallHistoryRepository;
@@ -90,12 +95,22 @@ public class AiFeedbackRetryFacade {
         this.aiFeedbackRetryLockPort = aiFeedbackRetryLockPort;
     }
 
+    /**
+     * PR #164 리뷰(용현님 P1) 대응 — AiFeedbackQueryService.findOwnedSession()과 동일한
+     * 이유로 CoachingSession.getSubmissionId()가 아니라 Judge Service가 돌려준
+     * (userId, problemId)로 세션을 찾는다. submission_id는 재도전마다 갈아타는 가변
+     * 필드라(이슈 #84), 그 값을 조회 키로 쓰면 재도전 이후 예전 submissionId로는 세션을
+     * 찾을 수 없게 된다(완전히 같은 메커니즘의 버그가 이슈 #165에서 실제로 재현됨).
+     */
     public AiFeedback retryFeedback(UUID submissionId, UUID callerId) {
-        CoachingSession session = coachingSessionRepository.findBySubmissionId(submissionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
-        if (!session.getUserId().equals(callerId)) {
+        SubmissionSnapshot submission = judgeServicePort.getSubmission(submissionId);
+        if (!submission.userId().equals(callerId)) {
             throw new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND);
         }
+
+        CoachingSession session = coachingSessionRepository
+                .findByUserIdAndProblemId(submission.userId(), submission.problemId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
         // 자가 리뷰(P1) — 세션이 아직 완료 전이면 completedAt이 null이라
         // findCompletionExplanation()의 Duration.between()에서 NPE가 난다. 완료 전이면

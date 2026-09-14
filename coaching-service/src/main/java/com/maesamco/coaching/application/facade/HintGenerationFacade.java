@@ -33,6 +33,15 @@ import java.util.stream.Collectors;
  * 태그를 프롬프트에 포함하지 못해 힌트 품질이 떨어질 수 있고, attemptNo >= 8일 때 개념
  * 태그로 WeakConcept를 자동 기록하는 로직도 이 이슈가 풀리기 전까지는 구현할 수 없다
  * (skipAvailable 계산 자체는 Judge의 attemptNo만 있으면 되므로 이미 반영돼 있다).
+ *
+ * 이슈 #148 — 코칭 세션이 이미 COMPLETED면 새 힌트를 생성하지 않는다. 같은 문제를 다른
+ * 접근으로 재도전하는 것 자체(이슈 #84 결정 2)는 막지 않지만, 이미 한 번 끝까지 힌트를
+ * 다 보여준 세션에서 재도전 오답마다 다시 1~4단계를 새로 생성해주면 "몇 번째 재도전
+ * 사이클인지"를 구분할 별도 마커가 있어야 한다 — completedAt은 최초 완료 시점 이후로는
+ * 다시 갱신되지 않기 때문이다(completeSessionIfNeeded()가 이미 COMPLETED인 세션의 재완료
+ * 호출을 그대로 건너뜀). 재도전 시 이전에 생성된 힌트를 조회하는 것 자체는
+ * HintQueryService가 COMPLETED 여부와 무관하게 이미 허용하고 있으므로, 힌트로 도움받고
+ * 싶으면 그 이력을 참고하도록 한다.
  */
 @Slf4j
 @Component
@@ -79,7 +88,32 @@ public class HintGenerationFacade {
             throw new BusinessException(ErrorCode.HINT_NOT_ALLOWED);
         }
 
+        // 이슈 #148 — 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지
+        // 않는다. 재도전 자체는 여전히 허용되고, 이전 힌트 조회(HintQueryService)도 그대로
+        // 열려 있다.
+        //
+        // PR #164 리뷰(용현님 P1) — 이 완료 검사는 findOrCreate() 호출 *전에* 한다.
+        // findOrCreate()가 내부적으로 advanceToSubmission()+save()를 수행해서
+        // submission_id를 갈아태우는데, 이걸 먼저 하고 나서 완료 여부로 거부하면 요청은
+        // 실패해도 DB의 submission_id는 이미 바뀐 뒤다 — AiFeedbackQueryService/
+        // AiFeedbackRetryFacade가 그 submission_id로 세션을 조회하므로, 존재하는 피드백을
+        // 옛 submission_id로 더 이상 찾을 수 없게 되는 회귀가 생긴다.
+        //
+        // TODO(#148): 재도전마다 새로 1~4단계 힌트를 생성해주는 방향(사이클마다 완전히
+        // 새로 도와주기)도 검토했으나 지금은 채택하지 않았다 — 나중에 "재도전인데 힌트를
+        // 하나도 못 받는 게 UX상 불편하다"는 피드백이 나오거나, 힌트 생성에 포인트·에너지
+        // 등 소비 자원을 걸어서 "제한된 자원을 어떻게 쓸지는 사용자가 결정"하는 기능이
+        // 추가되면 재검토할 만하다. 그때는 completedAt만으로는 몇 번째 재도전 사이클인지
+        // 구분이 안 되므로(completeSessionIfNeeded()가 재완료 시 completedAt을 갱신 안 함)
+        // 사이클 경계를 나타낼 별도 마커가 같이 필요하다.
+        Optional<CoachingSession> existingSession =
+                coachingSessionFinder.find(submission.userId(), submission.problemId());
+        if (existingSession.isPresent() && existingSession.get().isCompleted()) {
+            throw new BusinessException(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
+        }
+
         CoachingSession session = coachingSessionFinder.findOrCreate(submission);
+
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
         // TODO(#62): skipAvailable == true일 때 문제의 개념 태그로 WeakConcept를 자동

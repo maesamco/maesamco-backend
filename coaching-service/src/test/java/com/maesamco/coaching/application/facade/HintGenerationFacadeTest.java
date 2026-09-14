@@ -366,11 +366,51 @@ class HintGenerationFacadeTest {
         verify(hintRepository, never()).save(any());
     }
 
+    /**
+     * 이슈 #148 — 이미 완료된 세션에서는 재도전 오답이 들어와도 새 힌트를 생성하지 않는다.
+     * 완료 이전에 1~4단계 중 몇 단계까지 썼는지(한도가 남았는지)는 무관하다 — 이 검증은
+     * existingHints/maxStage를 조회하기도 전에 세션 상태만으로 즉시 막는다.
+     *
+     * PR #164 리뷰(용현님 P1) 대응 — 이 차단은 findOrCreate() 호출 *전에* 일어나야 한다.
+     * 예전엔 findOrCreate()가 먼저 실행돼 submission_id를 새 제출로 갈아태운 뒤에야
+     * 거부해서, 요청은 실패해도 DB의 submission_id는 이미 바뀌어 있었다(그 결과
+     * AiFeedbackQueryService/AiFeedbackRetryFacade가 예전 submissionId로 세션을 더 이상
+     * 찾을 수 없게 되는 회귀가 있었다). 지금은 findOrCreate() 자체가 아예 호출되지 않아야
+     * 하므로, 재도전 오답이 들어와도 세션의 submission_id는 원래 값 그대로 유지돼야 한다.
+     */
+    @Test
+    void 이미_완료된_세션에_재도전_오답이_들어오면_힌트_한도가_남아있어도_힌트를_생성하지_않는다() {
+        UUID retrySubmissionId = UUID.randomUUID();
+        SubmissionSnapshot retrySubmission = new SubmissionSnapshot(retrySubmissionId, callerId, problemId, "code", "WRONG", List.of(), 2);
+        when(judgeServicePort.getSubmission(retrySubmissionId)).thenReturn(retrySubmission);
+        CoachingSession completedSession = persistedSession();
+        completedSession.complete();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(completedSession));
+
+        assertThatThrownBy(() -> facade.requestHint(retrySubmissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_COMPLETED);
+
+        // findOrCreate()가 아예 호출되지 않으므로 submission_id는 원래 값 그대로 유지된다.
+        assertThat(completedSession.getSubmissionId()).isEqualTo(submissionId);
+        verify(coachingSessionRepository, never()).save(any());
+        verify(hintRepository, never()).findByCoachingSessionId(any());
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintRepository, never()).save(any());
+    }
+
     @Test
     void 동시_요청으로_세션이_이미_생성됐으면_그_세션을_다시_조회해서_사용한다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession racedSession = persistedSession();
+        // PR #164 리뷰(용현님 P1) 대응으로 requestHint()가 findOrCreate() 전에 완료 여부만
+        // 먼저 조회하는 find()를 한 번 더 호출하게 되면서, 같은 findByUserIdAndProblemId에
+        // 총 3번 걸리게 됐다 — ①find(): 아직 없음(완료된 세션 아님, 통과) ②findOrCreate()의
+        // 최초 조회: 여전히 없음(경합 시뮬레이션) → save() 시도 → ALREADY_EXISTS
+        // ③catch 블록의 재조회: 방금 다른 트랜잭션이 만든 세션.
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId))
+                .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(racedSession));
         when(coachingSessionRepository.save(any()))
