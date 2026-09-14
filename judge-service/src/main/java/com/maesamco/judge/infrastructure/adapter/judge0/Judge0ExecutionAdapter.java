@@ -83,7 +83,6 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
 
         return response.submissions().stream()
                 .map(this::toDomainResultSafely)
-                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 
@@ -114,9 +113,11 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
         try {
             return toDomainResult(result);
         } catch (Exception e) {
-            log.error("[Judge] Judge0 결과 파싱 실패 — 이 건만 스킵하고 다음 폴링에서 재시도. token={}",
-                    result.token(), e);
-            return null;
+            log.error("[Judge] Judge0 결과 파싱 실패 — 인프라 오류로 명시 처리. token={}", result.token(), e);
+            return new JudgeExecutionResult(
+                    result.token(),
+                    JudgeExecutionStatus.INTERNAL_ERROR,
+                    null, null, null, null, null);
         }
     }
 

@@ -118,8 +118,9 @@ class Judge0ExecutionAdapterTest {
         }
 
         @Test
-        @DisplayName("한 토큰의 status 필드가 없어 파싱 중 예외가 나도, 나머지 토큰의 결과는 정상적으로 반환된다")
-        void skipsOnlyTheItemThatFailsToParse() {
+        @DisplayName("한 토큰의 status 필드가 없어 파싱 중 예외가 나도, "
+                + "그 토큰은 사라지지 않고 INTERNAL_ERROR 결과로 반환된다")
+        void returnsInternalErrorForItemThatFailsToParse() {
             // given
             String validStdout = Base64.getEncoder().encodeToString("3".getBytes());
             String body = "{"
@@ -139,10 +140,18 @@ class Judge0ExecutionAdapterTest {
             // when
             List<JudgeExecutionResult> results = adapter.fetchResults(List.of("tok-ok", "tok-bad"));
 
-            // then
-            assertThat(results).hasSize(1);
-            assertThat(results.get(0).token()).isEqualTo("tok-ok");
-            assertThat(results.get(0).stdout()).isEqualTo("3");
+            // then — 두 건 다 살아남아야 함 (파싱 실패한 건도 사라지지 않음)
+            assertThat(results).hasSize(2);
+
+            JudgeExecutionResult ok = results.stream()
+                    .filter(r -> r.token().equals("tok-ok")).findFirst().orElseThrow();
+            assertThat(ok.stdout()).isEqualTo("3");
+            assertThat(ok.status()).isEqualTo(com.maesamco.judge.application.port.JudgeExecutionStatus.ACCEPTED);
+
+            JudgeExecutionResult bad = results.stream()
+                    .filter(r -> r.token().equals("tok-bad")).findFirst().orElseThrow();
+            assertThat(bad.status()).isEqualTo(com.maesamco.judge.application.port.JudgeExecutionStatus.INTERNAL_ERROR);
+            assertThat(bad.stdout()).isNull();
         }
     }
 }
