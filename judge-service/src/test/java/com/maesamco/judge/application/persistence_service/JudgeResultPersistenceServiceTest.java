@@ -101,13 +101,13 @@ class JudgeResultPersistenceServiceTest {
                     "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
 
             SubmissionTestResult wrongAnswer = SubmissionTestResult.create(
-                    submissionId, UUID.randomUUID(), true, false, "-1", SubmissionTestErrorType.WRONG_ANSWER);
+                    submissionId, UUID.randomUUID(), true, false, "-1", SubmissionTestErrorType.WRONG_ANSWER, 120, 2048);
             SubmissionTestResult runtimeError = SubmissionTestResult.create(
-                    submissionId, UUID.randomUUID(), false, false, null, SubmissionTestErrorType.RUNTIME_ERROR);
+                    submissionId, UUID.randomUUID(), false, false, null, SubmissionTestErrorType.RUNTIME_ERROR, 80, 4096);
 
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
                     .willReturn(List.of(wrongAnswer, runtimeError));
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -117,6 +117,8 @@ class JudgeResultPersistenceServiceTest {
             // then
             assertThat(submission.getResult()).isEqualTo(SubmissionResult.RUNTIME_ERROR);
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.COMPLETED);
+            assertThat(submission.getExecutionTimeMs()).isEqualTo(120);
+            assertThat(submission.getMemoryUsedKb()).isEqualTo(4096);
             verify(submissionRepository).save(submission);
 
             ArgumentCaptor<SubmissionEventOutbox> outboxCaptor = ArgumentCaptor.forClass(SubmissionEventOutbox.class);
@@ -138,11 +140,11 @@ class JudgeResultPersistenceServiceTest {
                     "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
 
             SubmissionTestResult memoryExceeded = SubmissionTestResult.create(
-                    submissionId, UUID.randomUUID(), true, false, null, SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED);
+                    submissionId, UUID.randomUUID(), true, false, null, SubmissionTestErrorType.MEMORY_LIMIT_EXCEEDED, 90, 3072);
 
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
                     .willReturn(List.of(memoryExceeded));
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -278,6 +280,114 @@ class JudgeResultPersistenceServiceTest {
             verify(pendingJudge0ExecutionRepository).deleteAll(List.of(pending));
             verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
             verify(submissionTestResultRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("reflectResult — 제출 단위 실행시간/메모리 집계")
+    class ExecutionMetrics {
+
+        @Test
+        @DisplayName("테스트케이스별 실행시간이 다르면 그중 최댓값을 제출의 실행시간으로 저장한다")
+        void storesMaxExecutionTimeAcrossTestCases() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+            PendingJudge0Execution lastPending =
+                    PendingJudge0Execution.create(submissionId, UUID.randomUUID(), "token-last", true);
+            JudgeExecutionResult lastResult = new JudgeExecutionResult(
+                    "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
+
+            SubmissionTestResult fast = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 50, 1024);
+            SubmissionTestResult slow = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 480, 2048);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(fast, slow));
+
+            judgeResultPersistenceService.reflectResult(lastPending, lastResult);
+
+            assertThat(submission.getExecutionTimeMs()).isEqualTo(480);
+        }
+
+        @Test
+        @DisplayName("테스트케이스별 메모리 사용량이 다르면 그중 최댓값을 제출의 메모리 사용량으로 저장한다")
+        void storesMaxMemoryUsedAcrossTestCases() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+            PendingJudge0Execution lastPending =
+                    PendingJudge0Execution.create(submissionId, UUID.randomUUID(), "token-last", true);
+            JudgeExecutionResult lastResult = new JudgeExecutionResult(
+                    "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
+
+            SubmissionTestResult light = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 100, 1024);
+            SubmissionTestResult heavy = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 100, 8192);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(light, heavy));
+
+            judgeResultPersistenceService.reflectResult(lastPending, lastResult);
+
+            assertThat(submission.getMemoryUsedKb()).isEqualTo(8192);
+        }
+
+        @Test
+        @DisplayName("결과 처리 순서가 달라도(어떤 결과가 마지막에 도착해 allDone을 트리거하든) 동일한 제출 지표가 저장된다")
+        void storesSameMetricsRegardlessOfProcessingOrder() {
+            UUID submissionIdA = UUID.randomUUID();
+            Submission submissionA = runningSubmission(submissionIdA);
+            UUID submissionIdB = UUID.randomUUID();
+            Submission submissionB = runningSubmission(submissionIdB);
+
+            // 시나리오 A — 마지막에 도착해 트리거하는 건이 실행시간이 긴 쪽(Y)
+            SubmissionTestResult x1 = SubmissionTestResult.create(
+                    submissionIdA, UUID.randomUUID(), true, true, "3", null, 100, 2048);
+            SubmissionTestResult y1 = SubmissionTestResult.create(
+                    submissionIdA, UUID.randomUUID(), true, true, "3", null, 300, 1024);
+            PendingJudge0Execution triggerByY =
+                    PendingJudge0Execution.create(submissionIdA, UUID.randomUUID(), "token-y", true);
+            JudgeExecutionResult resultOfY = new JudgeExecutionResult(
+                    "token-y", JudgeExecutionStatus.ACCEPTED, "3", null, null, 300L, 1024);
+
+            given(submissionRepository.findById(submissionIdA)).willReturn(Optional.of(submissionA));
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionIdA))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionId(submissionIdA))
+                    .willReturn(List.of(x1, y1));
+
+            judgeResultPersistenceService.reflectResult(triggerByY, resultOfY);
+
+            // 시나리오 B — 동일한 결과 집합이지만, 마지막에 도착해 트리거하는 건이 실행시간이 짧은 쪽(X)
+            SubmissionTestResult x2 = SubmissionTestResult.create(
+                    submissionIdB, UUID.randomUUID(), true, true, "3", null, 100, 2048);
+            SubmissionTestResult y2 = SubmissionTestResult.create(
+                    submissionIdB, UUID.randomUUID(), true, true, "3", null, 300, 1024);
+            PendingJudge0Execution triggerByX =
+                    PendingJudge0Execution.create(submissionIdB, UUID.randomUUID(), "token-x", true);
+            JudgeExecutionResult resultOfX = new JudgeExecutionResult(
+                    "token-x", JudgeExecutionStatus.ACCEPTED, "3", null, null, 100L, 2048);
+
+            given(submissionRepository.findById(submissionIdB)).willReturn(Optional.of(submissionB));
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionIdB))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionId(submissionIdB))
+                    .willReturn(List.of(x2, y2));
+
+            judgeResultPersistenceService.reflectResult(triggerByX, resultOfX);
+
+            // then — 트리거가 된 "마지막 결과"가 무엇이든, 저장된 집계 지표는 동일해야 함
+            assertThat(submissionA.getExecutionTimeMs()).isEqualTo(submissionB.getExecutionTimeMs());
+            assertThat(submissionA.getMemoryUsedKb()).isEqualTo(submissionB.getMemoryUsedKb());
+            assertThat(submissionA.getExecutionTimeMs()).isEqualTo(300);
+            assertThat(submissionA.getMemoryUsedKb()).isEqualTo(2048);
         }
     }
 }

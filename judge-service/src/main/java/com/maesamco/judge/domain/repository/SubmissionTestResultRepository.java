@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SubmissionTestResultRepository extends JpaRepository<SubmissionTestResult, UUID> {
 
     List<SubmissionTestResult> findBySubmissionIdAndPassedFalse(UUID submissionId);
+
+    List<SubmissionTestResult> findBySubmissionId(UUID submissionId);
 }

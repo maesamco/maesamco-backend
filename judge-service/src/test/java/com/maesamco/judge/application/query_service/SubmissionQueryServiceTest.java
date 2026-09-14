@@ -69,7 +69,8 @@ class SubmissionQueryServiceTest {
             submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
 
             SubmissionTestResult failed = SubmissionTestResult.create(
-                    submissionId, UUID.randomUUID(), true, false, "expected", null);
+                    submissionId, UUID.randomUUID(), true, false, "expected", null,
+                    null, null);
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))

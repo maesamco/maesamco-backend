@@ -66,7 +66,9 @@ public class JudgeResultPersistenceService {
             // 남은 pending 건 전부 정리하고 즉시 COMPILE_ERROR로 종료.
             pendingJudge0ExecutionRepository.deleteAll(
                     pendingJudge0ExecutionRepository.findAllBySubmissionId(pending.getSubmissionId()));
-            completeSubmissionWithResult(submission, SubmissionResult.COMPILE_ERROR, result);
+            int executionTimeMs = result.executionTimeMs() != null ? result.executionTimeMs().intValue() : 0;
+            int memoryUsedKb = result.memoryUsedKb() != null ? result.memoryUsedKb() : 0;
+            completeSubmissionWithResult(submission, SubmissionResult.COMPILE_ERROR, executionTimeMs, memoryUsedKb);
             return;
         }
 
@@ -100,8 +102,10 @@ public class JudgeResultPersistenceService {
             }
         }
 
+        Integer executionTimeMs = result.executionTimeMs() != null ? result.executionTimeMs().intValue() : null;
         SubmissionTestResult testResult = SubmissionTestResult.create(
-                pending.getSubmissionId(), pending.getTestCaseId(), pending.isPublic(), passed, result.stdout(), errorType);
+                pending.getSubmissionId(), pending.getTestCaseId(), pending.isPublic(), passed, result.stdout(), errorType,
+                executionTimeMs, result.memoryUsedKb());
         submissionTestResultRepository.save(testResult);
         pendingJudge0ExecutionRepository.delete(pending);
 
@@ -110,12 +114,16 @@ public class JudgeResultPersistenceService {
                 .isEmpty();
 
         if (allDone) {
-            List<SubmissionTestResult> failed =
-                    submissionTestResultRepository.findBySubmissionIdAndPassedFalse(pending.getSubmissionId());
+            List<SubmissionTestResult> allResults =
+                    submissionTestResultRepository.findBySubmissionId(pending.getSubmissionId());
+            List<SubmissionTestResult> failed = allResults.stream().filter(r -> !r.isPassed()).toList();
             SubmissionResult overallResult = failed.isEmpty()
                     ? SubmissionResult.CORRECT
                     : toSubmissionResult(pickMostSevere(failed));
-            completeSubmissionWithResult(submission, overallResult, result);
+
+            int maxExecutionTimeMs = maxOrZero(allResults, SubmissionTestResult::getExecutionTimeMs);
+            int maxMemoryUsedKb = maxOrZero(allResults, SubmissionTestResult::getMemoryUsedKb);
+            completeSubmissionWithResult(submission, overallResult, maxExecutionTimeMs, maxMemoryUsedKb);
         }
     }
 
@@ -150,11 +158,9 @@ public class JudgeResultPersistenceService {
         return result.memoryUsedKb() > spec.getMemoryLimitMb() * KB_PER_MB;
     }
 
-    private void completeSubmissionWithResult(Submission submission, SubmissionResult overallResult, JudgeExecutionResult lastResult) {
+    private void completeSubmissionWithResult(Submission submission, SubmissionResult overallResult,
+                                              int executionTimeMs, int memoryUsedKb) {
         // reflectResult()가 진입 시점에 이미 terminal 여부를 확인했으므로 여기서는 별도 가드 없이 진행.
-        int executionTimeMs = lastResult.executionTimeMs() != null ? lastResult.executionTimeMs().intValue() : 0;
-        int memoryUsedKb = lastResult.memoryUsedKb() != null ? lastResult.memoryUsedKb() : 0;
-
         submission.markCompleted(overallResult, executionTimeMs, memoryUsedKb);
         submissionRepository.save(submission);
 
@@ -221,5 +227,13 @@ public class JudgeResultPersistenceService {
                     submission.getId(), submission.getUserId(), submission.getProblemId(),
                     SubmissionStatus.COMPLETED.name(), overallResult.name());
         }
+    }
+
+    private int maxOrZero(List<SubmissionTestResult> results, java.util.function.Function<SubmissionTestResult, Integer> extractor) {
+        return results.stream()
+                .map(extractor)
+                .filter(Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0);
     }
 }
