@@ -1,6 +1,8 @@
 package com.maesamco.coaching.application.query_service;
 
 import com.maesamco.coaching.application.facade.AiFeedbackRetryFacade;
+import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
@@ -18,23 +20,30 @@ import java.util.UUID;
  * AI 종합 피드백 조회(코칭 서비스 API 명세 6번 API, 이슈 #52) — 외부 호출 없이 DB 조회만
  * 하므로 Facade가 아니라 QueryService로 둔다(팀 컨벤션 2절).
  *
- * IDOR 소유권 검증을 ExplanationQueryService처럼 Judge Service 호출로 하지 않고
- * CoachingSession.getUserId()로 한다 — AiFeedback은 CoachingSession을 거쳐야만
- * 조회되므로(coachingSessionId만 갖고 submissionId는 없음) 그 과정에서 이미 userId를
- * 공짜로 얻는다. Judge Service 호출을 하나 줄이는 정당한 단순화다.
+ * PR #164 리뷰(용현님 P1) 대응 — 원래는 Judge Service 호출 없이 CoachingSession의
+ * submission_id로 직접 세션을 찾았다("Judge Service 호출을 하나 줄이는 정당한 단순화").
+ * 하지만 submission_id는 재도전마다 갈아타는 가변 필드라(이슈 #84), 재도전으로 그 값이
+ * 바뀐 뒤에는 예전 submissionId로 더 이상 같은 세션(과 피드백)을 찾을 수 없었다 — 완전히
+ * 같은 메커니즘의 버그가 HintQueryService에서 실제로 재현된 적이 있다(이슈 #165, 멀티탭/
+ * 멀티기기에서 "힌트가 사라졌다"는 혼란). 피드백도 힌트와 마찬가지로 특정 제출 1건이
+ * 아니라 세션 전체에 귀속되는 데이터이므로, HintQueryService와 동일하게 Judge Service로
+ * 조회한 (userId, problemId) 기준으로 세션을 찾도록 통일한다.
  */
 @Service
 public class AiFeedbackQueryService {
 
+    private final JudgeServicePort judgeServicePort;
     private final CoachingSessionRepository coachingSessionRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
     private final AiCallHistoryRepository aiCallHistoryRepository;
 
     public AiFeedbackQueryService(
+            JudgeServicePort judgeServicePort,
             CoachingSessionRepository coachingSessionRepository,
             AiFeedbackRepository aiFeedbackRepository,
             AiCallHistoryRepository aiCallHistoryRepository
     ) {
+        this.judgeServicePort = judgeServicePort;
         this.coachingSessionRepository = coachingSessionRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.aiCallHistoryRepository = aiCallHistoryRepository;
@@ -72,15 +81,19 @@ public class AiFeedbackQueryService {
      * AiFeedbackRetryFacade도 동일한 체크가 필요하지만, 컨트롤러의 requireAuthenticated()처럼
      * 클래스마다 자체적으로 갖는 관례를 따라 별도로 중복 구현한다(둘을 하나로 묶으면 서로
      * 다른 계층 성격의 클래스가 얽히게 된다).
+     *
+     * HintQueryService.getHints()와 동일한 이유로 CoachingSession.getSubmissionId()가
+     * 아니라 Judge Service가 돌려준 (userId, problemId)로 세션을 찾는다 — 소유권도 세션에
+     * 저장된 값이 아니라 Judge Service가 확인한 실제 제출 소유자로 검증한다.
      */
     private CoachingSession findOwnedSession(UUID submissionId, UUID callerId) {
-        CoachingSession session = coachingSessionRepository.findBySubmissionId(submissionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+        SubmissionSnapshot submission = judgeServicePort.getSubmission(submissionId);
 
-        if (!session.getUserId().equals(callerId)) {
+        if (!submission.userId().equals(callerId)) {
             throw new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND);
         }
 
-        return session;
+        return coachingSessionRepository.findByUserIdAndProblemId(submission.userId(), submission.problemId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
     }
 }

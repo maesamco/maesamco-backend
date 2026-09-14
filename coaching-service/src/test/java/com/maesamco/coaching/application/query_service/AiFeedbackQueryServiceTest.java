@@ -1,6 +1,8 @@
 package com.maesamco.coaching.application.query_service;
 
 import com.maesamco.coaching.application.facade.AiFeedbackRetryFacade;
+import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
 import com.maesamco.coaching.domain.entity.CoachingSession;
@@ -32,6 +34,8 @@ class AiFeedbackQueryServiceTest {
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     @Mock
+    private JudgeServicePort judgeServicePort;
+    @Mock
     private CoachingSessionRepository coachingSessionRepository;
     @Mock
     private AiFeedbackRepository aiFeedbackRepository;
@@ -46,7 +50,13 @@ class AiFeedbackQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        queryService = new AiFeedbackQueryService(coachingSessionRepository, aiFeedbackRepository, aiCallHistoryRepository);
+        queryService = new AiFeedbackQueryService(
+                judgeServicePort, coachingSessionRepository, aiFeedbackRepository, aiCallHistoryRepository
+        );
+    }
+
+    private SubmissionSnapshot submission(UUID owner) {
+        return new SubmissionSnapshot(submissionId, owner, problemId, "code", "CORRECT", java.util.List.of(), 1);
     }
 
     /** 완료된 세션 — 대부분의 테스트가 "완료 이후" 시나리오(피드백 있음/없음)를 다룬다. */
@@ -71,7 +81,8 @@ class AiFeedbackQueryServiceTest {
 
     @Test
     void 세션_자체가_없으면_SUBMISSION_NOT_FOUND() {
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.empty());
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -81,8 +92,7 @@ class AiFeedbackQueryServiceTest {
 
     @Test
     void 본인_소유가_아닌_세션이면_SUBMISSION_NOT_FOUND() {
-        when(coachingSessionRepository.findBySubmissionId(submissionId))
-                .thenReturn(Optional.of(session(UUID.randomUUID())));
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(UUID.randomUUID()));
 
         assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -93,7 +103,8 @@ class AiFeedbackQueryServiceTest {
     @Test
     void 본인_세션이지만_피드백이_아직_없으면_AI_FEEDBACK_NOT_FOUND() {
         CoachingSession session = session(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
         when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
                 .thenReturn(1L);
@@ -108,7 +119,8 @@ class AiFeedbackQueryServiceTest {
     @Test
     void 세션이_아직_완료되지_않았으면_AI_FEEDBACK_NOT_STARTED() {
         CoachingSession session = inProgressSession(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> queryService.getFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -120,7 +132,8 @@ class AiFeedbackQueryServiceTest {
     @Test
     void 재시도_예산이_소진됐으면_AI_FEEDBACK_RETRY_LIMIT_EXCEEDED() {
         CoachingSession session = session(callerId);
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
         when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
                 .thenReturn(AiFeedbackRetryFacade.MAX_ATTEMPTS);
@@ -135,11 +148,35 @@ class AiFeedbackQueryServiceTest {
     void 정상_조회() {
         CoachingSession session = session(callerId);
         AiFeedback feedback = feedback(session.getId());
-        when(coachingSessionRepository.findBySubmissionId(submissionId)).thenReturn(Optional.of(session));
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
         when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.of(feedback));
 
         AiFeedback result = queryService.getFeedback(submissionId, callerId);
 
         assertThat(result).isSameAs(feedback);
+    }
+
+    /**
+     * PR #164 리뷰(용현님 P1) 대응 회귀 테스트 — 세션의 submission_id가 재도전으로 다른
+     * 값으로 갈아탄 뒤에도, 예전 submissionId로 피드백을 여전히 찾을 수 있어야 한다.
+     * (userId, problemId) 기준으로 세션을 찾으므로 session.getSubmissionId()가 지금
+     * 무엇이든 영향받지 않는다.
+     */
+    @Test
+    void 세션의_submissionId가_재도전으로_갈아타도_예전_submissionId로_피드백_조회가_유지된다() {
+        CoachingSession session = session(callerId);
+        AiFeedback feedback = feedback(session.getId());
+        UUID newerSubmissionId = UUID.randomUUID();
+        session.advanceToSubmission(newerSubmissionId, 2);
+
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(submission(callerId));
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(session));
+        when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.of(feedback));
+
+        AiFeedback result = queryService.getFeedback(submissionId, callerId);
+
+        assertThat(result).isSameAs(feedback);
+        assertThat(session.getSubmissionId()).isEqualTo(newerSubmissionId);
     }
 }
