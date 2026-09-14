@@ -2,9 +2,6 @@ package com.maesamco.coaching.global.security.hmac;
 
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
-import com.maesamco.coaching.global.security.AllowedInternalCallers;
-import com.maesamco.coaching.global.security.InternalCallHeaders;
-import com.maesamco.coaching.global.security.InternalCallerAuthorizationInterceptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

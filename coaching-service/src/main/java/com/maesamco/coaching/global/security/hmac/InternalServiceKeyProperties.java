@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security;
+package com.maesamco.coaching.global.security.hmac;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

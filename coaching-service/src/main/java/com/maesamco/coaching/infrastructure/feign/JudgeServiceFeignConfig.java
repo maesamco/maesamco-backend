@@ -1,7 +1,7 @@
 package com.maesamco.coaching.infrastructure.feign;
 
 import com.maesamco.coaching.global.exception.ErrorCode;
-import com.maesamco.coaching.global.security.HmacSigningFeignInterceptor;
+import com.maesamco.coaching.global.security.hmac.HmacSigningFeignInterceptor;
 import feign.RequestInterceptor;
 import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.annotation.Value;

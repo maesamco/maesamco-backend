@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security;
+package com.maesamco.coaching.global.security.hmac;
 
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;

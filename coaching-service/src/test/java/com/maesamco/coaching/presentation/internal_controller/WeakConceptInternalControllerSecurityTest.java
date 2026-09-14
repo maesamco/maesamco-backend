@@ -2,10 +2,10 @@ package com.maesamco.coaching.presentation.internal_controller;
 
 import com.maesamco.coaching.application.query_service.WeakConceptQueryService;
 import com.maesamco.coaching.global.exception.GlobalExceptionHandler;
-import com.maesamco.coaching.global.security.HmacSignatureUtil;
-import com.maesamco.coaching.global.security.HmacVerificationFilter;
-import com.maesamco.coaching.global.security.InternalCallHeaders;
-import com.maesamco.coaching.global.security.InternalServiceKeyProperties;
+import com.maesamco.coaching.global.security.hmac.HmacSignatureUtil;
+import com.maesamco.coaching.global.security.hmac.HmacVerificationFilter;
+import com.maesamco.coaching.global.security.hmac.InternalCallHeaders;
+import com.maesamco.coaching.global.security.hmac.InternalServiceKeyProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security;
+package com.maesamco.coaching.global.security.hmac;
 
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;

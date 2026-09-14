@@ -1,6 +1,6 @@
 package com.maesamco.coaching.infrastructure.feign;
 
-import com.maesamco.coaching.global.security.HmacSigningFeignInterceptor;
+import com.maesamco.coaching.global.security.hmac.HmacSigningFeignInterceptor;
 import feign.RequestInterceptor;
 import feign.codec.ErrorDecoder;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security;
+package com.maesamco.coaching.global.security.hmac;
 
 public final class InternalCallHeaders {
     public static final String SERVICE = "X-Internal-Service";

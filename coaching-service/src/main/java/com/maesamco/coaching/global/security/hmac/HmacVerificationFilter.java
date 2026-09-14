@@ -1,4 +1,4 @@
-package com.maesamco.coaching.global.security;
+package com.maesamco.coaching.global.security.hmac;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
