@@ -50,7 +50,9 @@ public class DailyQuizSubmitService {
 
         // 잠근 Attempt의 userId와 command.userId가 같은지 확인
         if (!attempt.getUserId().equals(command.userId())) {
-            throw new BusinessException(ErrorCode.AUTH_ACCESS_DENIED);
+            // 다른 사용자의 세트도 존재하지 않는 세트와 동일하게 처리해
+            // quizAttemptId의 존재 여부가 응답을 통해 노출되지 않도록 합니다.
+            throw new BusinessException(ErrorCode.QUIZ_NOT_FOUND);
         }
 
         // Attempt의 attemptDate가 오늘보다 이전인지 확인
