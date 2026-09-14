@@ -1,4 +1,4 @@
-package com.maesamco.content.testcase.domain.repository;
+package com.maesamco.content.domain.testcase.repository;
 
 import java.util.UUID;
 

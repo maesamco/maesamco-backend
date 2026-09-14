@@ -1,6 +1,6 @@
-package com.maesamco.content.testcase.application.port;
+package com.maesamco.content.application.testcase.port;
 
-import com.maesamco.content.testcase.domain.entity.TestCase;
+import com.maesamco.content.domain.testcase.entity.TestCase;
 
 import java.util.UUID;
 

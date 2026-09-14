@@ -1,4 +1,4 @@
-package com.maesamco.content.testcase.presentation.dto.request;
+package com.maesamco.content.presentation.testcase.dto.request;
 
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;

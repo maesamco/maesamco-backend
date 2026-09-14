@@ -1,9 +1,9 @@
-package com.maesamco.content.testcase.infrastructure.persistence;
+package com.maesamco.content.infrastructure.testcase.persistence;
 
-import com.maesamco.content.testcase.domain.entity.QTestCase;
-import com.maesamco.content.testcase.domain.entity.TestCase;
-import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
-import com.maesamco.content.testcase.domain.repository.TestCaseSearchRepository;
+import com.maesamco.content.domain.testcase.entity.QTestCase;
+import com.maesamco.content.domain.testcase.entity.TestCase;
+import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
+import com.maesamco.content.domain.testcase.repository.TestCaseSearchRepository;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;

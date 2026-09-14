@@ -1,7 +1,7 @@
-package com.maesamco.content.testcase.presentation.dto.response;
+package com.maesamco.content.presentation.testcase.dto.response;
 
-import com.maesamco.content.testcase.domain.entity.TestCase;
-import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
+import com.maesamco.content.domain.testcase.entity.TestCase;
+import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,7 +1,7 @@
-package com.maesamco.content.testcase.domain.entity;
+package com.maesamco.content.domain.testcase.entity;
 
+import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
 import com.maesamco.content.global.common.BaseEntity;
-import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

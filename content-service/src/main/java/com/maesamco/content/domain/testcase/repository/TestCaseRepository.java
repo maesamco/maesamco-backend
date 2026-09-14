@@ -1,7 +1,7 @@
-package com.maesamco.content.testcase.domain.repository;
+package com.maesamco.content.domain.testcase.repository;
 
-import com.maesamco.content.testcase.domain.entity.TestCase;
-import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
+import com.maesamco.content.domain.testcase.entity.TestCase;
+import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,13 +1,13 @@
-package com.maesamco.content.testcase.presentation.controller;
+package com.maesamco.content.presentation.testcase.controller;
 
+import com.maesamco.content.application.testcase.service.TestCaseService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
-import com.maesamco.content.testcase.application.service.TestCaseService;
-import com.maesamco.content.testcase.presentation.dto.request.TestCaseCreateRequest;
-import com.maesamco.content.testcase.presentation.dto.request.TestCaseUpdateRequest;
-import com.maesamco.content.testcase.presentation.dto.response.TestCaseCreateResponse;
-import com.maesamco.content.testcase.presentation.dto.response.TestCaseResponse;
+import com.maesamco.content.presentation.testcase.dto.request.TestCaseCreateRequest;
+import com.maesamco.content.presentation.testcase.dto.request.TestCaseUpdateRequest;
+import com.maesamco.content.presentation.testcase.dto.response.TestCaseCreateResponse;
+import com.maesamco.content.presentation.testcase.dto.response.TestCaseResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;

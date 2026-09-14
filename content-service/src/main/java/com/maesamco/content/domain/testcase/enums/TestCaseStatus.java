@@ -1,4 +1,4 @@
-package com.maesamco.content.testcase.domain.enums;
+package com.maesamco.content.domain.testcase.enums;
 
 /** 테스트케이스 상태 */
 public enum TestCaseStatus {
