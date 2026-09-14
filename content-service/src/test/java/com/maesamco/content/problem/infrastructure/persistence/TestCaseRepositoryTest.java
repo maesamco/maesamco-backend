@@ -1,20 +1,13 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.testcase.entity.TestCase;
+import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
+import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.enums.ProblemDifficulty;
-import com.maesamco.content.problem.domain.enums.ProblemSource;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.enums.ProblemType;
-import com.maesamco.content.problem.domain.enums.ProgrammingLanguage;
-import com.maesamco.content.problem.domain.enums.RunningMemoryLimit;
-import com.maesamco.content.problem.domain.enums.RunningTimeLimit;
-import com.maesamco.content.problem.domain.enums.TimerPolicy;
-import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.testcase.domain.entity.TestCase;
-import com.maesamco.content.testcase.domain.enums.TestCaseStatus;
-import com.maesamco.content.testcase.domain.repository.TestCaseRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
