@@ -197,13 +197,13 @@ public class DailyQuizQuestion {
      * 대소문자와 내부 공백은 변경하지 않고 문자열을 완전일치로 비교합니다.
      */
     public boolean isCorrect(String userAnswer) {
-        String validatedUserAnswer = requireUserAnswer(userAnswer);
+        String normalizedUserAnswer = requireUserAnswer(userAnswer).strip();
 
         return switch (this.problemType) {
-            case MULTIPLE_CHOICE -> this.answer.equals(validatedUserAnswer);
-            case FILL_IN_BLANK -> this.answer.equals(validatedUserAnswer.strip());
-            case SHORT_ANSWER -> this.answer.equals(validatedUserAnswer)
-                    || containsAllowedAnswer(validatedUserAnswer);
+            case MULTIPLE_CHOICE -> this.answer.equals(normalizedUserAnswer);
+            case FILL_IN_BLANK -> this.answer.equals(normalizedUserAnswer);
+            case SHORT_ANSWER -> this.answer.equals(normalizedUserAnswer)
+                    || containsAllowedAnswer(normalizedUserAnswer);
         };
     }
 
