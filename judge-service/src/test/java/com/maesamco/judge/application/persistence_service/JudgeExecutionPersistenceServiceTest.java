@@ -30,9 +30,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class JudgeExecutionPersistenceServiceTest {
@@ -53,6 +55,25 @@ class JudgeExecutionPersistenceServiceTest {
     void setUp() {
         judgeExecutionPersistenceService = new JudgeExecutionPersistenceService(
                 submissionRepository, problemExecutionSpecRepository, pendingJudge0ExecutionRepository, meterRegistry);
+        ReflectionTestUtils.setField(judgeExecutionPersistenceService, "maxRetryCount", 3);
+    }
+
+    /**
+     * registerAfterCommitMetric()이 TransactionSynchronizationManager를 쓰기 때문에,
+     * 실제 트랜잭션 없이 호출하면 "synchronization is not active" 예외가 난다.
+     * 여기서 동기화를 직접 열고, action 실행 후 등록된 afterCommit 콜백을 수동으로
+     * 트리거해서 실제 커밋이 성공한 상황을 흉내낸다.
+     */
+    private void runAsCommittedTransaction(Runnable action) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            action.run();
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private Submission queuedSubmission() {
@@ -96,7 +117,7 @@ class JudgeExecutionPersistenceServiceTest {
         @DisplayName("이미 RUNNING 상태인 중복 이벤트면 빈 값을 반환하고 실행 명세를 조회하지 않는다")
         void returnsEmptyWhenAlreadyRunning() {
             Submission submission = queuedSubmission();
-            submission.markRunning(); // 이미 첫 번째 이벤트로 RUNNING까지 전이된 상황을 재현
+            submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
 
             Optional<JudgeExecutionPreparation> result =
@@ -206,14 +227,14 @@ class JudgeExecutionPersistenceServiceTest {
     class HandleRetryableFailure {
 
         @Test
-        @DisplayName("재시도 횟수가 남아있으면 RETRY_WAIT로 전이시키고 카운터를 증가시킨다")
+        @DisplayName("재시도 횟수가 남아있으면 RETRY_WAIT로 전이시키고, 커밋 후 카운터를 증가시킨다")
         void marksRetryWaitWhenRetriesRemain() {
             Submission submission = queuedSubmission();
             submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
 
-            judgeExecutionPersistenceService.handleRetryableFailure(
-                    submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+            runAsCommittedTransaction(() -> judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE));
 
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RETRY_WAIT);
             assertThat(submission.getRetryCount()).isEqualTo(1);
@@ -222,7 +243,7 @@ class JudgeExecutionPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("재시도 횟수가 소진되면 FAILED로 전이시키고 카운터를 증가시킨다")
+        @DisplayName("재시도 횟수가 소진되면 FAILED로 전이시키고, 커밋 후 카운터를 증가시킨다")
         void marksFailedWhenRetriesExhausted() {
             Submission submission = queuedSubmission();
             submission.markRunning();
@@ -231,13 +252,33 @@ class JudgeExecutionPersistenceServiceTest {
             submission.markRetryWait(); submission.markRunning(); // retryCount=3 (MAX)
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
 
-            judgeExecutionPersistenceService.handleRetryableFailure(
-                    submission.getId(), FailureCode.RESULT_SAVE_FAILURE);
+            runAsCommittedTransaction(() -> judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.RESULT_SAVE_FAILURE));
 
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
             assertThat(submission.getFailureCode()).isEqualTo(FailureCode.RESULT_SAVE_FAILURE);
             assertThat(meterRegistry.counter("judge.submission.retry.exhausted", "failureCode", "RESULT_SAVE_FAILURE").count())
                     .isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("커밋되지 않으면(트랜잭션 실패) 카운터가 증가하지 않는다")
+        void doesNotIncrementCounterWhenNotCommitted() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                judgeExecutionPersistenceService.handleRetryableFailure(
+                        submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+                // afterCommit()을 트리거하지 않고 그냥 클리어 — 롤백된 상황을 흉내냄
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+
+            assertThat(meterRegistry.counter("judge.submission.retry.wait", "failureCode", "JUDGE0_RESPONSE_FAILURE").count())
+                    .isEqualTo(0.0);
         }
 
         @Test

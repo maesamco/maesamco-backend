@@ -12,6 +12,7 @@ import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,14 +42,28 @@ class JudgeRetrySchedulerTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(judgeRetryScheduler, "batchSize", 100);
+        ReflectionTestUtils.setField(judgeRetryScheduler, "maxRetryAttempts", 3);
     }
 
-    private Submission retryWaitSubmission(UUID id) {
+    /** 재시도 대상이 되려면 실제 RETRY_WAIT 상태 + retryCount + updatedAt이 필요해서,
+     *  상태 전이를 실제로 태워서 만든다. updatedAt은 markRetryWait() 이후 reflection으로 덮어써서
+     *  백오프 경과 시점을 테스트별로 자유롭게 조정한다. */
+    private Submission retryWaitSubmission(UUID id, int retryCount, Instant updatedAt) {
         Submission submission = Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "public class Main {}", SubmissionLanguage.JAVA17, "idem-" + id);
+        submission.markQueued();
+        submission.markRunning();
+        submission.markRetryWait();
         ReflectionTestUtils.setField(submission, "id", id);
+        ReflectionTestUtils.setField(submission, "retryCount", retryCount);
+        ReflectionTestUtils.setField(submission, "updatedAt", updatedAt);
         return submission;
+    }
+
+    /** 백오프 경과 여부가 중요하지 않은 테스트용 — 충분히 과거 시점으로 잡아 항상 재시도 대상이 되게 함. */
+    private Submission retryWaitSubmission(UUID id) {
+        return retryWaitSubmission(id, 1, Instant.now().minusSeconds(3600));
     }
 
     @Nested
@@ -96,7 +111,7 @@ class JudgeRetrySchedulerTest {
             judgeRetryScheduler.retryPendingSubmissions();
 
             verify(judgeExecutionFacade).execute(id1);
-            verify(judgeExecutionFacade).execute(id2); // 첫 건이 실패해도 두 번째 건은 처리돼야 함
+            verify(judgeExecutionFacade).execute(id2);
         }
 
         @Test
@@ -114,6 +129,48 @@ class JudgeRetrySchedulerTest {
 
             verify(judgeExecutionFacade).execute(id1);
             verify(judgeExecutionFacade).execute(id2);
+        }
+
+        @Test
+        @DisplayName("백오프 시간이 아직 안 지난 제출은 재시도하지 않고 스킵한다")
+        void skipsWhenBackoffNotElapsed() {
+            UUID id = UUID.randomUUID();
+            // retryCount=1 → 백오프 10초, 근데 방금(0초 전) RETRY_WAIT 됐으니 아직 안 지남
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+                    .willReturn(List.of(retryWaitSubmission(id, 1, Instant.now())));
+
+            judgeRetryScheduler.retryPendingSubmissions();
+
+            verify(judgeExecutionFacade, never()).execute(any());
+        }
+
+        @Test
+        @DisplayName("백오프 시간이 지난 제출은 재시도한다")
+        void retriesWhenBackoffElapsed() {
+            UUID id = UUID.randomUUID();
+            // retryCount=1 → 백오프 10초, 15초 전에 RETRY_WAIT 됐으니 이미 지남
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+                    .willReturn(List.of(retryWaitSubmission(id, 1, Instant.now().minusSeconds(15))));
+
+            judgeRetryScheduler.retryPendingSubmissions();
+
+            verify(judgeExecutionFacade).execute(id);
+        }
+
+        @Test
+        @DisplayName("retryCount가 늘수록 백오프도 지수적으로 늘어난다")
+        void backoffGrowsExponentiallyWithRetryCount() {
+            UUID id = UUID.randomUUID();
+            // retryCount=2 → 백오프 20초. 15초 전이면 1회차 기준으론 지났어도 2회차 기준으론 아직임.
+            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
+                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+                    .willReturn(List.of(retryWaitSubmission(id, 2, Instant.now().minusSeconds(15))));
+
+            judgeRetryScheduler.retryPendingSubmissions();
+
+            verify(judgeExecutionFacade, never()).execute(any());
         }
     }
 }
