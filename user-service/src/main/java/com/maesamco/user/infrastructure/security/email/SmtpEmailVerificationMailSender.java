@@ -46,7 +46,13 @@ public class SmtpEmailVerificationMailSender
         message.setText(
                 """
                 매삼코 이메일 인증 코드입니다.
+        
                 인증 코드: %s
+        
+                인증 코드를 다시 요청한 경우
+                이전에 발급된 인증 코드는 즉시 사용할 수 없습니다.
+                가장 최근에 받은 인증 코드를 입력해주세요.
+        
                 본인이 요청하지 않은 경우 이 메일을 무시해주세요.
                 """.formatted(verificationCode)
         );

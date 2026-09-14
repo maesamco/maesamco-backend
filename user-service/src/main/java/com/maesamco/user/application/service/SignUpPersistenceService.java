@@ -66,13 +66,8 @@ public class SignUpPersistenceService {
      *
      * <p>저장 직전 최종 보조 검사로 사용하며,
      * 동시 가입 경쟁의 최종적인 정합성은 DB UNIQUE 인덱스가 보장합니다.</p>
-     *
-     * @param emailLookupHash 정규화된 이메일의 조회용 hash
-     * @param nickname 중복 여부를 확인할 닉네임
-     * @throws BusinessException 이메일 또는 닉네임이 중복된 경우
      */
-    @Transactional(readOnly = true)
-    public void validateNotDuplicated(
+    private void validateNotDuplicated(
             String emailLookupHash,
             String nickname
     ) {
@@ -100,6 +95,12 @@ public class SignUpPersistenceService {
      */
     @Transactional(readOnly = true)
     public void validateNicknameNotDuplicated(
+            String nickname
+    ) {
+        validateNicknameDuplicatedInternal(nickname);
+    }
+
+    private void validateNicknameDuplicatedInternal(
             String nickname
     ) {
         if (nickname != null

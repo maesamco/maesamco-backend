@@ -58,7 +58,9 @@ public interface EmailVerificationStore {
      * @param verificationCodeHash 사용자가 입력한 인증 코드의 해시
      * @param signupTokenHash 새로 발급할 회원가입 토큰의 해시
      * @param signupTokenTtl 회원가입 토큰 만료 시간
-     * @param maxVerificationAttempts 최대 인증 실패 횟수
+     * @param maxVerificationAttempts 현재 발급된 인증 코드 1개당 최대 인증 실패 횟수.
+     *                                인증 코드를 재전송하여 새 challenge가 생성되면
+     *                                시도 횟수는 다시 0부터 시작함
      * @return 인증 결과
      */
     ConfirmationResult confirmAndIssueSignupToken(

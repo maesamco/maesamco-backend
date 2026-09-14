@@ -15,7 +15,8 @@ import java.time.Duration;
  * @param signupTokenTtl          회원가입 인증 토큰 유효시간
  * @param resendCooldown          인증 메일 재전송 대기시간
  * @param requestLimitWindow      인증 요청 횟수를 계산할 기간
- * @param maxVerificationAttempts 인증 코드 최대 확인 시도 횟수
+ * @param maxVerificationAttempts 발급된 인증 코드 1개당 최대 확인 시도 횟수
+ *                                (재전송으로 새 코드가 발급되면 다시 0부터 시작)
  * @param maxRequestsPerWindow    제한 기간 내 최대 인증 요청 횟수
  */
 @Validated

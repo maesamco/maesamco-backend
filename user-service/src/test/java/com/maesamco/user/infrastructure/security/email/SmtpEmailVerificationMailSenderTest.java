@@ -78,6 +78,14 @@ class SmtpEmailVerificationMailSenderTest {
                 sentMessage.getText() != null
                         && sentMessage.getText().contains(verificationCode)
         );
+
+        // 재전송 시 이전 인증 코드가 무효화된다는 안내가 포함되어 있는지 검증합니다.
+        assertTrue(
+                sentMessage.getText() != null
+                        && sentMessage.getText().contains(
+                        "이전에 발급된 인증 코드는 즉시 사용할 수 없습니다."
+                )
+        );
     }
 
     /**

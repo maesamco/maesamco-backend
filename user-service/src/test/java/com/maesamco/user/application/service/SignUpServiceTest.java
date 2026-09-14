@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -596,11 +598,6 @@ class SignUpServiceTest {
                 )
                 .isEqualTo(ErrorCode.USER_DUPLICATE_NICKNAME);
 
-        verify(signUpPersistenceService)
-                .validateNicknameNotDuplicated(
-                        normalizedNickname
-                );
-
         verify(
                 emailVerificationSecretHasher,
                 never()
@@ -628,6 +625,115 @@ class SignUpServiceTest {
                 signUpPersistenceService,
                 never()
         ).saveUser(any(User.class));
+
+        verify(
+                tokenIssuer,
+                never()
+        ).issueTokens(any(), any(), any());
+
+        verify(
+                authSessionStore,
+                never()
+        ).save(any(AuthSession.class));
+    }
+
+    @Test
+    @DisplayName(
+            "인증 토큰 소비 후 저장 단계에서 닉네임 중복이 발생하면 "
+                    + "중복 닉네임 예외를 반환한다"
+    )
+    void signUp_duplicateNicknameAtPersistenceStep_afterTokenConsumption() {
+        // given
+        String trimmedEmail = "Learner@Example.com";
+        String normalizedEmail = "learner@example.com";
+        String emailLookupHash = "a".repeat(64);
+
+        String signupToken = "signup-token";
+        String signupTokenHash = "c".repeat(64);
+        String normalizedNickname = "김티암";
+
+        SignUpCommand command = new SignUpCommand(
+                trimmedEmail,
+                signupToken,
+                "Abcd1234!",
+                normalizedNickname,
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        when(emailNormalizer.normalize(trimmedEmail))
+                .thenReturn(normalizedEmail);
+
+        when(emailLookupHasher.hash(normalizedEmail))
+                .thenReturn(emailLookupHash);
+
+        when(
+                emailVerificationSecretHasher.hashSignupToken(
+                        signupToken
+                )
+        ).thenReturn(signupTokenHash);
+
+        when(
+                emailVerificationStore.consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                )
+        ).thenReturn(true);
+
+        when(emailCipher.encrypt(normalizedEmail))
+                .thenReturn("encrypted-email");
+
+        when(passwordHasher.hash("Abcd1234!"))
+                .thenReturn("argon2-password-hash");
+
+        /*
+         * 사전 닉네임 중복 검사를 통과한 직후 다른 요청이 같은 닉네임을
+         * 먼저 저장한 상황을 재현합니다.
+         */
+        when(
+                signUpPersistenceService.saveUser(
+                        any(User.class)
+                )
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.USER_DUPLICATE_NICKNAME
+                )
+        );
+
+        // when & then
+        assertThatThrownBy(() -> signUpService.signUp(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.USER_DUPLICATE_NICKNAME
+                );
+
+        /*
+         * 저장 단계의 race가 발생하기 전에 signup token은
+         * 이미 일회성으로 소비됐음을 명시적으로 검증합니다.
+         */
+        InOrder inOrder = inOrder(
+                signUpPersistenceService,
+                emailVerificationStore
+        );
+
+        inOrder.verify(signUpPersistenceService)
+                .validateNicknameNotDuplicated(
+                        normalizedNickname
+                );
+
+        inOrder.verify(emailVerificationStore)
+                .consumeSignupToken(
+                        signupTokenHash,
+                        emailLookupHash
+                );
+
+        inOrder.verify(signUpPersistenceService)
+                .saveUser(any(User.class));
 
         verify(
                 tokenIssuer,

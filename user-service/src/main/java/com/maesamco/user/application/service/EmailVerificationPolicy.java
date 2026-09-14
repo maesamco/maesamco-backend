@@ -7,6 +7,11 @@ import java.time.Duration;
  *
  * <p>인증 코드, 회원가입 인증 토큰, 재전송 cooldown,
  * 인증 실패 횟수 등의 정책 값을 한 곳에서 관리합니다.</p>
+ *
+ * <p>{@code maxVerificationAttempts}는 이메일별 누적 한도가 아니라
+ * 현재 발급된 인증 코드 1개당 최대 확인 시도 횟수입니다.
+ * 재전송으로 새 인증 코드가 발급되면 challenge가 새로 생성되므로
+ * 확인 시도 횟수도 다시 0부터 시작합니다.</p>
  */
 public record EmailVerificationPolicy(
         Duration challengeTtl,
