@@ -15,6 +15,7 @@ import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class JudgeResultPollingFacadeTest {
@@ -37,6 +40,11 @@ class JudgeResultPollingFacadeTest {
     @InjectMocks
     private JudgeResultPollingFacade judgeResultPollingFacade;
 
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(judgeResultPollingFacade, "batchSize", 100);
+    }
+
     @Nested
     @DisplayName("pollAndReflect")
     class PollAndReflect {
@@ -48,7 +56,7 @@ class JudgeResultPollingFacadeTest {
                     PendingJudge0Execution.create(UUID.randomUUID(), UUID.randomUUID(), "token-a", true);
             PendingJudge0Execution pendingB =
                     PendingJudge0Execution.create(UUID.randomUUID(), UUID.randomUUID(), "token-b", true);
-            given(pendingJudge0ExecutionRepository.findAllByOrderByCreatedAtAsc())
+            given(pendingJudge0ExecutionRepository.findAllByOrderByCreatedAtAsc(any(Pageable.class)))
                     .willReturn(List.of(pendingA, pendingB));
 
             JudgeExecutionResult resultA = new JudgeExecutionResult(
@@ -58,7 +66,6 @@ class JudgeResultPollingFacadeTest {
             given(judgeExecutionPort.fetchResults(List.of("token-a", "token-b")))
                     .willReturn(List.of(resultA, resultB));
 
-            // 다른 인스턴스가 먼저 처리해서 A는 unique 제약 위반으로 실패한다고 가정
             willThrow(new DataIntegrityViolationException("duplicate key"))
                     .given(judgeResultPersistenceService).reflectResult(pendingA, resultA);
             willDoNothing().given(judgeResultPersistenceService).reflectResult(pendingB, resultB);
@@ -74,7 +81,7 @@ class JudgeResultPollingFacadeTest {
         void skipsStillProcessingResults() {
             PendingJudge0Execution pending =
                     PendingJudge0Execution.create(UUID.randomUUID(), UUID.randomUUID(), "token-a", true);
-            given(pendingJudge0ExecutionRepository.findAllByOrderByCreatedAtAsc())
+            given(pendingJudge0ExecutionRepository.findAllByOrderByCreatedAtAsc(any(Pageable.class)))
                     .willReturn(List.of(pending));
 
             JudgeExecutionResult stillProcessing = new JudgeExecutionResult(

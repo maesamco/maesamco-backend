@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -21,8 +23,12 @@ public class JudgeResultPollingFacade {
     private final JudgeExecutionPort judgeExecutionPort;
     private final JudgeResultPersistenceService judgeResultPersistenceService;
 
+    @Value("${judge.polling.batch-size:100}")
+    private int batchSize;
+
     public void pollAndReflect() {
-        List<PendingJudge0Execution> pendingList = pendingJudge0ExecutionRepository.findAllByOrderByCreatedAtAsc();
+        List<PendingJudge0Execution> pendingList = pendingJudge0ExecutionRepository
+                .findAllByOrderByCreatedAtAsc(PageRequest.of(0, batchSize));
         if (pendingList.isEmpty()) {
             return;
         }
