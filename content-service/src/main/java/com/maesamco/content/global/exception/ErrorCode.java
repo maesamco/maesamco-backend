@@ -39,6 +39,7 @@ public enum ErrorCode {
     INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
     // ===== content =====
+    QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "오늘 생성된 퀴즈 세트가 없습니다."),
     LATEST_VERSION_NOT_FLAGGED(HttpStatus.CONFLICT, "수정할 수 없는 상태입니다."),
     INVALID_QUIZ_STATUS(HttpStatus.CONFLICT, "제출할 수 없는 상태입니다."),
 
@@ -68,6 +69,10 @@ public enum ErrorCode {
     INVALID_PROBLEM_STATUS_TRANSITION(
             HttpStatus.BAD_REQUEST,
             "허용되지 않은 문제 상태 변경입니다."
+    ),
+    PROBLEM_PUBLICATION_TEST_CASE_REQUIRED(
+            HttpStatus.CONFLICT,
+            "문제를 발행하려면 승인된 테스트케이스가 최소 1개 이상 필요합니다."
     ),
 
     /* Tag */
