@@ -128,12 +128,8 @@ public interface AuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "429",
-                    description = "RATE_LIMIT_EXCEEDED — 회원가입 요청 제한 초과",
-                    content = @Content(
-                            schema = @Schema(
-                                    implementation = ErrorResponse.class
-                            )
-                    )
+                    description = "API Gateway의 회원가입 요청 제한 초과 "
+                            + "— 응답 본문 없이 429 Too Many Requests 반환"
             ),
             @ApiResponse(
                     responseCode = "503",

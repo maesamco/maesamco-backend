@@ -81,8 +81,15 @@ class AuthApiDocsContractTest {
         assertSuccessResponseUsesReturnType(method, "201");
         assertErrorResponseSchema(method, "400");
         assertErrorResponseSchema(method, "409");
-        assertErrorResponseSchema(method, "429");
+        assertNoResponseContent(method, "429");
         assertErrorResponseSchema(method, "503");
+
+        ApiResponse rateLimitResponse =
+                findResponse(method, "429");
+
+        assertThat(rateLimitResponse.description())
+                .contains("API Gateway")
+                .contains("응답 본문 없이");
 
         ApiResponse createdResponse =
                 findResponse(method, "201");
@@ -168,6 +175,16 @@ class AuthApiDocsContractTest {
                         .schema()
                         .implementation()
         ).isEqualTo(ErrorResponse.class);
+    }
+
+    private void assertNoResponseContent(
+            Method method,
+            String responseCode
+    ) {
+        ApiResponse response =
+                findResponse(method, responseCode);
+
+        assertThat(response.content()).isEmpty();
     }
 
     private ApiResponse findResponse(
