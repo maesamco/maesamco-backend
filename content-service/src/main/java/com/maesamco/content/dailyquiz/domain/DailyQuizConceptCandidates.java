@@ -4,6 +4,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Daily Quiz 개념 슬롯 선정에 사용할 후보 데이터입니다.
@@ -29,13 +30,13 @@ public record DailyQuizConceptCandidates(
         if (interestConcepts == null) {
             throw invalidInput("관심 개념 목록은 필수입니다.");
         }
-        if (wrongConcepts.contains(null)) {
+        if (wrongConcepts.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("오답 개념은 비어 있을 수 없습니다.");
         }
-        if (solvedConcepts.contains(null)) {
+        if (solvedConcepts.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("정답 개념은 비어 있을 수 없습니다.");
         }
-        if (interestConcepts.contains(null)) {
+        if (interestConcepts.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("관심 개념은 비어 있을 수 없습니다.");
         }
 
