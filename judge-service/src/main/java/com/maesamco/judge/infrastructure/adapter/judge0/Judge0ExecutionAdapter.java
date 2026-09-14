@@ -82,7 +82,7 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
         }
 
         return response.submissions().stream()
-                .map(this::toDomainResult)
+                .map(this::toDomainResultSafely)
                 .toList();
     }
 
@@ -104,16 +104,40 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
                 decode(result.stdout()),
                 decode(result.stderr()),
                 decode(result.compileOutput()),
-                null, // time은 Judge0가 문자열("0.012")로 주므로 파싱 로직은 다음 이슈 작업에서 추가하겠습니다.
+                parseExecutionTimeMs(result.time()),
                 result.memory()
         );
+    }
+
+    private JudgeExecutionResult toDomainResultSafely(Judge0SubmissionResult result) {
+        try {
+            return toDomainResult(result);
+        } catch (Exception e) {
+            log.error("[Judge] Judge0 결과 파싱 실패 — 인프라 오류로 명시 처리. token={}", result.token(), e);
+            return new JudgeExecutionResult(
+                    result.token(),
+                    JudgeExecutionStatus.INTERNAL_ERROR,
+                    null, null, null, null, null);
+        }
+    }
+
+    private Long parseExecutionTimeMs(String judge0TimeInSeconds) {
+        if (judge0TimeInSeconds == null) {
+            return null;
+        }
+        try {
+            return Math.round(Double.parseDouble(judge0TimeInSeconds) * 1000);
+        } catch (NumberFormatException e) {
+            log.warn("[Judge] Judge0 time 파싱 실패, 원본값={}", judge0TimeInSeconds);
+            return null;
+        }
     }
 
     static String decode(String base64Value) {
         if (base64Value == null) {
             return null;
         }
-        return new String(java.util.Base64.getDecoder().decode(base64Value), java.nio.charset.StandardCharsets.UTF_8);
+        return new String(java.util.Base64.getMimeDecoder().decode(base64Value), java.nio.charset.StandardCharsets.UTF_8);
     }
 
 }

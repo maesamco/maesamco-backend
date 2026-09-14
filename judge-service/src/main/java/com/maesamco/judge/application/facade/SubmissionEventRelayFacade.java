@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 public class SubmissionEventRelayFacade {
 
     private static final String JUDGE_REQUESTED_EVENT_TYPE = "JudgeRequested";
+    private static final String SUBMISSION_JUDGED_EVENT_TYPE = "SubmissionJudged";
 
     private final SubmissionEventOutboxRepository submissionEventOutboxRepository;
     private final SubmissionEventOutboxPersistenceService submissionEventOutboxPersistenceService;
@@ -34,6 +35,9 @@ public class SubmissionEventRelayFacade {
 
     @Value("${spring.kafka.topic.judge-requested}")
     private String judgeRequestedTopic;
+
+    @Value("${spring.kafka.topic.submission-judged}")
+    private String submissionJudgedTopic;
 
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
     public void relay() {
@@ -86,6 +90,10 @@ public class SubmissionEventRelayFacade {
     private String resolveTopic(String eventType) {
         if (JUDGE_REQUESTED_EVENT_TYPE.equals(eventType)) {
             return judgeRequestedTopic;
+        }
+
+        if (SUBMISSION_JUDGED_EVENT_TYPE.equals(eventType)) {
+            return submissionJudgedTopic;
         }
         return null;
     }

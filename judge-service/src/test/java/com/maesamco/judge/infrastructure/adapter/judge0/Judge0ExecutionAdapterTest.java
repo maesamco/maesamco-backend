@@ -6,6 +6,8 @@ import com.maesamco.judge.application.port.JudgeExecutionRequest;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
+
+import com.maesamco.judge.application.port.JudgeExecutionResult;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -92,6 +94,64 @@ class Judge0ExecutionAdapterTest {
             assertThat(body).contains("\"language_id\":62");
             assertThat(body).contains("\"cpu_time_limit\":2.0");
             assertThat(body).contains("\"memory_limit\":256000");
+        }
+    }
+
+    @Nested
+    @DisplayName("fetchResults — 배치 중 일부 파싱 실패해도 나머지는 살아남는다")
+    class FetchResults {
+
+        private MockWebServer server;
+        private Judge0ExecutionAdapter adapter;
+
+        @BeforeEach
+        void setUp() throws IOException {
+            server = new MockWebServer();
+            server.start();
+            WebClient webClient = WebClient.create(server.url("/").toString());
+            adapter = new Judge0ExecutionAdapter(webClient);
+        }
+
+        @AfterEach
+        void tearDown() throws IOException {
+            server.shutdown();
+        }
+
+        @Test
+        @DisplayName("한 토큰의 status 필드가 없어 파싱 중 예외가 나도, "
+                + "그 토큰은 사라지지 않고 INTERNAL_ERROR 결과로 반환된다")
+        void returnsInternalErrorForItemThatFailsToParse() {
+            // given
+            String validStdout = Base64.getEncoder().encodeToString("3".getBytes());
+            String body = "{"
+                    + "\"submissions\": ["
+                    + "  {\"token\":\"tok-ok\",\"stdout\":\"" + validStdout + "\",\"stderr\":null,"
+                    + "   \"compile_output\":null,\"message\":null,\"time\":\"0.01\",\"memory\":1024,"
+                    + "   \"status\":{\"id\":3,\"description\":\"Accepted\"}},"
+                    + "  {\"token\":\"tok-bad\",\"stdout\":null,\"stderr\":null,"
+                    + "   \"compile_output\":null,\"message\":null,\"time\":\"0.01\",\"memory\":1024,"
+                    + "   \"status\":null}"
+                    + "]}";
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody(body));
+
+            // when
+            List<JudgeExecutionResult> results = adapter.fetchResults(List.of("tok-ok", "tok-bad"));
+
+            // then — 두 건 다 살아남아야 함 (파싱 실패한 건도 사라지지 않음)
+            assertThat(results).hasSize(2);
+
+            JudgeExecutionResult ok = results.stream()
+                    .filter(r -> r.token().equals("tok-ok")).findFirst().orElseThrow();
+            assertThat(ok.stdout()).isEqualTo("3");
+            assertThat(ok.status()).isEqualTo(com.maesamco.judge.application.port.JudgeExecutionStatus.ACCEPTED);
+
+            JudgeExecutionResult bad = results.stream()
+                    .filter(r -> r.token().equals("tok-bad")).findFirst().orElseThrow();
+            assertThat(bad.status()).isEqualTo(com.maesamco.judge.application.port.JudgeExecutionStatus.INTERNAL_ERROR);
+            assertThat(bad.stdout()).isNull();
         }
     }
 }

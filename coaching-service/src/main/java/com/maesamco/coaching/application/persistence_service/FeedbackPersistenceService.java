@@ -3,16 +3,14 @@ package com.maesamco.coaching.application.persistence_service;
 import com.maesamco.coaching.domain.entity.AiCallHistory;
 import com.maesamco.coaching.domain.entity.AiCallPurpose;
 import com.maesamco.coaching.domain.entity.AiFeedback;
-import com.maesamco.coaching.domain.entity.WeakConcept;
 import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.AiFeedbackRepository;
-import com.maesamco.coaching.domain.repository.WeakConceptRepository;
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,6 +24,10 @@ import java.util.UUID;
  * 이제 셋을 한 트랜잭션으로 묶어서, 이 메서드가 실패하면 AiCallHistory까지 함께 롤백되고
  * 호출자(FeedbackGenerationFacade)가 그 예외를 잡아 별도로 FAILED 이력을 남긴다 — "SUCCESS로
  * 기록됐는데 실제로는 일부만 저장됨" 상태가 나올 수 없다.
+ *
+ * 이슈 #62 — WeakConcept 갱신 로직 자체는 HintGenerationFacade(Content Service 개념 태그
+ * 출처)와 공유하는 WeakConceptPersistenceService로 옮겼다. 같은 트랜잭션 안에서 호출되므로
+ * 원자성은 그대로 유지된다.
  */
 @Service
 @Transactional
@@ -33,16 +35,16 @@ public class FeedbackPersistenceService {
 
     private final AiCallHistoryRepository aiCallHistoryRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
-    private final WeakConceptRepository weakConceptRepository;
+    private final WeakConceptPersistenceService weakConceptPersistenceService;
 
     public FeedbackPersistenceService(
             AiCallHistoryRepository aiCallHistoryRepository,
             AiFeedbackRepository aiFeedbackRepository,
-            WeakConceptRepository weakConceptRepository
+            WeakConceptPersistenceService weakConceptPersistenceService
     ) {
         this.aiCallHistoryRepository = aiCallHistoryRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
-        this.weakConceptRepository = weakConceptRepository;
+        this.weakConceptPersistenceService = weakConceptPersistenceService;
     }
 
     /**
@@ -64,48 +66,16 @@ public class FeedbackPersistenceService {
                 syntaxToImprove, recommendedProblems, nextDirection
         ));
 
-        recordWeakConcepts(userId, weakConcepts);
+        weakConceptPersistenceService.recordOccurrences(userId, toStringList(weakConcepts));
     }
 
-    /**
-     * weakConcepts 배열의 각 태그에 대해 기존 집계 행이 있으면 recordOccurrence()로
-     * 갱신하고, 없으면 새로 만든다. 조회 후 생성 사이의 동시성 경합으로 WeakConceptRepository
-     * .save()가 WEAK_CONCEPT_ALREADY_EXISTS를 던지면(WeakConceptRepositoryImpl의 UNIQUE
-     * 위반 안전망), 그 사이 다른 트랜잭션이 먼저 만든 행을 다시 조회해 recordOccurrence()로
-     * 갱신한다.
-     */
-    private void recordWeakConcepts(UUID userId, JsonNode weakConcepts) {
-        for (JsonNode tagNode : weakConcepts) {
-            if (tagNode == null || tagNode.isNull() || !tagNode.isString()) {
-                continue;
+    private List<String> toStringList(JsonNode arrayNode) {
+        List<String> tags = new ArrayList<>();
+        for (JsonNode tagNode : arrayNode) {
+            if (tagNode != null && !tagNode.isNull() && tagNode.isString()) {
+                tags.add(tagNode.asString());
             }
-            String conceptTag = tagNode.asString().trim();
-            if (conceptTag.isBlank()) {
-                continue;
-            }
-            recordWeakConcept(userId, conceptTag);
         }
-    }
-
-    private void recordWeakConcept(UUID userId, String conceptTag) {
-        var existing = weakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag);
-        if (existing.isPresent()) {
-            existing.get().recordOccurrence();
-            weakConceptRepository.save(existing.get());
-            return;
-        }
-
-        try {
-            weakConceptRepository.save(WeakConcept.create(userId, conceptTag));
-        } catch (BusinessException e) {
-            if (e.getErrorCode() != ErrorCode.WEAK_CONCEPT_ALREADY_EXISTS) {
-                throw e;
-            }
-            weakConceptRepository.findByUserIdAndConceptTag(userId, conceptTag)
-                    .ifPresent(concept -> {
-                        concept.recordOccurrence();
-                        weakConceptRepository.save(concept);
-                    });
-        }
+        return tags;
     }
 }

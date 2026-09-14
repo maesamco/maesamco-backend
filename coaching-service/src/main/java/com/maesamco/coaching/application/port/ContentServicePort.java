@@ -10,9 +10,14 @@ import java.util.UUID;
 public interface ContentServicePort {
 
     /**
+     * 제출 시점 문제 버전 기준으로 지문을 조회한다(이슈 #172, #178) — 문제가 수정된 뒤
+     * 과거 제출로 힌트·역질문·피드백을 요청해도 항상 제출 당시 버전의 지문이 프롬프트에
+     * 들어가도록, problemId가 아니라 problemVersionId로 조회한다. 개념 태그는 버전
+     * 스냅샷에 없어 problemId 기준 현재 태그가 그대로 온다(Content Service 쪽 한계).
+     *
      * @throws com.maesamco.coaching.global.exception.BusinessException
-     *         존재하지 않는 문제면 PROBLEM_NOT_FOUND, 그 외 통신 실패면
+     *         존재하지 않는 문제 버전이면 PROBLEM_NOT_FOUND, 그 외 통신 실패면
      *         FEIGN_CLIENT_ERROR로 던진다.
      */
-    ProblemSnapshot getProblem(UUID problemId);
+    ProblemSnapshot getProblemVersion(UUID problemVersionId);
 }

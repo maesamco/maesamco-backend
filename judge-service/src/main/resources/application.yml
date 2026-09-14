@@ -33,6 +33,7 @@ spring:
     topic:
       problem-published: problem-published-events
       judge-requested: judge-requested-events
+      submission-judged: submission-judged-events
     consumer:
       group-id: judge-service
       auto-offset-reset: earliest
@@ -90,3 +91,7 @@ judge0:
   base-url: ${JUDGE0_BASE_URL}
   connect-timeout-ms: 3000
   response-timeout-ms: 5000
+
+judge:
+  polling:
+    batch-size: 100

@@ -27,7 +27,7 @@ public class ContentServiceFeignConfig {
             @Value("${spring.application.name}") String serviceName,
             @Value("${internal.hmac.outbound.content-service}") String secretKeyForContent
     ) {
-        return new HmacSigningFeignInterceptor(serviceName, secretKeyForContent);
+        return new HmacSigningFeignInterceptor(serviceName, secretKeyForContent, InternalApiPrefix.INTERNAL_API_PREFIX);
     }
 
     /**

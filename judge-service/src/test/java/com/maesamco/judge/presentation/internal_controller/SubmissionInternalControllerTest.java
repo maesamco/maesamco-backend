@@ -42,7 +42,7 @@ class SubmissionInternalControllerTest {
         void returns200WithSubmission() throws Exception {
             UUID submissionId = UUID.randomUUID();
             SubmissionGetResult result = new SubmissionGetResult(
-                    submissionId, UUID.randomUUID(), UUID.randomUUID(), "code",
+                    submissionId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "code",
                     SubmissionStatus.COMPLETED, SubmissionResult.WRONG, null,
                     List.of(new SubmissionGetResult.FailedTestItem(true, "WRONG_ANSWER")),
                     3
@@ -53,6 +53,7 @@ class SubmissionInternalControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                    .andExpect(jsonPath("$.data.problemVersionId").exists())
                     .andExpect(jsonPath("$.data.failedTestSummary[0].isPublic").value(true));
         }
 

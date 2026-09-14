@@ -4,7 +4,9 @@ import com.maesamco.coaching.application.persistence_service.FeedbackPersistence
 import com.maesamco.coaching.application.port.AiModelCallException;
 import com.maesamco.coaching.application.port.AiModelPort;
 import com.maesamco.coaching.application.port.AiModelResponse;
+import com.maesamco.coaching.application.port.ContentServicePort;
 import com.maesamco.coaching.application.port.JudgeServicePort;
+import com.maesamco.coaching.application.port.ProblemSnapshot;
 import com.maesamco.coaching.application.port.SubmissionSnapshot;
 import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.entity.Explanation;
@@ -47,6 +49,8 @@ class FeedbackGenerationFacadeTest {
     @Mock
     private JudgeServicePort judgeServicePort;
     @Mock
+    private ContentServicePort contentServicePort;
+    @Mock
     private AiModelPort aiModelPort;
     @Mock
     private AiCallHistoryRepository aiCallHistoryRepository;
@@ -58,6 +62,8 @@ class FeedbackGenerationFacadeTest {
     private final UUID submissionId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
     private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
+    private final ProblemSnapshot problemSnapshot = new ProblemSnapshot(problemId, "문제 설명", List.of("재귀"));
 
     private CoachingSession session;
     private Explanation explanation;
@@ -66,7 +72,10 @@ class FeedbackGenerationFacadeTest {
 
     @BeforeEach
     void setUp() {
-        facade = new FeedbackGenerationFacade(judgeServicePort, aiModelPort, aiCallHistoryRepository, feedbackPersistenceService);
+        facade = new FeedbackGenerationFacade(judgeServicePort, contentServicePort, aiModelPort, aiCallHistoryRepository, feedbackPersistenceService);
+        // 이슈 #62 — Content Service 연동 자체가 검증 대상이 아닌 테스트는 기본적으로
+        // 정상 응답을 받는다. 문제 조회 실패를 직접 검증하는 테스트에서만 재정의한다.
+        org.mockito.Mockito.lenient().when(contentServicePort.getProblemVersion(any())).thenReturn(problemSnapshot);
 
         session = CoachingSession.create(submissionId, userId, problemId, 1);
         ReflectionTestUtils.setField(session, "id", UUID.randomUUID());
@@ -84,7 +93,7 @@ class FeedbackGenerationFacadeTest {
 
     private void stubSubmission() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(
-                new SubmissionSnapshot(submissionId, userId, problemId, "public class Main {}", "CORRECT", List.of(), 1)
+                new SubmissionSnapshot(submissionId, userId, problemId, problemVersionId,"public class Main {}", "CORRECT", List.of(), 1)
         );
     }
 
@@ -215,7 +224,7 @@ class FeedbackGenerationFacadeTest {
         sessionWithNewerSubmission.complete();
 
         when(judgeServicePort.getSubmission(staleExplanationSubmissionId)).thenReturn(
-                new SubmissionSnapshot(staleExplanationSubmissionId, userId, problemId, "public class Main {}", "CORRECT", List.of(), 1)
+                new SubmissionSnapshot(staleExplanationSubmissionId, userId, problemId, problemVersionId,"public class Main {}", "CORRECT", List.of(), 1)
         );
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
                 "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
@@ -255,5 +264,79 @@ class FeedbackGenerationFacadeTest {
         verify(feedbackPersistenceService).saveFeedback(
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq("계속 진행하세요")
         );
+    }
+
+    // ===== 이슈 #62/#126 — Content Service 연동 =====
+
+    @Test
+    void 피드백_생성_시_문제_설명을_프롬프트에_포함한다() {
+        stubSubmission();
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
+                "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
+                        + "\"weakConcepts\":[],\"syntaxToImprove\":null,\"recommendedProblems\":null,\"nextDirection\":null}",
+                "claude-sonnet-5", 5
+        ));
+
+        facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
+
+        verify(aiModelPort).generate(any(), argThat(userPrompt -> userPrompt.contains(problemSnapshot.description())));
+    }
+
+    /**
+     * 이슈 #172/#178 회귀 테스트 — 문제가 수정된 뒤 과거 제출로 피드백을 생성해도, 현재
+     * 문제(problemId)가 아니라 제출 시점 문제 버전(problemVersionId)으로 조회해야 한다.
+     */
+    @Test
+    void 피드백_생성_시_문제가_아니라_제출_시점_문제_버전으로_조회한다() {
+        stubSubmission();
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse(
+                "{\"understoodConcepts\":[\"반복문\"],\"explanationGaps\":[],"
+                        + "\"weakConcepts\":[],\"syntaxToImprove\":null,\"recommendedProblems\":null,\"nextDirection\":null}",
+                "claude-sonnet-5", 5
+        ));
+
+        facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
+
+        verify(contentServicePort).getProblemVersion(problemVersionId);
+        verify(contentServicePort, never()).getProblemVersion(problemId);
+    }
+
+    /**
+     * "지문 없이는 생성 시도 안 함" 정책(이슈 #126) — 이 Facade는 실패를 던지지 않고 전부
+     * 삼킨다(클래스 Javadoc).
+     *
+     * PR #166 리뷰(용현님/준영님 P2) 대응 — Content Service의 일시적 장애(FEIGN_CLIENT_ERROR)는
+     * 실제 LLM 호출을 한 번도 안 했으므로 SKIPPED로 남겨서 재시도 예산을 보호한다. 아래
+     * PROBLEM_NOT_FOUND(영구적인 실패) 테스트와 구분해서 검증한다.
+     */
+    @Test
+    void 문제_조회가_일시적으로_실패하면_예외_없이_종료하고_SKIPPED_이력만_남긴다() {
+        stubSubmission();
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR));
+
+        assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
+                .doesNotThrowAnyException();
+
+        verify(aiModelPort, never()).generate(any(), any());
+        verifyNoInteractions(feedbackPersistenceService);
+        verify(aiCallHistoryRepository).save(argThat(h -> "SKIPPED".equals(h.getRequestStatus())));
+    }
+
+    /**
+     * PR #166 리뷰(용현님/준영님 P2) 대응 — 문제 자체가 존재하지 않는 경우(PROBLEM_NOT_FOUND)는
+     * 재시도해도 해결되지 않는 영구적인 실패이므로, 위 일시적 장애와 달리 그대로 FAILED로
+     * 남긴다.
+     */
+    @Test
+    void 문제가_존재하지_않으면_예외_없이_종료하고_FAILED_이력만_남긴다() {
+        stubSubmission();
+        when(contentServicePort.getProblemVersion(problemVersionId)).thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
+                .doesNotThrowAnyException();
+
+        verify(aiModelPort, never()).generate(any(), any());
+        verifyNoInteractions(feedbackPersistenceService);
+        verify(aiCallHistoryRepository).save(argThat(h -> "FAILED".equals(h.getRequestStatus())));
     }
 }

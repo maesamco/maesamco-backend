@@ -39,14 +39,18 @@ public class PendingJudge0Execution {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    private PendingJudge0Execution(UUID submissionId, UUID testCaseId, String judge0Token) {
+    @Column(name = "is_public", nullable = false, updatable = false)
+    private boolean isPublic;
+
+    private PendingJudge0Execution(UUID submissionId, UUID testCaseId, String judge0Token, boolean isPublic) {
         this.submissionId = submissionId;
         this.testCaseId = testCaseId;
         this.judge0Token = judge0Token;
         this.createdAt = Instant.now();
+        this.isPublic = isPublic;
     }
 
-    public static PendingJudge0Execution create(UUID submissionId, UUID testCaseId, String judge0Token) {
-        return new PendingJudge0Execution(submissionId, testCaseId, judge0Token);
+    public static PendingJudge0Execution create(UUID submissionId, UUID testCaseId, String judge0Token, boolean isPublic) {
+        return new PendingJudge0Execution(submissionId, testCaseId, judge0Token, isPublic);
     }
 }
