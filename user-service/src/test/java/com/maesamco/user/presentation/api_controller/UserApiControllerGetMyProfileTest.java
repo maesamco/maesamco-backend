@@ -1,5 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
+import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.ChangePasswordService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
@@ -68,7 +69,7 @@ class UserApiControllerGetMyProfileTest {
     private GetMyProfileService getMyProfileService;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private ChangePasswordRetryService changePasswordRetryService;
 
     @Test
     @DisplayName(

@@ -126,4 +126,21 @@ public record GetMyProfileResult(
             );
         }
     }
+
+    /**
+     * 로그 등에 복호화된 이메일 원문이 노출되지 않도록 마스킹합니다.
+     */
+    @Override
+    public String toString() {
+        return "GetMyProfileResult["
+                + "userId=" + userId
+                + ", email=[PROTECTED]"
+                + ", nickname=" + nickname
+                + ", role=" + role
+                + ", status=" + status
+                + ", learningLevel=" + learningLevel
+                + ", javaExperienceMonths=" + javaExperienceMonths
+                + ", createdAt=" + createdAt
+                + "]";
+    }
 }
