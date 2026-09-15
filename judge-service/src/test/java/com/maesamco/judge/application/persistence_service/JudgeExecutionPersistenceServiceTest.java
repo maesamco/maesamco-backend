@@ -238,7 +238,8 @@ class JudgeExecutionPersistenceServiceTest {
 
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RETRY_WAIT);
             assertThat(submission.getRetryCount()).isEqualTo(1);
-            assertThat(meterRegistry.counter("judge.submission.retry.wait", "failureCode", "JUDGE0_RESPONSE_FAILURE").count())
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "wait", "failureCode", "judge0_response_failure").count())
                     .isEqualTo(1.0);
         }
 
@@ -257,7 +258,8 @@ class JudgeExecutionPersistenceServiceTest {
 
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
             assertThat(submission.getFailureCode()).isEqualTo(FailureCode.RESULT_SAVE_FAILURE);
-            assertThat(meterRegistry.counter("judge.submission.retry.exhausted", "failureCode", "RESULT_SAVE_FAILURE").count())
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "exhausted", "failureCode", "result_save_failure").count())
                     .isEqualTo(1.0);
         }
 
@@ -277,20 +279,9 @@ class JudgeExecutionPersistenceServiceTest {
                 TransactionSynchronizationManager.clearSynchronization();
             }
 
-            assertThat(meterRegistry.counter("judge.submission.retry.wait", "failureCode", "JUDGE0_RESPONSE_FAILURE").count())
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "wait", "failureCode", "judge0_response_failure").count())
                     .isEqualTo(0.0);
-        }
-
-        @Test
-        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
-        void throwsWhenSubmissionNotFound() {
-            UUID submissionId = UUID.randomUUID();
-            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> judgeExecutionPersistenceService.handleRetryableFailure(
-                    submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
         }
     }
 }

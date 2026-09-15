@@ -104,23 +104,25 @@ public class JudgeExecutionPersistenceService {
         if (submission.getRetryCount() >= maxRetryCount) {
             submission.markFailed(failureCode);
             int retryCountForLog = submission.getRetryCount();
-            registerAfterCommitMetric("judge.submission.retry.exhausted", failureCode);
-            log.warn("[Judge] 재시도 소진(retryCount={}) — FAILED 처리. submissionId={}, failureCode={}",
+            registerAfterCommitMetric("exhausted", failureCode);
+            log.error("[Judge] 재시도 소진(retryCount={}) — FAILED 처리. submissionId={}, failureCode={}",
                     retryCountForLog, submissionId, failureCode);
         } else {
             submission.markRetryWait();
             int retryCountForLog = submission.getRetryCount();
-            registerAfterCommitMetric("judge.submission.retry.wait", failureCode);
+            registerAfterCommitMetric("wait", failureCode);
             log.warn("[Judge] 일시적 실패 — RETRY_WAIT 전이(retryCount={}). submissionId={}, failureCode={}",
                     retryCountForLog, submissionId, failureCode);
         }
     }
 
-    private void registerAfterCommitMetric(String metricName, FailureCode failureCode) {
+    private void registerAfterCommitMetric(String outcome, FailureCode failureCode) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                meterRegistry.counter(metricName, "failureCode", failureCode.name()).increment();
+                meterRegistry.counter("judge.submission.retry",
+                        "outcome", outcome,
+                        "failureCode", failureCode.name().toLowerCase()).increment();
             }
         });
     }
