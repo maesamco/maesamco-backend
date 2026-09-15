@@ -1,5 +1,6 @@
 package com.maesamco.user.application.port;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,12 +40,16 @@ public interface AuthSessionStore {
      * 처리되어야 합니다.</p>
      *
      * @param sessionId Rotation할 인증 세션 식별자
+     * @param userId 인증 세션 사용자 식별자
+     * @param sessionCreatedAt 인증 세션 생성 시각
      * @param expectedRefreshTokenHash 요청으로 전달된 기존 Refresh Token의 hash
      * @param newRefreshTokenHash 새로 발급된 Refresh Token의 hash
      * @return 원자적 Rotation 처리 결과
      */
     AuthSessionRotationResult rotateRefreshToken(
             UUID sessionId,
+            UUID userId,
+            Instant sessionCreatedAt,
             String expectedRefreshTokenHash,
             String newRefreshTokenHash
     );
