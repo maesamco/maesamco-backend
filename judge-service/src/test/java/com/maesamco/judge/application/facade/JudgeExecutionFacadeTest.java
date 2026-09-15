@@ -186,7 +186,7 @@ class JudgeExecutionFacadeTest {
 
         @Test
         @DisplayName("Judge0 응답 개수가 요청 개수와 다르면 예외를 전파하지 않고 재시도 처리를 위임한다")
-        void marksFailedWhenTokenCountMismatches() {
+        void handlesRetryableFailureWhenTokenCountMismatches() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
                     new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1),
@@ -208,7 +208,7 @@ class JudgeExecutionFacadeTest {
 
         @Test
         @DisplayName("Judge0 호출 자체가 실패하면 예외를 전파하지 않고 재시도 처리를 위임한다")
-        void marksFailedWhenJudge0SubmitThrows() {
+        void handlesRetryableFailureWhenJudge0SubmitThrows() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
                     new ExecutionTestCase(UUID.randomUUID(), true, "3 5", "8", 1)
@@ -290,6 +290,21 @@ class JudgeExecutionFacadeTest {
                     .markFailed(any(), any());
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("handleRetryableFailure 자체가 실패해도 예외를 전파하지 않는다")
+        void doesNotPropagateWhenHandleRetryableFailureItselfThrows() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new RuntimeException("DB 연결 순단"));
+            doThrow(new RuntimeException("handleRetryableFailure 자체 실패"))
+                    .when(judgeExecutionPersistenceService)
+                    .handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
         }
     }
 }
