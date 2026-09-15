@@ -282,7 +282,7 @@ public class AuthApiController {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    description = "AUTH_UNAUTHORIZED",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
