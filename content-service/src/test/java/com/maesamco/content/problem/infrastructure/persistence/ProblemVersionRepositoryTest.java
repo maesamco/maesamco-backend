@@ -1,7 +1,7 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
-import com.maesamco.content.domain.problem.enums.*;
 import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.common.BaseEntity;

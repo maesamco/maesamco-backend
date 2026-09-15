@@ -3,12 +3,12 @@ package com.maesamco.content.Internal;
 import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.application.input_port.ProblemTagFinder;
 import com.maesamco.content.application.input_port.ProblemVersionFinder;
+import com.maesamco.content.application.result.ProblemInternalResult;
 import com.maesamco.content.application.service.ProblemInternalService;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.TagAttribute;
-import com.maesamco.content.presentation.response.InternalProblemResponse;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -129,24 +129,24 @@ class ProblemInternalServiceTest {
         }
 
         // when
-        InternalProblemResponse response =
+        ProblemInternalResult result =
                 problemInternalService.getProblemMetaData(problemId);
 
         // 반환 객체 출력
-        System.out.println("===== InternalProblemResponse =====");
-        System.out.println("id = " + response.getId());
-        System.out.println("description = " + response.getDescription());
-        System.out.println("conceptTags = " + response.getConceptTags());
+        System.out.println("===== ProblemInternalResult =====");
+        System.out.println("id = " + result.getId());
+        System.out.println("description = " + result.getDescription());
+        System.out.println("conceptTags = " + result.getConceptTags());
         System.out.println("===================================");
 
         // then
-        assertThat(response.getId())
+        assertThat(result.getId())
                 .isEqualTo(problemId);
 
-        assertThat(response.getDescription())
+        assertThat(result.getDescription())
                 .isEqualTo("두 정수를 입력받아 합을 출력하세요.");
 
-        assertThat(response.getConceptTags())
+        assertThat(result.getConceptTags())
                 .containsExactly("반복문", "조건문");
     }
 
@@ -193,24 +193,24 @@ class ProblemInternalServiceTest {
         }
 
         // when
-        InternalProblemResponse response =
+        ProblemInternalResult result =
                 problemInternalService.getProblemMetaData(problemId);
 
         // 반환 객체 출력
-        System.out.println("===== InternalProblemResponse =====");
-        System.out.println("id = " + response.getId());
-        System.out.println("description = " + response.getDescription());
-        System.out.println("conceptTags = " + response.getConceptTags());
+        System.out.println("===== ProblemInternalResult =====");
+        System.out.println("id = " + result.getId());
+        System.out.println("description = " + result.getDescription());
+        System.out.println("conceptTags = " + result.getConceptTags());
         System.out.println("===================================");
 
         // then
-        assertThat(response.getId())
+        assertThat(result.getId())
                 .isEqualTo(problemId);
 
-        assertThat(response.getDescription())
+        assertThat(result.getDescription())
                 .isEqualTo("두 정수를 입력받아 두 수의 합을 출력하세요.");
 
-        assertThat(response.getConceptTags())
+        assertThat(result.getConceptTags())
                 .containsExactly("반복문");
     }
 
@@ -251,24 +251,24 @@ class ProblemInternalServiceTest {
         }
 
         // when
-        InternalProblemResponse response =
+        ProblemInternalResult result =
                 problemInternalService.getProblemMetaData(problemId);
 
         // 반환 객체 출력
-        System.out.println("===== InternalProblemResponse =====");
-        System.out.println("id = " + response.getId());
-        System.out.println("description = " + response.getDescription());
-        System.out.println("conceptTags = " + response.getConceptTags());
+        System.out.println("===== ProblemInternalResult =====");
+        System.out.println("id = " + result.getId());
+        System.out.println("description = " + result.getDescription());
+        System.out.println("conceptTags = " + result.getConceptTags());
         System.out.println("===================================");
 
         // then
-        assertThat(response.getId())
+        assertThat(result.getId())
                 .isEqualTo(problemId);
 
-        assertThat(response.getDescription())
+        assertThat(result.getDescription())
                 .isEqualTo("문제 지문");
 
-        assertThat(response.getConceptTags())
+        assertThat(result.getConceptTags())
                 .isEmpty();
     }
 
@@ -305,17 +305,17 @@ class ProblemInternalServiceTest {
                 .thenReturn(TagAttribute.ALGORITHM);
 
         // when
-        InternalProblemResponse response =
+        ProblemInternalResult result =
                 problemInternalService.getProblemVersionMetaData(problemVersionId);
 
         // then — 지문은 버전 스냅샷 기준, id/개념 태그는 problemId 기준 현재 값
-        assertThat(response.getId())
+        assertThat(result.getId())
                 .isEqualTo(problemId);
 
-        assertThat(response.getDescription())
+        assertThat(result.getDescription())
                 .isEqualTo("제출 시점 지문");
 
-        assertThat(response.getConceptTags())
+        assertThat(result.getConceptTags())
                 .containsExactly("반복문");
     }
 }
