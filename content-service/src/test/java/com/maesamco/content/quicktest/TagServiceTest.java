@@ -1,14 +1,14 @@
 package com.maesamco.content.quicktest;
 
-import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
-import com.maesamco.content.tag.application.port.TagFinder;
-import com.maesamco.content.tag.application.service.TagService;
-import com.maesamco.content.tag.domain.entity.Tag;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
-import com.maesamco.content.tag.domain.repository.TagRepository;
-import com.maesamco.content.tag.presentation.dto.request.TagCreateRequest;
-import com.maesamco.content.tag.presentation.dto.request.TagUpdateRequest;
-import com.maesamco.content.tag.presentation.dto.response.TagCreateResponse;
+import com.maesamco.content.application.tag.port.TagFinder;
+import com.maesamco.content.application.tag.service.TagService;
+import com.maesamco.content.domain.problem.repository.ProblemTagRepository;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
+import com.maesamco.content.domain.tag.repository.TagRepository;
+import com.maesamco.content.presentation.tag.dto.request.TagCreateRequest;
+import com.maesamco.content.presentation.tag.dto.request.TagUpdateRequest;
+import com.maesamco.content.presentation.tag.dto.response.TagCreateResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,13 +1,14 @@
 package com.maesamco.content.problem.presentation.controller;
 
+import com.maesamco.content.application.problem.service.ProblemInternalService;
 import com.maesamco.content.global.exception.GlobalExceptionHandler;
 import com.maesamco.content.global.security.hmac.HmacSignatureUtil;
 import com.maesamco.content.global.security.hmac.HmacVerificationFilter;
 import com.maesamco.content.global.security.hmac.InternalCallHeaders;
 import com.maesamco.content.global.security.hmac.InternalCallerAuthorizationInterceptor;
 import com.maesamco.content.global.security.hmac.InternalServiceKeyProperties;
-import com.maesamco.content.problem.application.service.ProblemInternalService;
-import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
+import com.maesamco.content.presentation.problem.controller.InternalProblemController;
+import com.maesamco.content.presentation.problem.dto.response.InternalProblemResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

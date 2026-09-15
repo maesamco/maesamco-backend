@@ -1,13 +1,13 @@
 package com.maesamco.content.global.hierarchy;
 
-import com.maesamco.content.curriculum.domain.repository.CurriculumRepository;
+import com.maesamco.content.application.lesson.service.LessonFinderService;
+import com.maesamco.content.application.unit.service.UnitFinderService;
+import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
+import com.maesamco.content.domain.lesson.entity.Lesson;
+import com.maesamco.content.domain.lesson.repository.LessonRepository;
+import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.unit.repository.UnitRepository;
 import com.maesamco.content.global.exception.BusinessException;
-import com.maesamco.content.lesson.application.service.LessonFinderService;
-import com.maesamco.content.lesson.domain.entity.Lesson;
-import com.maesamco.content.lesson.domain.repository.LessonRepository;
-import com.maesamco.content.unit.application.service.UnitFinderService;
-import com.maesamco.content.unit.domain.entity.Unit;
-import com.maesamco.content.unit.domain.repository.UnitRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
