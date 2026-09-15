@@ -7,6 +7,8 @@ import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.infrastructure.persistence.UserRepositoryImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -376,5 +378,92 @@ class ChangePasswordServiceIntegrationTest {
         } finally {
             executorService.shutdownNow();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "동일한 비밀번호 변경 요청을 반복하면 "
+                    + "첫 요청만 반영되고 두 번째 요청은 거부한다"
+    )
+    void changePassword_repeatedRequestIsSafelyRejected() {
+        // given
+        User user = createUser(
+                "d".repeat(64),
+                "RepeatedPassword"
+        );
+
+        when(
+                passwordHasher.matches(
+                        CURRENT_PASSWORD,
+                        OLD_PASSWORD_HASH
+                )
+        ).thenReturn(true);
+
+        when(
+                passwordHasher.matches(
+                        NEW_PASSWORD,
+                        OLD_PASSWORD_HASH
+                )
+        ).thenReturn(false);
+
+        when(
+                passwordHasher.matches(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD_HASH
+                )
+        ).thenReturn(false);
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenReturn(EMAIL);
+
+        when(passwordHasher.hash(NEW_PASSWORD))
+                .thenReturn(NEW_PASSWORD_HASH);
+
+        when(clock.instant())
+                .thenReturn(NOW);
+
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        // when
+        changePasswordService.changePassword(
+                user.getId(),
+                command
+        );
+
+        // then
+        assertThatThrownBy(
+                () -> changePasswordService.changePassword(
+                        user.getId(),
+                        command
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(
+                                        exception.getErrorCode()
+                                ).isEqualTo(
+                                        ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
+                                )
+                );
+
+        User updatedUser = userRepository
+                .findById(user.getId())
+                .orElseThrow();
+
+        assertThat(updatedUser.getPasswordHash())
+                .isEqualTo(NEW_PASSWORD_HASH);
+
+        verify(
+                authSessionLogoutAllStore,
+                times(1)
+        ).logoutAll(
+                user.getId(),
+                NOW
+        );
     }
 }
