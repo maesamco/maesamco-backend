@@ -1,11 +1,11 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
+import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
+import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
+import com.maesamco.content.domain.problem.repository.ProblemRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;
-import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
-import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
-import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
-import com.maesamco.content.problem.domain.repository.ProblemRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

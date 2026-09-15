@@ -1,8 +1,9 @@
 package com.maesamco.content.problem.infrastructure.messaging.event;
 
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.enums.*;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.infrastructure.problem.messaging.event.ProblemPublishedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

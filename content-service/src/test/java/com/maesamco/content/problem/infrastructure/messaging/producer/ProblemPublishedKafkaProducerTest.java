@@ -1,5 +1,6 @@
 package com.maesamco.content.problem.infrastructure.messaging.producer;
 
+import com.maesamco.content.infrastructure.problem.messaging.producer.ProblemPublishedKafkaProducer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
