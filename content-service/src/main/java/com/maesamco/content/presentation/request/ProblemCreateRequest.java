@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import jakarta.validation.constraints.NotBlank;
@@ -7,6 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.UUID;
 
 /**
  * 문제 생성 요청 정보를 전달합니다.
@@ -59,4 +62,19 @@ public class ProblemCreateRequest {
     /** 문제 출처 */
     @NotNull
     private ProblemSource source;
+
+    public ProblemCreateCommand toCommand() {
+        return new ProblemCreateCommand(
+                title,
+                language,
+                difficulty,
+                type,
+                description,
+                starterCode,
+                runningTimeLimit,
+                runningMemoryLimit,
+                timerPolicy,
+                source
+        );
+    }
 }

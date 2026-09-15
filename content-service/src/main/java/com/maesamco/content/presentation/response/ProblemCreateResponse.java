@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.application.result.ProblemResult;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,10 +15,10 @@ public class ProblemCreateResponse {
     private final UUID id;
     private final String title;
 
-    public static ProblemCreateResponse from(Problem problem) {
+    public static ProblemCreateResponse from(ProblemResult result) {
         return new ProblemCreateResponse(
-                problem.getId(),
-                problem.getTitle()
+                result.getId(),
+                result.getTitle()
         );
     }
 }

@@ -1,6 +1,7 @@
 
 package com.maesamco.content.presentation.response;
 
+import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import lombok.AccessLevel;
@@ -29,19 +30,19 @@ public class ProblemShortResponse {
     private final TimerPolicy timerPolicy;
     private final ProblemSource source;
 
-    public static ProblemShortResponse from(Problem problem) {
+    public static ProblemShortResponse from(ProblemResult result) {
         return new ProblemShortResponse(
-                problem.getId(),
-                problem.getTitle(),
-                problem.getLanguage(),
-                problem.getDifficulty(),
-                problem.getType(),
-                problem.getDescription(),
-                problem.getStarterCode(),
-                problem.getRunningTimeLimit(),
-                problem.getRunningMemoryLimit(),
-                problem.getTimerPolicy(),
-                problem.getSource()
+                result.getId(),
+                result.getTitle(),
+                result.getLanguage(),
+                result.getDifficulty(),
+                result.getType(),
+                result.getDescription(),
+                result.getStarterCode(),
+                result.getRunningTimeLimit(),
+                result.getRunningMemoryLimit(),
+                result.getTimerPolicy(),
+                result.getSource()
         );
     }
 }

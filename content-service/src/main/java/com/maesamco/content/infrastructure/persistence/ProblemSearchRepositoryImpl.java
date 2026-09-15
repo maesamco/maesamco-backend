@@ -3,8 +3,8 @@ package com.maesamco.content.infrastructure.persistence;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.QProblem;
+import com.maesamco.content.domain.repository.problem.ProblemSearchCondition;
 import com.maesamco.content.domain.repository.problem.ProblemSearchRepository;
-import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -43,21 +43,21 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
      * <p>개별 검색 조건은 AND로 연결되며,
      * 값이 null인 검색 조건은 Querydsl where절에서 제외됩니다.</p>
      *
-     * @param request 문제 검색 조건
+     * @param condition 문제 검색 조건
      * @param pageable 페이징 및 정렬 조건
      * @return 검색된 문제 페이지
      */
     @Override
-    public Page<Problem> searchProblems(ProblemSearchRequest request, Pageable pageable) {
+    public Page<Problem> searchProblems(ProblemSearchCondition condition, Pageable pageable) {
         QProblem problem = QProblem.problem;
 
         // where절 공통 부분 묶기
         BooleanExpression[] conditions = {
-                languageEq(problem, request),
-                difficultyEq(problem, request),
-                typeEq(problem, request),
-                sourceEq(problem, request),
-                statusEq(problem, request)
+                languageEq(problem, condition),
+                difficultyEq(problem, condition),
+                typeEq(problem, condition),
+                sourceEq(problem, condition),
+                statusEq(problem, condition)
         };
 
         List<Problem> problems = queryFactory
@@ -80,34 +80,32 @@ public class ProblemSearchRepositoryImpl implements ProblemSearchRepository {
         );
     }
 
-
-
     /** 프로그래밍 언어 일치 조건을 생성합니다. */
-    private BooleanExpression languageEq(QProblem problem, ProblemSearchRequest request) {
+    private BooleanExpression languageEq(QProblem problem, ProblemSearchCondition request) {
         if (request == null || request.getLanguage() == null) { return null; }
 
         return problem.language.eq(request.getLanguage());
     }
     /** 문제 난이도 일치 조건을 생성합니다. */
-    private BooleanExpression difficultyEq(QProblem problem, ProblemSearchRequest request) {
+    private BooleanExpression difficultyEq(QProblem problem, ProblemSearchCondition request) {
         if (request == null || request.getDifficulty() == null) { return null; }
 
         return problem.difficulty.eq(request.getDifficulty());
     }
     /** 문제 유형 일치 조건을 생성합니다. */
-    private BooleanExpression typeEq(QProblem problem, ProblemSearchRequest request) {
+    private BooleanExpression typeEq(QProblem problem, ProblemSearchCondition request) {
         if (request == null || request.getType() == null) { return null; }
 
         return problem.type.eq(request.getType());
     }
     /** 문제 출처 일치 조건을 생성합니다. */
-    private BooleanExpression sourceEq(QProblem problem, ProblemSearchRequest request) {
+    private BooleanExpression sourceEq(QProblem problem, ProblemSearchCondition request) {
         if (request == null || request.getSource() == null) { return null; }
 
         return problem.source.eq(request.getSource());
     }
     /** 문제 상태 일치 조건을 생성합니다. */
-    private BooleanExpression statusEq(QProblem problem, ProblemSearchRequest request) {
+    private BooleanExpression statusEq(QProblem problem, ProblemSearchCondition request) {
         if (request == null || request.getProblemStatus() == null) { return null; }
 
         return problem.problemStatus.eq(request.getProblemStatus());

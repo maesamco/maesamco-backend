@@ -5,8 +5,6 @@ import com.maesamco.content.domain.entity.problem.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.UUID;
-
 @Getter
 @AllArgsConstructor
 public class ProblemCreateCommand {
@@ -21,5 +19,4 @@ public class ProblemCreateCommand {
     private RunningMemoryLimit runningMemoryLimit;
     private TimerPolicy timerPolicy;
     private ProblemSource source;
-    private UUID createdBy;
 }

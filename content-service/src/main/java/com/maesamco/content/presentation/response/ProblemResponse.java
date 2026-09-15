@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.response;
 
+import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import lombok.AccessLevel;
@@ -31,22 +32,22 @@ public class ProblemResponse {
     private final Integer currentVersionNo;
     private final Long lockVersion;
 
-    public static ProblemResponse from(Problem problem) {
+    public static ProblemResponse from(ProblemResult result) {
         return new ProblemResponse(
-                problem.getId(),
-                problem.getTitle(),
-                problem.getLanguage(),
-                problem.getDifficulty(),
-                problem.getType(),
-                problem.getDescription(),
-                problem.getStarterCode(),
-                problem.getRunningTimeLimit(),
-                problem.getRunningMemoryLimit(),
-                problem.getTimerPolicy(),
-                problem.getSource(),
-                problem.getProblemStatus(),
-                problem.getCurrentVersionNo(),
-                problem.getLockVersion()
+                result.getId(),
+                result.getTitle(),
+                result.getLanguage(),
+                result.getDifficulty(),
+                result.getType(),
+                result.getDescription(),
+                result.getStarterCode(),
+                result.getRunningTimeLimit(),
+                result.getRunningMemoryLimit(),
+                result.getTimerPolicy(),
+                result.getSource(),
+                result.getProblemStatus(),
+                result.getCurrentVersionNo(),
+                result.getLockVersion()
         );
     }
 }

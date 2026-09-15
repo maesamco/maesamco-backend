@@ -2,29 +2,30 @@ package com.maesamco.content.application.result;
 
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.util.UUID;
 
 @Getter
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ProblemResult {
 
-    private UUID id;
-    private String title;
-    private ProgrammingLanguage language;
-    private ProblemDifficulty difficulty;
-    private ProblemType type;
-    private String description;
-    private String starterCode;
-    private RunningTimeLimit runningTimeLimit;
-    private RunningMemoryLimit runningMemoryLimit;
-    private TimerPolicy timerPolicy;
-    private ProblemSource source;
-    private ProblemStatus status;
-    private Integer currentVersionNo;
-    private Long lockVersion;
+    private final UUID id;
+    private final String title;
+    private final ProgrammingLanguage language;
+    private final ProblemDifficulty difficulty;
+    private final ProblemType type;
+    private final String description;
+    private final String starterCode;
+    private final RunningTimeLimit runningTimeLimit;
+    private final RunningMemoryLimit runningMemoryLimit;
+    private final TimerPolicy timerPolicy;
+    private final ProblemSource source;
+    private final ProblemStatus problemStatus;
+    private final Integer currentVersionNo;
+    private final Long lockVersion;
 
     public static ProblemResult from(Problem problem) {
         return new ProblemResult(

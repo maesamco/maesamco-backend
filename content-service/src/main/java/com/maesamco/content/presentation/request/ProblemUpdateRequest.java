@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import jakarta.validation.constraints.NotNull;
@@ -57,4 +58,20 @@ public class ProblemUpdateRequest {
 
     /** 수정할 문제 출처입니다. */
     private ProblemSource source;
+
+    public ProblemUpdateCommand toCommand() {
+        return new ProblemUpdateCommand(
+                title,
+                lockVersion,
+                language,
+                difficulty,
+                type,
+                description,
+                starterCode,
+                runningTimeLimit,
+                runningMemoryLimit,
+                timerPolicy,
+                source
+        );
+    }
 }

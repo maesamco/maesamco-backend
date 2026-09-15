@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.ProblemSource;
@@ -37,4 +38,14 @@ public class ProblemSearchRequest {
 
     /** 문제 출처 검색 조건입니다. */
     private ProblemSource source;
+
+    public ProblemSearchQuery toQuery() {
+        return new ProblemSearchQuery(
+                language,
+                difficulty,
+                type,
+                problemStatus,
+                source
+        );
+    }
 }

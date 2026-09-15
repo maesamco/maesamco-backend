@@ -1,5 +1,7 @@
 package com.maesamco.content.presentation.api_controller;
 
+import com.maesamco.content.application.result.ProblemResult;
+import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.application.service.ProblemPublicationService;
 import com.maesamco.content.application.service.ProblemService;
 import com.maesamco.content.global.response.PageResponse;
@@ -14,6 +16,7 @@ import com.maesamco.content.presentation.response.ProblemSearchItemResponse;
 import com.maesamco.content.presentation.response.ProblemShortResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,11 +58,14 @@ public class ProblemController {
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
             @Valid @RequestBody ProblemCreateRequest request
     ) {
-        ProblemCreateResponse response = problemService.createProblem(request);
+        ProblemResult result = problemService.createProblem(request.toCommand());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED) // 201 Created
-                .body(SuccessResponse.success(response));
+                .body(SuccessResponse.success(
+                        ProblemCreateResponse.from(result)
+                        )
+                );
     }
 
     /**
@@ -80,11 +86,12 @@ public class ProblemController {
     public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(
             @PathVariable UUID problemId
     ) {
-        ProblemResponse response =
-                problemService.getProblemForAdmin(problemId);
+        ProblemResult result = problemService.getProblemForAdmin(problemId);
 
         return ResponseEntity.ok(
-                SuccessResponse.success(response)
+                SuccessResponse.success(
+                        ProblemResponse.from(result)
+                )
         );
     }
     // 모든 사용자는 문제의 간단 정보를 조회할 수 있다.
@@ -92,11 +99,13 @@ public class ProblemController {
     public ResponseEntity<SuccessResponse<ProblemShortResponse>> getProblemShort(
             @PathVariable UUID problemId
     ) {
-        ProblemShortResponse response =
+        ProblemResult result =
                 problemService.getProblemForUser(problemId);
 
         return ResponseEntity.ok(
-                SuccessResponse.success(response)
+                SuccessResponse.success(
+                        ProblemShortResponse.from(result)
+                )
         );
     }
 
@@ -124,8 +133,13 @@ public class ProblemController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String direction
     ) {
-        Pageable pageable = PageableFactory.of(page, size, sort, direction); // 팀 규칙에 맞춰 단일 정렬만 가능하도록 pageable 객체를 만든다.
-        PageResponse<ProblemSearchItemResponse> response = problemService.searchProblems(request, pageable);
+        Pageable pageable = PageableFactory.of(page, size, sort, direction);
+
+        // Service에서 Page로 반환한다.
+        Page<ProblemSearchResult> results = problemService.searchProblems(request.toQuery(), pageable);
+
+        // 페이지 공통 반환 객체 PageResponse로 변환한다.
+        PageResponse<ProblemSearchItemResponse> response = PageResponse.from(results, ProblemSearchItemResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -166,10 +180,12 @@ public class ProblemController {
             @PathVariable UUID problemId,
             @Valid @RequestBody ProblemUpdateRequest request
     ) {
-        ProblemResponse response = problemService.updateProblem(problemId, request);
+        ProblemResult result = problemService.updateProblem(problemId, request.toCommand());
 
         return ResponseEntity.ok(
-                SuccessResponse.success(response)
+                SuccessResponse.success(
+                        ProblemResponse.from(result)
+                )
         );
     }
 

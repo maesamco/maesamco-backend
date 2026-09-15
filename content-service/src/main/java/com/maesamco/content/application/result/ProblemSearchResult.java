@@ -1,23 +1,16 @@
-package com.maesamco.content.presentation.response;
+package com.maesamco.content.application.result;
 
-import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
-import com.maesamco.content.domain.entity.problem.ProblemSource;
-import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.util.UUID;
 
-/**
- * 문제 검색 결과 항목 응답 DTO
- * <p>[문제 카드에 보여줄 정보]</p>
- */
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ProblemSearchItemResponse {
+public class ProblemSearchResult {
 
     private final UUID id;
     private final String title;
@@ -25,15 +18,17 @@ public class ProblemSearchItemResponse {
     private final ProblemDifficulty difficulty;
     private final ProblemType type;
     private final ProblemSource source;
+    private final ProblemStatus problemStatus;
 
-    public static ProblemSearchItemResponse from(ProblemSearchResult problem) {
-        return new ProblemSearchItemResponse(
+    public static ProblemSearchResult from(Problem problem) {
+        return new ProblemSearchResult(
                 problem.getId(),
                 problem.getTitle(),
                 problem.getLanguage(),
                 problem.getDifficulty(),
                 problem.getType(),
-                problem.getSource()
+                problem.getSource(),
+                problem.getProblemStatus()
         );
     }
 }
