@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.GetMyProfileResult;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -70,6 +71,89 @@ public interface UserApiDocs {
     ResponseEntity<SuccessResponse<GetMyProfileResult>> getMyProfile(
             @Parameter(hidden = true)
             Authentication authentication
+    );
+
+    /**
+     * 로그인 사용자의 닉네임과 Java 학습 정보를 수정합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 변경할 사용자 기본 정보
+     * @return 변경된 사용자 기본 정보
+     */
+    @Operation(
+            summary = "내 정보 수정",
+            description = "Access Token으로 인증된 사용자의 닉네임, "
+                    + "Java 학습 수준과 경험 개월 수를 수정합니다. "
+                    + "이메일, 권한과 계정 상태는 수정할 수 없습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "내 정보 수정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_INPUT_VALUE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "USER_DUPLICATE_NICKNAME",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<GetMyProfileResult>> updateMyProfile(
+            @Parameter(hidden = true)
+            Authentication authentication,
+
+            @Valid
+            @RequestBody
+            UpdateMyProfileCommand command
     );
 
     /**
