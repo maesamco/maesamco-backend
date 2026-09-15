@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordService;
+import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -71,6 +72,9 @@ class UserApiControllerChangePasswordTest {
 
     @MockitoBean
     private ChangePasswordService changePasswordService;
+
+    @MockitoBean
+    private GetMyProfileService getMyProfileService;
 
     @Test
     @DisplayName(

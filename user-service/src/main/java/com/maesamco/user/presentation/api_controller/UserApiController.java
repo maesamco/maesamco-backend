@@ -2,8 +2,11 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordService;
+import com.maesamco.user.application.service.GetMyProfileResult;
+import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -40,7 +40,38 @@ public class UserApiController implements UserApiDocs {
     private static final String REFRESH_TOKEN_SAME_SITE =
             "Lax";
 
+    private final GetMyProfileService getMyProfileService;
+
     private final ChangePasswordService changePasswordService;
+
+    /**
+     * 로그인 사용자의 기본 정보를 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 로그인 사용자의 기본 정보
+     */
+    @Override
+    @GetMapping
+    public ResponseEntity<SuccessResponse<GetMyProfileResult>>
+    getMyProfile(
+            Authentication authentication
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyProfileResult result =
+                getMyProfileService.getMyProfile(
+                        userId
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
 
     /**
      * 현재 비밀번호를 확인한 후 새 비밀번호로 변경합니다.
