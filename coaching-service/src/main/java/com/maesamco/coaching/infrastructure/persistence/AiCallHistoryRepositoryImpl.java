@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -31,9 +32,15 @@ public class AiCallHistoryRepositoryImpl implements AiCallHistoryRepository {
         return springDataAiCallHistoryRepository.findByCoachingSessionIdOrderByCalledAtAsc(coachingSessionId);
     }
 
+    // PR #182 리뷰(용현님 P2) — SKIPPED(호출 자체 없었음)와 INFRA_FAILED(호출은 했지만
+    // 인프라 실패) 둘 다 재시도 예산에서 제외한다.
+    private static final Set<String> EXCLUDED_FROM_RETRY_BUDGET = Set.of("SKIPPED", "INFRA_FAILED");
+
     @Override
     public long countRealAttemptsByCoachingSessionIdAndPurpose(UUID coachingSessionId, AiCallPurpose purpose) {
         return springDataAiCallHistoryRepository
-                .countByCoachingSessionIdAndPurposeAndRequestStatusNot(coachingSessionId, purpose, "SKIPPED");
+                .countByCoachingSessionIdAndPurposeAndRequestStatusNotIn(
+                        coachingSessionId, purpose, EXCLUDED_FROM_RETRY_BUDGET
+                );
     }
 }
