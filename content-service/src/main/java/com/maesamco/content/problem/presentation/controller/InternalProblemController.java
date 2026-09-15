@@ -1,6 +1,7 @@
 package com.maesamco.content.problem.presentation.controller;
 
 import com.maesamco.content.global.response.SuccessResponse;
+import com.maesamco.content.global.security.hmac.AllowedInternalCallers;
 import com.maesamco.content.problem.application.service.ProblemInternalService;
 import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
 import lombok.RequiredArgsConstructor;
@@ -12,9 +13,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * ⚠️ 이슈 #185 재리뷰(P1) — content-service가 원래부터 갖고 있던 유일한 내부
+ * 컨트롤러인데, "내부 API 호출자 인가 공통 메커니즘"(이슈 #138) PR의 diff에
+ * 포함되지 않아 애노테이션이 하나도 안 붙은 채로 남아있었다. 지금은
+ * coaching-service만 실제 호출자(ContentServiceFeignClient)라 당장 악용
+ * 가능한 제3자는 없지만, 나중에 다른 서비스가 content-service HMAC 키를 새로
+ * 발급받는 순간 별도 승인 없이 이 두 엔드포인트에도 접근 권한이 자동으로
+ * 생기는 구조적 위험이 있었다. 클래스 레벨에 붙여 두 메서드 모두에 적용한다.
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/internal/v1")
+@AllowedInternalCallers({"coaching-service"})
 public class InternalProblemController {
 
     private final ProblemInternalService problemInternalService;
