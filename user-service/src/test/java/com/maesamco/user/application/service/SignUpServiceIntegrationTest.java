@@ -408,6 +408,15 @@ class SignUpServiceIntegrationTest {
         );
 
         when(
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        emailLookupHash
+                )
+        ).thenReturn(
+                true
+        );
+
+        when(
                 emailVerificationStore.consumeSignupToken(
                         SIGNUP_TOKEN_HASH,
                         emailLookupHash

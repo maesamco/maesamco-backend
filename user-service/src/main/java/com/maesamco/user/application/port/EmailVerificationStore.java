@@ -72,17 +72,21 @@ public interface EmailVerificationStore {
     );
 
     /**
-     * 회원가입 토큰이 해당 이메일에 발급된 것인지 확인하고 한 번만 소비합니다.
+     * 회원가입 토큰이 해당 이메일에 발급된 유효한 토큰인지
+     * 소비하지 않고 확인합니다.
      *
-     * <p>비교와 삭제는 반드시 하나의 원자 연산이어야 하며,
-     * 두 회원가입 요청이 동시에 같은 토큰을 사용하더라도
-     * 하나의 요청만 성공해야 합니다.</p>
+     * <p>이 검증은 닉네임 등 회원 정보 조회 전에
+     * 이메일 인증 완료 여부를 확인하기 위한 사전 검증입니다.</p>
+     *
+     * <p>최종 회원가입 직전에는 반드시
+     * {@link #consumeSignupToken(String, String)}을 다시 호출하여
+     * 일회성 소비를 원자적으로 보장해야 합니다.</p>
      *
      * @param signupTokenHash 회원가입 토큰 해시
      * @param emailLookupHash 회원가입 이메일 조회용 해시
-     * @return 토큰 소비 성공 여부
+     * @return 유효한 토큰이면 true
      */
-    boolean consumeSignupToken(
+    boolean isSignupTokenValid(
             String signupTokenHash,
             String emailLookupHash
     );
@@ -99,4 +103,20 @@ public interface EmailVerificationStore {
         EXPIRED,
         ATTEMPTS_EXCEEDED
     }
+
+    /**
+     * 회원가입 토큰이 해당 이메일에 발급된 것인지 확인하고 한 번만 소비합니다.
+     *
+     * <p>비교와 삭제는 반드시 하나의 원자 연산이어야 하며,
+     * 두 회원가입 요청이 동시에 같은 토큰을 사용하더라도
+     * 하나의 요청만 성공해야 합니다.</p>
+     *
+     * @param signupTokenHash 회원가입 토큰 해시
+     * @param emailLookupHash 회원가입 이메일 조회용 해시
+     * @return 토큰 소비 성공 여부
+     */
+    boolean consumeSignupToken(
+            String signupTokenHash,
+            String emailLookupHash
+    );
 }
