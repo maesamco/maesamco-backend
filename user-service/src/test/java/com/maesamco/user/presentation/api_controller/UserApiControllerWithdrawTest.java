@@ -1,6 +1,11 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.*;
+import com.maesamco.user.application.service.ChangePasswordService;
+import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.UpdateMyInterestsService;
+import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.WithdrawUserCommand;
+import com.maesamco.user.application.service.WithdrawUserService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -31,14 +36,14 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * UserApiController의 비밀번호 변경 HTTP 계약을 검증합니다.
+ * UserApiController의 회원 탈퇴 HTTP 계약을 검증합니다.
  */
 @WebMvcTest(
         value = UserApiController.class,
@@ -49,10 +54,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @Import({
         GlobalExceptionHandler.class,
-        UserApiControllerChangePasswordTest
+        UserApiControllerWithdrawTest
                 .TestSecurityConfiguration.class
 })
-class UserApiControllerChangePasswordTest {
+class UserApiControllerWithdrawTest {
 
     private static final UUID USER_ID =
             UUID.fromString(
@@ -62,17 +67,17 @@ class UserApiControllerChangePasswordTest {
     private static final String CURRENT_PASSWORD =
             "Abcd1234!";
 
-    private static final String NEW_PASSWORD =
-            "NewAbcd1234!";
-
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private WithdrawUserService withdrawUserService;
 
     @MockitoBean
     private GetMyProfileService getMyProfileService;
+
+    @MockitoBean
+    private ChangePasswordService changePasswordService;
 
     @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
@@ -80,27 +85,20 @@ class UserApiControllerChangePasswordTest {
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
 
-    @MockitoBean
-    private WithdrawUserService withdrawUserService;
-
     @Test
     @DisplayName(
-            "인증된 사용자가 비밀번호를 변경하면 "
+            "인증된 사용자가 탈퇴하면 "
                     + "204와 만료된 Refresh Token Cookie를 반환한다"
     )
-    void changePassword() throws Exception {
-        // given
-        UsernamePasswordAuthenticationToken authenticationToken =
-                createAuthentication(
-                        USER_ID
-                );
-
+    void withdraw() throws Exception {
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
-                                                authenticationToken
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
                                         )
                                 )
                                 .contentType(
@@ -142,25 +140,24 @@ class UserApiControllerChangePasswordTest {
                         content().string("")
                 );
 
-        verify(changePasswordService)
-                .changePassword(
+        verify(withdrawUserService)
+                .withdraw(
                         USER_ID,
-                        new ChangePasswordCommand(
-                                CURRENT_PASSWORD,
-                                NEW_PASSWORD
+                        new WithdrawUserCommand(
+                                CURRENT_PASSWORD
                         )
                 );
     }
 
     @Test
     @DisplayName(
-            "인증 정보 없이 비밀번호 변경을 요청하면 "
+            "인증 정보 없이 탈퇴를 요청하면 "
                     + "401 AUTH_UNAUTHORIZED를 반환한다"
     )
     void missingAuthentication() throws Exception {
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .contentType(
                                         MediaType.APPLICATION_JSON
                                 )
@@ -188,7 +185,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                withdrawUserService
         );
     }
 
@@ -208,7 +205,7 @@ class UserApiControllerChangePasswordTest {
 
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 authenticationToken
@@ -237,7 +234,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                withdrawUserService
         );
     }
 
@@ -247,16 +244,70 @@ class UserApiControllerChangePasswordTest {
                     + "400 INVALID_INPUT_VALUE를 반환한다"
     )
     void missingCurrentPassword() throws Exception {
+        // when & then
+        mockMvc.perform(
+                        delete("/api/v1/users/me")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content("{}")
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.error.fieldErrors[*].field")
+                                .value(
+                                        hasItem(
+                                                "currentPassword"
+                                        )
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
+
+        verifyNoInteractions(
+                withdrawUserService
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "현재 비밀번호가 너무 길면 400을 반환하고 "
+                    + "비밀번호 원문을 노출하지 않는다"
+    )
+    void currentPasswordTooLong() throws Exception {
         // given
+        String sensitivePassword =
+                "A".repeat(65);
+
         String request = """
                 {
-                  "newPassword": "NewAbcd1234!"
+                  "currentPassword": "%s"
                 }
-                """;
+                """.formatted(
+                sensitivePassword
+        );
 
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -290,87 +341,19 @@ class UserApiControllerChangePasswordTest {
                         content().string(
                                 not(
                                         containsString(
-                                                NEW_PASSWORD
+                                                sensitivePassword
                                         )
                                 )
+                        )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
                         )
                 );
 
         verifyNoInteractions(
-                changePasswordService
-        );
-    }
-
-    @Test
-    @DisplayName(
-            "새 비밀번호가 정책을 위반하면 "
-                    + "400을 반환하고 비밀번호 원문을 노출하지 않는다"
-    )
-    void invalidNewPassword() throws Exception {
-        // given
-        String invalidNewPassword =
-                "weak-password";
-
-        String request = """
-                {
-                  "currentPassword": "Abcd1234!",
-                  "newPassword": "weak-password"
-                }
-                """;
-
-        // when & then
-        mockMvc.perform(
-                        patch("/api/v1/users/me/password")
-                                .with(
-                                        authentication(
-                                                createAuthentication(
-                                                        USER_ID
-                                                )
-                                        )
-                                )
-                                .contentType(
-                                        MediaType.APPLICATION_JSON
-                                )
-                                .content(request)
-                )
-                .andExpect(
-                        status().isBadRequest()
-                )
-                .andExpect(
-                        jsonPath("$.error.code")
-                                .value(
-                                        "INVALID_INPUT_VALUE"
-                                )
-                )
-                .andExpect(
-                        jsonPath("$.error.fieldErrors[*].field")
-                                .value(
-                                        hasItem(
-                                                "newPassword"
-                                        )
-                                )
-                )
-                .andExpect(
-                        content().string(
-                                not(
-                                        containsString(
-                                                CURRENT_PASSWORD
-                                        )
-                                )
-                        )
-                )
-                .andExpect(
-                        content().string(
-                                not(
-                                        containsString(
-                                                invalidNewPassword
-                                        )
-                                )
-                        )
-                );
-
-        verifyNoInteractions(
-                changePasswordService
+                withdrawUserService
         );
     }
 
@@ -384,14 +367,13 @@ class UserApiControllerChangePasswordTest {
         String request = """
                 {
                   "userId": "22222222-2222-2222-2222-222222222222",
-                  "currentPassword": "Abcd1234!",
-                  "newPassword": "NewAbcd1234!"
+                  "currentPassword": "Abcd1234!"
                 }
                 """;
 
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -415,7 +397,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                withdrawUserService
         );
     }
 
@@ -426,10 +408,9 @@ class UserApiControllerChangePasswordTest {
     )
     void currentPasswordMismatch() throws Exception {
         // given
-        ChangePasswordCommand command =
-                new ChangePasswordCommand(
-                        CURRENT_PASSWORD,
-                        NEW_PASSWORD
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        CURRENT_PASSWORD
                 );
 
         doThrow(
@@ -437,15 +418,15 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
                 )
         )
-                .when(changePasswordService)
-                .changePassword(
+                .when(withdrawUserService)
+                .withdraw(
                         USER_ID,
                         command
                 );
 
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -470,6 +451,15 @@ class UserApiControllerChangePasswordTest {
                                 )
                 )
                 .andExpect(
+                        content().string(
+                                not(
+                                        containsString(
+                                                CURRENT_PASSWORD
+                                        )
+                                )
+                        )
+                )
+                .andExpect(
                         header().doesNotExist(
                                 HttpHeaders.SET_COOKIE
                         )
@@ -478,31 +468,30 @@ class UserApiControllerChangePasswordTest {
 
     @Test
     @DisplayName(
-            "새 비밀번호가 서비스 정책을 위반하면 "
-                    + "400 USER_PASSWORD_POLICY_VIOLATION을 반환한다"
+            "정지된 사용자가 탈퇴를 요청하면 "
+                    + "403 USER_NOT_ACTIVE를 반환한다"
     )
-    void passwordPolicyViolation() throws Exception {
+    void inactiveUser() throws Exception {
         // given
-        ChangePasswordCommand command =
-                new ChangePasswordCommand(
-                        CURRENT_PASSWORD,
-                        NEW_PASSWORD
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        CURRENT_PASSWORD
                 );
 
         doThrow(
                 new BusinessException(
-                        ErrorCode.USER_PASSWORD_POLICY_VIOLATION
+                        ErrorCode.USER_NOT_ACTIVE
                 )
         )
-                .when(changePasswordService)
-                .changePassword(
+                .when(withdrawUserService)
+                .withdraw(
                         USER_ID,
                         command
                 );
 
         // when & then
         mockMvc.perform(
-                        patch("/api/v1/users/me/password")
+                        delete("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -518,12 +507,68 @@ class UserApiControllerChangePasswordTest {
                                 )
                 )
                 .andExpect(
-                        status().isBadRequest()
+                        status().isForbidden()
                 )
                 .andExpect(
                         jsonPath("$.error.code")
                                 .value(
-                                        "USER_PASSWORD_POLICY_VIOLATION"
+                                        "USER_NOT_ACTIVE"
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "사용자를 찾을 수 없으면 "
+                    + "404 USER_NOT_FOUND를 반환한다"
+    )
+    void userNotFound() throws Exception {
+        // given
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        CURRENT_PASSWORD
+                );
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_NOT_FOUND
+                )
+        )
+                .when(withdrawUserService)
+                .withdraw(
+                        USER_ID,
+                        command
+                );
+
+        // when & then
+        mockMvc.perform(
+                        delete("/api/v1/users/me")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
+                                )
+                )
+                .andExpect(
+                        status().isNotFound()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_NOT_FOUND"
                                 )
                 )
                 .andExpect(
@@ -546,8 +591,7 @@ class UserApiControllerChangePasswordTest {
     private String validRequest() {
         return """
                 {
-                  "currentPassword": "Abcd1234!",
-                  "newPassword": "NewAbcd1234!"
+                  "currentPassword": "Abcd1234!"
                 }
                 """;
     }

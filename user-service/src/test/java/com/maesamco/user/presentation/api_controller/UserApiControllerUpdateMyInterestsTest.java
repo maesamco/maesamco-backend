@@ -1,11 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordService;
-import com.maesamco.user.application.service.GetMyProfileService;
-import com.maesamco.user.application.service.UpdateMyInterestsCommand;
-import com.maesamco.user.application.service.UpdateMyInterestsResult;
-import com.maesamco.user.application.service.UpdateMyInterestsService;
-import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -87,6 +82,9 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @MockitoBean
     private ChangePasswordService changePasswordService;
+
+    @MockitoBean
+    private WithdrawUserService withdrawUserService;
 
     @Test
     @DisplayName(

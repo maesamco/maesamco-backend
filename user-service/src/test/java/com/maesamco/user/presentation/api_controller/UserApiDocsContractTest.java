@@ -3,6 +3,7 @@ package com.maesamco.user.presentation.api_controller;
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.WithdrawUserCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -352,6 +353,76 @@ class UserApiDocsContractTest {
         assertErrorResponseSchema(
                 method,
                 "503"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "500"
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "회원 탈퇴 API의 OpenAPI 응답과 "
+                    + "Refresh Token Cookie 삭제 계약을 정의한다"
+    )
+    void withdrawContract()
+            throws NoSuchMethodException {
+        // given
+        Method method = UserApiDocs.class.getMethod(
+                "withdraw",
+                Authentication.class,
+                WithdrawUserCommand.class
+        );
+
+        // then
+        assertOperation(method);
+
+        assertResponseCodes(
+                method,
+                "204",
+                "400",
+                "401",
+                "403",
+                "404",
+                "500"
+        );
+
+        ApiResponse successResponse =
+                findResponse(
+                        method,
+                        "204"
+                );
+
+        assertThat(successResponse.content())
+                .isEmpty();
+
+        assertThat(
+                Arrays.stream(
+                                successResponse.headers()
+                        )
+                        .map(header -> header.name())
+                        .toList()
+        ).contains("Set-Cookie");
+
+        assertErrorResponseSchema(
+                method,
+                "400"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "401"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "403"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "404"
         );
 
         assertErrorResponseSchema(

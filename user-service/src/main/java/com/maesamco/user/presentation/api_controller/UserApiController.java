@@ -45,6 +45,8 @@ public class UserApiController implements UserApiDocs {
 
     private final UpdateMyInterestsService updateMyInterestsService;
 
+    private final WithdrawUserService withdrawUserService;
+
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
      *
@@ -160,6 +162,45 @@ public class UserApiController implements UserApiDocs {
                 );
 
         changePasswordService.changePassword(
+                userId,
+                command
+        );
+
+        ResponseCookie expiredRefreshTokenCookie =
+                createExpiredRefreshTokenCookie();
+
+        return ResponseEntity
+                .noContent()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        expiredRefreshTokenCookie.toString()
+                )
+                .build();
+    }
+
+    /**
+     * 현재 비밀번호를 확인한 후 로그인 사용자를 탈퇴 처리합니다.
+     *
+     * <p>탈퇴가 완료되면 사용자와 관심 개념을 논리 삭제하고,
+     * 모든 인증 세션을 무효화하며 현재 클라이언트의
+     * Refresh Token Cookie를 삭제합니다.</p>
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 회원 탈퇴 입력값
+     * @return 본문이 없는 204 응답
+     */
+    @Override
+    @DeleteMapping
+    public ResponseEntity<Void> withdraw(
+            Authentication authentication,
+            @Valid @RequestBody WithdrawUserCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        withdrawUserService.withdraw(
                 userId,
                 command
         );
