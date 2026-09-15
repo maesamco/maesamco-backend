@@ -1,8 +1,8 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
-import com.maesamco.content.domain.curriculum.entity.QCurriculum;
-import com.maesamco.content.domain.curriculum.repository.CurriculumSearchRepository;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.entity.QCurriculum;
+import com.maesamco.content.domain.repository.CurriculumSearchRepository;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;

@@ -1,7 +1,7 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
-import com.maesamco.content.domain.curriculum.enums.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

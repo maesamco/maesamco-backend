@@ -1,9 +1,9 @@
-package com.maesamco.content.application.problem.service;
+package com.maesamco.content.application.service.event_outbox;
 
-import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
-import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
-import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
-import com.maesamco.content.infrastructure.problem.messaging.producer.ProblemPublishedKafkaProducer;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
+import com.maesamco.content.infrastructure.messaging.producer.ProblemPublishedKafkaProducer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;

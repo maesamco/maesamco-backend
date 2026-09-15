@@ -1,17 +1,17 @@
 package com.maesamco.content.quicktest;
 
-import com.maesamco.content.application.problem.port.ProblemFinder;
-import com.maesamco.content.application.testcase.port.TestCaseFinder;
-import com.maesamco.content.application.testcase.service.TestCaseService;
-import com.maesamco.content.domain.testcase.entity.TestCase;
-import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
-import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
+import com.maesamco.content.application.input_port.ProblemFinder;
+import com.maesamco.content.application.input_port.TestCaseFinder;
+import com.maesamco.content.application.service.TestCaseService;
+import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.domain.entity.TestCaseStatus;
+import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.testcase.dto.request.TestCaseCreateRequest;
-import com.maesamco.content.presentation.testcase.dto.request.TestCaseUpdateRequest;
-import com.maesamco.content.presentation.testcase.dto.response.TestCaseResponse;
+import com.maesamco.content.presentation.request.TestCaseCreateRequest;
+import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
+import com.maesamco.content.presentation.response.TestCaseResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

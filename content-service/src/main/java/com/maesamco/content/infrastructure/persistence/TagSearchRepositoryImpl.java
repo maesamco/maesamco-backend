@@ -1,9 +1,9 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.tag.entity.QTag;
-import com.maesamco.content.domain.tag.entity.Tag;
-import com.maesamco.content.domain.tag.enums.TagAttribute;
-import com.maesamco.content.domain.tag.repository.TagSearchRepository;
+import com.maesamco.content.domain.entity.QTag;
+import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.entity.TagAttribute;
+import com.maesamco.content.domain.repository.TagSearchRepository;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;

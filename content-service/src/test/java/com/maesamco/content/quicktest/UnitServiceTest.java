@@ -1,15 +1,15 @@
 package com.maesamco.content.quicktest;
 
-import com.maesamco.content.application.curriculum.port.CurriculumFinder;
-import com.maesamco.content.application.unit.port.UnitFinder;
-import com.maesamco.content.application.unit.service.UnitService;
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
-import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.application.input_port.CurriculumFinder;
+import com.maesamco.content.application.input_port.UnitFinder;
+import com.maesamco.content.application.service.UnitService;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.unit.enums.ProgrammingLanguage;
-import com.maesamco.content.domain.unit.repository.UnitRepository;
-import com.maesamco.content.presentation.unit.dto.request.UnitCreateRequest;
-import com.maesamco.content.presentation.unit.dto.request.UnitUpdateRequest;
-import com.maesamco.content.presentation.unit.dto.response.UnitResponse;
+import com.maesamco.content.domain.repository.UnitRepository;
+import com.maesamco.content.presentation.request.UnitCreateRequest;
+import com.maesamco.content.presentation.request.UnitUpdateRequest;
+import com.maesamco.content.presentation.response.UnitResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

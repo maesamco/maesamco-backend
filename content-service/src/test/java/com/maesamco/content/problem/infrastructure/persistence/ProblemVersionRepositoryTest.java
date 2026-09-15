@@ -1,10 +1,9 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.problem.enums.*;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
-import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
+import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;

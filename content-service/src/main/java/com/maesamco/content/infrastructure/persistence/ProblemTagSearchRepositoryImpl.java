@@ -1,9 +1,9 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.problem.entity.QProblemTag;
-import com.maesamco.content.domain.problem.repository.ProblemTagSearchRepository;
-import com.maesamco.content.domain.tag.entity.QTag;
-import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.entity.QTag;
+import com.maesamco.content.domain.entity.problem.QProblemTag;
+import com.maesamco.content.domain.repository.problem.ProblemTagSearchRepository;
+import com.maesamco.content.domain.entity.Tag;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;

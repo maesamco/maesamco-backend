@@ -1,7 +1,7 @@
 package com.maesamco.content.problem.domain.entity;
 
-import com.maesamco.content.domain.testcase.entity.TestCase;
-import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
+import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.domain.entity.TestCaseStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,7 +1,7 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.testcase.entity.QTestCase;
-import com.maesamco.content.domain.testcase.repository.TestCaseOrderRepository;
+import com.maesamco.content.domain.entity.QTestCase;
+import com.maesamco.content.domain.repository.TestCaseOrderRepository;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

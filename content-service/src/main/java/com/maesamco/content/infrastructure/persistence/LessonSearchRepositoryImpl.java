@@ -1,8 +1,8 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.lesson.entity.Lesson;
-import com.maesamco.content.domain.lesson.entity.QLesson;
-import com.maesamco.content.domain.lesson.repository.LessonSearchRepository;
+import com.maesamco.content.domain.entity.Lesson;
+import com.maesamco.content.domain.entity.QLesson;
+import com.maesamco.content.domain.repository.LessonSearchRepository;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;

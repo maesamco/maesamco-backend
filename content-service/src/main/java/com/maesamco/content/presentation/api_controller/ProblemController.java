@@ -1,7 +1,7 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.problem.service.ProblemPublicationService;
-import com.maesamco.content.application.problem.service.ProblemService;
+import com.maesamco.content.application.service.ProblemPublicationService;
+import com.maesamco.content.application.service.ProblemService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;

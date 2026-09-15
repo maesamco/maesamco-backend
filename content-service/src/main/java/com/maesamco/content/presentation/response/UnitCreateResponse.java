@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.unit.entity.Unit;
+import com.maesamco.content.domain.entity.Unit;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

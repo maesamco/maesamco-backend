@@ -1,17 +1,15 @@
 package com.maesamco.content.problem.application.service;
 
-import com.maesamco.content.application.problem.port.ProblemFinder;
-import com.maesamco.content.application.problem.service.ProblemPublicationService;
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
-import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.application.input_port.ProblemFinder;
+import com.maesamco.content.application.service.ProblemPublicationService;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.problem.enums.*;
-import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
-import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
-import com.maesamco.content.domain.testcase.entity.TestCase;
-import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
-import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
-import com.maesamco.content.infrastructure.problem.messaging.event.ProblemPublishedEvent;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
+import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
+import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.domain.entity.TestCaseStatus;
+import com.maesamco.content.domain.repository.TestCaseRepository;
+import com.maesamco.content.infrastructure.messaging.event.ProblemPublishedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

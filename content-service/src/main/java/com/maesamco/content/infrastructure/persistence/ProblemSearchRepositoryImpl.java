@@ -1,9 +1,9 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.entity.QProblem;
-import com.maesamco.content.domain.problem.enums.ProblemDifficulty;
-import com.maesamco.content.domain.problem.repository.ProblemSearchRepository;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.QProblem;
+import com.maesamco.content.domain.repository.problem.ProblemSearchRepository;
 import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;

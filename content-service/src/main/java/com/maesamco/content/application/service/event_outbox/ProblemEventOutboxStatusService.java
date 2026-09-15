@@ -1,7 +1,7 @@
-package com.maesamco.content.application.problem.service;
+package com.maesamco.content.application.service.event_outbox;
 
-import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
-import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

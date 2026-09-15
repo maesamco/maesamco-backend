@@ -1,8 +1,8 @@
 
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.problem.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

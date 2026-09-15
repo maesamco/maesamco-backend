@@ -1,11 +1,11 @@
 package com.maesamco.content.quicktest;
 
-import com.maesamco.content.application.lesson.port.LessonFinder;
-import com.maesamco.content.application.lesson.service.LessonService;
-import com.maesamco.content.domain.lesson.entity.Lesson;
+import com.maesamco.content.application.input_port.LessonFinder;
+import com.maesamco.content.application.service.LessonService;
+import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.lesson.enums.ProgrammingLanguage;
-import com.maesamco.content.presentation.lesson.dto.request.LessonUpdateRequest;
-import com.maesamco.content.presentation.lesson.dto.response.LessonResponse;
+import com.maesamco.content.presentation.request.LessonUpdateRequest;
+import com.maesamco.content.presentation.response.LessonResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

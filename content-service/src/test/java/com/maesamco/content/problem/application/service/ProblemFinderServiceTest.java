@@ -1,8 +1,8 @@
 package com.maesamco.content.problem.application.service;
 
-import com.maesamco.content.application.problem.service.ProblemFinderService;
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.application.service.finder.ProblemFinderService;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,9 +1,9 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
-import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
-import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
-import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;
 import jakarta.persistence.EntityManager;

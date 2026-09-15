@@ -1,7 +1,6 @@
 package com.maesamco.content.problem.domain.entity;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.problem.enums.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

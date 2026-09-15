@@ -1,11 +1,11 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
-import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.problem.enums.*;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
-import com.maesamco.content.domain.testcase.entity.TestCase;
-import com.maesamco.content.domain.testcase.enums.TestCaseStatus;
-import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
+import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.domain.entity.TestCaseStatus;
+import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;
 import jakarta.persistence.EntityManager;

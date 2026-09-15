@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.request;
 
-import com.maesamco.content.domain.unit.enums.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

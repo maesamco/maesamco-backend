@@ -1,10 +1,10 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.enums.ProblemDifficulty;
-import com.maesamco.content.domain.problem.enums.ProblemSource;
-import com.maesamco.content.domain.problem.enums.ProblemType;
-import com.maesamco.content.domain.problem.enums.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemType;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

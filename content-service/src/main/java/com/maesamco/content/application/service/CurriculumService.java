@@ -1,13 +1,13 @@
-package com.maesamco.content.application.curriculum.service;
+package com.maesamco.content.application.service;
 
-import com.maesamco.content.application.curriculum.port.CurriculumFinder;
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
-import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
+import com.maesamco.content.application.input_port.CurriculumFinder;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.curriculum.dto.request.CurriculumCreateRequest;
-import com.maesamco.content.presentation.curriculum.dto.request.CurriculumUpdateRequest;
-import com.maesamco.content.presentation.curriculum.dto.response.CurriculumCreateResponse;
-import com.maesamco.content.presentation.curriculum.dto.response.CurriculumResponse;
+import com.maesamco.content.presentation.request.CurriculumCreateRequest;
+import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
+import com.maesamco.content.presentation.response.CurriculumCreateResponse;
+import com.maesamco.content.presentation.response.CurriculumResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

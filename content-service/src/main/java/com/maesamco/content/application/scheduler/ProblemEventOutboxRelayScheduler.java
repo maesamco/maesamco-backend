@@ -1,6 +1,6 @@
-package com.maesamco.content.application.problem.scheduler;
+package com.maesamco.content.application.scheduler;
 
-import com.maesamco.content.application.problem.service.ProblemEventOutboxRelayService;
+import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxRelayService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;

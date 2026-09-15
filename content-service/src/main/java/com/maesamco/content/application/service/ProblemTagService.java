@@ -1,16 +1,16 @@
-package com.maesamco.content.application.problem.service;
+package com.maesamco.content.application.service;
 
-import com.maesamco.content.application.problem.port.ProblemFinder;
-import com.maesamco.content.application.tag.port.TagFinder;
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.entity.ProblemTag;
-import com.maesamco.content.domain.problem.enums.ProblemStatus;
-import com.maesamco.content.domain.problem.repository.ProblemTagRepository;
-import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.application.input_port.ProblemFinder;
+import com.maesamco.content.application.input_port.TagFinder;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemTag;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
+import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.tag.dto.response.TagResponse;
+import com.maesamco.content.presentation.response.TagResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

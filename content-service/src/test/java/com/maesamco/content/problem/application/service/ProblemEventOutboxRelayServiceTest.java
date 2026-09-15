@@ -1,11 +1,11 @@
 package com.maesamco.content.problem.application.service;
 
-import com.maesamco.content.application.problem.service.ProblemEventOutboxRelayService;
-import com.maesamco.content.application.problem.service.ProblemEventOutboxStatusService;
-import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
-import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
-import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
-import com.maesamco.content.infrastructure.problem.messaging.producer.ProblemPublishedKafkaProducer;
+import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxRelayService;
+import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxStatusService;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
+import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
+import com.maesamco.content.infrastructure.messaging.producer.ProblemPublishedKafkaProducer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

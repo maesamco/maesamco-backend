@@ -1,14 +1,14 @@
 package com.maesamco.content.problem;
 
-import com.maesamco.content.application.problem.service.ProblemService;
-import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.application.service.ProblemService;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.problem.enums.*;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.presentation.problem.dto.request.ProblemCreateRequest;
-import com.maesamco.content.presentation.problem.dto.request.ProblemUpdateRequest;
-import com.maesamco.content.presentation.problem.dto.response.ProblemCreateResponse;
+import com.maesamco.content.presentation.request.ProblemCreateRequest;
+import com.maesamco.content.presentation.request.ProblemUpdateRequest;
+import com.maesamco.content.presentation.response.ProblemCreateResponse;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
