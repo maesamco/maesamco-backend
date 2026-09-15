@@ -1,12 +1,9 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.tag.entity.Tag;
-import com.maesamco.content.domain.tag.enums.TagAttribute;
+import com.maesamco.content.application.result.ProblemInternalResult;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,46 +22,12 @@ public class InternalProblemResponse {
 
     private final List<String> conceptTags;
 
-    /** 문제와 태그 정보를 내부 서비스용 응답 DTO로 변환합니다. */
-    public static InternalProblemResponse from(
-            Problem problem,
-            List<Tag> tags
-    ) {
+    /** Application 조회 결과를 내부 서비스용 응답 DTO로 변환합니다. */
+    public static InternalProblemResponse from(ProblemInternalResult result) {
         return new InternalProblemResponse(
-                problem.getId(),
-                problem.getDescription(),
-                conceptTagNames(tags)
+                result.getId(),
+                result.getDescription(),
+                result.getConceptTags()
         );
-    }
-
-    /**
-     * 문제 버전 스냅샷과 태그 정보를 내부 서비스용 응답 DTO로 변환합니다.
-     *
-     * 개념 태그는 버전 스냅샷에 포함되지 않으므로(도메인 모델 한계),
-     * problemId 기준 현재 태그를 그대로 사용합니다 — 지문(description)만
-     * 제출 시점 버전 기준입니다.
-     */
-    public static InternalProblemResponse fromVersion(
-            UUID problemId,
-            String versionDescription,
-            List<Tag> tags
-    ) {
-        return new InternalProblemResponse(
-                problemId,
-                versionDescription,
-                conceptTagNames(tags)
-        );
-    }
-
-    private static List<String> conceptTagNames(List<Tag> tags) {
-        List<String> conceptTags = new ArrayList<>();
-
-        for (Tag tag : tags) {
-            if (tag.getAttribute() == TagAttribute.CONCEPT) {
-                conceptTags.add(tag.getName());
-            }
-        }
-
-        return conceptTags;
     }
 }

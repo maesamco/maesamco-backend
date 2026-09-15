@@ -1,6 +1,7 @@
 package com.maesamco.content.presentation.internal_controller;
 
-import com.maesamco.content.application.problem.service.ProblemInternalService;
+import com.maesamco.content.application.result.ProblemInternalResult;
+import com.maesamco.content.application.service.ProblemInternalService;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.presentation.response.InternalProblemResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +25,10 @@ public class InternalProblemController {
     public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblem(
             @PathVariable UUID problemId
     ) {
-        InternalProblemResponse response = problemInternalService.getProblemMetaData(problemId);
+        ProblemInternalResult result = problemInternalService.getProblemMetaData(problemId);
 
         return ResponseEntity.ok(
-                SuccessResponse.success(response)
+                SuccessResponse.success(InternalProblemResponse.from(result))
         );
     }
 
@@ -36,10 +37,10 @@ public class InternalProblemController {
     public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblemVersion(
             @PathVariable UUID problemVersionId
     ) {
-        InternalProblemResponse response = problemInternalService.getProblemVersionMetaData(problemVersionId);
+        ProblemInternalResult result = problemInternalService.getProblemVersionMetaData(problemVersionId);
 
         return ResponseEntity.ok(
-                SuccessResponse.success(response)
+                SuccessResponse.success(InternalProblemResponse.from(result))
         );
     }
 }
