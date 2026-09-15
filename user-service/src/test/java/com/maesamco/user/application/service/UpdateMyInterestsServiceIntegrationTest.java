@@ -18,8 +18,10 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -40,6 +43,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * 관심 개념 전체 교체 서비스의 실제 PostgreSQL 연동을 검증합니다.
@@ -88,7 +93,7 @@ class UpdateMyInterestsServiceIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private UserInterestConceptRepository
             interestConceptRepository;
 
@@ -474,5 +479,89 @@ class UpdateMyInterestsServiceIntegrationTest {
                         expectedConceptIds
                 )
                 .hasSize(2);
+    }
+
+    @Test
+    @DisplayName(
+            "새 관심 개념 저장에 실패하면 "
+                    + "기존 관심 개념 삭제까지 모두 롤백한다"
+    )
+    void rollbackWhenSavingNewInterestsFails() {
+        // given
+        User user = saveUser(
+                "f".repeat(64),
+                "롤백검증사용자"
+        );
+
+        interestConceptRepository.saveAllAndFlush(
+                List.of(
+                        UserInterestConcept.create(
+                                user.getId(),
+                                CONCEPT_ID_1
+                        ),
+                        UserInterestConcept.create(
+                                user.getId(),
+                                CONCEPT_ID_2
+                        )
+                )
+        );
+
+        AtomicInteger saveInvocationCount =
+                new AtomicInteger();
+
+        /*
+         * 교체 과정의 첫 저장인 기존 관계 논리 삭제는 실행하고,
+         * 두 번째 저장인 신규 관계 추가에서 DB 장애를 발생시킵니다.
+         */
+        doAnswer(invocation -> {
+            if (saveInvocationCount.incrementAndGet() == 2) {
+                throw new DataAccessResourceFailureException(
+                        "관심 개념 저장 실패"
+                );
+            }
+
+            return invocation.callRealMethod();
+        }).when(
+                interestConceptRepository
+        ).saveAllAndFlush(
+                anyList()
+        );
+
+        UpdateMyInterestsCommand command =
+                new UpdateMyInterestsCommand(
+                        List.of(
+                                CONCEPT_ID_2,
+                                CONCEPT_ID_3
+                        )
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> updateMyInterestsService.updateMyInterests(
+                        user.getId(),
+                        command
+                )
+        ).isInstanceOf(
+                DataAccessResourceFailureException.class
+        );
+
+        List<UUID> storedConceptIds =
+                interestConceptRepository
+                        .findAllByUserId(user.getId())
+                        .stream()
+                        .map(
+                                UserInterestConcept::getConceptId
+                        )
+                        .toList();
+
+        /*
+         * 신규 목록 일부가 남거나 기존 목록 일부가 삭제되지 않고
+         * 트랜잭션 시작 전 목록이 그대로 복구되어야 합니다.
+         */
+        assertThat(storedConceptIds)
+                .containsExactlyInAnyOrder(
+                        CONCEPT_ID_1,
+                        CONCEPT_ID_2
+                );
     }
 }
