@@ -1,6 +1,8 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.security.JwtProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,8 +17,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -159,10 +160,63 @@ class RedisAuthSessionLogoutAllStoreTest {
                 )
         )
                 .isInstanceOf(
-                        IllegalStateException.class
+                        BusinessException.class
+                )
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.INTERNAL_SERVER_ERROR
+                        )
                 )
                 .hasMessage(
                         "전체 인증 세션 로그아웃 결과를 확인할 수 없습니다."
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃 Redis 처리 결과가 예상하지 못한 값이면 서버 오류로 처리한다"
+    )
+    void logoutAll_unknownResult() {
+        // given
+        when(
+                redisTemplate.execute(
+                        any(),
+                        eq(
+                                List.of(
+                                        USER_SESSION_INDEX_KEY,
+                                        USER_INVALIDATED_AT_KEY
+                                )
+                        ),
+                        eq(INVALIDATED_AT_EPOCH_MILLIS),
+                        eq(ACCESS_TOKEN_TTL_MILLIS)
+                )
+        ).thenReturn(
+                99L
+        );
+
+        // when & then
+        assertThatThrownBy(
+                () -> authSessionLogoutAllStore.logoutAll(
+                        USER_ID,
+                        INVALIDATED_AT
+                )
+        )
+                .isInstanceOf(
+                        BusinessException.class
+                )
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.INTERNAL_SERVER_ERROR
+                        )
+                )
+                .hasMessage(
+                        "알 수 없는 전체 인증 세션 로그아웃 결과입니다: 99"
                 );
     }
 
