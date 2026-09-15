@@ -454,6 +454,32 @@ class SignUpCommandValidationTest {
     }
 
     @Test
+    @DisplayName("Java 경험 개월 수가 null이면 검증에 실패한다")
+    void nullJavaExperienceMonths() {
+        // given
+        SignUpCommand command = new SignUpCommand(
+                "learner@example.com",
+                VALID_SIGNUP_TOKEN,
+                "Abcd1234!",
+                "김티암",
+                null,
+                LearningLevel.BEGINNER
+        );
+
+        // when
+        Set<ConstraintViolation<SignUpCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(
+                hasViolation(
+                        violations,
+                        "javaExperienceMonths"
+                )
+        ).isTrue();
+    }
+
+    @Test
     @DisplayName("학습 수준이 null이면 검증에 실패한다")
     void nullLearningLevel() {
         // given

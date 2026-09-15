@@ -5,6 +5,7 @@ import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -26,16 +27,74 @@ import java.util.UUID;
  * @param accessTokenExpiresIn Access Token 만료까지 남은 시간(초)
  * @param issuedTokens Controller의 Refresh Token Cookie 생성에 사용할 전체 토큰 정보
  */
+@Schema(description = "회원가입 완료 후 반환되는 사용자 및 Access Token 정보")
 public record SignUpResult(
+
+        @Schema(
+                description = "생성된 사용자 식별자",
+                format = "uuid",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         UUID userId,
+
+        @Schema(
+                description = "사용자 닉네임",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         String nickname,
+
+        @Schema(
+                description = "서버에서 설정한 사용자 권한",
+                allowableValues = {"USER"},
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         UserRole role,
+
+        @Schema(
+                description = "생성된 사용자 계정 상태",
+                allowableValues = {"ACTIVE"},
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         UserStatus status,
+
+        @Schema(
+                description = "Java 학습 경험 개월 수",
+                minimum = "0",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         int javaExperienceMonths,
+
+        @Schema(
+                description = "Java 학습 수준",
+                allowableValues = {"BEGINNER", "BASIC"},
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         LearningLevel learningLevel,
+
+        @Schema(
+                description = "API 인증에 사용하는 Access Token",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         String accessToken,
+
+        @Schema(
+                description = "Access Token 만료까지 남은 시간(초)",
+                minimum = "0",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         long accessTokenExpiresIn,
+
+        @Schema(hidden = true)
         IssuedTokens issuedTokens
+
 ) {
 
     /**
@@ -90,6 +149,7 @@ public record SignUpResult(
      *
      * <p>Controller가 HttpOnly Cookie를 생성할 때만 사용합니다.</p>
      */
+    @Schema(hidden = true)
     @JsonIgnore
     public IssuedTokens issuedTokens() {
         return issuedTokens;
