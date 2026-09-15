@@ -23,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -45,9 +44,6 @@ class JudgeRetrySchedulerTest {
         ReflectionTestUtils.setField(judgeRetryScheduler, "maxRetryAttempts", 3);
     }
 
-    /** 재시도 대상이 되려면 실제 RETRY_WAIT 상태 + retryCount + updatedAt이 필요해서,
-     *  상태 전이를 실제로 태워서 만든다. updatedAt은 markRetryWait() 이후 reflection으로 덮어써서
-     *  백오프 경과 시점을 테스트별로 자유롭게 조정한다. */
     private Submission retryWaitSubmission(UUID id, int retryCount, Instant updatedAt) {
         Submission submission = Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
@@ -61,7 +57,6 @@ class JudgeRetrySchedulerTest {
         return submission;
     }
 
-    /** 백오프 경과 여부가 중요하지 않은 테스트용 — 충분히 과거 시점으로 잡아 항상 재시도 대상이 되게 함. */
     private Submission retryWaitSubmission(UUID id) {
         return retryWaitSubmission(id, 1, Instant.now().minusSeconds(3600));
     }
@@ -75,8 +70,8 @@ class JudgeRetrySchedulerTest {
         void callsExecuteForEachRetryTarget() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -88,8 +83,8 @@ class JudgeRetrySchedulerTest {
         @Test
         @DisplayName("재시도 대상이 없으면 execute를 호출하지 않는다")
         void doesNothingWhenNoRetryTargets() {
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of());
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -102,8 +97,8 @@ class JudgeRetrySchedulerTest {
         void continuesAfterOptimisticLockingFailure() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
             doThrow(new ObjectOptimisticLockingFailureException(Submission.class, id1))
                     .when(judgeExecutionFacade).execute(id1);
@@ -119,8 +114,8 @@ class JudgeRetrySchedulerTest {
         void continuesAfterUnexpectedException() {
             UUID id1 = UUID.randomUUID();
             UUID id2 = UUID.randomUUID();
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id1), retryWaitSubmission(id2)));
             doThrow(new IllegalStateException("prepareForExecution 실패"))
                     .when(judgeExecutionFacade).execute(id1);
@@ -135,9 +130,8 @@ class JudgeRetrySchedulerTest {
         @DisplayName("백오프 시간이 아직 안 지난 제출은 재시도하지 않고 스킵한다")
         void skipsWhenBackoffNotElapsed() {
             UUID id = UUID.randomUUID();
-            // retryCount=1 → 백오프 10초, 근데 방금(0초 전) RETRY_WAIT 됐으니 아직 안 지남
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id, 1, Instant.now())));
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -149,9 +143,8 @@ class JudgeRetrySchedulerTest {
         @DisplayName("백오프 시간이 지난 제출은 재시도한다")
         void retriesWhenBackoffElapsed() {
             UUID id = UUID.randomUUID();
-            // retryCount=1 → 백오프 10초, 15초 전에 RETRY_WAIT 됐으니 이미 지남
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id, 1, Instant.now().minusSeconds(15))));
 
             judgeRetryScheduler.retryPendingSubmissions();
@@ -163,9 +156,8 @@ class JudgeRetrySchedulerTest {
         @DisplayName("retryCount가 늘수록 백오프도 지수적으로 늘어난다")
         void backoffGrowsExponentiallyWithRetryCount() {
             UUID id = UUID.randomUUID();
-            // retryCount=2 → 백오프 20초. 15초 전이면 1회차 기준으론 지났어도 2회차 기준으론 아직임.
-            given(submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                    eq(SubmissionStatus.RETRY_WAIT), any(Pageable.class)))
+            given(submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                    eq(SubmissionStatus.RETRY_WAIT.name()), eq(100)))
                     .willReturn(List.of(retryWaitSubmission(id, 2, Instant.now().minusSeconds(15))));
 
             judgeRetryScheduler.retryPendingSubmissions();

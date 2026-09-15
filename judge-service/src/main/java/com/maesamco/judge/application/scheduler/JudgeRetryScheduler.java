@@ -34,8 +34,8 @@ public class JudgeRetryScheduler {
     @Scheduled(fixedDelayString = "${judge.retry.fixed-delay-ms:10000}") // Judge0 재시도는 폴링만큼 자주 돌 필요는 없어서 일단 여유롭게 10초로 잡음.
     public void retryPendingSubmissions() {
         List<Submission> retryTargets =
-                submissionRepository.findByStatusOrderBySubmittedAtAsc(
-                        SubmissionStatus.RETRY_WAIT, PageRequest.of(0, batchSize));
+                submissionRepository.findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+                        SubmissionStatus.RETRY_WAIT.name(),batchSize);
 
         for (Submission submission : retryTargets) {
             if (!isRetryDue(submission)) {

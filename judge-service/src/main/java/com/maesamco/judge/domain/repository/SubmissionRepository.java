@@ -20,5 +20,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     int findMaxAttemptNoByUserIdAndProblemId(@Param("userId") UUID userId, @Param("problemId") UUID problemId);
 
     /** 재시도 스케줄러가 폴링 배치로 쓰는 조회 — 오래된 것부터 batchSize만큼. */
-    List<Submission> findByStatusOrderBySubmittedAtAsc(SubmissionStatus status, Pageable pageable);
+    @Query(value = "SELECT * FROM judge_schema.p_submissions " +
+            "WHERE status = :status " +
+            "ORDER BY submitted_at ASC " +
+            "LIMIT :limit " +
+            "FOR UPDATE SKIP LOCKED",
+            nativeQuery = true)
+    List<Submission> findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
+            @Param("status") String status, @Param("limit") int limit);
 }
