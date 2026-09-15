@@ -1,15 +1,12 @@
 package com.maesamco.coaching.presentation.internal_controller;
 
 import com.maesamco.coaching.application.query_service.WeakConceptQueryService;
-import com.maesamco.coaching.global.exception.BusinessException;
-import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
-import com.maesamco.coaching.global.security.hmac.InternalCallHeaders;
+import com.maesamco.coaching.global.security.hmac.AllowedInternalCallers;
 import com.maesamco.coaching.presentation.api_controller.WeakConceptResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,11 +32,12 @@ import java.util.UUID;
  * 막는다 — 이슈 #40이 지적한 "시간 창만 검증하고 실제 재전송 방어가 없다"는 문제는
  * PR #119로 해소됐다.
  *
- * 다만 이 필터는 "유효하게 서명된 내부 호출인가"(인증)만 확인하고 "그중 Content
- * Service만 허용할 것인가"(인가)는 별도 문제다 — 아래 `getWeakConcepts()`에서
- * `X-Internal-Service` 헤더 값을 직접 확인해서 `content-service` 외의 호출자는
- * 거부한다(같은 리뷰에서 지적, 앞으로 다른 서비스의 inbound key가 추가돼도 이 API
- * 접근 범위가 자동으로 넓어지지 않도록).
+ * **2026-09-10 리팩터링(이슈 #138)**: "그중 Content Service만 허용할 것인가"(인가)를
+ * 이 컨트롤러 안에서 `X-Internal-Service` 헤더를 직접 확인하는 수동 방식으로 처리했었는데,
+ * 내부 컨트롤러가 늘어날 때마다 이 코드를 매번 손으로 다시 작성해야 하는 문제가 있었다.
+ * 재사용 가능한 {@link AllowedInternalCallers} 애노테이션 + 공통 인터셉터
+ * (InternalCallerAuthorizationInterceptor)로 교체했다 — 동작(허용 호출자만 통과, 그 외엔
+ * 403 INTERNAL_CALLER_NOT_ALLOWED)은 동일하다.
  *
  * /internal/v1/ 컨트롤러는 Swagger 노출 대상이 아니므로 ApiDocs 인터페이스 패턴(팀
  * 컨벤션 19절)을 적용하지 않는다.
@@ -48,26 +46,17 @@ import java.util.UUID;
 @RequestMapping("/internal/v1/users/{userId}/weak-concepts")
 public class WeakConceptInternalController {
 
-    private static final String ALLOWED_CALLER_SERVICE = "content-service";
-
     private final WeakConceptQueryService weakConceptQueryService;
 
     public WeakConceptInternalController(WeakConceptQueryService weakConceptQueryService) {
         this.weakConceptQueryService = weakConceptQueryService;
     }
 
+    @AllowedInternalCallers("content-service")
     @GetMapping
     public ResponseEntity<SuccessResponse<List<WeakConceptResponse>>> getWeakConcepts(
-            @PathVariable UUID userId,
-            @RequestHeader(InternalCallHeaders.SERVICE) String callerService
+            @PathVariable UUID userId
     ) {
-        // HmacVerificationFilter는 "서명이 유효한 내부 호출인가"만 확인한다 — 서명 검증을
-        // 통과한 어떤 내부 서비스든 이 API를 호출할 수 있다는 뜻은 아니므로, 이 API의
-        // 실제 호출 대상(Content Service)인지는 여기서 별도로 확인한다.
-        if (!ALLOWED_CALLER_SERVICE.equals(callerService)) {
-            throw new BusinessException(ErrorCode.INTERNAL_CALLER_NOT_ALLOWED);
-        }
-
         List<WeakConceptResponse> weakConcepts = weakConceptQueryService.getWeakConcepts(userId).stream()
                 .map(WeakConceptResponse::from)
                 .toList();
