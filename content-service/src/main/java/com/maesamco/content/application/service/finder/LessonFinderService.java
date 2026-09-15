@@ -1,5 +1,6 @@
-package com.maesamco.content.application.input_port;
+package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.input_port.LessonFinder;
 import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.repository.LessonRepository;

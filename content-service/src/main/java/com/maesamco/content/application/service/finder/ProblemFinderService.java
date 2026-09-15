@@ -1,5 +1,6 @@
-package com.maesamco.content.application.input_port;
+package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.global.exception.BusinessException;

@@ -1,5 +1,6 @@
-package com.maesamco.content.application.input_port;
+package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.input_port.TagFinder;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.repository.TagRepository;
 import com.maesamco.content.global.exception.BusinessException;
