@@ -49,6 +49,18 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 사용 중인 닉네임입니다."
     ),
+    USER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "사용자를 찾을 수 없습니다."
+    ),
+    USER_CURRENT_PASSWORD_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "현재 비밀번호가 일치하지 않습니다."
+    ),
+    USER_PASSWORD_POLICY_VIOLATION(
+            HttpStatus.BAD_REQUEST,
+            "새 비밀번호가 비밀번호 정책을 만족하지 않습니다."
+    ),
     EMAIL_VERIFICATION_INVALID_CODE(
             HttpStatus.BAD_REQUEST,
             "인증 코드가 올바르지 않습니다."
