@@ -1,7 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
-import com.maesamco.user.application.service.ChangePasswordService;
+import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,7 +40,7 @@ public class UserApiController implements UserApiDocs {
     private static final String REFRESH_TOKEN_SAME_SITE =
             "Lax";
 
-    private final ChangePasswordService changePasswordService;
+    private final ChangePasswordRetryService changePasswordRetryService;
 
     /**
      * 현재 비밀번호를 확인한 후 새 비밀번호로 변경합니다.
@@ -63,7 +63,7 @@ public class UserApiController implements UserApiDocs {
                         authentication
                 );
 
-        changePasswordService.changePassword(
+        changePasswordRetryService.changePassword(
                 userId,
                 command
         );

@@ -1,6 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.ChangePasswordService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
@@ -70,7 +71,7 @@ class UserApiControllerChangePasswordTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private ChangePasswordRetryService changePasswordRetryService;
 
     @Test
     @DisplayName(
@@ -131,13 +132,16 @@ class UserApiControllerChangePasswordTest {
                         content().string("")
                 );
 
-        verify(changePasswordService)
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        verify(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
-                        new ChangePasswordCommand(
-                                CURRENT_PASSWORD,
-                                NEW_PASSWORD
-                        )
+                        command
                 );
     }
 
@@ -177,7 +181,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -226,7 +230,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -286,7 +290,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -359,7 +363,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -404,7 +408,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -426,7 +430,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
@@ -483,7 +487,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_PASSWORD_POLICY_VIOLATION
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
