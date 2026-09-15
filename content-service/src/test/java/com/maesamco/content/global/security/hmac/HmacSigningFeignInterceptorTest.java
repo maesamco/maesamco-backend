@@ -10,6 +10,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (이슈 #163, PR #162의 HmacSigningFeignInterceptorTest와 동일한 목적 — 회귀 방지).
  *
  * 네트워크·Redis 등 외부 의존성 없이 순수하게 서명 계산 로직만 검증한다.
+ *
+ * ⚠️ template.target(...)을 호출하지 않는다 — RequestInterceptor.apply()가 실행되는
+ * 시점은 실제 Feign 흐름에서 Target이 아직 적용되기 "전"이라(이슈 #163의 근본 원인이
+ * 바로 이 순서), template.target(...)을 테스트에서 호출하면 template.url()에 호스트가
+ * 섞여 들어가 실제 운영 흐름과 다른 상태를 검증하게 된다. template.uri(path)만으로
+ * 인터셉터가 실제로 마주치는 상태를 재현한다.
  */
 class HmacSigningFeignInterceptorTest {
 
@@ -26,7 +32,6 @@ class HmacSigningFeignInterceptorTest {
         template.method(feign.Request.HttpMethod.GET);
         // Feign이 @FeignClient(path=...) prefix를 합치기 "전" 시점의 값 — 실제 버그
         // 상황과 동일하게, 인터셉터가 보는 template.url()에는 prefix가 없다.
-        template.target("http://user-service");
         template.uri("/users/quiz-targets");
 
         interceptor.apply(template);
@@ -39,7 +44,6 @@ class HmacSigningFeignInterceptorTest {
                 new HmacSigningFeignInterceptor(SERVICE_NAME, SECRET_KEY);
         RequestTemplate templateWithoutBasePath = new RequestTemplate();
         templateWithoutBasePath.method(feign.Request.HttpMethod.GET);
-        templateWithoutBasePath.target("http://user-service");
         templateWithoutBasePath.uri("/users/quiz-targets");
         interceptorWithoutBasePath.apply(templateWithoutBasePath);
         String signatureWithoutBasePath =
@@ -58,7 +62,6 @@ class HmacSigningFeignInterceptorTest {
                 new HmacSigningFeignInterceptor(SERVICE_NAME, SECRET_KEY, BASE_PATH);
         RequestTemplate template = new RequestTemplate();
         template.method(feign.Request.HttpMethod.GET);
-        template.target("http://user-service");
         template.uri("/users/quiz-targets");
         interceptor.apply(template);
 
