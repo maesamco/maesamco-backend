@@ -573,4 +573,61 @@ class UserApiControllerChangePasswordTest {
             return http.build();
         }
     }
+
+    @Test
+    @DisplayName(
+            "비밀번호 변경 중 동시 수정 충돌이 지속되면 "
+                    + "409 USER_PASSWORD_CHANGE_CONFLICT를 반환한다"
+    )
+    void passwordChangeConflict() throws Exception {
+        // given
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_PASSWORD_CHANGE_CONFLICT
+                )
+        )
+                .when(changePasswordRetryService)
+                .changePassword(
+                        USER_ID,
+                        command
+                );
+
+        // when & then
+        mockMvc.perform(
+                        patch("/api/v1/users/me/password")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
+                                )
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_PASSWORD_CHANGE_CONFLICT"
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
+    }
 }
