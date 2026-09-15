@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Duration;
 import java.util.UUID;
 
+import static com.maesamco.user.presentation.support.AuthenticationPrincipalResolver.requireUserId;
+import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.createExpired;
+
 /**
  * 로그인 사용자의 계정 정보를 관리하는 User API를 제공합니다.
  */
@@ -68,8 +71,8 @@ public class UserApiController implements UserApiDocs {
                 command
         );
 
-        ResponseCookie expiredRefreshTokenCookie =
-                createExpiredRefreshTokenCookie();
+        var expiredRefreshTokenCookie =
+                createExpired();
 
         return ResponseEntity
                 .noContent()
@@ -77,47 +80,6 @@ public class UserApiController implements UserApiDocs {
                         HttpHeaders.SET_COOKIE,
                         expiredRefreshTokenCookie.toString()
                 )
-                .build();
-    }
-
-    /**
-     * 인증 principal에서 사용자 식별자를 추출합니다.
-     */
-    private UUID requireUserId(
-            Authentication authentication
-    ) {
-        if (
-                authentication == null
-                        || !authentication.isAuthenticated()
-        ) {
-            throw new BusinessException(
-                    ErrorCode.AUTH_UNAUTHORIZED
-            );
-        }
-
-        if (!(authentication.getPrincipal() instanceof UUID userId)) {
-            throw new BusinessException(
-                    ErrorCode.AUTH_INVALID_TOKEN
-            );
-        }
-
-        return userId;
-    }
-
-    /**
-     * 브라우저에 저장된 Refresh Token Cookie를 삭제합니다.
-     */
-    private ResponseCookie createExpiredRefreshTokenCookie() {
-        return ResponseCookie
-                .from(
-                        REFRESH_TOKEN_COOKIE_NAME,
-                        ""
-                )
-                .httpOnly(true)
-                .secure(true)
-                .sameSite(REFRESH_TOKEN_SAME_SITE)
-                .path(REFRESH_TOKEN_COOKIE_PATH)
-                .maxAge(Duration.ZERO)
                 .build();
     }
 }
