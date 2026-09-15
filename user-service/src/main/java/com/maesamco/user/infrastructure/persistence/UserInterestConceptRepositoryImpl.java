@@ -42,6 +42,18 @@ public class UserInterestConceptRepositoryImpl
      * {@inheritDoc}
      */
     @Override
+    public List<UserInterestConcept> saveAllAndFlush(
+            List<UserInterestConcept> interestConcepts
+    ) {
+        return springDataRepository.saveAllAndFlush(
+                interestConcepts
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public Optional<UserInterestConcept> findById(
             UUID interestConceptId
     ) {

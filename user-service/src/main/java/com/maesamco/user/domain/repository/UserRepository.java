@@ -30,6 +30,20 @@ public interface UserRepository {
     Optional<User> findById(UUID userId);
 
     /**
+     * 사용자 식별자로 사용자를 조회하면서 비관적 쓰기 잠금을 획득합니다.
+     *
+     * <p>동일 사용자의 관심 개념 전체 교체 요청이 동시에 실행될 때
+     * 각 요청을 순차적으로 처리하기 위해 사용합니다.</p>
+     *
+     * <p>반드시 활성 트랜잭션 안에서 호출해야 하며,
+     * 트랜잭션이 종료되면 잠금이 해제됩니다.</p>
+     *
+     * @param userId 사용자 식별자
+     * @return 조회된 사용자, 존재하지 않으면 빈 Optional
+     */
+    Optional<User> findByIdForUpdate(UUID userId);
+
+    /**
      * 이메일 조회용 해시로 사용자를 조회합니다.
      *
      * <p>암호화된 이메일은 동일한 평문이라도 암호문이 달라질 수 있으므로

@@ -25,10 +25,10 @@ import java.util.UUID;
  * <p>생성·수정·삭제 감사 정보와 논리 삭제 기능은
  * {@link BaseEntity}에서 관리합니다.</p>
  *
- * <p>TODO(#10): Flyway 마이그레이션 도입 시
- * {@code user_id -> p_users.id} 외래 키와
+ <p>활성 상태의 동일한 사용자·개념 중복은 Flyway V4에서 적용한
  * {@code (user_id, concept_id) WHERE deleted_at IS NULL} 조건의
- * 부분 UNIQUE 인덱스를 추가해야 합니다.</p>
+ * 부분 UNIQUE 인덱스로 최종 차단합니다.
+ * 논리 삭제된 관계는 같은 개념으로 다시 등록할 수 있습니다.</p>
  */
 @Getter
 @Entity

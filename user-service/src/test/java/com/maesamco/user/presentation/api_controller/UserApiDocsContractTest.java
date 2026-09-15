@@ -1,6 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -292,5 +293,70 @@ class UserApiDocsContractTest {
                 )
                 .findFirst()
                 .orElseThrow();
+    }
+
+    @Test
+    @DisplayName(
+            "관심 개념 설정 API의 OpenAPI 성공 및 오류 응답을 정의한다"
+    )
+    void updateMyInterestsContract()
+            throws NoSuchMethodException {
+        // given
+        Method method = UserApiDocs.class.getMethod(
+                "updateMyInterests",
+                Authentication.class,
+                UpdateMyInterestsCommand.class
+        );
+
+        // then
+        assertOperation(method);
+
+        assertResponseCodes(
+                method,
+                "200",
+                "400",
+                "401",
+                "403",
+                "404",
+                "503",
+                "500"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "200"
+                ).useReturnTypeSchema()
+        ).isTrue();
+
+        assertErrorResponseSchema(
+                method,
+                "400"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "401"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "403"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "404"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "503"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "500"
+        );
     }
 }
