@@ -1,14 +1,14 @@
 package com.maesamco.content.problem;
 
+import com.maesamco.content.application.problem.service.ProblemService;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.domain.problem.repository.ProblemRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.application.service.ProblemService;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.enums.*;
-import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.problem.presentation.dto.request.ProblemCreateRequest;
-import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
-import com.maesamco.content.problem.presentation.dto.response.ProblemCreateResponse;
+import com.maesamco.content.presentation.problem.dto.request.ProblemCreateRequest;
+import com.maesamco.content.presentation.problem.dto.request.ProblemUpdateRequest;
+import com.maesamco.content.presentation.problem.dto.response.ProblemCreateResponse;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,13 +1,13 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
 import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.config.QuerydslConfig;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.enums.*;
-import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

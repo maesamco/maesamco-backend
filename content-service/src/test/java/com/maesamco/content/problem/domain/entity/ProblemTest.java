@@ -1,8 +1,9 @@
 package com.maesamco.content.problem.domain.entity;
 
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.enums.*;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.domain.enums.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

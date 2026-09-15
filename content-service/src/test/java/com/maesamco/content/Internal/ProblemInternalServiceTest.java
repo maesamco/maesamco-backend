@@ -1,14 +1,14 @@
 package com.maesamco.content.Internal;
 
-import com.maesamco.content.problem.application.port.ProblemFinder;
-import com.maesamco.content.problem.application.port.ProblemTagFinder;
-import com.maesamco.content.problem.application.port.ProblemVersionFinder;
-import com.maesamco.content.problem.application.service.ProblemInternalService;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.presentation.dto.response.InternalProblemResponse;
-import com.maesamco.content.tag.domain.entity.Tag;
-import com.maesamco.content.tag.domain.enums.TagAttribute;
+import com.maesamco.content.application.problem.port.ProblemFinder;
+import com.maesamco.content.application.problem.port.ProblemTagFinder;
+import com.maesamco.content.application.problem.port.ProblemVersionFinder;
+import com.maesamco.content.application.problem.service.ProblemInternalService;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.tag.enums.TagAttribute;
+import com.maesamco.content.presentation.problem.dto.response.InternalProblemResponse;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;

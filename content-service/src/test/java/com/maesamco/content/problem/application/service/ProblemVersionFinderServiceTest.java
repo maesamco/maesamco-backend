@@ -1,9 +1,10 @@
 package com.maesamco.content.problem.application.service;
 
+import com.maesamco.content.application.problem.service.ProblemVersionFinderService;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
