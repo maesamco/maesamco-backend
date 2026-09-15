@@ -36,6 +36,19 @@ public interface UserInterestConceptRepository {
     );
 
     /**
+     * 여러 사용자 관심 개념을 저장하고 변경 내용을 즉시 DB에 반영합니다.
+     *
+     * <p>전체 교체 과정에서 기존 관심 개념의 논리 삭제를
+     * 신규 관심 개념 INSERT보다 먼저 반영하기 위해 사용합니다.</p>
+     *
+     * @param interestConcepts 저장할 사용자 관심 개념 목록
+     * @return 저장된 사용자 관심 개념 목록
+     */
+    List<UserInterestConcept> saveAllAndFlush(
+            List<UserInterestConcept> interestConcepts
+    );
+
+    /**
      * 특정 사용자가 등록한 활성 관심 개념 목록을 조회합니다.
      *
      * <p>논리 삭제된 관심 개념은 조회 결과에서 제외됩니다.</p>

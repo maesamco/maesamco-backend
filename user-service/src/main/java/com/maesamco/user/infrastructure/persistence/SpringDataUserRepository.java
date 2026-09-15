@@ -1,7 +1,11 @@
 package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.User;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -39,4 +43,23 @@ public interface SpringDataUserRepository
      * @return 존재하면 true
      */
     boolean existsByNicknameIgnoreCase(String nickname);
+
+    /**
+     * 사용자 행을 비관적 쓰기 잠금으로 조회합니다.
+     *
+     * <p>동일 사용자의 관심 개념 변경 요청을 직렬화하여
+     * 동시 전체 교체 과정에서 발생할 수 있는 충돌을 방지합니다.</p>
+     *
+     * @param userId 사용자 식별자
+     * @return 조회된 사용자, 존재하지 않으면 빈 Optional
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT user
+        FROM User user
+        WHERE user.id = :userId
+        """)
+    Optional<User> findByIdForUpdate(
+            @Param("userId") UUID userId
+    );
 }

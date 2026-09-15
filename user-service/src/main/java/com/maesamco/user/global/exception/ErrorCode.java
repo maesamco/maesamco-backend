@@ -89,12 +89,20 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 등록된 관심 개념입니다."
     ),
+    CONCEPT_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "존재하지 않거나 사용할 수 없는 개념이 포함되어 있습니다."
+    ),
     XP_HISTORY_ALREADY_EXISTS(
             HttpStatus.CONFLICT,
             "이미 처리된 XP 이력입니다."
     ),
 
     // ===== 서비스 간 통신 =====
+    CONTENT_SERVICE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "개념 정보를 확인할 수 없어 잠시 후 다시 시도해주세요."
+    ),
     FEIGN_CLIENT_ERROR(
             HttpStatus.BAD_GATEWAY,
             "서비스 간 통신 중 오류가 발생했습니다."

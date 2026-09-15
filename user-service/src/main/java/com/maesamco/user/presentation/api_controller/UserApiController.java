@@ -43,6 +43,8 @@ public class UserApiController implements UserApiDocs {
 
     private final UpdateMyProfileService updateMyProfileService;
 
+    private final UpdateMyInterestsService updateMyInterestsService;
+
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
      *
@@ -93,6 +95,38 @@ public class UserApiController implements UserApiDocs {
 
         GetMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
+                        userId,
+                        command
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 관심 개념 목록을 전체 교체합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 새롭게 설정할 관심 개념 목록
+     * @return 최종 관심 개념 목록과 변경 시각
+     */
+    @Override
+    @PutMapping("/interests")
+    public ResponseEntity<SuccessResponse<UpdateMyInterestsResult>>
+    updateMyInterests(
+            Authentication authentication,
+            @Valid @RequestBody UpdateMyInterestsCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        UpdateMyInterestsResult result =
+                updateMyInterestsService.updateMyInterests(
                         userId,
                         command
                 );

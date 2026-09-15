@@ -1,10 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordService;
-import com.maesamco.user.application.service.GetMyProfileResult;
-import com.maesamco.user.application.service.GetMyProfileService;
-import com.maesamco.user.application.service.UpdateMyProfileCommand;
-import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
@@ -76,6 +72,9 @@ class UserApiControllerUpdateMyProfileTest {
 
     @MockitoBean
     private ChangePasswordService changePasswordService;
+
+    @MockitoBean
+    private UpdateMyInterestsService updateMyInterestsService;
 
     @Test
     @DisplayName(
