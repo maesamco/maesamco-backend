@@ -229,5 +229,70 @@ class SubmissionQueryServiceTest {
 
             verify(submissionTestResultRepository, never()).findBySubmissionId(any());
         }
+
+        @Test
+        @DisplayName("비공개 테스트케이스는 실제 통과 여부와 별개로 actualOutput을 노출하지 않는다")
+        void hidesActualOutputForNonPublicTestCase() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
+
+            SubmissionTestResult hidden = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), false, false, null, null, null, null);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(hidden));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.testResults()).hasSize(1);
+            assertThat(result.testResults().get(0).isPublic()).isFalse();
+            assertThat(result.testResults().get(0).actualOutput()).isNull();
+        }
+
+        @Test
+        @DisplayName("엔티티에 actualOutput이 남아있어도 isPublic=false면 응답 계층에서 한 번 더 null로 막는다")
+        void nullsActualOutputEvenIfEntityHasStaleValue() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
+
+            SubmissionTestResult hidden = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), false, false, null, null, null, null);
+            ReflectionTestUtils.setField(hidden, "actualOutput", "실제로는 절대 노출되면 안 되는 값");
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(hidden));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.testResults().get(0).actualOutput()).isNull();
+        }
+
+        @Test
+        @DisplayName("Submission에 result/failureCode 값이 남아있어도 RUNNING이면 응답에서는 null로 내려간다 (도메인 가드가 아니라 이 메서드 자체가 계약을 보장)")
+        void nullsResultAndFailureCodeWhenNotTerminalEvenIfEntityHasStaleValue() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            ReflectionTestUtils.setField(submission, "result", SubmissionResult.CORRECT);
+            ReflectionTestUtils.setField(submission, "failureCode", FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.result()).isNull();
+            assertThat(result.failureCode()).isNull();
+            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+        }
     }
 }
