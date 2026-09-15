@@ -58,9 +58,12 @@ class RedisAuthSessionLogoutAllStoreTest {
                     INVALIDATED_AT.toEpochMilli()
             );
 
-    private static final String ACCESS_TOKEN_TTL_MILLIS =
+    private static final String INVALIDATED_AT_TTL_MILLIS =
             Long.toString(
-                    ACCESS_TOKEN_TTL.toMillis()
+                    Math.max(
+                            ACCESS_TOKEN_TTL.toMillis(),
+                            REFRESH_TOKEN_TTL.toMillis()
+                    )
             );
 
     @Mock
@@ -90,7 +93,7 @@ class RedisAuthSessionLogoutAllStoreTest {
     @Test
     @DisplayName(
             "사용자의 모든 인증 세션 삭제와 "
-                    + "Access Token 무효화를 원자적으로 요청한다"
+                    + "사용자 단위 토큰 무효화를 원자적으로 요청한다"
     )
     void logoutAll_executesAtomicRedisOperation() {
         // given
@@ -104,7 +107,7 @@ class RedisAuthSessionLogoutAllStoreTest {
                                 )
                         ),
                         eq(INVALIDATED_AT_EPOCH_MILLIS),
-                        eq(ACCESS_TOKEN_TTL_MILLIS)
+                        eq(INVALIDATED_AT_TTL_MILLIS)
                 )
         ).thenReturn(
                 1L
@@ -128,7 +131,7 @@ class RedisAuthSessionLogoutAllStoreTest {
                                 )
                         ),
                         eq(INVALIDATED_AT_EPOCH_MILLIS),
-                        eq(ACCESS_TOKEN_TTL_MILLIS)
+                        eq(INVALIDATED_AT_TTL_MILLIS)
                 );
     }
 
@@ -148,7 +151,7 @@ class RedisAuthSessionLogoutAllStoreTest {
                                 )
                         ),
                         eq(INVALIDATED_AT_EPOCH_MILLIS),
-                        eq(ACCESS_TOKEN_TTL_MILLIS)
+                        eq(INVALIDATED_AT_TTL_MILLIS)
                 )
         ).thenReturn(null);
 
@@ -191,7 +194,7 @@ class RedisAuthSessionLogoutAllStoreTest {
                                 )
                         ),
                         eq(INVALIDATED_AT_EPOCH_MILLIS),
-                        eq(ACCESS_TOKEN_TTL_MILLIS)
+                        eq(INVALIDATED_AT_TTL_MILLIS)
                 )
         ).thenReturn(
                 99L
@@ -246,7 +249,7 @@ class RedisAuthSessionLogoutAllStoreTest {
 
     @Test
     @DisplayName(
-            "Access Token 무효화 기준 시각이 없으면 Redis를 호출하지 않는다"
+            "토큰 무효화 기준 시각이 없으면 Redis를 호출하지 않는다"
     )
     void logoutAll_nullInvalidatedAt() {
         // when & then
@@ -260,7 +263,7 @@ class RedisAuthSessionLogoutAllStoreTest {
                         NullPointerException.class
                 )
                 .hasMessage(
-                        "Access Token 무효화 기준 시각은 필수입니다."
+                        "토큰 무효화 기준 시각은 필수입니다."
                 );
 
         verifyNoInteractions(

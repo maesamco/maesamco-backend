@@ -1152,9 +1152,10 @@ class RedisAuthSessionStoreIntegrationTest {
 
     @Test
     @DisplayName(
-            "전체 로그아웃 시 사용자 무효화 시각을 Access Token TTL 동안 저장한다"
+            "전체 로그아웃 시 사용자 무효화 시각을 "
+                    + "Refresh Token TTL 동안 저장한다"
     )
-    void logoutAll_storesUserInvalidatedAtWithAccessTokenTtl() {
+    void logoutAll_storesUserInvalidatedAtWithRefreshTokenTtl() {
         // given
         authSessionStore.save(
                 createSession()
@@ -1187,7 +1188,12 @@ class RedisAuthSessionStoreIntegrationTest {
 
         assertThat(remainingTtl)
                 .isBetween(
-                        ACCESS_TOKEN_TTL.toMillis() - 5_000L,
+                        SESSION_TTL.toMillis() - 5_000L,
+                        SESSION_TTL.toMillis()
+                );
+
+        assertThat(remainingTtl)
+                .isGreaterThan(
                         ACCESS_TOKEN_TTL.toMillis()
                 );
     }
@@ -1303,17 +1309,17 @@ class RedisAuthSessionStoreIntegrationTest {
         ).isTrue();
 
         // when
-        AuthSessionRotationResult result =
+        AuthSessionRotationResult reuseResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
                         USER_ID,
-                        legacySession.createdAt(),
-                        ORIGINAL_REFRESH_TOKEN_HASH,
-                        ROTATED_REFRESH_TOKEN_HASH
+                        NOW,
+                        "unrelated-refresh-token-hash",
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
 
         // then
-        assertThat(result)
+        assertThat(reuseResult)
                 .isEqualTo(
                         AuthSessionRotationResult
                                 .SESSION_NOT_FOUND
