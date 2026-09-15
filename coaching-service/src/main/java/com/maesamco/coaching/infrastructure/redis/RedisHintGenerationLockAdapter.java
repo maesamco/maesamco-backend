@@ -36,12 +36,29 @@ import java.util.UUID;
  * "0에서 시작해 1이 됨"이 아니라 "갑자기 1로 나타남"으로 보여서 increase()가 이를
  * 못 잡는다(두 번째 이후 실패부터만 정상 감지됨). 그래서 카운터를 increment 시점이
  * 아니라 생성자에서 미리 등록해, 앱 기동 시점부터 0이라는 표본이 항상 존재하게 한다.
+ *
+ * PR #190 리뷰 — LOCK_TTL을 30초에서 150초로 올렸다. tryLock()~unlock() 사이에서
+ * Content Service Feign 조회(connectTimeout 2s + readTimeout 3s, 재시도 없음 — 최악
+ * 약 5초)와 aiModelPort.generate()(LLM 호출)가 그대로 실행되는데, spring.ai.anthropic
+ * .timeout=30s + max-retries=2(최초 1회 + 재시도 2회, RedisAiFeedbackRetryLockAdapter가
+ * 이미 같은 방식으로 계산해둔 근거와 동일)에 지수 백오프까지 더하면 LLM 쪽만으로도 최악
+ * 약 90~100초가 걸린다. 즉 기존 TTL(30초)로는 Redis가 멀쩡해도 응답이 느린 상황에서
+ * 락이 자연 만료된 뒤 새 요청이 tryLock()에 성공해서 같은 stage에 대해 LLM을 한 번 더
+ * 호출할 수 있었다 — 이 락이 원래 막으려던 문제(PR #70, 힌트 버튼 더블클릭·타임아웃
+ * 재시도로 LLM 중복 과금 호출)가 Redis 오류 없이도 재현 가능한 상태였다. 이 경로는
+ * RuntimeException을 던지지 않고 조용히 통과하므로 tryLockFallbackCounter로도 못 잡는다.
+ * ~105초 worst-case에 여유를 둬서 150초로 올린다(재시도/타임아웃 설정이 나중에 바뀌면
+ * 이 계산도 다시 해야 한다).
+ *
+ * TODO(#207): TTL을 올리면서 waitForConcurrentHint()(HintGenerationFacade, 현재 100ms×20회
+ * =2초 대기)와의 격차가 커졌다 — 락을 못 잡은 요청이 2초만 기다리다 실패 처리될 수 있는데,
+ * 대기 시간을 얼마나 늘릴지(HTTP 스레드 점유 시간과 트레이드오프)는 팀 판단이 필요하다.
  */
 @Slf4j
 @Component
 public class RedisHintGenerationLockAdapter implements HintGenerationLockPort {
 
-    private static final Duration LOCK_TTL = Duration.ofSeconds(30);
+    private static final Duration LOCK_TTL = Duration.ofSeconds(150);
     private static final String FALLBACK_METRIC_NAME = "hint.generation.lock.fallback";
     private static final String OPERATION_TAG = "operation";
 
