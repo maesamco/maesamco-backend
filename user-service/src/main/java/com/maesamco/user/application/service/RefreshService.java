@@ -119,6 +119,8 @@ public class RefreshService {
         AuthSessionRotationResult rotationResult =
                 authSessionStore.rotateRefreshToken(
                         authSession.sessionId(),
+                        authSession.userId(),
+                        authSession.createdAt(),
                         expectedRefreshTokenHash,
                         newRefreshTokenHash
                 );

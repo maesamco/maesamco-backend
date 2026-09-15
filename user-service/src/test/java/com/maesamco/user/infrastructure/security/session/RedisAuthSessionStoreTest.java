@@ -3,6 +3,8 @@ package com.maesamco.user.infrastructure.security.session;
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionRotationResult;
 import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -287,17 +289,25 @@ class RedisAuthSessionStoreTest {
         // given
         when(redisTemplate.execute(
                 any(),
-                eq(List.of(SESSION_KEY)),
+                eq(
+                        List.of(
+                                SESSION_KEY,
+                                USER_INVALIDATED_AT_KEY
+                        )
+                ),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH),
                 eq(NOW_EPOCH_MILLIS),
-                eq(ROTATION_GRACE_PERIOD_MILLIS)
+                eq(ROTATION_GRACE_PERIOD_MILLIS),
+                eq(SESSION_CREATED_AT_EPOCH_MILLIS)
         )).thenReturn(1L);
 
         // when
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -315,17 +325,25 @@ class RedisAuthSessionStoreTest {
         // given
         when(redisTemplate.execute(
                 any(),
-                eq(List.of(SESSION_KEY)),
+                eq(
+                        List.of(
+                                SESSION_KEY,
+                                USER_INVALIDATED_AT_KEY
+                        )
+                ),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH),
                 eq(NOW_EPOCH_MILLIS),
-                eq(ROTATION_GRACE_PERIOD_MILLIS)
+                eq(ROTATION_GRACE_PERIOD_MILLIS),
+                eq(SESSION_CREATED_AT_EPOCH_MILLIS)
         )).thenReturn(0L);
 
         // when
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -346,17 +364,25 @@ class RedisAuthSessionStoreTest {
         // given
         when(redisTemplate.execute(
                 any(),
-                eq(List.of(SESSION_KEY)),
+                eq(
+                        List.of(
+                                SESSION_KEY,
+                                USER_INVALIDATED_AT_KEY
+                        )
+                ),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH),
                 eq(NOW_EPOCH_MILLIS),
-                eq(ROTATION_GRACE_PERIOD_MILLIS)
+                eq(ROTATION_GRACE_PERIOD_MILLIS),
+                eq(SESSION_CREATED_AT_EPOCH_MILLIS)
         )).thenReturn(2L);
 
         // when
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -375,17 +401,25 @@ class RedisAuthSessionStoreTest {
         // given
         when(redisTemplate.execute(
                 any(),
-                eq(List.of(SESSION_KEY)),
+                eq(
+                        List.of(
+                                SESSION_KEY,
+                                USER_INVALIDATED_AT_KEY
+                        )
+                ),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH),
                 eq(NOW_EPOCH_MILLIS),
-                eq(ROTATION_GRACE_PERIOD_MILLIS)
+                eq(ROTATION_GRACE_PERIOD_MILLIS),
+                eq(SESSION_CREATED_AT_EPOCH_MILLIS)
         )).thenReturn(3L);
 
         // when
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -403,17 +437,25 @@ class RedisAuthSessionStoreTest {
         // given
         when(redisTemplate.execute(
                 any(),
-                eq(List.of(SESSION_KEY)),
+                eq(
+                        List.of(
+                                SESSION_KEY,
+                                USER_INVALIDATED_AT_KEY
+                        )
+                ),
                 eq(EXPECTED_REFRESH_TOKEN_HASH),
                 eq(NEW_REFRESH_TOKEN_HASH),
                 eq(NOW_EPOCH_MILLIS),
-                eq(ROTATION_GRACE_PERIOD_MILLIS)
+                eq(ROTATION_GRACE_PERIOD_MILLIS),
+                eq(SESSION_CREATED_AT_EPOCH_MILLIS)
         )).thenReturn(null);
 
         // when & then
         assertThatThrownBy(() ->
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 )
@@ -431,6 +473,8 @@ class RedisAuthSessionStoreTest {
         assertThatThrownBy(() ->
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         " ",
                         NEW_REFRESH_TOKEN_HASH
                 )
@@ -450,6 +494,8 @@ class RedisAuthSessionStoreTest {
         assertThatThrownBy(() ->
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         EXPECTED_REFRESH_TOKEN_HASH,
                         " "
                 )
@@ -541,10 +587,15 @@ class RedisAuthSessionStoreTest {
                 )
         )
                 .isInstanceOf(
-                        IllegalStateException.class
+                        BusinessException.class
                 )
-                .hasMessage(
-                        "전체 로그아웃 이전에 시작된 인증 세션은 저장할 수 없습니다."
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.AUTH_TOKEN_REVOKED
+                        )
                 );
     }
 }
