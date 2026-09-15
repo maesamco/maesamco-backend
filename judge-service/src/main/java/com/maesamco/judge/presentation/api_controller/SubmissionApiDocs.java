@@ -1,5 +1,6 @@
 package com.maesamco.judge.presentation.api_controller;
 
+import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
@@ -27,5 +28,22 @@ public interface SubmissionApiDocs {
             @Parameter(hidden = true) UUID userId,
             @Parameter(name = "Idempotency-Key", required = true) String idempotencyKey,
             SubmissionCreateRequest request
+    );
+
+    @Operation(
+            summary = "채점 상태·결과 조회",
+            description = "제출 상태와 채점 결과를 조회한다. 본인 제출만 조회 가능하며, "
+                    + "존재하지 않거나 본인 제출이 아닌 경우 구분 없이 404로 응답한다(IDOR 방지). "
+                    + "상태별 노출 규칙 — 진행 중(PENDING/QUEUED/RUNNING/RETRY_WAIT): status만 / "
+                    + "COMPLETED: status+result+testResults / FAILED: status+failureCode."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
+            @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND — 존재하지 않거나 본인 제출이 아님")
+    })
+    ResponseEntity<SuccessResponse<SubmissionExternalGetResult>> getSubmission(
+            @Parameter(name = "submissionId", required = true) UUID submissionId,
+            @Parameter(hidden = true) UUID userId
     );
 }

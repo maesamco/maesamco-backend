@@ -2,7 +2,9 @@ package com.maesamco.judge.presentation.api_controller;
 
 import com.maesamco.judge.application.command_service.SubmissionCommandService;
 import com.maesamco.judge.application.command.SubmissionCreateCommand;
+import com.maesamco.judge.application.query_service.SubmissionQueryService;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
+import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.global.response.SuccessResponse;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class SubmissionApiController implements SubmissionApiDocs {
 
     private final SubmissionCommandService submissionCommandService;
+    private final SubmissionQueryService submissionQueryService;
 
     @Override
     @PostMapping
@@ -41,6 +44,17 @@ public class SubmissionApiController implements SubmissionApiDocs {
         return ResponseEntity
                 .status(status)
                 .body(SuccessResponse.success(response));
+    }
+
+    @Override
+    @GetMapping("/{submissionId}")
+    public ResponseEntity<SuccessResponse<SubmissionExternalGetResult>> getSubmission(
+            @PathVariable UUID submissionId,
+            @AuthenticationPrincipal UUID userId
+    ) {
+        requireAuthenticated(userId);
+        SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+        return ResponseEntity.status(HttpStatus.OK).body(SuccessResponse.success(result));
     }
 
 
