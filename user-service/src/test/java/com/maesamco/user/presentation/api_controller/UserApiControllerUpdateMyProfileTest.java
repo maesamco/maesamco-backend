@@ -3,6 +3,7 @@ package com.maesamco.user.presentation.api_controller;
 import com.maesamco.user.application.service.ChangePasswordService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
@@ -29,34 +30,36 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * UserApiController의 내 정보 조회 HTTP 계약을 검증합니다.
+ * UserApiController의 내 정보 수정 HTTP 계약을 검증합니다.
  */
-@WebMvcTest(UserApiController.class)
+@WebMvcTest(
+        value = UserApiController.class,
+        properties = {
+                "spring.jackson.deserialization."
+                        + "fail-on-unknown-properties=true"
+        }
+)
 @Import({
         GlobalExceptionHandler.class,
-        UserApiControllerGetMyProfileTest
+        UserApiControllerUpdateMyProfileTest
                 .TestSecurityConfiguration.class
 })
-class UserApiControllerGetMyProfileTest {
+class UserApiControllerUpdateMyProfileTest {
 
     private static final UUID USER_ID =
             UUID.fromString(
                     "11111111-1111-1111-1111-111111111111"
-            );
-
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString(
-                    "22222222-2222-2222-2222-222222222222"
             );
 
     private static final Instant CREATED_AT =
@@ -66,30 +69,48 @@ class UserApiControllerGetMyProfileTest {
     private MockMvc mockMvc;
 
     @MockitoBean
+    private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoBean
     private GetMyProfileService getMyProfileService;
 
     @MockitoBean
     private ChangePasswordService changePasswordService;
 
-    @MockitoBean
-    private UpdateMyProfileService updateMyProfileService;
-
     @Test
     @DisplayName(
-            "인증된 사용자가 내 정보를 조회하면 "
-                    + "200과 사용자 기본 정보를 반환한다"
+            "인증된 사용자가 내 정보를 수정하면 "
+                    + "200과 변경된 사용자 정보를 반환한다"
     )
-    void getMyProfile() throws Exception {
+    void updateMyProfile() throws Exception {
         // given
-        GetMyProfileResult result =
-                createResult();
+        UpdateMyProfileCommand command =
+                new UpdateMyProfileCommand(
+                        "새닉네임",
+                        LearningLevel.BASIC,
+                        6
+                );
 
-        when(getMyProfileService.getMyProfile(USER_ID))
-                .thenReturn(result);
+        when(
+                updateMyProfileService.updateMyProfile(
+                        USER_ID,
+                        command
+                )
+        ).thenReturn(
+                createResult()
+        );
+
+        String request = """
+                {
+                  "nickname": "  새닉네임  ",
+                  "learningLevel": "BASIC",
+                  "javaExperienceMonths": 6
+                }
+                """;
 
         // when & then
         mockMvc.perform(
-                        get("/api/v1/users/me")
+                        patch("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -97,6 +118,10 @@ class UserApiControllerGetMyProfileTest {
                                                 )
                                         )
                                 )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(request)
                 )
                 .andExpect(
                         status().isOk()
@@ -120,7 +145,7 @@ class UserApiControllerGetMyProfileTest {
                 )
                 .andExpect(
                         jsonPath("$.data.nickname")
-                                .value("김티암")
+                                .value("새닉네임")
                 )
                 .andExpect(
                         jsonPath("$.data.role")
@@ -132,11 +157,11 @@ class UserApiControllerGetMyProfileTest {
                 )
                 .andExpect(
                         jsonPath("$.data.learningLevel")
-                                .value("BEGINNER")
+                                .value("BASIC")
                 )
                 .andExpect(
                         jsonPath("$.data.javaExperienceMonths")
-                                .value(3)
+                                .value(6)
                 )
                 .andExpect(
                         jsonPath("$.data.createdAt")
@@ -155,28 +180,27 @@ class UserApiControllerGetMyProfileTest {
                                 .doesNotExist()
                 );
 
-        verify(getMyProfileService)
-                .getMyProfile(USER_ID);
+        verify(updateMyProfileService)
+                .updateMyProfile(
+                        USER_ID,
+                        command
+                );
     }
 
     @Test
     @DisplayName(
-            "Query Parameter의 userId는 인증된 사용자 식별자를 "
-                    + "변경할 수 없다"
+            "닉네임이 누락되면 400 INVALID_INPUT_VALUE를 반환한다"
     )
-    void userIdParameterCannotOverrideAuthentication()
-            throws Exception {
-        // given
-        when(getMyProfileService.getMyProfile(USER_ID))
-                .thenReturn(createResult());
+    void missingNickname() throws Exception {
+        String request = """
+                {
+                  "learningLevel": "BASIC",
+                  "javaExperienceMonths": 6
+                }
+                """;
 
-        // when & then
         mockMvc.perform(
-                        get("/api/v1/users/me")
-                                .param(
-                                        "userId",
-                                        OTHER_USER_ID.toString()
-                                )
+                        patch("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 createAuthentication(
@@ -184,34 +208,89 @@ class UserApiControllerGetMyProfileTest {
                                                 )
                                         )
                                 )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(request)
                 )
                 .andExpect(
-                        status().isOk()
+                        status().isBadRequest()
                 )
                 .andExpect(
-                        jsonPath("$.data.userId")
-                                .value(USER_ID.toString())
+                        jsonPath("$.error.code")
+                                .value("INVALID_INPUT_VALUE")
+                )
+                .andExpect(
+                        jsonPath("$.error.fieldErrors[*].field")
+                                .value(
+                                        hasItem("nickname")
+                                )
                 );
 
-        verify(getMyProfileService)
-                .getMyProfile(USER_ID);
+        verifyNoInteractions(
+                updateMyProfileService
+        );
     }
 
     @Test
     @DisplayName(
-            "인증 정보 없이 내 정보를 조회하면 "
+            "수정할 수 없는 필드를 전달하면 "
+                    + "400 INVALID_INPUT_VALUE로 거부한다"
+    )
+    void protectedField() throws Exception {
+        String request = """
+                {
+                  "nickname": "새닉네임",
+                  "learningLevel": "BASIC",
+                  "javaExperienceMonths": 6,
+                  "role": "ADMIN"
+                }
+                """;
+
+        mockMvc.perform(
+                        patch("/api/v1/users/me")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(request)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("INVALID_INPUT_VALUE")
+                );
+
+        verifyNoInteractions(
+                updateMyProfileService
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "인증 정보 없이 내 정보 수정을 요청하면 "
                     + "401 AUTH_UNAUTHORIZED를 반환한다"
     )
     void missingAuthentication() throws Exception {
         mockMvc.perform(
-                        get("/api/v1/users/me")
+                        patch("/api/v1/users/me")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
+                                )
                 )
                 .andExpect(
                         status().isUnauthorized()
-                )
-                .andExpect(
-                        jsonPath("$.success")
-                                .value(false)
                 )
                 .andExpect(
                         jsonPath("$.error.code")
@@ -219,7 +298,7 @@ class UserApiControllerGetMyProfileTest {
                 );
 
         verifyNoInteractions(
-                getMyProfileService
+                updateMyProfileService
         );
     }
 
@@ -229,7 +308,6 @@ class UserApiControllerGetMyProfileTest {
                     + "401 AUTH_INVALID_TOKEN을 반환한다"
     )
     void invalidAuthenticationPrincipal() throws Exception {
-        // given
         UsernamePasswordAuthenticationToken authenticationToken =
                 new UsernamePasswordAuthenticationToken(
                         "invalid-user-id",
@@ -237,13 +315,18 @@ class UserApiControllerGetMyProfileTest {
                         List.of()
                 );
 
-        // when & then
         mockMvc.perform(
-                        get("/api/v1/users/me")
+                        patch("/api/v1/users/me")
                                 .with(
                                         authentication(
                                                 authenticationToken
                                         )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
                                 )
                 )
                 .andExpect(
@@ -255,8 +338,54 @@ class UserApiControllerGetMyProfileTest {
                 );
 
         verifyNoInteractions(
-                getMyProfileService
+                updateMyProfileService
         );
+    }
+
+    @Test
+    @DisplayName(
+            "닉네임이 중복되면 "
+                    + "409 USER_DUPLICATE_NICKNAME을 반환한다"
+    )
+    void duplicateNickname() throws Exception {
+        stubServiceFailure(
+                ErrorCode.USER_DUPLICATE_NICKNAME
+        );
+
+        mockMvc.perform(
+                        authenticatedRequest()
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_DUPLICATE_NICKNAME"
+                                )
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "활성 상태가 아닌 사용자는 "
+                    + "403 USER_NOT_ACTIVE를 반환한다"
+    )
+    void inactiveUser() throws Exception {
+        stubServiceFailure(
+                ErrorCode.USER_NOT_ACTIVE
+        );
+
+        mockMvc.perform(
+                        authenticatedRequest()
+                )
+                .andExpect(
+                        status().isForbidden()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("USER_NOT_ACTIVE")
+                );
     }
 
     @Test
@@ -265,31 +394,15 @@ class UserApiControllerGetMyProfileTest {
                     + "404 USER_NOT_FOUND를 반환한다"
     )
     void userNotFound() throws Exception {
-        // given
-        when(getMyProfileService.getMyProfile(USER_ID))
-                .thenThrow(
-                        new BusinessException(
-                                ErrorCode.USER_NOT_FOUND
-                        )
-                );
+        stubServiceFailure(
+                ErrorCode.USER_NOT_FOUND
+        );
 
-        // when & then
         mockMvc.perform(
-                        get("/api/v1/users/me")
-                                .with(
-                                        authentication(
-                                                createAuthentication(
-                                                        USER_ID
-                                                )
-                                        )
-                                )
+                        authenticatedRequest()
                 )
                 .andExpect(
                         status().isNotFound()
-                )
-                .andExpect(
-                        jsonPath("$.success")
-                                .value(false)
                 )
                 .andExpect(
                         jsonPath("$.error.code")
@@ -297,15 +410,65 @@ class UserApiControllerGetMyProfileTest {
                 );
     }
 
+    private void stubServiceFailure(
+            ErrorCode errorCode
+    ) {
+        when(
+                updateMyProfileService.updateMyProfile(
+                        USER_ID,
+                        validCommand()
+                )
+        ).thenThrow(
+                new BusinessException(errorCode)
+        );
+    }
+
+    private org.springframework.test.web.servlet
+            .request.MockHttpServletRequestBuilder
+    authenticatedRequest() {
+        return patch("/api/v1/users/me")
+                .with(
+                        authentication(
+                                createAuthentication(
+                                        USER_ID
+                                )
+                        )
+                )
+                .contentType(
+                        MediaType.APPLICATION_JSON
+                )
+                .content(
+                        validRequest()
+                );
+    }
+
+    private UpdateMyProfileCommand validCommand() {
+        return new UpdateMyProfileCommand(
+                "새닉네임",
+                LearningLevel.BASIC,
+                6
+        );
+    }
+
+    private String validRequest() {
+        return """
+                {
+                  "nickname": "새닉네임",
+                  "learningLevel": "BASIC",
+                  "javaExperienceMonths": 6
+                }
+                """;
+    }
+
     private GetMyProfileResult createResult() {
         return new GetMyProfileResult(
                 USER_ID,
                 "learner@example.com",
-                "김티암",
+                "새닉네임",
                 UserRole.USER,
                 UserStatus.ACTIVE,
-                LearningLevel.BEGINNER,
-                3,
+                LearningLevel.BASIC,
+                6,
                 CREATED_AT
         );
     }

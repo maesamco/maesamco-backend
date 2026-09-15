@@ -1,9 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordCommand;
-import com.maesamco.user.application.service.ChangePasswordService;
-import com.maesamco.user.application.service.GetMyProfileResult;
-import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.response.SuccessResponse;
@@ -44,6 +41,8 @@ public class UserApiController implements UserApiDocs {
 
     private final ChangePasswordService changePasswordService;
 
+    private final UpdateMyProfileService updateMyProfileService;
+
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
      *
@@ -64,6 +63,38 @@ public class UserApiController implements UserApiDocs {
         GetMyProfileResult result =
                 getMyProfileService.getMyProfile(
                         userId
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 닉네임과 Java 학습 정보를 수정합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 변경할 사용자 기본 정보
+     * @return 변경된 사용자 기본 정보
+     */
+    @Override
+    @PatchMapping
+    public ResponseEntity<SuccessResponse<GetMyProfileResult>>
+    updateMyProfile(
+            Authentication authentication,
+            @Valid @RequestBody UpdateMyProfileCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyProfileResult result =
+                updateMyProfileService.updateMyProfile(
+                        userId,
+                        command
                 );
 
         return ResponseEntity.ok(
