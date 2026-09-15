@@ -12,6 +12,7 @@ import com.maesamco.judge.domain.entity.SubmissionResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
+import com.maesamco.judge.global.security.hmac.InternalCallHeaders;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -23,9 +24,24 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * ⚠️ 이슈 #175 반영 — SubmissionInternalController에 @AllowedInternalCallers가
+ * 붙으면서, InternalCallerAuthorizationInterceptor가 이 @WebMvcTest 슬라이스에서도
+ * 실제로 등록되어 동작한다는 게 CI로 확인됐다(addFilters = false는 서블릿 Filter만
+ * 끄고 HandlerInterceptor는 끄지 않음). 그래서 X-Internal-Service 헤더 없이 보내던
+ * 기존 요청들이 컨트롤러 도달 전에 403으로 막혀 테스트가 깨졌다.
+ *
+ * 이 클래스는 "조회 로직 자체가 맞는지"(성공/404)를 검증하는 게 목적이라, 인가
+ * 자체를 검증하려는 게 아니다 — 허용된 호출자 헤더(content-service)를 추가해서
+ * 인가 체크를 통과시키고 본래 목적(조회 로직)만 검증하도록 한다. 인가 체크 자체가
+ * 실제로 강제되는지는 별도의 SubmissionInternalControllerAuthorizationTest에서
+ * 검증한다.
+ */
 @WebMvcTest(SubmissionInternalController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class SubmissionInternalControllerTest {
+
+    private static final String ALLOWED_CALLER = "content-service";
 
     @Autowired
     private MockMvc mockMvc;
@@ -49,7 +65,8 @@ class SubmissionInternalControllerTest {
             );
             given(submissionQueryService.getSubmissionForInternal(any())).willReturn(result);
 
-            mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId))
+            mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.status").value("COMPLETED"))
@@ -64,7 +81,8 @@ class SubmissionInternalControllerTest {
             given(submissionQueryService.getSubmissionForInternal(any()))
                     .willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
-            mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId))
+            mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isNotFound());
         }
     }
