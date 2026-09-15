@@ -1,6 +1,8 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.security.JwtProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -192,13 +194,15 @@ public class RedisAuthSessionLogoutAllStore
                 );
 
         if (result == null) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "전체 인증 세션 로그아웃 결과를 확인할 수 없습니다."
             );
         }
 
         if (result != LOGOUT_ALL_SUCCESS) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "알 수 없는 전체 인증 세션 로그아웃 결과입니다: "
                             + result
             );
