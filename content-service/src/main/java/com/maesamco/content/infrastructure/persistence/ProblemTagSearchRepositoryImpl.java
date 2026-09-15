@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.problem.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.problem.entity.QProblemTag;
 import com.maesamco.content.domain.problem.repository.ProblemTagSearchRepository;

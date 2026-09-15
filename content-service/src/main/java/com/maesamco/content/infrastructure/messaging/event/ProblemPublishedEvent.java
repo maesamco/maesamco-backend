@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.problem.messaging.event;
+package com.maesamco.content.infrastructure.messaging.event;
 
 import com.maesamco.content.domain.problem.entity.ProblemVersion;
 

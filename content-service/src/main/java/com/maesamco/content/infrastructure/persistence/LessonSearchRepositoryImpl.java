@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.lesson.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.lesson.entity.Lesson;
 import com.maesamco.content.domain.lesson.entity.QLesson;

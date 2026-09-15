@@ -1,10 +1,10 @@
-package com.maesamco.content.infrastructure.problem.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.problem.entity.Problem;
 import com.maesamco.content.domain.problem.entity.QProblem;
 import com.maesamco.content.domain.problem.enums.ProblemDifficulty;
 import com.maesamco.content.domain.problem.repository.ProblemSearchRepository;
-import com.maesamco.content.presentation.problem.dto.request.ProblemSearchRequest;
+import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;

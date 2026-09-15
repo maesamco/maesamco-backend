@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.tag.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.tag.entity.QTag;
 import com.maesamco.content.domain.tag.entity.Tag;

@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.problem.messaging.producer;
+package com.maesamco.content.infrastructure.messaging.producer;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;

@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.unit.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.unit.entity.QUnit;
 import com.maesamco.content.domain.unit.entity.Unit;

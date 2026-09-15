@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.curriculum.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.curriculum.entity.Curriculum;
 import com.maesamco.content.domain.curriculum.entity.QCurriculum;

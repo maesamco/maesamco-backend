@@ -1,4 +1,4 @@
-package com.maesamco.content.infrastructure.testcase.persistence;
+package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.testcase.entity.QTestCase;
 import com.maesamco.content.domain.testcase.repository.TestCaseOrderRepository;
