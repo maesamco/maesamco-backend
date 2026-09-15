@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.query.SubmissionGetQuery;
+import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.application.result.SubmissionGetResult;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.Submission;
@@ -138,6 +139,160 @@ class SubmissionQueryServiceTest {
             assertThatThrownBy(() ->
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId)))
                     .isInstanceOf(BusinessException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSubmission")
+    class GetSubmission {
+
+        @Test
+        @DisplayName("본인의 완료된 제출은 testResults를 포함해 전체 필드를 정확한 값으로 반환한다")
+        void returnsFullResultWhenOwnedAndCompleted() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            submission.markCompleted(SubmissionResult.CORRECT, 120, 15360);
+
+            SubmissionTestResult passed = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "8", null, null, null);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(passed));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.submissionId()).isEqualTo(submissionId);
+            assertThat(result.problemVersionId()).isEqualTo(problemVersionId);
+            assertThat(result.status()).isEqualTo(SubmissionStatus.COMPLETED);
+            assertThat(result.result()).isEqualTo(SubmissionResult.CORRECT);
+            assertThat(result.testResults()).hasSize(1);
+            assertThat(result.testResults().get(0).passed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("진행 중인 제출은 testResults가 비어있고 테스트 결과 조회를 하지 않는다")
+        void returnsEmptyTestResultsWhenNotCompleted() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.testResults()).isEmpty();
+            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+        }
+
+        @Test
+        @DisplayName("실패한 제출은 failureCode를 반환하고 testResults 조회를 하지 않는다")
+        void returnsFailureCodeWhenFailed() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markFailed(FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.status()).isEqualTo(SubmissionStatus.FAILED);
+            assertThat(result.failureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE);
+            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
+        void throwsWhenSubmissionMissing() {
+            UUID submissionId = UUID.randomUUID();
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> submissionQueryService.getSubmission(submissionId, userId))
+                    .isInstanceOf(BusinessException.class);
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다 (IDOR 방지 — 존재 여부와 구분되지 않음)")
+        void throwsWhenNotOwnedByRequester() {
+            UUID submissionId = UUID.randomUUID();
+            UUID otherUserId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            assertThatThrownBy(() -> submissionQueryService.getSubmission(submissionId, otherUserId))
+                    .isInstanceOf(BusinessException.class);
+
+            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+        }
+
+        @Test
+        @DisplayName("비공개 테스트케이스는 실제 통과 여부와 별개로 actualOutput을 노출하지 않는다")
+        void hidesActualOutputForNonPublicTestCase() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
+
+            SubmissionTestResult hidden = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), false, false, null, null, null, null);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(hidden));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.testResults()).hasSize(1);
+            assertThat(result.testResults().get(0).isPublic()).isFalse();
+            assertThat(result.testResults().get(0).actualOutput()).isNull();
+        }
+
+        @Test
+        @DisplayName("엔티티에 actualOutput이 남아있어도 isPublic=false면 응답 계층에서 한 번 더 null로 막는다")
+        void nullsActualOutputEvenIfEntityHasStaleValue() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
+
+            SubmissionTestResult hidden = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), false, false, null, null, null, null);
+            ReflectionTestUtils.setField(hidden, "actualOutput", "실제로는 절대 노출되면 안 되는 값");
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                    .willReturn(List.of(hidden));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.testResults().get(0).actualOutput()).isNull();
+        }
+
+        @Test
+        @DisplayName("Submission에 result/failureCode 값이 남아있어도 RUNNING이면 응답에서는 null로 내려간다 (도메인 가드가 아니라 이 메서드 자체가 계약을 보장)")
+        void nullsResultAndFailureCodeWhenNotTerminalEvenIfEntityHasStaleValue() {
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = pendingSubmission(submissionId);
+            submission.markQueued();
+            submission.markRunning();
+            ReflectionTestUtils.setField(submission, "result", SubmissionResult.CORRECT);
+            ReflectionTestUtils.setField(submission, "failureCode", FailureCode.JUDGE0_RESPONSE_FAILURE);
+
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+            assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.result()).isNull();
+            assertThat(result.failureCode()).isNull();
+            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
         }
     }
 }
