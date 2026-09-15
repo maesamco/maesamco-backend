@@ -59,8 +59,10 @@ public class GeminiModelAdapter implements AiModelPort {
     /**
      * ClaudeModelAdapter.generateFallback()과 동일한 이유(재검증, PR #111) — 서킷이 열려
      * 호출 자체가 차단된 경우(CallNotPermittedException)만 AiModelCallException으로 감싼다.
-     * 그 외 RuntimeException(응답 파싱 버그 등)은 그대로 다시 던져 500 안전망으로 보낸다
-     * (이슈 #173 — circuitOpen 구분 자체는 없어졌지만 이 판별 로직은 그대로 유지).
+     * 그 외 RuntimeException(응답 파싱 버그 등)은 그대로 다시 던져 500 안전망으로 보낸다.
+     *
+     * PR #182 리뷰(용현님 P2) — ClaudeModelAdapter.generateFallback()과 동일하게
+     * CallNotPermittedException만 neverCalled()=true로 표시한다.
      */
     @SuppressWarnings("unused")
     AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
@@ -68,7 +70,7 @@ public class GeminiModelAdapter implements AiModelPort {
             throw aiModelCallException;
         }
         if (t instanceof CallNotPermittedException) {
-            throw new AiModelCallException("Gemini 호출이 차단되었습니다(circuit open).", t);
+            throw new AiModelCallException("Gemini 호출이 차단되었습니다(circuit open).", t, true);
         }
         if (t instanceof RuntimeException runtimeException) {
             throw runtimeException;

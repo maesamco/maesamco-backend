@@ -318,30 +318,45 @@ public class HintGenerationFacade {
         // null로 하드코딩돼 있어 실제 병목(네트워크/모델 추론/재시도 대기)을 데이터로 확인할
         // 방법이 없었다 — aiModelPort.generate() 호출 전후 시간만 재서 채운다.
         long startedAt = System.currentTimeMillis();
+        AiModelResponse response;
         try {
-            AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
-            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
-            // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 —
-            // 그대로 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
-            // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
-            // 잘못 분류된다(PR #70 리뷰, 용현님 P2).
-            if (response.content() == null || response.content().isBlank()) {
-                throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
-            }
-            recordAiCallHistory(AiCallHistory.create(
-                    session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
-            ));
-            return response.content();
+            response = aiModelPort.generate(systemPrompt, userPrompt);
         } catch (AiModelCallException e) {
+            // PR #182 리뷰(용현님 P2) 대응 — 이 catch는 이제 chatModel.call() 자체가
+            // 실패한 "진짜" 어댑터 예외만 잡는다(빈 응답 케이스는 아래에서 별도 처리).
+            // neverCalled()로 "호출 자체가 없었음"(SKIPPED)과 "호출은 했지만 인프라
+            // 실패"(INFRA_FAILED)를 구분해서, FeedbackGenerationFacade와 동일한 의미로
+            // 기록한다(전에는 원인 무관하게 전부 FAILED였음).
             int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+            String status = e.neverCalled() ? "SKIPPED" : "INFRA_FAILED";
             log.warn("AI 힌트 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
-                    "FAILED", responseTimeMs, null, e.getMessage(), 0
+                    status, responseTimeMs, null, e.getMessage(), 0
             ));
             throw new BusinessException(ErrorCode.AI_GENERATION_FAILED, hintGenerationFailedMessage());
         }
+        int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+
+        // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 — 그대로
+        // 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
+        // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
+        // 잘못 분류된다(PR #70 리뷰, 용현님 P2). PR #182 리뷰(용현님 P2) 대응 — 이 경우는
+        // 호출 자체는 성공했으므로(SKIPPED/INFRA_FAILED 둘 다 아님) 예외를 거치지 않고
+        // FAILED로 직접 기록한다.
+        if (response.content() == null || response.content().isBlank()) {
+            recordAiCallHistory(AiCallHistory.create(
+                    session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
+                    "FAILED", responseTimeMs, response.tokenUsage(), "AI가 빈 응답을 반환했습니다.", 0
+            ));
+            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED, hintGenerationFailedMessage());
+        }
+
+        recordAiCallHistory(AiCallHistory.create(
+                session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
+                "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
+        ));
+        return response.content();
     }
 
     /**
@@ -351,10 +366,18 @@ public class HintGenerationFacade {
      * 화이트리스트 대신, 서킷브레이커(ai-model)의 현재 상태를 직접 조회한다 — quota
      * 소진 같은 원인이 무엇이든 지속되는 장애면 결국 서킷이 열리므로, "지금 시스템이
      * 실제로 안 좋은 상태인가"를 정확히 반영하는 신호다. quota 자체를 노출하지 않는다.
+     *
+     * PR #182 리뷰(용현님 P3) 대응 — HALF_OPEN(OPEN에서 wait-duration-in-open-state 경과
+     * 후, permitted-number-of-calls-in-half-open-state만큼 프로브 호출을 허용하는 중간
+     * 상태)도 OPEN과 같은 문구로 묶는다. 이 상태는 장애가 아직 끝났는지 확인하는 중이라
+     * OPEN과 마찬가지로 실제로 안 좋은 상태일 수 있는데, 여기서 빠지면 프로브 호출 하나가
+     * 실패할 때마다 이 기능이 막으려던 "지속 장애인데 일반 재시도를 권하는" 상황이 그대로
+     * 재현된다.
      */
     private String hintGenerationFailedMessage() {
         CircuitBreaker.State state = circuitBreakerRegistry.circuitBreaker("ai-model").getState();
-        if (state == CircuitBreaker.State.OPEN || state == CircuitBreaker.State.FORCED_OPEN) {
+        if (state == CircuitBreaker.State.OPEN || state == CircuitBreaker.State.FORCED_OPEN
+                || state == CircuitBreaker.State.HALF_OPEN) {
             return "지금 일시적으로 이용이 어렵습니다. 시간을 두고 다시 시도해주세요.";
         }
         return "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";

@@ -70,6 +70,14 @@ public enum ErrorCode {
     // 없음"을 같은 404로 뭉개면 클라이언트가 폴링할지 재시도 버튼을 보여줄지 구분할 수
     // 없다. 코칭이 끝나야 피드백 생성 자체가 시작되므로 별도 코드로 분리한다.
     AI_FEEDBACK_NOT_STARTED(HttpStatus.NOT_FOUND, "아직 코칭 세션이 완료되지 않아 피드백 생성이 시작되지 않았습니다."),
+    // PR #182 리뷰(용현님 P2) — AiFeedbackRetryFacade가 세션 완료 이후 재구성에 필요한
+    // 선행 데이터(FollowUpQuestion/FollowUpAnswer, 완료 시점 이전 Explanation 후보)를
+    // 찾다가 하나라도 없으면 이 코드로 응답한다. 세션이 이미 완료된 상태에서 이 데이터들이
+    // 없다는 건 "아직 준비 안 됨"이 아니라 데이터 정합성 이상이라, AI_FEEDBACK_NOT_FOUND의
+    // "잠시 후 다시 시도해주세요" 문구를 그대로 쓰면 재시도해도 절대 해결되지 않는 상태를
+    // 재시도하라고 안내하게 된다 — AI_FEEDBACK_RETRY_LIMIT_EXCEEDED와 같은 "문의" 톤으로
+    // 분리한다.
+    AI_FEEDBACK_PREREQUISITE_MISSING(HttpStatus.CONFLICT, "피드백을 생성할 수 없는 상태입니다. 문의해주세요."),
     // 이슈 #52 — 세션당 재시도 3회(최초 1회 + 재시도 3회, 총 4회) 소진. 이슈 #173로
     // 인프라 실패(quota 소진 등)는 이 카운트에서 제외돼서, 이 코드는 이제 콘텐츠 자체가
     // 반복 실패하는 드문 경우로 좁혀졌다 — 재시도를 권하는 대신 문의로 유도하는 톤으로 변경.

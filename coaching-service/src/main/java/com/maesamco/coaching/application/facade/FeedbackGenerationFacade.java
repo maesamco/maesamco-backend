@@ -122,24 +122,36 @@ public class FeedbackGenerationFacade {
                 return;
             }
 
-            // 이슈 #150 — 응답시간 계측(HintGenerationFacade와 동일한 이유).
+            // 이슈 #150 — 응답시간 계측(HintGenerationFacade와 동일한 이유). PR #182 리뷰
+            // (용현님 P3) 대응 — Hint/Explanation과 동일하게, 프롬프트 문자열을 먼저 만든
+            // 뒤에 타이머를 시작한다. 예전엔 startedAt 이후 generate() 인자 자리에서
+            // buildSystemPrompt()/buildUserPrompt()를 직접 호출해서, 프롬프트 조립 시간까지
+            // responseTimeMs에 섞여 들어가 세 Facade 간 지표가 서로 다른 의미가 됐었다.
+            String systemPrompt = buildSystemPrompt();
+            String userPrompt = buildUserPrompt(problem, submission, explanation, followUpQuestion, followUpAnswer);
             long startedAt = System.currentTimeMillis();
             AiModelResponse response;
             try {
-                response = aiModelPort.generate(
-                        buildSystemPrompt(), buildUserPrompt(problem, submission, explanation, followUpQuestion, followUpAnswer)
-                );
+                response = aiModelPort.generate(systemPrompt, userPrompt);
             } catch (AiModelCallException e) {
                 // 이슈 #173 — AiModelCallException은 정의상 chatModel.call() 자체가 실패한
                 // 경우라(응답은 왔는데 내용이 나쁜 경우는 아래 별도 분기에서 처리) 원인이
                 // quota든 네트워크든 서킷오픈이든 상관없이 토큰이 청구되지 않은 시도다.
-                // AiFeedbackRetryFacade의 재시도 예산 계산이 SKIPPED만 제외하므로, 전부
-                // SKIPPED로 남겨서 무관한 인프라 사정으로 재시도 예산이 소모되지 않게 한다.
+                // AiFeedbackRetryFacade의 재시도 예산 계산이 SKIPPED/INFRA_FAILED를 전부
+                // 제외하므로, 아래 어느 상태로 남기든 무관한 인프라 사정으로 재시도 예산이
+                // 소모되지는 않는다.
+                //
+                // PR #182 리뷰(용현님 P2) 대응 — 다만 requestStatus 자체는 원인별로
+                // 구분한다. neverCalled()가 true면(서킷오픈 등으로 chatModel.call() 자체가
+                // 실행 안 됨) "SKIPPED", false면(호출은 했지만 인프라 실패) "INFRA_FAILED"로
+                // 남겨서, 운영 이력 조회 시 "호출 자체가 없었음"과 "호출은 시도했지만
+                // 실패함"을 구분할 수 있게 한다.
                 int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+                String status = e.neverCalled() ? "SKIPPED" : "INFRA_FAILED";
                 log.warn("AI 모델 호출 실패 - coachingSessionId={}", session.getId(), e);
                 recordAiCallHistory(AiCallHistory.create(
                         session.getId(), AiCallPurpose.FEEDBACK, "unknown", PROMPT_VERSION,
-                        "SKIPPED", responseTimeMs, null, e.getMessage(), 0
+                        status, responseTimeMs, null, e.getMessage(), 0
                 ));
                 return;
             }

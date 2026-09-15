@@ -196,7 +196,15 @@ class HintGenerationFacadeTest {
         assertThat(result.hint().getStage()).isEqualTo(1);
         assertThat(result.hint().getContent()).isEqualTo("1단계 힌트 내용");
         assertThat(result.skipAvailable()).isFalse();
-        verify(aiCallHistoryRepository).save(any());
+        // PR #182 리뷰(다른 AI 초안 발견 사항) 대응 — 이슈 #150이 추가한 responseTimeMs
+        // 계측 자체를 검증하는 테스트가 없어서, 타이머 위치를 잘못 옮겨도 CI가 못 잡는
+        // 공백이 있었다. SUCCESS 상태와 responseTimeMs가 null이 아닌 0 이상의 값으로
+        // 채워지는지까지 확인한다.
+        verify(aiCallHistoryRepository).save(argThat(h ->
+                "SUCCESS".equals(h.getRequestStatus())
+                        && h.getResponseTimeMs() != null
+                        && h.getResponseTimeMs() >= 0
+        ));
     }
 
     @Test
@@ -261,8 +269,13 @@ class HintGenerationFacadeTest {
         assertThat(result.skipAvailable()).isFalse();
     }
 
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 이 예외(2-인자 생성자, neverCalled()=false)는 "호출은
+     * 했지만 인프라 사정으로 실패"한 경우를 나타내므로 INFRA_FAILED로 남아야 한다(이전엔
+     * 원인 구분 없이 전부 FAILED였음).
+     */
     @Test
-    void LLM_호출이_실패하면_AI_GENERATION_FAILED로_변환하고_실패_이력을_남긴다() {
+    void LLM_호출이_인프라_사정으로_실패하면_AI_GENERATION_FAILED로_변환하고_INFRA_FAILED_이력을_남긴다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
@@ -274,8 +287,35 @@ class HintGenerationFacadeTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
 
-        verify(aiCallHistoryRepository).save(argThatFailed());
+        verify(aiCallHistoryRepository).save(argThatInfraFailed());
         verify(hintRepository, never()).save(any());
+    }
+
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 서킷오픈(neverCalled()=true)은 "호출 자체가 없었던
+     * 시도"라 SKIPPED로 남아야 원래 의미가 유지된다.
+     */
+    @Test
+    void 서킷오픈으로_호출_자체가_없었으면_SKIPPED_이력을_남긴다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any()))
+                .thenThrow(new AiModelCallException("circuit open", new RuntimeException(), true));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
+
+        verify(aiCallHistoryRepository)
+                .save(org.mockito.ArgumentMatchers.argThat(history -> "SKIPPED".equals(history.getRequestStatus())));
+        verify(hintRepository, never()).save(any());
+    }
+
+    private AiCallHistory argThatInfraFailed() {
+        return org.mockito.ArgumentMatchers.argThat(history -> "INFRA_FAILED".equals(history.getRequestStatus()));
     }
 
     private AiCallHistory argThatFailed() {
@@ -296,6 +336,29 @@ class HintGenerationFacadeTest {
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
         when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("circuit open", new RuntimeException()));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(Throwable::getMessage)
+                .isEqualTo("지금 일시적으로 이용이 어렵습니다. 시간을 두고 다시 시도해주세요.");
+    }
+
+    /**
+     * PR #182 리뷰(용현님 P3) 대응 — OPEN에서 wait-duration-in-open-state 경과 후 진입하는
+     * HALF_OPEN도 "장애가 아직 끝났는지 확인 중"인 상태라 OPEN과 같은 문구로 묶여야 한다.
+     * 이 상태를 빠뜨리면 half-open 프로브 호출 하나가 실패할 때마다 일반 재시도 문구가
+     * 나가서, 이 기능이 막으려던 상황이 그대로 재현된다.
+     */
+    @Test
+    void 서킷이_HALF_OPEN이면_힌트_실패_메시지가_대기를_권한다() {
+        circuitBreakerRegistry.circuitBreaker("ai-model").transitionToOpenState();
+        circuitBreakerRegistry.circuitBreaker("ai-model").transitionToHalfOpenState();
+
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("half open probe failed", new RuntimeException()));
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)

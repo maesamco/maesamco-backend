@@ -72,8 +72,11 @@ public class ClaudeModelAdapter implements AiModelPort {
      * 던지는 모든 예외를 가로챈다. 그래서 generate()의 응답 파싱 단계(위 주석, PR #70)에서
      * NPE 등 우리 코드 버그가 나도 여기로 들어오는데, CallNotPermittedException이 아닌
      * RuntimeException은 여기서 삼키지 않고 그대로 다시 던져야 "파싱 버그는 500 안전망으로
-     * 간다"는 PR #70의 원래 의도가 지켜진다(이슈 #173 — circuitOpen 구분 자체는 없어졌지만,
-     * "파싱 버그는 AiModelCallException으로 감싸지 않는다"는 이 판별 로직은 그대로 유지).
+     * 간다"는 PR #70의 원래 의도가 지켜진다.
+     *
+     * PR #182 리뷰(용현님 P2) — CallNotPermittedException(서킷오픈, chatModel.call() 자체가
+     * 실행 안 됨)만 AiModelCallException.neverCalled()=true로 표시한다. generate()의
+     * catch에서 이미 감싸진 경우는 그대로 재던지므로 neverCalled()=false를 그대로 유지한다.
      */
     @SuppressWarnings("unused")
     AiModelResponse generateFallback(String systemPrompt, String userPrompt, Throwable t) {
@@ -81,7 +84,7 @@ public class ClaudeModelAdapter implements AiModelPort {
             throw aiModelCallException;
         }
         if (t instanceof CallNotPermittedException) {
-            throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t);
+            throw new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", t, true);
         }
         if (t instanceof RuntimeException runtimeException) {
             throw runtimeException;

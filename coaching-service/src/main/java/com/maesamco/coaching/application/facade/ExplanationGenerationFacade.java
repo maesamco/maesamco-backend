@@ -209,29 +209,42 @@ public class ExplanationGenerationFacade {
 
         // 이슈 #150 — 응답시간 계측(HintGenerationFacade와 동일한 이유).
         long startedAt = System.currentTimeMillis();
+        AiModelResponse response;
         try {
-            AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
-            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
-            if (response.content() == null || response.content().isBlank()) {
-                throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
-            }
-            recordAiCallHistory(AiCallHistory.create(
-                    session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
-            ));
-            ParsedFollowUp parsed = parseFollowUp(response.content());
-            return followUpQuestionRepository.save(
-                    FollowUpQuestion.create(explanation.getId(), parsed.questionText(), parsed.category())
-            );
+            response = aiModelPort.generate(systemPrompt, userPrompt);
         } catch (AiModelCallException e) {
+            // PR #182 리뷰(용현님 P2) 대응 — HintGenerationFacade와 동일하게, 이 catch는
+            // chatModel.call() 자체가 실패한 "진짜" 어댑터 예외만 잡는다(빈 응답 케이스는
+            // 아래에서 별도 처리). neverCalled()로 SKIPPED/INFRA_FAILED를 구분해서 기록한다.
             int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+            String status = e.neverCalled() ? "SKIPPED" : "INFRA_FAILED";
             log.warn("AI 역질문 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, "unknown", PROMPT_VERSION,
-                    "FAILED", responseTimeMs, null, e.getMessage(), 0
+                    status, responseTimeMs, null, e.getMessage(), 0
             ));
             return null;
         }
+        int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+
+        // PR #182 리뷰(용현님 P2) 대응 — 호출 자체는 성공했으므로 FAILED로 직접 기록한다
+        // (SKIPPED/INFRA_FAILED 둘 다 해당 안 됨).
+        if (response.content() == null || response.content().isBlank()) {
+            recordAiCallHistory(AiCallHistory.create(
+                    session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, response.modelName(), PROMPT_VERSION,
+                    "FAILED", responseTimeMs, response.tokenUsage(), "AI가 빈 응답을 반환했습니다.", 0
+            ));
+            return null;
+        }
+
+        recordAiCallHistory(AiCallHistory.create(
+                session.getId(), AiCallPurpose.FOLLOWUP_QUESTION, response.modelName(), PROMPT_VERSION,
+                "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
+        ));
+        ParsedFollowUp parsed = parseFollowUp(response.content());
+        return followUpQuestionRepository.save(
+                FollowUpQuestion.create(explanation.getId(), parsed.questionText(), parsed.category())
+        );
     }
 
     /**
