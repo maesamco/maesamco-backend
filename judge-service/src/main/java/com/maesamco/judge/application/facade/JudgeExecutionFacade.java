@@ -9,6 +9,9 @@ import com.maesamco.judge.domain.entity.FailureCode;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,8 +34,26 @@ public class JudgeExecutionFacade {
     private final JsonMapper jsonMapper;
 
     public void execute(UUID submissionId) {
-        Optional<JudgeExecutionPreparation> preparation =
-                judgeExecutionPersistenceService.prepareForExecution(submissionId);
+        Optional<JudgeExecutionPreparation> preparation;
+        try {
+            preparation = judgeExecutionPersistenceService.prepareForExecution(submissionId);
+        } catch (BusinessException e) {
+            if(isNonRetryable(e.getErrorCode())) {
+                log.error("[Judge] 실행 준비 단계에서 재시도 불가능한 오류 발생 - FAILED 처리, submissionId={}, errorCode={}",
+                        submissionId, e.getErrorCode());
+                markFailedSafely(submissionId,FailureCode.INTERNAL_SYSTEM_ERROR);
+            } else {
+                log.error("[Judge] 실행 준비 단계 실패 — 재시도 판단. submissionId={}, errorCode={}",
+                        submissionId, e.getErrorCode(), e);
+                handleRetryableFailureSafely(submissionId,FailureCode.INTERNAL_SYSTEM_ERROR);
+            }
+            return;
+        } catch (Exception e) {
+            log.error("[Judge] 실행 준비 단계에서 예상치 못한 오류 — 재시도 판단. submissionId={}", submissionId, e);
+            handleRetryableFailureSafely(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            return;
+        }
+
         if (preparation.isEmpty()) {
             return;
         }
@@ -71,7 +92,7 @@ public class JudgeExecutionFacade {
                                 + ", 요청=" + testCases.size() + ", 응답=" + tokens.size());
             }
         } catch (Exception e) {
-            log.error("[Judge] Judge0 제출 단계 실패 — FAILED 처리. submissionId={}", submissionId, e);
+            log.error("[Judge] Judge0 제출 단계 실패 — 재시도 판단. submissionId={}", submissionId, e);
             handleRetryableFailureSafely(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
             return;
         }
@@ -83,6 +104,10 @@ public class JudgeExecutionFacade {
                     + "submissionId={}, tokens={}", SAVE_RETRY_MAX_ATTEMPTS, submissionId, tokens, e);
             markFailedSafely(submissionId, FailureCode.RESULT_SAVE_FAILURE);
         }
+    }
+
+    private boolean isNonRetryable(ErrorCode errorCode) {
+        return errorCode == ErrorCode.PROBLEM_NOT_FOUND || errorCode == ErrorCode.SUBMISSION_NOT_FOUND;
     }
 
     private void savePendingExecutionsWithRetry(UUID submissionId, List<ExecutionTestCase> testCases, List<String> tokens) {

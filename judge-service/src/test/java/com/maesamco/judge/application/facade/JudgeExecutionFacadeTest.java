@@ -15,6 +15,8 @@ import com.maesamco.judge.application.port.JudgeExecutionPort;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.ProblemExecutionSpec;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -86,11 +88,66 @@ class JudgeExecutionFacadeTest {
             given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
                     .willReturn(Optional.empty());
 
-            judgeExecutionFacade.execute(submissionId);
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
             verify(judgeExecutionPort, never()).submitBatch(any());
             verify(judgeExecutionPersistenceService, never())
                     .savePendingExecutions(any(), any(), any());
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+        }
+
+        @Test
+        @DisplayName("prepareForExecution이 PROBLEM_NOT_FOUND를 던지면 재시도 없이 즉시 FAILED 처리한다")
+        void marksFailedWhenPrepareForExecutionThrowsProblemNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+            verify(judgeExecutionPort, never()).submitBatch(any());
+        }
+
+        @Test
+        @DisplayName("prepareForExecution이 SUBMISSION_NOT_FOUND를 던지면 재시도 없이 즉시 FAILED 처리한다")
+        void marksFailedWhenPrepareForExecutionThrowsSubmissionNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+        }
+
+        @Test
+        @DisplayName("prepareForExecution이 그 외의 BusinessException을 던지면 재시도 경로로 보낸다")
+        void handlesAsRetryableWhenPrepareForExecutionThrowsOtherBusinessException() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new BusinessException(ErrorCode.SUBMISSION_INVALID_STATE_TRANSITION));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+        }
+
+        @Test
+        @DisplayName("prepareForExecution이 BusinessException이 아닌 예상치 못한 예외를 던지면 재시도 경로로 보낸다")
+        void handlesAsRetryableWhenPrepareForExecutionThrowsUnexpectedException() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new RuntimeException("DB 연결 순단"));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
         }
 
         @Test
@@ -128,7 +185,7 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("Judge0 응답 개수가 요청 개수와 다르면 예외를 전파하지 않고 JUDGE0_RESPONSE_FAILURE로 FAILED 처리한다")
+        @DisplayName("Judge0 응답 개수가 요청 개수와 다르면 예외를 전파하지 않고 재시도 처리를 위임한다")
         void marksFailedWhenTokenCountMismatches() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
@@ -150,7 +207,7 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("Judge0 호출 자체가 실패하면 예외를 전파하지 않고 JUDGE0_RESPONSE_FAILURE로 FAILED 처리한다")
+        @DisplayName("Judge0 호출 자체가 실패하면 예외를 전파하지 않고 재시도 처리를 위임한다")
         void marksFailedWhenJudge0SubmitThrows() {
             UUID submissionId = UUID.randomUUID();
             String testCasesJson = jsonMapper.writeValueAsString(List.of(
