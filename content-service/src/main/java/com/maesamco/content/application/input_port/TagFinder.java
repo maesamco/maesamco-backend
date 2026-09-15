@@ -1,6 +1,6 @@
-package com.maesamco.content.application.tag.port;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.domain.tag.entity.Tag;
+import com.maesamco.content.domain.entity.Tag;
 
 import java.util.UUID;
 

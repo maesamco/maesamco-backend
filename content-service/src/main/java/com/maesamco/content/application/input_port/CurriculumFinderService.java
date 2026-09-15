@@ -1,8 +1,7 @@
-package com.maesamco.content.application.curriculum.service;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.application.curriculum.port.CurriculumFinder;
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
-import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

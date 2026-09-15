@@ -1,8 +1,7 @@
-package com.maesamco.content.application.tag.service;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.application.tag.port.TagFinder;
-import com.maesamco.content.domain.tag.entity.Tag;
-import com.maesamco.content.domain.tag.repository.TagRepository;
+import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.repository.TagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

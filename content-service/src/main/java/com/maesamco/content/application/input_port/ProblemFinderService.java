@@ -1,8 +1,7 @@
-package com.maesamco.content.application.problem.service;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.application.problem.port.ProblemFinder;
-import com.maesamco.content.domain.problem.entity.Problem;
-import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.repository.problem.ProblemRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

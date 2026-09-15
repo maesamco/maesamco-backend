@@ -1,9 +1,8 @@
-package com.maesamco.content.application.unit.service;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.application.unit.port.UnitFinder;
-import com.maesamco.content.domain.curriculum.repository.CurriculumRepository;
-import com.maesamco.content.domain.unit.entity.Unit;
-import com.maesamco.content.domain.unit.repository.UnitRepository;
+import com.maesamco.content.domain.repository.CurriculumRepository;
+import com.maesamco.content.domain.entity.Unit;
+import com.maesamco.content.domain.repository.UnitRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

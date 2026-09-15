@@ -1,6 +1,6 @@
-package com.maesamco.content.application.curriculum.port;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.domain.curriculum.entity.Curriculum;
+import com.maesamco.content.domain.entity.Curriculum;
 
 import java.util.UUID;
 

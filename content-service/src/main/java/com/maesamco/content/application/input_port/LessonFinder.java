@@ -1,6 +1,6 @@
-package com.maesamco.content.application.lesson.port;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.domain.lesson.entity.Lesson;
+import com.maesamco.content.domain.entity.Lesson;
 
 import java.util.UUID;
 

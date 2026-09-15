@@ -1,6 +1,6 @@
-package com.maesamco.content.application.problem.port;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.entity.problem.Problem;
 
 import java.util.UUID;
 

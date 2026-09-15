@@ -1,8 +1,7 @@
-package com.maesamco.content.application.testcase.service;
+package com.maesamco.content.application.input_port;
 
-import com.maesamco.content.application.testcase.port.TestCaseFinder;
-import com.maesamco.content.domain.testcase.entity.TestCase;
-import com.maesamco.content.domain.testcase.repository.TestCaseRepository;
+import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
