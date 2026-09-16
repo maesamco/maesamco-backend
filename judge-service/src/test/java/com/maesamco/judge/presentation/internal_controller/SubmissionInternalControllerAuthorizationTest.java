@@ -1,7 +1,7 @@
 package com.maesamco.judge.presentation.internal_controller;
 
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
-import com.maesamco.judge.application.result.SubmissionGetResult;
+import com.maesamco.judge.application.result.SubmissionInternalGetResult;
 import com.maesamco.judge.domain.entity.SubmissionResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.global.exception.GlobalExceptionHandler;
@@ -119,10 +119,10 @@ class SubmissionInternalControllerAuthorizationTest {
     }
 
     private void mockValidSubmission(UUID submissionId) {
-        SubmissionGetResult result = new SubmissionGetResult(
+        SubmissionInternalGetResult result = new SubmissionInternalGetResult(
                 submissionId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "code",
                 SubmissionStatus.COMPLETED, SubmissionResult.WRONG, null,
-                List.of(new SubmissionGetResult.FailedTestItem(true, "WRONG_ANSWER")),
+                List.of(new SubmissionInternalGetResult.FailedTestItem(true, "WRONG_ANSWER")),
                 3
         );
         given(submissionQueryService.getSubmissionForInternal(any())).willReturn(result);
