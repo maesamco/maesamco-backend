@@ -311,7 +311,8 @@ public class RedisAuthSessionStore implements AuthSessionStore {
                 );
 
         if (result == null) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "인증 세션 저장 결과를 확인할 수 없습니다."
             );
         }
@@ -324,7 +325,8 @@ public class RedisAuthSessionStore implements AuthSessionStore {
         }
 
         if (result != SAVE_SUCCESS) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "알 수 없는 인증 세션 저장 결과입니다: "
                             + result
             );
