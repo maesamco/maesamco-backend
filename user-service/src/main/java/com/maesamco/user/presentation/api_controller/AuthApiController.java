@@ -1,32 +1,33 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import com.maesamco.user.global.security.AccessTokenAuthenticationDetails;
-import com.maesamco.user.global.security.TokenExpirationCalculator;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-import com.maesamco.user.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.util.UUID;
+
+import static com.maesamco.user.presentation.support.AuthenticationPrincipalResolver.requireUserId;
+import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.COOKIE_NAME;
+import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.create;
+import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.createExpired;
 
 /**
  * 회원가입, 로그인, Refresh Token 재발급 및 로그아웃을 포함한
@@ -43,15 +44,6 @@ import java.util.UUID;
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthApiController implements AuthApiDocs {
-
-    private static final String REFRESH_TOKEN_COOKIE_NAME =
-            "refreshToken";
-
-    private static final String REFRESH_TOKEN_COOKIE_PATH =
-            "/api/v1/auth";
-
-    private static final String REFRESH_TOKEN_SAME_SITE =
-            "Lax";
 
     private final EmailVerificationService emailVerificationService;
     private final SignUpService signUpService;
@@ -132,9 +124,10 @@ public class AuthApiController implements AuthApiDocs {
         SignUpResult result =
                 signUpService.signUp(command);
 
-        ResponseCookie refreshTokenCookie =
-                createRefreshTokenCookie(
-                        result.issuedTokens()
+        var refreshTokenCookie =
+                create(
+                        result.issuedTokens(),
+                        clock
                 );
 
         return ResponseEntity
@@ -162,9 +155,10 @@ public class AuthApiController implements AuthApiDocs {
         LoginResult result =
                 loginService.login(command);
 
-        ResponseCookie refreshTokenCookie =
-                createRefreshTokenCookie(
-                        result.issuedTokens()
+        var refreshTokenCookie =
+                create(
+                        result.issuedTokens(),
+                        clock
                 );
 
         return ResponseEntity
@@ -188,7 +182,7 @@ public class AuthApiController implements AuthApiDocs {
     @PostMapping("/refresh")
     public ResponseEntity<SuccessResponse<RefreshResult>> refresh(
             @CookieValue(
-                    value = REFRESH_TOKEN_COOKIE_NAME,
+                    value = COOKIE_NAME,
                     required = false
             )
             String refreshToken
@@ -200,9 +194,10 @@ public class AuthApiController implements AuthApiDocs {
                         )
                 );
 
-        ResponseCookie refreshTokenCookie =
-                createRefreshTokenCookie(
-                        result.issuedTokens()
+        var refreshTokenCookie =
+                create(
+                        result.issuedTokens(),
+                        clock
                 );
 
         return ResponseEntity
@@ -245,8 +240,8 @@ public class AuthApiController implements AuthApiDocs {
                 )
         );
 
-        ResponseCookie expiredRefreshTokenCookie =
-                createExpiredRefreshTokenCookie();
+        var expiredRefreshTokenCookie =
+                createExpired();
 
         return ResponseEntity
                 .noContent()
@@ -313,8 +308,8 @@ public class AuthApiController implements AuthApiDocs {
                 )
         );
 
-        ResponseCookie expiredRefreshTokenCookie =
-                createExpiredRefreshTokenCookie();
+        var expiredRefreshTokenCookie =
+                createExpired();
 
         return ResponseEntity
                 .noContent()
@@ -323,30 +318,6 @@ public class AuthApiController implements AuthApiDocs {
                         expiredRefreshTokenCookie.toString()
                 )
                 .build();
-    }
-
-    /**
-     * 인증 principal에서 사용자 식별자를 추출합니다.
-     */
-    private UUID requireUserId(
-            Authentication authentication
-    ) {
-        if (
-                authentication == null
-                        || !authentication.isAuthenticated()
-        ) {
-            throw new BusinessException(
-                    ErrorCode.AUTH_UNAUTHORIZED
-            );
-        }
-
-        if (!(authentication.getPrincipal() instanceof UUID userId)) {
-            throw new BusinessException(
-                    ErrorCode.AUTH_INVALID_TOKEN
-            );
-        }
-
-        return userId;
     }
 
     /**
@@ -366,49 +337,5 @@ public class AuthApiController implements AuthApiDocs {
         }
 
         return details;
-    }
-
-    /**
-     * Refresh Token을 HttpOnly Cookie로 생성합니다.
-     */
-    private ResponseCookie createRefreshTokenCookie(
-            IssuedTokens issuedTokens
-    ) {
-        long maxAgeSeconds =
-                TokenExpirationCalculator.remainingSeconds(
-                        clock.instant(),
-                        issuedTokens.refreshTokenExpiresAt()
-                );
-
-        return ResponseCookie
-                .from(
-                        REFRESH_TOKEN_COOKIE_NAME,
-                        issuedTokens.refreshToken()
-                )
-                .httpOnly(true)
-                .secure(true)
-                .sameSite(REFRESH_TOKEN_SAME_SITE)
-                .path(REFRESH_TOKEN_COOKIE_PATH)
-                .maxAge(
-                        Duration.ofSeconds(maxAgeSeconds)
-                )
-                .build();
-    }
-
-    /**
-     * 브라우저에 저장된 Refresh Token Cookie를 삭제합니다.
-     */
-    private ResponseCookie createExpiredRefreshTokenCookie() {
-        return ResponseCookie
-                .from(
-                        REFRESH_TOKEN_COOKIE_NAME,
-                        ""
-                )
-                .httpOnly(true)
-                .secure(true)
-                .sameSite(REFRESH_TOKEN_SAME_SITE)
-                .path(REFRESH_TOKEN_COOKIE_PATH)
-                .maxAge(Duration.ZERO)
-                .build();
     }
 }

@@ -130,7 +130,7 @@ class LoginServiceArgon2CompatibilityTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(

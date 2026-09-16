@@ -147,7 +147,7 @@ class UserGamificationStateRepositoryImplTest {
         UUID userId =
                 persistUser(
                         "c".repeat(64),
-                        "GamificationUserThree"
+                        "GamificationUser3"
                 );
         repository.save(UserGamificationState.create(userId));
         entityManager.clear();
