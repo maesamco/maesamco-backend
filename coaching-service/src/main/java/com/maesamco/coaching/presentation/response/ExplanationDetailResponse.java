@@ -1,4 +1,4 @@
-package com.maesamco.coaching.presentation.api_controller;
+package com.maesamco.coaching.presentation.response;
 
 import com.maesamco.coaching.application.query_service.ExplanationQueryService.ExplanationQueryResult;
 
