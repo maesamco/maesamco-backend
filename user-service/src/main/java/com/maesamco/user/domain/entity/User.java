@@ -37,6 +37,14 @@ public class User extends BaseEntity {
     private UUID id;
 
     /**
+     * 사용자 정보 동시 수정 충돌을 감지하기 위한
+     * 낙관적 락 버전입니다.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
+    /**
      * 암호화된 이메일입니다.
      *
      * <p>개인정보 보호를 위해 이메일 원문을 직접 저장하지 않습니다.</p>

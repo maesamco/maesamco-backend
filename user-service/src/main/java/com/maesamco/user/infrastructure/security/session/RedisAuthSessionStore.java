@@ -3,6 +3,8 @@ package com.maesamco.user.infrastructure.security.session;
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionRotationResult;
 import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -11,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -132,7 +135,7 @@ public class RedisAuthSessionStore implements AuthSessionStore {
      *
      * <p>반환값:</p>
      * <ul>
-     *     <li>0: 세션이 존재하지 않거나 유효한 TTL이 없음</li>
+     *     <li>0: 세션이 없거나 만료되었거나 사용자 단위 무효화 대상임</li>
      *     <li>1: 정상 Rotation</li>
      *     <li>2: grace window 안의 직전 토큰 재요청</li>
      *     <li>3: Refresh Token 재사용 감지 및 세션 폐기</li>
@@ -145,6 +148,33 @@ public class RedisAuthSessionStore implements AuthSessionStore {
 
                     if not value then
                         return 0
+                    end
+
+                    local invalidatedAtValue =
+                        redis.call(
+                            'GET',
+                            KEYS[2]
+                        )
+
+                    if invalidatedAtValue then
+                        local invalidatedAtMillis =
+                            tonumber(invalidatedAtValue)
+
+                        local sessionCreatedAtMillis =
+                            tonumber(ARGV[5])
+
+                        if invalidatedAtMillis
+                            and sessionCreatedAtMillis
+                            and sessionCreatedAtMillis
+                                < invalidatedAtMillis
+                        then
+                            redis.call(
+                                'DEL',
+                                KEYS[1]
+                            )
+
+                            return 0
+                        end
                     end
 
                     local session = cjson.decode(value)
@@ -287,7 +317,8 @@ public class RedisAuthSessionStore implements AuthSessionStore {
         }
 
         if (result == SAVE_REJECTED_BY_USER_INVALIDATION) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.AUTH_TOKEN_REVOKED,
                     "전체 로그아웃 이전에 시작된 인증 세션은 저장할 수 없습니다."
             );
         }
@@ -327,22 +358,38 @@ public class RedisAuthSessionStore implements AuthSessionStore {
      * 현재 Refresh Token hash가 Redis 세션에 저장된 hash와 일치할 때만
      * 새로운 hash로 원자적으로 교체합니다.
      *
+     * <p>사용자 단위 무효화 시각보다 이전에 생성된 인증 세션은
+     * Rotation을 수행하지 않고 같은 원자 연산 안에서 삭제합니다.
+     * 이를 통해 사용자 세션 인덱스에 포함되지 않은 기존 세션도
+     * 전체 로그아웃 이후 Refresh에 사용할 수 없습니다.</p>
+     *
      * <p>hash가 일치하지 않더라도 직전 Refresh Token이 grace window 안에
      * 다시 요청된 경우에는 세션을 유지합니다. Grace window를 벗어났거나
      * 직전 토큰이 아닌 경우에는 같은 Lua Script 안에서 세션을 삭제합니다.</p>
-     *
-     * <p>정상 Rotation 시 기존 Redis PTTL을 그대로 사용하므로 Refresh 요청으로
-     * 인증 세션의 절대 만료시간이 연장되지 않습니다.</p>
      */
     @Override
     public AuthSessionRotationResult rotateRefreshToken(
             UUID sessionId,
+            UUID userId,
+            Instant sessionCreatedAt,
             String expectedRefreshTokenHash,
             String newRefreshTokenHash
     ) {
+
+
         Objects.requireNonNull(
                 sessionId,
                 "세션 식별자는 필수입니다."
+        );
+
+        Objects.requireNonNull(
+                userId,
+                "사용자 식별자는 필수입니다."
+        );
+
+        Objects.requireNonNull(
+                sessionCreatedAt,
+                "인증 세션 생성 시각은 필수입니다."
         );
 
         requireHash(
@@ -357,14 +404,26 @@ public class RedisAuthSessionStore implements AuthSessionStore {
 
         Long result = redisTemplate.execute(
                 ROTATE_REFRESH_TOKEN_SCRIPT,
-                List.of(createKey(sessionId)),
+                List.of(
+                        createKey(
+                                sessionId
+                        ),
+                        createUserInvalidatedAtKey(
+                                userId
+                        )
+                ),
                 expectedRefreshTokenHash,
                 newRefreshTokenHash,
-                Long.toString(clock.millis()),
+                Long.toString(
+                        clock.millis()
+                ),
                 Long.toString(
                         authSessionProperties
                                 .refreshTokenRotationGracePeriod()
                                 .toMillis()
+                ),
+                Long.toString(
+                        sessionCreatedAt.toEpochMilli()
                 )
         );
 

@@ -155,6 +155,7 @@ class UserApiDocsContractTest {
                 "401",
                 "403",
                 "404",
+                "409",
                 "500"
         );
 
@@ -193,6 +194,11 @@ class UserApiDocsContractTest {
         assertErrorResponseSchema(
                 method,
                 "404"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "409"
         );
 
         assertErrorResponseSchema(

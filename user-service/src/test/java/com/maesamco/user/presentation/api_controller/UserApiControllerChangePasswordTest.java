@@ -1,6 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.ChangePasswordService;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.UpdateMyProfileService;
@@ -72,7 +73,7 @@ class UserApiControllerChangePasswordTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private ChangePasswordRetryService changePasswordRetryService;
 
     @MockitoBean
     private GetMyProfileService getMyProfileService;
@@ -139,13 +140,16 @@ class UserApiControllerChangePasswordTest {
                         content().string("")
                 );
 
-        verify(changePasswordService)
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        verify(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
-                        new ChangePasswordCommand(
-                                CURRENT_PASSWORD,
-                                NEW_PASSWORD
-                        )
+                        command
                 );
     }
 
@@ -185,7 +189,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -234,7 +238,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -294,7 +298,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -367,7 +371,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -412,7 +416,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -434,7 +438,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
@@ -491,7 +495,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_PASSWORD_POLICY_VIOLATION
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
@@ -576,5 +580,62 @@ class UserApiControllerChangePasswordTest {
 
             return http.build();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "비밀번호 변경 중 동시 수정 충돌이 지속되면 "
+                    + "409 USER_PASSWORD_CHANGE_CONFLICT를 반환한다"
+    )
+    void passwordChangeConflict() throws Exception {
+        // given
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_PASSWORD_CHANGE_CONFLICT
+                )
+        )
+                .when(changePasswordRetryService)
+                .changePassword(
+                        USER_ID,
+                        command
+                );
+
+        // when & then
+        mockMvc.perform(
+                        patch("/api/v1/users/me/password")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
+                                )
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_PASSWORD_CHANGE_CONFLICT"
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
     }
 }

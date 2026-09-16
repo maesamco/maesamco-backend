@@ -222,6 +222,15 @@ public interface UserApiDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "409",
+                    description = "USER_PASSWORD_CHANGE_CONFLICT",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "500",
                     description = "INTERNAL_SERVER_ERROR",
                     content = @Content(

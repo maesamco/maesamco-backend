@@ -63,6 +63,42 @@ class ChangePasswordCommandValidationTest {
     }
 
     @Test
+    @DisplayName("새 비밀번호가 정확히 8자이면 Validation을 통과한다")
+    void newPasswordMinimumLength() {
+        // given
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        "Aa1!aaaa"
+                );
+
+        // when
+        Set<ConstraintViolation<ChangePasswordCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    @DisplayName("새 비밀번호가 정확히 64자이면 Validation을 통과한다")
+    void newPasswordMaximumLength() {
+        // given
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        "Aa1!" + "a".repeat(60)
+                );
+
+        // when
+        Set<ConstraintViolation<ChangePasswordCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
     @DisplayName("현재 비밀번호가 없으면 Validation에 실패한다")
     void missingCurrentPassword() {
         // given
