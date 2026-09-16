@@ -8,3 +8,4 @@ application-secret.yml
 out/
 .DS_Store
 *.log
+*.pem
