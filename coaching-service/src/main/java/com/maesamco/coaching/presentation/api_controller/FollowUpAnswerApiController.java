@@ -4,6 +4,8 @@ import com.maesamco.coaching.application.facade.FollowUpAnswerFacade;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.response.SuccessResponse;
+import com.maesamco.coaching.presentation.request.FollowUpAnswerRegisterRequest;
+import com.maesamco.coaching.presentation.response.FollowUpAnswerRegisterResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
