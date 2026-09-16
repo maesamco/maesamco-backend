@@ -61,6 +61,11 @@ class SubmissionApiControllerTest {
         }
     }
 
+    private org.springframework.test.web.servlet.request.RequestPostProcessor authenticatedWithNullPrincipal() {
+        return authentication(new UsernamePasswordAuthenticationToken(
+                null, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -201,12 +206,26 @@ class SubmissionApiControllerTest {
         }
 
         @Test
-        @DisplayName("인증 정보가 없으면 401을 반환한다")
-        void returns401WhenUnauthenticated() throws Exception {
+        @DisplayName("Authentication 자체가 없으면 Security 필터 단계에서 401을 반환한다")
+        void returns401WhenNoAuthenticationPresent() throws Exception {
             SubmissionCreateRequest request = new SubmissionCreateRequest(
                     UUID.randomUUID(), "public class Main {}", "JAVA17");
 
             mockMvc.perform(post("/api/v1/submissions")
+                            .header("Idempotency-Key", "idem-key-1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("Authentication은 있지만 principal이 null이면 컨트롤러의 requireAuthenticated()가 401을 반환한다")
+        void returns401WhenAuthenticationPrincipalIsNull() throws Exception {
+            SubmissionCreateRequest request = new SubmissionCreateRequest(
+                    UUID.randomUUID(), "public class Main {}", "JAVA17");
+
+            mockMvc.perform(post("/api/v1/submissions")
+                            .with(authenticatedWithNullPrincipal())
                             .header("Idempotency-Key", "idem-key-1")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -254,11 +273,21 @@ class SubmissionApiControllerTest {
         }
 
         @Test
-        @DisplayName("인증 정보가 없으면 401을 반환한다")
-        void returns401WhenUnauthenticated() throws Exception {
+        @DisplayName("Authentication 자체가 없으면 Security 필터 단계에서 401을 반환한다")
+        void returns401WhenNoAuthenticationPresent() throws Exception {
             UUID submissionId = UUID.randomUUID();
 
             mockMvc.perform(get("/api/v1/submissions/{submissionId}", submissionId))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("Authentication은 있지만 principal이 null이면 컨트롤러의 requireAuthenticated()가 401을 반환한다")
+        void returns401WhenAuthenticationPrincipalIsNull() throws Exception {
+            UUID submissionId = UUID.randomUUID();
+
+            mockMvc.perform(get("/api/v1/submissions/{submissionId}", submissionId)
+                            .with(authenticatedWithNullPrincipal()))
                     .andExpect(status().isUnauthorized());
         }
     }
