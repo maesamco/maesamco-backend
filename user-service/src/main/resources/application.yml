@@ -2,6 +2,14 @@ server:
   port: 9000
 
 spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          content-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+
   application:
     name: user-service
 
@@ -87,6 +95,9 @@ internal:
       content-service: ${HMAC_KEY_CONTENT_TO_USER}
       judge-service: ${HMAC_KEY_JUDGE_TO_USER}
       coaching-service: ${HMAC_KEY_COACHING_TO_USER}
+
+    outbound:
+      content-service: ${HMAC_KEY_USER_TO_CONTENT}
 
 eureka:
   client:

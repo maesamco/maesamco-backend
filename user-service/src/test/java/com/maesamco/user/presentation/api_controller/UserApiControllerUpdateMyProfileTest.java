@@ -73,6 +73,9 @@ class UserApiControllerUpdateMyProfileTest {
     @MockitoBean
     private ChangePasswordRetryService changePasswordRetryService;
 
+    @MockitoBean
+    private UpdateMyInterestsService updateMyInterestsService;
+
     @Test
     @DisplayName(
             "인증된 사용자가 내 정보를 수정하면 "

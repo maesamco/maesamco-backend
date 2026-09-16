@@ -1,10 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordRetryService;
-import com.maesamco.user.application.service.ChangePasswordService;
-import com.maesamco.user.application.service.GetMyProfileResult;
-import com.maesamco.user.application.service.GetMyProfileService;
-import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
@@ -30,14 +26,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * UserApiController의 내 정보 조회 HTTP 계약을 검증합니다.
@@ -74,6 +66,9 @@ class UserApiControllerGetMyProfileTest {
 
     @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoBean
+    private UpdateMyInterestsService updateMyInterestsService;
 
     @Test
     @DisplayName(

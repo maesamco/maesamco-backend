@@ -4,6 +4,9 @@ import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.UpdateMyInterestsCommand;
+import com.maesamco.user.application.service.UpdateMyInterestsResult;
+import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.application.service.UpdateMyProfileResult;
 import com.maesamco.user.application.service.UpdateMyProfileService;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,6 +46,8 @@ public class UserApiController implements UserApiDocs {
     private final ChangePasswordRetryService changePasswordRetryService;
 
     private final UpdateMyProfileService updateMyProfileService;
+
+    private final UpdateMyInterestsService updateMyInterestsService;
 
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
@@ -93,6 +99,38 @@ public class UserApiController implements UserApiDocs {
 
         UpdateMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
+                        userId,
+                        command
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 관심 개념 목록을 전체 교체합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 새롭게 설정할 관심 개념 목록
+     * @return 최종 관심 개념 목록과 변경 시각
+     */
+    @Override
+    @PutMapping("/interests")
+    public ResponseEntity<SuccessResponse<UpdateMyInterestsResult>>
+    updateMyInterests(
+            Authentication authentication,
+            @Valid @RequestBody UpdateMyInterestsCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        UpdateMyInterestsResult result =
+                updateMyInterestsService.updateMyInterests(
                         userId,
                         command
                 );

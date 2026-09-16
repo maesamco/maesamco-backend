@@ -1,9 +1,5 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordCommand;
-import com.maesamco.user.application.service.GetMyProfileResult;
-import com.maesamco.user.application.service.UpdateMyProfileCommand;
-import com.maesamco.user.application.service.UpdateMyProfileResult;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +13,12 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.GetMyProfileResult;
+import com.maesamco.user.application.service.UpdateMyInterestsCommand;
+import com.maesamco.user.application.service.UpdateMyInterestsResult;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.UpdateMyProfileResult;
 
 /**
  * User API의 Swagger/OpenAPI 계약을 정의합니다.
@@ -249,5 +251,89 @@ public interface UserApiDocs {
             @Valid
             @RequestBody
             ChangePasswordCommand command
+    );
+
+    /**
+     * 로그인 사용자의 관심 개념 목록을 전체 교체합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 새롭게 설정할 관심 개념 목록
+     * @return 최종 관심 개념 목록과 변경 시각
+     */
+    @Operation(
+            summary = "관심 개념 설정",
+            description = "Access Token으로 인증된 사용자의 관심 개념 목록을 "
+                    + "요청한 목록으로 전체 교체합니다. "
+                    + "빈 배열을 전달하면 모든 관심 개념을 해제합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "관심 개념 설정 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_INPUT_VALUE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND 또는 CONCEPT_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "CONTENT_SERVICE_UNAVAILABLE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<UpdateMyInterestsResult>>
+    updateMyInterests(
+            @Parameter(hidden = true)
+            Authentication authentication,
+
+            @Valid
+            @RequestBody
+            UpdateMyInterestsCommand command
     );
 }

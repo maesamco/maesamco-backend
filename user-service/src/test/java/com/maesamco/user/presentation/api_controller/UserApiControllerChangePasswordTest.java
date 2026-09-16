@@ -1,10 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.ChangePasswordCommand;
-import com.maesamco.user.application.service.ChangePasswordRetryService;
-import com.maesamco.user.application.service.ChangePasswordService;
-import com.maesamco.user.application.service.GetMyProfileService;
-import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -27,19 +23,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * UserApiController의 비밀번호 변경 HTTP 계약을 검증합니다.
@@ -80,6 +68,9 @@ class UserApiControllerChangePasswordTest {
 
     @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoBean
+    private UpdateMyInterestsService updateMyInterestsService;
 
     @Test
     @DisplayName(
