@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxStatusService;
 import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;

@@ -1,7 +1,6 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.input_port.ProblemFinder;
-import com.maesamco.content.application.service.ProblemPublicationService;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
