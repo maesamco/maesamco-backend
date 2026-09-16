@@ -1,4 +1,4 @@
-package com.maesamco.content.problem;
+package com.maesamco.content.global.validation;
 
 import com.maesamco.content.global.config.JacksonConfig;
 import com.maesamco.content.presentation.request.ProblemUpdateRequest;
