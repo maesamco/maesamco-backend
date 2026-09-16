@@ -100,7 +100,7 @@ public class TagService {
             TagUpdateRequest request
     ) {
         Tag tag =
-                tagFinder.getTag(tagId);
+                tagFinder.getById(tagId);
 
         if (request.getName() != null
                 && !tag.getName().equals(request.getName())) {
@@ -137,7 +137,7 @@ public class TagService {
             UUID userId
     ) {
         Tag tag =
-                tagFinder.getTag(tagId);
+                tagFinder.getById(tagId);
 
         problemTagRepository.deleteAllByTagId(tagId);
 

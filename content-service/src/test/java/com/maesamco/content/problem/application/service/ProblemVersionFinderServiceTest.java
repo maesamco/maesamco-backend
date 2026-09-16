@@ -36,7 +36,7 @@ class ProblemVersionFinderServiceTest {
 
     @Test
     @DisplayName("문제 버전이 존재하면 문제 버전을 반환한다")
-    void getProblemVersion_returnsProblemVersion() {
+    void getProblemVersion_returnsById() {
         // given
         ProblemVersion problemVersion = org.mockito.Mockito.mock(ProblemVersion.class);
 
@@ -44,7 +44,7 @@ class ProblemVersionFinderServiceTest {
                 .thenReturn(Optional.of(problemVersion));
 
         // when
-        ProblemVersion result = problemVersionFinderService.getProblemVersion(problemVersionId);
+        ProblemVersion result = problemVersionFinderService.getById(problemVersionId);
 
         // then
         assertThat(result).isSameAs(problemVersion);
@@ -52,13 +52,13 @@ class ProblemVersionFinderServiceTest {
 
     @Test
     @DisplayName("문제 버전이 존재하지 않으면 PROBLEM_NOT_FOUND 예외가 발생한다")
-    void getProblemVersion_throwsWhenNotFound() {
+    void getById_throwsWhenNotFound() {
         // given
         when(problemVersionRepository.findById(problemVersionId))
                 .thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> problemVersionFinderService.getProblemVersion(problemVersionId))
+        assertThatThrownBy(() -> problemVersionFinderService.getById(problemVersionId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);

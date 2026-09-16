@@ -60,7 +60,7 @@ class HierarchyFinderVisibilityTest {
 
         // when & then
         assertThatThrownBy(
-                () -> unitFinderService.findById(unitId)
+                () -> unitFinderService.getById(unitId)
         )
                 .isInstanceOf(BusinessException.class);
     }
@@ -94,7 +94,7 @@ class HierarchyFinderVisibilityTest {
 
         // when & then
         assertThatThrownBy(
-                () -> lessonFinderService.findLessonById(lessonId)
+                () -> lessonFinderService.getById(lessonId)
         )
                 .isInstanceOf(BusinessException.class);
     }

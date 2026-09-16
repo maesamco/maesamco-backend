@@ -28,7 +28,7 @@ public class ProblemInternalService {
     public ProblemInternalResult getProblemMetaData(UUID problemId) {
 
         // problem 정보
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         // problem에 해당하는 tag 리스트
         List<Tag> tags = problemTagFinder.getTagsByProblemId(problemId);
@@ -44,7 +44,7 @@ public class ProblemInternalService {
     @Transactional(readOnly = true)
     public ProblemInternalResult getProblemVersionMetaData(UUID problemVersionId) {
 
-        ProblemVersion problemVersion = problemVersionFinder.getProblemVersion(problemVersionId);
+        ProblemVersion problemVersion = problemVersionFinder.getById(problemVersionId);
 
         List<Tag> tags = problemTagFinder.getTagsByProblemId(problemVersion.getProblemId());
 

@@ -32,7 +32,7 @@ public class TestCaseService {
     @Transactional(rollbackFor = Exception.class)
     public TestCaseCreateResponse createTestCase(UUID problemId, TestCaseCreateRequest request) {
 
-        problemFinder.getProblemForUpdate(problemId);
+        problemFinder.lockById(problemId);
 
         // 특정 문자에 대한 공개 또는 비공개 테스트케이스 중 하나의 분류에 대해서 그 중 가장 test_case_order가 큰 값에 + 1을 한다.
         int testCaseOrder =
@@ -56,7 +56,7 @@ public class TestCaseService {
     @Transactional(readOnly = true)
     public TestCaseResponse getTestCase(UUID testCaseId) {
 
-        TestCase testCase = testCaseFinder.getTestCase(testCaseId);
+        TestCase testCase = testCaseFinder.getById(testCaseId);
 
         return TestCaseResponse.from(testCase);
     }
@@ -65,13 +65,13 @@ public class TestCaseService {
     @Transactional(readOnly = true)
     public TestCaseResponse getPublicTestCase(UUID testCaseId) {
 
-        TestCase testCase = testCaseFinder.getTestCase(testCaseId);
+        TestCase testCase = testCaseFinder.getById(testCaseId);
 
         /*
          * 공개 테스트케이스라도 상위 Problem이 삭제된 경우에는
          * 직접 접근할 수 없도록 부모의 활성 상태를 함께 검증한다.
          */
-        problemFinder.getProblem(
+        problemFinder.getById(
                 testCase.getProblemId()
         );
 
@@ -87,7 +87,7 @@ public class TestCaseService {
     /** 특정 문제의 공개 테스트케이스 목록 조회 */
     @Transactional(readOnly = true)
     public PageResponse<TestCaseResponse> searchTestCasesPublic(UUID problemId, Pageable pageable) {
-        problemFinder.getProblem(problemId);
+        problemFinder.getById(problemId);
 
         Page<TestCase> testCases = testCaseRepository.searchTestCases(problemId, true, pageable);
 
@@ -97,7 +97,7 @@ public class TestCaseService {
     /** 특정 문제의 공개와 비공개 테스트케이스 목록 전체 조회 */
     @Transactional(readOnly = true)
     public PageResponse<TestCaseResponse> searchTestCasesAll(UUID problemId, Pageable pageable) {
-        problemFinder.getProblem(problemId);
+        problemFinder.getById(problemId);
 
         Page<TestCase> testCases = testCaseRepository.searchTestCasesAll(problemId, pageable);
 
@@ -107,7 +107,7 @@ public class TestCaseService {
     /** 테스트케이스 수정 */
     @Transactional(rollbackFor = Exception.class)
     public TestCaseResponse updateTestCase(UUID testCaseId, TestCaseUpdateRequest request) {
-        TestCase testCase = testCaseFinder.getTestCase(testCaseId);
+        TestCase testCase = testCaseFinder.getById(testCaseId);
 
         // 입력값, 출력값 수정
         if (request.getInput() != null) { testCase.changeInput(request.getInput()); }
@@ -117,7 +117,7 @@ public class TestCaseService {
         if (request.getIsPublic() != null &&
                 request.getIsPublic() != testCase.getIsPublic()) {
 
-            problemFinder.getProblemForUpdate(
+            problemFinder.lockById(
                     testCase.getProblemId()
             );
 
@@ -147,7 +147,7 @@ public class TestCaseService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTestCase(UUID testCaseId, UUID userId) {
 
-        TestCase testCase = testCaseFinder.getTestCase(testCaseId);
+        TestCase testCase = testCaseFinder.getById(testCaseId);
 
         testCase.softDelete(userId);
     }

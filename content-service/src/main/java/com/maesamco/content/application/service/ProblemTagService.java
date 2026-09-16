@@ -34,7 +34,7 @@ public class ProblemTagService {
             UUID problemId,
             Pageable pageable
     ) {
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         /*
          * 공개 태그 조회에서는 발행된 문제의 태그만 노출한다.
@@ -63,8 +63,8 @@ public class ProblemTagService {
     @Transactional(rollbackFor = Exception.class)
     public void addTagToProblem(UUID problemId, UUID tagId) {
 
-        problemFinder.getProblem(problemId);
-        tagFinder.getTag(tagId);
+        problemFinder.getById(problemId);
+        tagFinder.getById(tagId);
 
         // 등록된 태그를 다시 등록할 수 없음.
         if (problemTagRepository.existsByProblemIdAndTagId(problemId, tagId)) {
@@ -80,7 +80,7 @@ public class ProblemTagService {
     @Transactional(rollbackFor = Exception.class)
     public void removeTagFromProblem(UUID problemId, UUID tagId) {
 
-        problemFinder.getProblem(problemId);
+        problemFinder.getById(problemId);
 
         ProblemTag problemTag = problemTagRepository
                 .findByProblemIdAndTagId(problemId, tagId)

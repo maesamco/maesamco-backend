@@ -31,7 +31,7 @@ public class LessonService {
     public LessonCreateResponse createLesson(LessonCreateRequest request) {
 
         // 상위 유닛 존재 여부 확인
-        unitFinder.findById(request.getUnitId());
+        unitFinder.getById(request.getUnitId());
 
         int displayOrder = Math.toIntExact(
                 lessonRepository.countByUnitId(request.getUnitId()) + 1
@@ -55,7 +55,7 @@ public class LessonService {
     @Transactional(readOnly = true)
     public LessonResponse getLesson(UUID lessonId) {
 
-        Lesson lesson = lessonFinder.findLessonById(lessonId);
+        Lesson lesson = lessonFinder.getById(lessonId);
 
         return LessonResponse.from(lesson);
     }
@@ -65,7 +65,7 @@ public class LessonService {
     public PageResponse<LessonResponse> searchLessons(UUID unitId, Pageable pageable) {
 
         // 존재하지 않는 유닛에 대한 조회 방지
-        unitFinder.findById(unitId);
+        unitFinder.getById(unitId);
 
         Page<Lesson> lessons = lessonRepository.searchLessons(unitId, pageable);
 
@@ -76,7 +76,7 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse updateLesson(UUID lessonId, LessonUpdateRequest request) {
 
-        Lesson lesson = lessonFinder.findLessonById(lessonId);
+        Lesson lesson = lessonFinder.getById(lessonId);
 
         if (request.getTitle() != null) {
             lesson.changeTitle(request.getTitle());
@@ -105,7 +105,7 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteLesson(UUID lessonId, UUID userId) {
 
-        Lesson lesson = lessonFinder.findLessonById(lessonId);
+        Lesson lesson = lessonFinder.getById(lessonId);
 
         lesson.softDelete(userId);
     }

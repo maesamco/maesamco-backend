@@ -1,8 +1,9 @@
-com.maesamco.content.domain.repository.CurriculumSearchRepository=com.maesamco.content.infrastructure.persistence.CurriculumSearchRepositoryImpl
-com.maesamco.content.domain.repository.LessonSearchRepository=com.maesamco.content.infrastructure.persistence.LessonSearchRepositoryImpl
-com.maesamco.content.domain.repository.problem.ProblemSearchRepository=com.maesamco.content.infrastructure.persistence.ProblemSearchRepositoryImpl
-com.maesamco.content.domain.repository.problem.ProblemTagSearchRepository=com.maesamco.content.infrastructure.persistence.ProblemTagSearchRepositoryImpl
-com.maesamco.content.domain.repository.TagSearchRepository=com.maesamco.content.infrastructure.persistence.TagSearchRepositoryImpl
-com.maesamco.content.domain.repository.TestCaseOrderRepository=com.maesamco.content.infrastructure.persistence.TestCaseOrderRepositoryImpl
-com.maesamco.content.domain.repository.TestCaseSearchRepository=com.maesamco.content.infrastructure.persistence.TestCaseSearchRepositoryImpl
-com.maesamco.content.domain.repository.UnitSearchRepository=com.maesamco.content.infrastructure.persistence.UnitSearchRepositoryImpl
+com.maesamco.content.domain.repository.CurriculumRepository=com.maesamco.content.infrastructure.persistence.CurriculumRepositoryImpl
+com.maesamco.content.domain.repository.LessonRepository=com.maesamco.content.infrastructure.persistence.LessonRepositoryImpl
+com.maesamco.content.domain.repository.TagRepository=com.maesamco.content.infrastructure.persistence.TagRepositoryImpl
+com.maesamco.content.domain.repository.TestCaseRepository=com.maesamco.content.infrastructure.persistence.TestCaseRepositoryImpl
+com.maesamco.content.domain.repository.UnitRepository=com.maesamco.content.infrastructure.persistence.UnitRepositoryImpl
+com.maesamco.content.domain.repository.problem.ProblemCommandRepository=com.maesamco.content.infrastructure.persistence.ProblemCommandRepositoryImpl
+com.maesamco.content.domain.repository.problem.ProblemQueryRepository=com.maesamco.content.infrastructure.persistence.ProblemQueryRepositoryImpl
+com.maesamco.content.domain.repository.problem.ProblemTagRepository=com.maesamco.content.infrastructure.persistence.ProblemTagRepositoryImpl
+com.maesamco.content.domain.repository.problem.ProblemVersionRepository=com.maesamco.content.infrastructure.persistence.ProblemVersionRepositoryImpl

@@ -9,7 +9,8 @@ import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.problem.ProblemStatus;
-import com.maesamco.content.domain.repository.problem.ProblemRepository;
+import com.maesamco.content.domain.repository.problem.ProblemCommandRepository;
+import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -26,7 +27,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProblemService {
 
-    private final ProblemRepository problemRepository;
+    // Problem 한정 CQRS 도입
+    private final ProblemCommandRepository problemCommandRepository;
+    private final ProblemQueryRepository problemQueryRepository;
+
     private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
 
@@ -49,7 +53,7 @@ public class ProblemService {
 
         problem.requestPublicationReview();
 
-        Problem savedProblem = problemRepository.save(problem);
+        Problem savedProblem = problemCommandRepository.save(problem);
 
         /*
          * 생성된 문제의 현재 버전은 1이므로
@@ -66,7 +70,7 @@ public class ProblemService {
     @Transactional(readOnly = true)
     public ProblemResult getProblemForAdmin(UUID problemId) {
 
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         return ProblemResult.from(problem);
     }
@@ -75,7 +79,7 @@ public class ProblemService {
     @Transactional(readOnly = true)
     public ProblemResult getProblemForUser(UUID problemId) {
 
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         // 사용자는 발행된 문제만 조회 가능
         if (problem.getProblemStatus() != ProblemStatus.PUBLISHED) {
@@ -95,7 +99,7 @@ public class ProblemService {
         // 공개 문제 목록에서는 클라이언트가 요청한 상태와 관계없이 PUBLISHED 상태의 문제만 조회한다.
         query.forcePublished();
 
-        Page<Problem> problems = problemRepository.searchProblems(query.toCondition(), pageable);
+        Page<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageable);
 
         return problems.map(ProblemSearchResult::from);
     }
@@ -107,7 +111,7 @@ public class ProblemService {
             ProblemUpdateCommand command
     ) {
 
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         // 관리자가 조회했던 버전과 현재 DB 버전이 다르면
         // 오래된 데이터를 기준으로 한 수정 요청이므로 거부한다.
@@ -183,7 +187,7 @@ public class ProblemService {
             problemVersionRepository.save(snapshot);
 
             // 응답을 생성하기 전에 UPDATE를 실행하여 JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
-            problemRepository.flush();
+            problemCommandRepository.flush();
         }
 
         return ProblemResult.from(problem);
@@ -193,10 +197,10 @@ public class ProblemService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteProblem(UUID problemId, UUID userId) {
 
-        Problem problem = problemFinder.getProblem(problemId);
+        Problem problem = problemFinder.getById(problemId);
 
         problem.softDelete(userId);
 
-        problemRepository.flush(); // 현재 영속성 컨텍스트에 쌓여 있는 변경사항을 즉시 DB SQL로 반영시킨다
+        problemCommandRepository.flush(); // 현재 영속성 컨텍스트에 쌓여 있는 변경사항을 즉시 DB SQL로 반영시킨다
     }
 }

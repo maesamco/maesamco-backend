@@ -45,7 +45,7 @@ public class CurriculumService {
     @Transactional(readOnly = true)
     public CurriculumResponse getCurriculum(UUID curriculumId) {
 
-        Curriculum curriculum = curriculumFinder.findById(curriculumId);
+        Curriculum curriculum = curriculumFinder.getById(curriculumId);
 
         return CurriculumResponse.from(curriculum);
     }
@@ -63,7 +63,7 @@ public class CurriculumService {
     @Transactional(rollbackFor = Exception.class)
     public CurriculumResponse updateCurriculum(UUID curriculumId, CurriculumUpdateRequest request) {
 
-        Curriculum curriculum = curriculumFinder.findById(curriculumId);
+        Curriculum curriculum = curriculumFinder.getById(curriculumId);
 
         if (request.getLanguage() != null) { curriculum.changeLanguage(request.getLanguage()); }
         if (request.getTitle() != null) { curriculum.changeTitle(request.getTitle()); }
@@ -76,7 +76,7 @@ public class CurriculumService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteCurriculum(UUID curriculumId, UUID userId) {
 
-        Curriculum curriculum = curriculumFinder.findById(curriculumId);
+        Curriculum curriculum = curriculumFinder.getById(curriculumId);
 
         curriculum.softDelete(userId);
     }

@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.application.scheduler;
+package com.maesamco.content.application.scheduler;
 
 import com.maesamco.content.application.scheduler.ProblemEventOutboxRelayScheduler;
 import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxRelayService;

@@ -136,7 +136,7 @@ class ProblemPublicationServiceTest {
         );
 
         when(
-                problemFinder.getProblem(problemId)
+                problemFinder.getById(problemId)
         ).thenReturn(problem);
 
         when(

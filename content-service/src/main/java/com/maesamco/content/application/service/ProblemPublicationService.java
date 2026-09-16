@@ -54,7 +54,7 @@ public class ProblemPublicationService {
             UUID problemId
     ) {
         Problem problem =
-                problemFinder.getProblem(
+                problemFinder.getById(
                         problemId
                 );
 

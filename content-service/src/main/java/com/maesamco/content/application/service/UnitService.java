@@ -31,7 +31,7 @@ public class UnitService {
     public UnitCreateResponse createUnit(UnitCreateRequest request) {
 
         // 상위 커리큘럼 존재 여부 확인
-        curriculumFinder.findById(request.getCurriculumId());
+        curriculumFinder.getById(request.getCurriculumId());
 
         int displayOrder = Math.toIntExact(
                 unitRepository.countByCurriculumId(request.getCurriculumId()) + 1
@@ -53,7 +53,7 @@ public class UnitService {
     @Transactional(readOnly = true)
     public UnitResponse getUnit(UUID unitId) {
 
-        Unit unit = unitFinder.findById(unitId);
+        Unit unit = unitFinder.getById(unitId);
 
         return UnitResponse.from(unit);
     }
@@ -63,7 +63,7 @@ public class UnitService {
     public PageResponse<UnitResponse> searchUnits(UUID curriculumId, Pageable pageable) {
 
         // 존재하지 않는 커리큘럼에 대한 조회 방지
-        curriculumFinder.findById(curriculumId);
+        curriculumFinder.getById(curriculumId);
 
         Page<Unit> units = unitRepository.searchUnits(curriculumId, pageable);
 
@@ -74,7 +74,7 @@ public class UnitService {
     @Transactional(rollbackFor = Exception.class)
     public UnitResponse updateUnit(UUID unitId, UnitUpdateRequest request) {
 
-        Unit unit = unitFinder.findById(unitId);
+        Unit unit = unitFinder.getById(unitId);
 
         if (request.getTitle() != null) { unit.changeTitle(request.getTitle()); }
         if (request.getLanguage() != null) { unit.changeLanguage(request.getLanguage()); }
@@ -86,7 +86,7 @@ public class UnitService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteUnit(UUID unitId, UUID userId) {
 
-        Unit unit = unitFinder.findById(unitId);
+        Unit unit = unitFinder.getById(unitId);
 
         unit.softDelete(userId);
     }

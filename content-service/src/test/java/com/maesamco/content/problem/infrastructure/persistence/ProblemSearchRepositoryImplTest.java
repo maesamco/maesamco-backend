@@ -2,7 +2,7 @@
 //
 //import com.maesamco.content.domain.entity.ProgrammingLanguage;
 //import com.maesamco.content.domain.entity.problem.*;
-//import com.maesamco.content.infrastructure.persistence.ProblemSearchRepositoryImpl;
+//import com.maesamco.content.infrastructure.persistence.ProblemQueryRepositoryImpl;
 //import com.maesamco.content.presentation.request.ProblemSearchRequest;
 //import com.querydsl.jpa.impl.JPAQueryFactory;
 //import jakarta.persistence.EntityManager;
@@ -42,7 +42,7 @@
 //    private EntityManager entityManager;
 //
 //    @Autowired
-//    private ProblemSearchRepositoryImpl problemSearchRepository;
+//    private ProblemQueryRepositoryImpl problemSearchRepository;
 //
 //    private Problem javaEasy;
 //    private Problem javaHard;

@@ -2,7 +2,8 @@ package com.maesamco.content.application.service.finder;
 
 import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.domain.entity.problem.Problem;
-import com.maesamco.content.domain.repository.problem.ProblemRepository;
+import com.maesamco.content.domain.repository.problem.ProblemCommandRepository;
+import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -11,17 +12,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-/** 문제 조회 기능을 구현하는 서비스 */
 @Service
 @RequiredArgsConstructor
 public class ProblemFinderService implements ProblemFinder {
 
-    private final ProblemRepository problemRepository;
+    private final ProblemQueryRepository problemQueryRepository;
+    private final ProblemCommandRepository problemCommandRepository;
 
     @Override
     @Transactional(readOnly = true)
     public Problem getById(UUID problemId) {
-        return problemRepository.findById(problemId)
+        return problemQueryRepository.findById(problemId)
                 .orElseThrow(() ->
                         new BusinessException(
                                 ErrorCode.PROBLEM_NOT_FOUND
@@ -31,8 +32,8 @@ public class ProblemFinderService implements ProblemFinder {
 
     @Override
     @Transactional
-    public void getByIdForUpdate(UUID problemId) {
-        problemRepository.findByIdForUpdate(problemId)
+    public void lockById(UUID problemId) {
+        problemCommandRepository.findByIdForUpdate(problemId)
                 .orElseThrow(() ->
                         new BusinessException(
                                 ErrorCode.PROBLEM_NOT_FOUND
