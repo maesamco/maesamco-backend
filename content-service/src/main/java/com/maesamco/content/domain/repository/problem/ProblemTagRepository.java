@@ -1,45 +1,44 @@
 package com.maesamco.content.domain.repository.problem;
 
+import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ProblemTagRepository
-        extends JpaRepository<ProblemTag, UUID>,
-        ProblemTagSearchRepository {
+public interface ProblemTagRepository {
 
-    /**
-     * 문제와 태그의 연결 존재 여부를 확인합니다.
-     */
+    ProblemTag save(ProblemTag problemTag);
+
+    void delete(ProblemTag problemTag);
+
     boolean existsByProblemIdAndTagId(
             UUID problemId,
             UUID tagId
     );
 
-    /**
-     * 문제와 태그의 연결을 단건 조회합니다.
-     */
     Optional<ProblemTag> findByProblemIdAndTagId(
             UUID problemId,
             UUID tagId
     );
 
-    /**
-     * 특정 문제에 연결된 전체 태그 연결을 조회합니다.
-     */
     List<ProblemTag> findAllByProblemId(
             UUID problemId
     );
 
-    /**
-     * 삭제되는 태그를 참조하는 모든 문제-태그 연결을 제거합니다.
-     *
-     * <p>ProblemTag는 이력 보존 대상이 아니므로 Hard Delete합니다.</p>
-     */
     void deleteAllByTagId(
             UUID tagId
+    );
+
+    Page<Tag> searchTagsByProblemId(
+            UUID problemId,
+            Pageable pageable
+    );
+
+    List<Tag> findAllTagsByProblemId(
+            UUID problemId
     );
 }
