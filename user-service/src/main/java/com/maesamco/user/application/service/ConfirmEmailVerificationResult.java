@@ -1,5 +1,7 @@
 package com.maesamco.user.application.service;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 이메일 인증 코드 확인 성공 결과입니다.
  *
@@ -13,8 +15,22 @@ package com.maesamco.user.application.service;
  * @param expiresInSeconds 토큰 만료까지 남은 시간(초)
  */
 public record ConfirmEmailVerificationResult(
+
+        @Schema(
+                description = "회원가입 요청에서 한 번만 사용할 수 있는 인증 토큰",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         String signupToken,
+
+        @Schema(
+                description = "회원가입 인증 토큰 만료까지 남은 시간(초)",
+                minimum = "0",
+                accessMode = Schema.AccessMode.READ_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         long expiresInSeconds
+
 ) {
 
     /**
