@@ -8,6 +8,8 @@ import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepo
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.infrastructure.dailyquiz.messaging.event.DailyQuizCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -86,6 +89,11 @@ class DailyQuizSubmitServiceTest {
                 .thenReturn(List.of(firstItem, secondItem));
 
         assertThatThrownBy(() -> submitService.submit(command()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
                 .hasMessage("완료된 Daily Quiz의 배정 문항 수가 전체 문항 수와 일치하지 않습니다.");
 
         verifyNoInteractions(eventOutboxRepository);
@@ -108,6 +116,11 @@ class DailyQuizSubmitServiceTest {
                 .thenReturn(List.of(firstQuestion));
 
         assertThatThrownBy(() -> submitService.submit(command()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
                 .hasMessage("완료된 Daily Quiz의 문제 버전 일부를 찾을 수 없습니다.");
 
         verifyNoInteractions(eventOutboxRepository);
@@ -135,6 +148,11 @@ class DailyQuizSubmitServiceTest {
                 .thenReturn(List.of(firstQuestion, unrelatedQuestion));
 
         assertThatThrownBy(() -> submitService.submit(command()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
                 .hasMessage(
                         "완료된 Daily Quiz의 문제 버전을 찾을 수 없습니다. questionId="
                                 + missingQuestionId
@@ -159,6 +177,11 @@ class DailyQuizSubmitServiceTest {
                 .thenReturn(List.of(question));
 
         assertThatThrownBy(() -> submitService.submit(command()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
                 .hasMessage(
                         "완료된 Daily Quiz 문항에 채점 결과가 없습니다. questionId="
                                 + questionId
@@ -188,6 +211,11 @@ class DailyQuizSubmitServiceTest {
                 .thenThrow(new RuntimeException("직렬화 실패"));
 
         assertThatThrownBy(() -> submitService.submit(command()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
                 .hasMessage("DailyQuizCompleted 이벤트 직렬화에 실패했습니다.");
 
         verifyNoInteractions(eventOutboxRepository);

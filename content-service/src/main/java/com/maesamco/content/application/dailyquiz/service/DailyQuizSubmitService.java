@@ -176,7 +176,8 @@ public class DailyQuizSubmitService {
                 attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attempt.getId());
 
         if (attemptItems.size() != attempt.getTotalCount()) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "완료된 Daily Quiz의 배정 문항 수가 전체 문항 수와 일치하지 않습니다."
             );
         }
@@ -191,7 +192,8 @@ public class DailyQuizSubmitService {
                 .forEach(question -> questionsById.put(question.getId(), question));
 
         if (questionsById.size() != questionIds.size()) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "완료된 Daily Quiz의 문제 버전 일부를 찾을 수 없습니다."
             );
         }
@@ -207,7 +209,8 @@ public class DailyQuizSubmitService {
     ) {
         DailyQuizQuestion question = questionsById.get(attemptItem.getQuestionId());
         if (question == null) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "완료된 Daily Quiz의 문제 버전을 찾을 수 없습니다. questionId="
                             + attemptItem.getQuestionId()
             );
@@ -215,7 +218,8 @@ public class DailyQuizSubmitService {
 
         Boolean correct = attemptItem.getCorrect();
         if (correct == null) {
-            throw new IllegalStateException(
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
                     "완료된 Daily Quiz 문항에 채점 결과가 없습니다. questionId="
                             + attemptItem.getQuestionId()
             );
@@ -235,9 +239,9 @@ public class DailyQuizSubmitService {
         try {
             return jsonMapper.writeValueAsString(event);
         } catch (Exception exception) {
-            throw new IllegalStateException(
-                    "DailyQuizCompleted 이벤트 직렬화에 실패했습니다.",
-                    exception
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "DailyQuizCompleted 이벤트 직렬화에 실패했습니다."
             );
         }
     }
