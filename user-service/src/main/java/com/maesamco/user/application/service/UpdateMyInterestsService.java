@@ -93,6 +93,26 @@ public class UpdateMyInterestsService {
          */
         lockedUser.assertActive();
 
+        if (requestedConceptIds.isEmpty()) {
+            Instant deletedAt = Instant.now();
+
+            int deletedCount =
+                    interestConceptRepository
+                            .softDeleteAllByUserId(
+                                    userId,
+                                    userId,
+                                    deletedAt
+                            );
+
+            return new UpdateMyInterestsResult(
+                    requestedConceptIds,
+                    0,
+                    deletedCount == 0
+                            ? null
+                            : deletedAt
+            );
+        }
+
         List<UserInterestConcept> currentInterests =
                 interestConceptRepository.findAllByUserId(
                         userId

@@ -102,24 +102,6 @@ class WithdrawUserServiceTest {
         // given
         User user = createActiveUser();
 
-        UserInterestConcept firstInterest =
-                UserInterestConcept.create(
-                        USER_ID,
-                        FIRST_CONCEPT_ID
-                );
-
-        UserInterestConcept secondInterest =
-                UserInterestConcept.create(
-                        USER_ID,
-                        SECOND_CONCEPT_ID
-                );
-
-        List<UserInterestConcept> interests =
-                List.of(
-                        firstInterest,
-                        secondInterest
-                );
-
         WithdrawUserCommand command =
                 new WithdrawUserCommand(
                         CURRENT_PASSWORD
@@ -133,11 +115,16 @@ class WithdrawUserServiceTest {
                 CURRENT_PASSWORD_HASH
         )).thenReturn(true);
 
-        when(interestConceptRepository.findAllByUserId(USER_ID))
-                .thenReturn(interests);
-
         when(clock.instant())
                 .thenReturn(INVALIDATED_AT);
+
+        when(
+                interestConceptRepository.softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                )
+        ).thenReturn(2);
 
         // when & then
         assertThatCode(
@@ -149,18 +136,14 @@ class WithdrawUserServiceTest {
 
         assertThat(user.isDeleted()).isTrue();
         assertThat(user.getDeletedBy()).isEqualTo(USER_ID);
-
-        assertThat(interests)
-                .allSatisfy(
-                        interest -> {
-                            assertThat(interest.isDeleted()).isTrue();
-                            assertThat(interest.getDeletedBy())
-                                    .isEqualTo(USER_ID);
-                        }
-                );
+        assertThat(user.getDeletedAt()).isEqualTo(INVALIDATED_AT);
 
         verify(interestConceptRepository)
-                .saveAllAndFlush(interests);
+                .softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                );
 
         verify(userRepository)
                 .save(user);
@@ -182,10 +165,11 @@ class WithdrawUserServiceTest {
                 .findByIdForUpdate(USER_ID);
 
         order.verify(interestConceptRepository)
-                .findAllByUserId(USER_ID);
-
-        order.verify(interestConceptRepository)
-                .saveAllAndFlush(interests);
+                .softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                );
 
         order.verify(userRepository)
                 .save(user);
@@ -214,11 +198,16 @@ class WithdrawUserServiceTest {
                 CURRENT_PASSWORD_HASH
         )).thenReturn(true);
 
-        when(interestConceptRepository.findAllByUserId(USER_ID))
-                .thenReturn(List.of());
-
         when(clock.instant())
                 .thenReturn(INVALIDATED_AT);
+
+        when(
+                interestConceptRepository.softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                )
+        ).thenReturn(0);
 
         // when & then
         assertThatCode(
@@ -231,9 +220,14 @@ class WithdrawUserServiceTest {
         ).doesNotThrowAnyException();
 
         assertThat(user.isDeleted()).isTrue();
+        assertThat(user.getDeletedAt()).isEqualTo(INVALIDATED_AT);
 
-        verify(interestConceptRepository, never())
-                .saveAllAndFlush(anyList());
+        verify(interestConceptRepository)
+                .softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                );
 
         verify(userRepository)
                 .save(user);
@@ -361,8 +355,9 @@ class WithdrawUserServiceTest {
                 CURRENT_PASSWORD_HASH
         )).thenReturn(true);
 
-        when(interestConceptRepository.findAllByUserId(USER_ID))
-                .thenReturn(List.of());
+
+        when(clock.instant())
+                .thenReturn(INVALIDATED_AT);
 
         when(userRepository.save(user))
                 .thenThrow(
@@ -384,8 +379,7 @@ class WithdrawUserServiceTest {
                 .hasMessage("database failure");
 
         verifyNoInteractions(
-                authSessionLogoutAllStore,
-                clock
+                authSessionLogoutAllStore
         );
     }
 
@@ -405,8 +399,6 @@ class WithdrawUserServiceTest {
                 CURRENT_PASSWORD_HASH
         )).thenReturn(true);
 
-        when(interestConceptRepository.findAllByUserId(USER_ID))
-                .thenReturn(List.of());
 
         when(clock.instant())
                 .thenReturn(INVALIDATED_AT);

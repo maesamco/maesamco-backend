@@ -3,7 +3,6 @@ package com.maesamco.user.application.service;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import com.maesamco.user.application.service.WithdrawUserCommand;
 
 /**
  * 로그인 사용자의 회원 탈퇴 입력값입니다.

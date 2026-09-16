@@ -1,6 +1,7 @@
 package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
+import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.User;
@@ -24,7 +25,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -33,11 +36,20 @@ import org.testcontainers.utility.DockerImageName;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -55,7 +67,8 @@ import static org.mockito.Mockito.when;
         JpaAuditingConfig.class,
         UserRepositoryImpl.class,
         UserInterestConceptRepositoryImpl.class,
-        WithdrawUserService.class
+        WithdrawUserService.class,
+        UpdateMyProfileService.class
 })
 @Testcontainers
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -95,6 +108,9 @@ class WithdrawUserServiceIntegrationTest {
     private WithdrawUserService withdrawUserService;
 
     @Autowired
+    private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoSpyBean
     private UserRepository userRepository;
 
     @MockitoSpyBean
@@ -104,8 +120,14 @@ class WithdrawUserServiceIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @MockitoBean
     private PasswordHasher passwordHasher;
+
+    @MockitoBean
+    private EmailCipher emailCipher;
 
     @MockitoBean
     private AuthSessionLogoutAllStore
@@ -264,6 +286,7 @@ class WithdrawUserServiceIntegrationTest {
         );
 
         stubValidPassword();
+        stubInvalidatedAt();
 
         doThrow(
                 new DataAccessResourceFailureException(
@@ -271,8 +294,10 @@ class WithdrawUserServiceIntegrationTest {
                 )
         ).when(
                 interestConceptRepository
-        ).saveAllAndFlush(
-                anyList()
+        ).softDeleteAllByUserId(
+                user.getId(),
+                user.getId(),
+                INVALIDATED_AT
         );
 
         // when & then
@@ -316,8 +341,7 @@ class WithdrawUserServiceIntegrationTest {
         ).isZero();
 
         verifyNoInteractions(
-                authSessionLogoutAllStore,
-                clock
+                authSessionLogoutAllStore
         );
     }
 
@@ -390,6 +414,413 @@ class WithdrawUserServiceIntegrationTest {
                         user.getId()
                 )
         ).isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "프로필 수정이 탈퇴 전 User를 읽었더라도 "
+                    + "탈퇴 커밋 이후에는 낙관적 락 충돌로 계정을 되살리지 못한다"
+    )
+    void concurrentProfileUpdateCannotRestoreWithdrawnUser()
+            throws Exception {
+        // given
+        User user = saveUser(
+                "e".repeat(64),
+                "동시수정사용자"
+        );
+
+        stubValidPassword();
+        stubInvalidatedAt();
+
+        CountDownLatch profileLoaded =
+                new CountDownLatch(1);
+
+        CountDownLatch allowProfileSave =
+                new CountDownLatch(1);
+
+        AtomicInteger findByIdCount =
+                new AtomicInteger();
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Optional<User> result =
+                    (Optional<User>) invocation.callRealMethod();
+
+            if (findByIdCount.incrementAndGet() == 1) {
+                profileLoaded.countDown();
+
+                if (!allowProfileSave.await(
+                        5,
+                        TimeUnit.SECONDS
+                )) {
+                    throw new IllegalStateException(
+                            "프로필 수정 재개 대기 시간 초과"
+                    );
+                }
+            }
+
+            return result;
+        }).when(userRepository)
+                .findById(user.getId());
+
+        UpdateMyProfileCommand profileCommand =
+                new UpdateMyProfileCommand(
+                        "탈퇴후수정시도",
+                        LearningLevel.BASIC,
+                        12
+                );
+
+        ExecutorService executorService =
+                Executors.newSingleThreadExecutor();
+
+        try {
+            Future<UpdateMyProfileResult> profileFuture =
+                    executorService.submit(
+                            () -> updateMyProfileService
+                                    .updateMyProfile(
+                                            user.getId(),
+                                            profileCommand
+                                    )
+                    );
+
+            assertThat(
+                    profileLoaded.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // 프로필 트랜잭션이 탈퇴 전 version을 읽은 상태에서
+            // 탈퇴를 먼저 완료시킵니다.
+            withdrawUserService.withdraw(
+                    user.getId(),
+                    new WithdrawUserCommand(
+                            CURRENT_PASSWORD
+                    )
+            );
+
+            allowProfileSave.countDown();
+
+            assertThatThrownBy(
+                    () -> profileFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    )
+            )
+                    .isInstanceOfSatisfying(
+                            ExecutionException.class,
+                            exception ->
+                                    assertThat(
+                                            exception.getCause()
+                                    ).isInstanceOfSatisfying(
+                                            BusinessException.class,
+                                            cause ->
+                                                    assertThat(
+                                                            cause.getErrorCode()
+                                                    ).isEqualTo(
+                                                            ErrorCode
+                                                                    .USER_PROFILE_UPDATE_CONFLICT
+                                                    )
+                                    )
+                    );
+        } finally {
+            allowProfileSave.countDown();
+            executorService.shutdownNow();
+        }
+
+        // 탈퇴 행이 다시 활성화되지 않아야 합니다.
+        assertThat(
+                countSoftDeletedUsers(
+                        user.getId()
+                )
+        ).isEqualTo(1);
+
+        assertThat(
+                userRepository.findById(
+                        user.getId()
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "동일 사용자의 두 탈퇴 요청이 겹치면 "
+                    + "비관적 쓰기 잠금으로 직렬화한다"
+    )
+    void concurrentWithdrawalsAreSerialized()
+            throws Exception {
+        // given
+        User user = saveUser(
+                "f".repeat(64),
+                "동시탈퇴사용자"
+        );
+
+        stubInvalidatedAt();
+
+        CountDownLatch firstPasswordCheck =
+                new CountDownLatch(1);
+
+        CountDownLatch allowFirstWithdrawal =
+                new CountDownLatch(1);
+
+        CountDownLatch secondLockAttempt =
+                new CountDownLatch(1);
+
+        AtomicInteger passwordCheckCount =
+                new AtomicInteger();
+
+        AtomicInteger lockAttemptCount =
+                new AtomicInteger();
+
+        doAnswer(invocation -> {
+            if (lockAttemptCount.incrementAndGet() == 2) {
+                secondLockAttempt.countDown();
+            }
+
+            return invocation.callRealMethod();
+        }).when(userRepository)
+                .findByIdForUpdate(
+                        user.getId()
+                );
+
+        doAnswer(invocation -> {
+            if (passwordCheckCount.incrementAndGet() == 1) {
+                firstPasswordCheck.countDown();
+
+                if (!allowFirstWithdrawal.await(
+                        5,
+                        TimeUnit.SECONDS
+                )) {
+                    throw new IllegalStateException(
+                            "첫 번째 탈퇴 재개 대기 시간 초과"
+                    );
+                }
+            }
+
+            return true;
+        }).when(passwordHasher)
+                .matches(
+                        CURRENT_PASSWORD,
+                        CURRENT_PASSWORD_HASH
+                );
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Void> firstFuture =
+                    executorService.submit(() -> {
+                        withdrawUserService.withdraw(
+                                user.getId(),
+                                new WithdrawUserCommand(
+                                        CURRENT_PASSWORD
+                                )
+                        );
+
+                        return null;
+                    });
+
+            assertThat(
+                    firstPasswordCheck.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            Future<Void> secondFuture =
+                    executorService.submit(() -> {
+                        withdrawUserService.withdraw(
+                                user.getId(),
+                                new WithdrawUserCommand(
+                                        CURRENT_PASSWORD
+                                )
+                        );
+
+                        return null;
+                    });
+
+            assertThat(
+                    secondLockAttempt.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // 첫 번째 트랜잭션이 행 잠금을 보유한 동안
+            // 두 번째 요청은 완료될 수 없습니다.
+            assertThat(secondFuture.isDone())
+                    .isFalse();
+
+            allowFirstWithdrawal.countDown();
+
+            firstFuture.get(
+                    10,
+                    TimeUnit.SECONDS
+            );
+
+            assertThatThrownBy(
+                    () -> secondFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    )
+            )
+                    .isInstanceOfSatisfying(
+                            ExecutionException.class,
+                            exception ->
+                                    assertThat(
+                                            exception.getCause()
+                                    ).isInstanceOfSatisfying(
+                                            BusinessException.class,
+                                            cause ->
+                                                    assertThat(
+                                                            cause.getErrorCode()
+                                                    ).isEqualTo(
+                                                            ErrorCode.USER_NOT_FOUND
+                                                    )
+                                    )
+                    );
+        } finally {
+            allowFirstWithdrawal.countDown();
+            executorService.shutdownNow();
+        }
+
+        assertThat(
+                countSoftDeletedUsers(
+                        user.getId()
+                )
+        ).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "탈퇴가 User 행 잠금을 보유하는 동안 로그인 조회는 대기하고 "
+                    + "탈퇴 커밋 이후 삭제된 사용자를 조회하지 못한다"
+    )
+    void loginLookupIsSerializedWithWithdrawal()
+            throws Exception {
+        // given
+        String emailLookupHash =
+                "g".repeat(64);
+
+        User user = saveUser(
+                emailLookupHash,
+                "로그인경쟁사용자"
+        );
+
+        stubInvalidatedAt();
+
+        CountDownLatch withdrawalHasLock =
+                new CountDownLatch(1);
+
+        CountDownLatch allowWithdrawal =
+                new CountDownLatch(1);
+
+        CountDownLatch loginLookupAttempt =
+                new CountDownLatch(1);
+
+        doAnswer(invocation -> {
+            withdrawalHasLock.countDown();
+
+            if (!allowWithdrawal.await(
+                    5,
+                    TimeUnit.SECONDS
+            )) {
+                throw new IllegalStateException(
+                        "탈퇴 재개 대기 시간 초과"
+                );
+            }
+
+            return true;
+        }).when(passwordHasher)
+                .matches(
+                        CURRENT_PASSWORD,
+                        CURRENT_PASSWORD_HASH
+                );
+
+        doAnswer(invocation -> {
+            loginLookupAttempt.countDown();
+            return invocation.callRealMethod();
+        }).when(userRepository)
+                .findByEmailLookupHashForUpdate(
+                        emailLookupHash
+                );
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Void> withdrawalFuture =
+                    executorService.submit(() -> {
+                        withdrawUserService.withdraw(
+                                user.getId(),
+                                new WithdrawUserCommand(
+                                        CURRENT_PASSWORD
+                                )
+                        );
+
+                        return null;
+                    });
+
+            assertThat(
+                    withdrawalHasLock.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            Future<Optional<User>> loginLookupFuture =
+                    executorService.submit(() -> {
+                        TransactionTemplate transactionTemplate =
+                                new TransactionTemplate(
+                                        transactionManager
+                                );
+
+                        return transactionTemplate.execute(
+                                status ->
+                                        userRepository
+                                                .findByEmailLookupHashForUpdate(
+                                                        emailLookupHash
+                                                )
+                        );
+                    });
+
+            assertThat(
+                    loginLookupAttempt.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // 탈퇴가 잠금을 잡은 상태이므로 로그인 조회는 끝날 수 없습니다.
+            assertThat(loginLookupFuture.isDone())
+                    .isFalse();
+
+            allowWithdrawal.countDown();
+
+            withdrawalFuture.get(
+                    10,
+                    TimeUnit.SECONDS
+            );
+
+            Optional<User> loginResult =
+                    loginLookupFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    );
+
+            // 탈퇴 커밋 후 @SQLRestriction에 의해 조회되지 않아야 합니다.
+            assertThat(loginResult)
+                    .isEmpty();
+        } finally {
+            allowWithdrawal.countDown();
+            executorService.shutdownNow();
+        }
+
+        assertThat(
+                countSoftDeletedUsers(
+                        user.getId()
+                )
+        ).isEqualTo(1);
     }
 
     private User saveUser(

@@ -102,6 +102,19 @@ public class UserRepositoryImpl implements UserRepository {
      * {@inheritDoc}
      */
     @Override
+    public Optional<User> findByEmailLookupHashForUpdate(
+            String emailLookupHash
+    ) {
+        return springDataUserRepository
+                .findByEmailLookupHashForUpdate(
+                        emailLookupHash
+                );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean existsByEmailLookupHash(String emailLookupHash) {
         return springDataUserRepository.existsByEmailLookupHash(
                 emailLookupHash
