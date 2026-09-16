@@ -46,7 +46,7 @@ public class SubmissionQueryService {
         }
 
         List<SubmissionTestResult> testResults = submission.getStatus() == SubmissionStatus.COMPLETED
-                ? submissionTestResultRepository.findBySubmissionId(submissionId)
+                ? submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId)
                 : Collections.emptyList();
 
         return SubmissionExternalGetResult.of(submission, testResults);

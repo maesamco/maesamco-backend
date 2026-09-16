@@ -159,7 +159,7 @@ class SubmissionQueryServiceTest {
                     submissionId, UUID.randomUUID(), true, true, "8", null, null, null);
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(passed));
 
             SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
@@ -186,7 +186,7 @@ class SubmissionQueryServiceTest {
 
             assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
             assertThat(result.testResults()).isEmpty();
-            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+            verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
         }
 
         @Test
@@ -202,7 +202,7 @@ class SubmissionQueryServiceTest {
 
             assertThat(result.status()).isEqualTo(SubmissionStatus.FAILED);
             assertThat(result.failureCode()).isEqualTo(FailureCode.JUDGE0_RESPONSE_FAILURE);
-            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+            verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
         }
 
         @Test
@@ -227,7 +227,7 @@ class SubmissionQueryServiceTest {
             assertThatThrownBy(() -> submissionQueryService.getSubmission(submissionId, otherUserId))
                     .isInstanceOf(BusinessException.class);
 
-            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+            verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
         }
 
         @Test
@@ -243,7 +243,7 @@ class SubmissionQueryServiceTest {
                     submissionId, UUID.randomUUID(), false, false, null, null, null, null);
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(hidden));
 
             SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
@@ -267,7 +267,7 @@ class SubmissionQueryServiceTest {
             ReflectionTestUtils.setField(hidden, "actualOutput", "실제로는 절대 노출되면 안 되는 값");
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(hidden));
 
             SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
@@ -292,7 +292,7 @@ class SubmissionQueryServiceTest {
             assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
             assertThat(result.result()).isNull();
             assertThat(result.failureCode()).isNull();
-            verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+            verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
         }
     }
 
@@ -309,7 +309,7 @@ class SubmissionQueryServiceTest {
                 submissionId, UUID.randomUUID(), false, false, null, null, null, null);
 
         given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
-        given(submissionTestResultRepository.findBySubmissionId(submissionId))
+        given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                 .willReturn(List.of(hidden));
 
         SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
@@ -334,7 +334,7 @@ class SubmissionQueryServiceTest {
                 submissionId, testCaseId, true, true, "8", null, null, null);
 
         given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
-        given(submissionTestResultRepository.findBySubmissionId(submissionId))
+        given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                 .willReturn(List.of(visible));
 
         SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
@@ -359,6 +359,6 @@ class SubmissionQueryServiceTest {
         assertThat(result.testResults()).isEmpty();
         assertThat(result.result()).isNull();
         assertThat(result.failureCode()).isNull();
-        verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+        verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
     }
 }
