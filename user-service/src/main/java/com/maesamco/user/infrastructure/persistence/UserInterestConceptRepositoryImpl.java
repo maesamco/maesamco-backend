@@ -5,6 +5,7 @@ import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,6 +69,36 @@ public class UserInterestConceptRepositoryImpl
             UUID userId
     ) {
         return springDataRepository.findAllByUserId(userId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int softDeleteAllByUserId(
+            UUID userId,
+            UUID deletedBy,
+            Instant deletedAt
+    ) {
+        List<UserInterestConcept> interests =
+                springDataRepository.findAllByUserId(
+                        userId
+                );
+
+        interests.forEach(
+                interest -> interest.softDelete(
+                        deletedBy,
+                        deletedAt
+                )
+        );
+
+        if (!interests.isEmpty()) {
+            springDataRepository.saveAllAndFlush(
+                    interests
+            );
+        }
+
+        return interests.size();
     }
 
     /**

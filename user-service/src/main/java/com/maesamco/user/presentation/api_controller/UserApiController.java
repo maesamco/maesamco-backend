@@ -10,6 +10,8 @@ import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.application.service.UpdateMyProfileResult;
 import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.WithdrawUserCommand;
+import com.maesamco.user.application.service.WithdrawUserService;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +51,8 @@ public class UserApiController implements UserApiDocs {
     private final UpdateMyProfileService updateMyProfileService;
 
     private final UpdateMyInterestsService updateMyInterestsService;
+
+    private final WithdrawUserService withdrawUserService;
 
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
@@ -164,6 +169,45 @@ public class UserApiController implements UserApiDocs {
                 );
 
         changePasswordRetryService.changePassword(
+                userId,
+                command
+        );
+
+        var expiredRefreshTokenCookie =
+                createExpired();
+
+        return ResponseEntity
+                .noContent()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        expiredRefreshTokenCookie.toString()
+                )
+                .build();
+    }
+
+    /**
+     * 현재 비밀번호를 확인한 후 로그인 사용자를 탈퇴 처리합니다.
+     *
+     * <p>탈퇴가 완료되면 사용자와 관심 개념을 논리 삭제하고,
+     * 모든 인증 세션을 무효화하며 현재 클라이언트의
+     * Refresh Token Cookie를 삭제합니다.</p>
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 회원 탈퇴 입력값
+     * @return 본문이 없는 204 응답
+     */
+    @Override
+    @DeleteMapping
+    public ResponseEntity<Void> withdraw(
+            Authentication authentication,
+            @Valid @RequestBody WithdrawUserCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        withdrawUserService.withdraw(
                 userId,
                 command
         );

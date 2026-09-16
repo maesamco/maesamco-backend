@@ -19,6 +19,7 @@ import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyInterestsResult;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.application.service.UpdateMyProfileResult;
+import com.maesamco.user.application.service.WithdrawUserCommand;
 
 /**
  * User API의 Swagger/OpenAPI 계약을 정의합니다.
@@ -335,5 +336,89 @@ public interface UserApiDocs {
             @Valid
             @RequestBody
             UpdateMyInterestsCommand command
+    );
+
+    /**
+     * 로그인 사용자를 탈퇴 처리합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 회원 탈퇴 입력값
+     * @return 본문이 없는 204 응답
+     */
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "현재 비밀번호를 확인한 후 인증된 사용자를 "
+                    + "논리 삭제합니다. 사용자의 관심 개념도 논리 삭제하며, "
+                    + "기존 Access Token과 Refresh Token 인증 세션을 "
+                    + "모두 무효화합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "회원 탈퇴 성공",
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Refresh Token Cookie 삭제 "
+                                    + "(Max-Age=0, Secure, HttpOnly, "
+                                    + "SameSite=Lax, Path=/api/v1/auth)",
+                            schema = @Schema(
+                                    type = "string"
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_INPUT_VALUE 또는 "
+                            + "USER_CURRENT_PASSWORD_MISMATCH",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<Void> withdraw(
+            @Parameter(hidden = true)
+            Authentication authentication,
+
+            @Valid
+            @RequestBody
+            WithdrawUserCommand command
     );
 }

@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -167,31 +168,16 @@ class UpdateMyInterestsServiceTest {
             "빈 목록을 요청하면 외부 검증 없이 모든 관심 개념을 해제한다"
     )
     void clearAllInterests() {
-        UserInterestConcept firstInterest =
-                UserInterestConcept.create(
-                        USER_ID,
-                        FIRST_CONCEPT_ID
-                );
-
-        UserInterestConcept secondInterest =
-                UserInterestConcept.create(
-                        USER_ID,
-                        SECOND_CONCEPT_ID
-                );
-
         stubActiveUser();
         stubLockedActiveUser();
 
         when(
-                interestConceptRepository.findAllByUserId(
-                        USER_ID
+                interestConceptRepository.softDeleteAllByUserId(
+                        eq(USER_ID),
+                        eq(USER_ID),
+                        any(Instant.class)
                 )
-        ).thenReturn(
-                List.of(
-                        firstInterest,
-                        secondInterest
-                )
-        );
+        ).thenReturn(2);
 
         UpdateMyInterestsResult result =
                 updateMyInterestsService.updateMyInterests(
@@ -206,17 +192,10 @@ class UpdateMyInterestsServiceTest {
         );
 
         verify(interestConceptRepository)
-                .saveAllAndFlush(
-                        argThat(
-                                interests ->
-                                        interests.size() == 2
-                                                && interests
-                                                .stream()
-                                                .allMatch(
-                                                        UserInterestConcept
-                                                                ::isDeleted
-                                                )
-                        )
+                .softDeleteAllByUserId(
+                        eq(USER_ID),
+                        eq(USER_ID),
+                        any(Instant.class)
                 );
 
         assertThat(result.interestConceptIds())
@@ -224,6 +203,9 @@ class UpdateMyInterestsServiceTest {
 
         assertThat(result.count())
                 .isZero();
+
+        assertThat(result.updatedAt())
+                .isNotNull();
     }
 
     @Test
@@ -443,16 +425,7 @@ class UpdateMyInterestsServiceTest {
     void emptyInterestsRemainIdempotentWithoutUpdatedAt() {
         stubActiveUser();
         stubLockedActiveUser();
-
-        when(
-                interestConceptRepository.findAllByUserId(
-                        USER_ID
-                )
-        ).thenReturn(
-                List.of()
-        );
-
-        UpdateMyInterestsResult result =
+UpdateMyInterestsResult result =
                 updateMyInterestsService.updateMyInterests(
                         USER_ID,
                         new UpdateMyInterestsCommand(

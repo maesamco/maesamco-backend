@@ -178,7 +178,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -245,7 +245,7 @@ class LoginServiceTest {
                 );
 
         verify(userRepository)
-                .findByEmailLookupHash(
+                .findByEmailLookupHashForUpdate(
                         emailLookupHash
                 );
 
@@ -431,7 +431,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -535,7 +535,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -648,7 +648,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(

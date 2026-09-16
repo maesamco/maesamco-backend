@@ -76,6 +76,9 @@ class UserApiControllerUpdateMyProfileTest {
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
 
+    @MockitoBean
+    private WithdrawUserService withdrawUserService;
+
     @Test
     @DisplayName(
             "인증된 사용자가 내 정보를 수정하면 "

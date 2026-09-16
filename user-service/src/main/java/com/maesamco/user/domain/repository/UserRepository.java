@@ -55,6 +55,20 @@ public interface UserRepository {
     Optional<User> findByEmailLookupHash(String emailLookupHash);
 
     /**
+     * 이메일 조회용 해시로 사용자를 조회하면서
+     * 비관적 쓰기 잠금을 획득합니다.
+     *
+     * <p>회원 탈퇴와 로그인 요청이 동시에 실행될 때
+     * 동일 User 행을 기준으로 순서를 보장하기 위해 사용합니다.</p>
+     *
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
+     * @return 조회된 사용자, 존재하지 않으면 빈 Optional
+     */
+    Optional<User> findByEmailLookupHashForUpdate(
+            String emailLookupHash
+    );
+
+    /**
      * 동일한 이메일 조회용 해시를 사용하는 사용자가 존재하는지 확인합니다.
      *
      * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시

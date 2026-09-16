@@ -304,7 +304,7 @@ class UpdateMyInterestsServiceIntegrationTest {
     @Test
     @DisplayName(
             "활성 상태의 동일한 사용자와 개념은 "
-                    + "V4 부분 UNIQUE 인덱스가 중복 저장을 차단한다"
+                    + "V5 부분 UNIQUE 인덱스가 중복 저장을 차단한다"
     )
     void rejectDuplicatedActiveInterest() {
         // given

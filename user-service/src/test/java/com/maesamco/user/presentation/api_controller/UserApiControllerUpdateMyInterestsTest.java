@@ -6,6 +6,7 @@ import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyInterestsResult;
 import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileService;
+import com.maesamco.user.application.service.WithdrawUserService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -39,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * UserApiController??愿??媛쒕뀗 ?ㅼ젙 HTTP 怨꾩빟??寃利앺빀?덈떎.
+ * UserApiController의 관심 개념 설정 HTTP 계약을 검증합니다.
  */
 @WebMvcTest(
         value = UserApiController.class,
@@ -88,10 +89,13 @@ class UserApiControllerUpdateMyInterestsTest {
     @MockitoBean
     private ChangePasswordRetryService changePasswordRetryService;
 
+    @MockitoBean
+    private WithdrawUserService withdrawUserService;
+
     @Test
     @DisplayName(
-            "?몄쬆???ъ슜?먭? 愿??媛쒕뀗???ㅼ젙?섎㈃ "
-                    + "200怨?理쒖쥌 愿??媛쒕뀗 紐⑸줉??諛섑솚?쒕떎"
+            "인증된 사용자가 관심 개념을 설정하면 "
+                    + "200과 최종 관심 개념 목록을 반환한다"
     )
     void updateMyInterests() throws Exception {
         UpdateMyInterestsCommand command =
@@ -153,7 +157,7 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "鍮?諛곗뿴???꾨떖?섎㈃ 愿??媛쒕뀗 ?꾩껜 ?댁젣 寃곌낵瑜?諛섑솚?쒕떎"
+            "빈 배열을 전달하면 관심 개념 전체 해제 결과를 반환한다"
     )
     void clearMyInterests() throws Exception {
         UpdateMyInterestsCommand command =
@@ -209,8 +213,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "conceptIds ?꾨뱶媛 ?꾨씫?섎㈃ "
-                    + "400 INVALID_INPUT_VALUE瑜?諛섑솚?쒕떎"
+            "conceptIds 필드가 누락되면 "
+                    + "400 INVALID_INPUT_VALUE를 반환한다"
     )
     void missingConceptIds() throws Exception {
         mockMvc.perform(
@@ -237,8 +241,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "conceptIds??null???꾨떖?섎㈃ "
-                    + "400 INVALID_INPUT_VALUE瑜?諛섑솚?쒕떎"
+            "conceptIds에 null을 전달하면 "
+                    + "400 INVALID_INPUT_VALUE를 반환한다"
     )
     void nullConceptIds() throws Exception {
         mockMvc.perform(
@@ -265,8 +269,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "UUID ?뺤떇???꾨땶 媛쒕뀗 ID瑜??꾨떖?섎㈃ "
-                    + "400 INVALID_INPUT_VALUE瑜?諛섑솚?쒕떎"
+            "UUID 형식이 아닌 개념 ID를 전달하면 "
+                    + "400 INVALID_INPUT_VALUE를 반환한다"
     )
     void invalidConceptIdFormat() throws Exception {
         mockMvc.perform(
@@ -295,8 +299,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "?섏젙?????녿뒗 userId瑜??꾨떖?섎㈃ "
-                    + "400 INVALID_INPUT_VALUE濡?嫄곕??쒕떎"
+            "수정할 수 없는 userId를 전달하면 "
+                    + "400 INVALID_INPUT_VALUE로 거부한다"
     )
     void protectedUserIdField() throws Exception {
         mockMvc.perform(
@@ -325,8 +329,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "?몄쬆 ?뺣낫 ?놁씠 ?붿껌?섎㈃ "
-                    + "401 AUTH_UNAUTHORIZED瑜?諛섑솚?쒕떎"
+            "인증 정보 없이 요청하면 "
+                    + "401 AUTH_UNAUTHORIZED를 반환한다"
     )
     void missingAuthentication() throws Exception {
         mockMvc.perform(
@@ -353,8 +357,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "?몄쬆 principal??UUID媛 ?꾨땲硫?"
-                    + "401 AUTH_INVALID_TOKEN??諛섑솚?쒕떎"
+            "인증 principal이 UUID가 아니면 "
+                    + "401 AUTH_INVALID_TOKEN을 반환한다"
     )
     void invalidAuthenticationPrincipal() throws Exception {
         UsernamePasswordAuthenticationToken token =
@@ -391,8 +395,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "?ъ슜?????녿뒗 媛쒕뀗???ы븿?섎㈃ "
-                    + "404 CONCEPT_NOT_FOUND瑜?諛섑솚?쒕떎"
+            "사용할 수 없는 개념이 포함되면 "
+                    + "404 CONCEPT_NOT_FOUND를 반환한다"
     )
     void conceptNotFound() throws Exception {
         stubServiceFailure(
@@ -415,8 +419,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "Content Service ?곕룞???ㅽ뙣?섎㈃ "
-                    + "503 CONTENT_SERVICE_UNAVAILABLE??諛섑솚?쒕떎"
+            "Content Service 연동에 실패하면 "
+                    + "503 CONTENT_SERVICE_UNAVAILABLE을 반환한다"
     )
     void contentServiceUnavailable() throws Exception {
         stubServiceFailure(
@@ -441,8 +445,8 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @Test
     @DisplayName(
-            "?쒖꽦 ?곹깭媛 ?꾨땶 ?ъ슜?먮뒗 "
-                    + "403 USER_NOT_ACTIVE瑜?諛섑솚?쒕떎"
+            "활성 상태가 아닌 사용자는 "
+                    + "403 USER_NOT_ACTIVE를 반환한다"
     )
     void inactiveUser() throws Exception {
         stubServiceFailure(
@@ -540,4 +544,3 @@ class UserApiControllerUpdateMyInterestsTest {
         }
     }
 }
-

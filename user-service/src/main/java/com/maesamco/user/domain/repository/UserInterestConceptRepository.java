@@ -2,6 +2,7 @@ package com.maesamco.user.domain.repository;
 
 import com.maesamco.user.domain.entity.UserInterestConcept;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,6 +59,20 @@ public interface UserInterestConceptRepository {
      */
     List<UserInterestConcept> findAllByUserId(
             UUID userId
+    );
+
+    /**
+     * 사용자의 활성 관심 개념을 모두 논리 삭제합니다.
+     *
+     * @param userId 사용자 식별자
+     * @param deletedBy 삭제 행위자
+     * @param deletedAt 삭제 시각
+     * @return 논리 삭제한 관심 개념 수
+     */
+    int softDeleteAllByUserId(
+            UUID userId,
+            UUID deletedBy,
+            Instant deletedAt
     );
 
     /**
