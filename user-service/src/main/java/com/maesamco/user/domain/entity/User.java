@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 사용자 정보를 관리하는 User 도메인의 Aggregate Root입니다.
@@ -29,12 +30,27 @@ public class User extends BaseEntity {
      */
     private static final int EMAIL_LOOKUP_HASH_LENGTH = 64;
 
+    private static final int NICKNAME_MIN_LENGTH = 2;
+
+    private static final int NICKNAME_MAX_LENGTH = 20;
+
+    private static final Pattern NICKNAME_PATTERN =
+            Pattern.compile("^[가-힣A-Za-z0-9]+$");
+
     /**
      * 사용자 식별자입니다.
      */
     @Id
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
+
+    /**
+     * 사용자 정보 동시 수정 충돌을 감지하기 위한
+     * 낙관적 락 버전입니다.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     /**
      * 암호화된 이메일입니다.
@@ -204,15 +220,25 @@ public class User extends BaseEntity {
     }
 
     /**
-     * 닉네임의 앞뒤 공백을 제거하고 필수값과 최대 길이를 검증합니다.
+     * 닉네임의 앞뒤 공백을 제거하고 길이와 허용 문자를 검증합니다.
      */
     private static String validateNickname(String nickname) {
         String value = requireText(nickname, "닉네임은 필수입니다.").trim();
 
-        if (value.length() > 50) {
+        if (
+                value.length() < NICKNAME_MIN_LENGTH
+                        || value.length() > NICKNAME_MAX_LENGTH
+        ) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "닉네임은 50자 이하여야 합니다."
+                    "닉네임은 2자 이상 20자 이하여야 합니다."
+            );
+        }
+
+        if (!NICKNAME_PATTERN.matcher(value).matches()) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "닉네임은 한글, 영문, 숫자만 사용할 수 있습니다."
             );
         }
 
@@ -283,5 +309,16 @@ public class User extends BaseEntity {
         }
 
         return value;
+    }
+
+    /**
+     * 정상 이용 상태의 사용자인지 확인합니다.
+     */
+    public void assertActive() {
+        if (status != UserStatus.ACTIVE) {
+            throw new BusinessException(
+                    ErrorCode.USER_NOT_ACTIVE
+            );
+        }
     }
 }

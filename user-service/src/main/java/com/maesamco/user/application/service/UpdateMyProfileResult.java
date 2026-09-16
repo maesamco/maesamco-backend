@@ -11,10 +11,10 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * 로그인 사용자의 기본 정보 조회 결과입니다.
+ * 로그인 사용자 기본 정보 수정 결과입니다.
  *
  * <p>비밀번호 해시와 인증 토큰 등 민감한 인증 정보는
- * 조회 결과에 포함하지 않습니다.</p>
+ * 수정 결과에 포함하지 않습니다.</p>
  *
  * @param userId 사용자 식별자
  * @param email 복호화된 사용자 이메일
@@ -26,10 +26,10 @@ import java.util.UUID;
  * @param createdAt 사용자 가입 일시
  */
 @Schema(
-        name = "GetMyProfileResult",
-        description = "로그인 사용자의 기본 정보"
+        name = "UpdateMyProfileResult",
+        description = "수정된 로그인 사용자의 기본 정보"
 )
-public record GetMyProfileResult(
+public record UpdateMyProfileResult(
 
         @Schema(
                 description = "사용자 식별자",
@@ -89,9 +89,9 @@ public record GetMyProfileResult(
 ) {
 
     /**
-     * 조회 결과의 필수값과 학습 경험 개월 수를 검증합니다.
+     * 수정 결과의 필수값과 학습 경험 개월 수를 검증합니다.
      */
-    public GetMyProfileResult {
+    public UpdateMyProfileResult {
         Objects.requireNonNull(
                 userId,
                 "사용자 식별자는 필수입니다."
@@ -128,7 +128,14 @@ public record GetMyProfileResult(
         }
     }
 
-    public static GetMyProfileResult from(
+    /**
+     * 사용자 엔티티와 복호화된 이메일로 수정 결과를 생성합니다.
+     *
+     * @param user 수정이 완료된 사용자
+     * @param email 복호화된 사용자 이메일
+     * @return 사용자 기본 정보 수정 결과
+     */
+    public static UpdateMyProfileResult from(
             User user,
             String email
     ) {
@@ -137,7 +144,7 @@ public record GetMyProfileResult(
                 "사용자는 필수입니다."
         );
 
-        return new GetMyProfileResult(
+        return new UpdateMyProfileResult(
                 user.getId(),
                 email,
                 user.getNickname(),
@@ -154,7 +161,7 @@ public record GetMyProfileResult(
      */
     @Override
     public String toString() {
-        return "GetMyProfileResult["
+        return "UpdateMyProfileResult["
                 + "userId=" + userId
                 + ", email=[PROTECTED]"
                 + ", nickname=" + nickname
