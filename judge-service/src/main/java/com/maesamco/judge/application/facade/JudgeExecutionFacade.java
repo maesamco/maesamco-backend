@@ -14,6 +14,7 @@ import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -37,6 +38,9 @@ public class JudgeExecutionFacade {
         Optional<JudgeExecutionPreparation> preparation;
         try {
             preparation = judgeExecutionPersistenceService.prepareForExecution(submissionId);
+            } catch (ObjectOptimisticLockingFailureException e) {
+                log.info("[Judge] 다른 워커가 이미 처리 중 — 낙관적 락 충돌로 스킵. submissionId={}", submissionId);
+                return;
         } catch (BusinessException e) {
             if(isNonRetryable(e.getErrorCode())) {
                 log.error("[Judge] 실행 준비 단계에서 재시도 불가능한 오류 발생 - FAILED 처리, submissionId={}, errorCode={}",

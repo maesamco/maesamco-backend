@@ -30,6 +30,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -305,6 +306,21 @@ class JudgeExecutionFacadeTest {
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
             verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
+        }
+
+        @Test
+        @DisplayName("prepareForExecution이 낙관적 락 충돌을 던지면 상태/재시도 카운트를 건드리지 않고 조용히 스킵한다")
+        void skipsWhenPrepareForExecutionThrowsOptimisticLockingFailure() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            com.maesamco.judge.domain.entity.Submission.class, submissionId));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+            verify(judgeExecutionPort, never()).submitBatch(any());
         }
     }
 }
