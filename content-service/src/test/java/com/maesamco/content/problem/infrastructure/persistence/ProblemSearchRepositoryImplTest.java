@@ -1,8 +1,9 @@
 package com.maesamco.content.problem.infrastructure.persistence;
 
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.enums.*;
-import com.maesamco.content.problem.presentation.dto.request.ProblemSearchRequest;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.infrastructure.problem.persistence.ProblemSearchRepositoryImpl;
+import com.maesamco.content.presentation.problem.dto.request.ProblemSearchRequest;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;

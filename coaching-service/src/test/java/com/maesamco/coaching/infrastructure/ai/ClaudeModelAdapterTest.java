@@ -77,21 +77,33 @@ class ClaudeModelAdapterTest {
         assertThat(AopUtils.isAopProxy(claudeModelAdapter)).isTrue();
     }
 
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 실제 호출이 있었던 경우는 neverCalled()=false여야
+     * FeedbackGenerationFacade 등이 이 시도를 SKIPPED가 아닌 INFRA_FAILED로 기록한다.
+     */
     @Test
     void 서킷이_닫혀있으면_호출_실패가_AiModelCallException으로_그대로_전파된다() {
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("네트워크 오류"));
 
         assertThatThrownBy(() -> claudeModelAdapter.generate("system", "user"))
-                .isInstanceOf(AiModelCallException.class);
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(false);
     }
 
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 서킷오픈으로 chatModel.call() 자체가 실행 안 된
+     * 경우는 neverCalled()=true여야 SKIPPED로 기록된다.
+     */
     @Test
     void 서킷을_강제로_열면_실제_호출_없이_폴백이_AiModelCallException으로_응답한다() {
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("ai-model");
         circuitBreaker.transitionToForcedOpenState();
 
         assertThatThrownBy(() -> claudeModelAdapter.generate("system", "user"))
-                .isInstanceOf(AiModelCallException.class);
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(true);
 
         // 서킷이 열려있었으니 chatModel은 실제로 호출되지 않았어야 한다
         verifyNoInteractions(chatModel);
@@ -103,7 +115,7 @@ class ClaudeModelAdapterTest {
         // response.getResult() 단계에서 NPE가 나는 상황을 재현한다. CircuitBreaker의
         // fallbackMethod는 서킷 상태와 무관하게 generate()가 던지는 모든 예외를 가로채므로,
         // 이 NPE도 generateFallback()으로 들어간다 — CallNotPermittedException이 아니므로
-        // AiModelCallException(circuitOpen=true)으로 잘못 감싸지 않고 원본 그대로
+        // AiModelCallException으로 잘못 감싸지 않고 원본 그대로
         // 다시 던져져야 한다(GlobalExceptionHandler의 500 안전망으로 가야 정상).
         when(chatModel.call(any(Prompt.class))).thenReturn(null);
 

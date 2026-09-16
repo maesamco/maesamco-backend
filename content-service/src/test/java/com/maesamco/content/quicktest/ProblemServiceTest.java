@@ -1,14 +1,14 @@
 package com.maesamco.content.quicktest;
 
-import com.maesamco.content.problem.application.port.ProblemFinder;
-import com.maesamco.content.problem.application.service.ProblemService;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemVersion;
-import com.maesamco.content.problem.domain.enums.*;
-import com.maesamco.content.problem.domain.repository.ProblemRepository;
-import com.maesamco.content.problem.domain.repository.ProblemVersionRepository;
-import com.maesamco.content.problem.presentation.dto.request.ProblemUpdateRequest;
-import com.maesamco.content.problem.presentation.dto.response.ProblemResponse;
+import com.maesamco.content.application.problem.port.ProblemFinder;
+import com.maesamco.content.application.problem.service.ProblemService;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemVersion;
+import com.maesamco.content.domain.problem.enums.*;
+import com.maesamco.content.domain.problem.repository.ProblemRepository;
+import com.maesamco.content.domain.problem.repository.ProblemVersionRepository;
+import com.maesamco.content.presentation.problem.dto.request.ProblemUpdateRequest;
+import com.maesamco.content.presentation.problem.dto.response.ProblemResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -113,12 +113,16 @@ public class AiFeedbackRetryFacade {
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
         // 자가 리뷰(P1) — 세션이 아직 완료 전이면 completedAt이 null이라
-        // findCompletionExplanation()의 Duration.between()에서 NPE가 난다. 완료 전이면
-        // 애초에 피드백 생성 시도 자체가 없었던 상태이므로 AI_FEEDBACK_NOT_FOUND(404)로
-        // 응답한다 — 새 ErrorCode를 만들 필요 없이 "아직 생성된 피드백이 없다"는 의미가
-        // 그대로 맞는다.
+        // findCompletionExplanation()의 Duration.between()에서 NPE가 난다.
+        //
+        // PR #182 리뷰(용현님 P2) 대응 — 예전엔 이 경우도 AI_FEEDBACK_NOT_FOUND(404)로
+        // 응답했는데, AiFeedbackQueryService(GET 피드백 조회)는 완전히 같은 "세션 미완료"
+        // 상태를 AI_FEEDBACK_NOT_STARTED로 응답하고 있어서 두 엔드포인트 간 불일치가
+        // 있었다. 게다가 AI_FEEDBACK_NOT_FOUND의 메시지가 "잠시 후 다시 시도해주세요"로
+        // 바뀌면서(이슈 #173), 세션이 끝나기 전엔 몇 번을 재시도해도 소용없는 이 경우에
+        // 재시도를 권하는 문구가 나가는 문제도 있었다. 이미 있는 전용 코드로 맞춘다.
         if (!session.isCompleted()) {
-            throw new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND);
+            throw new BusinessException(ErrorCode.AI_FEEDBACK_NOT_STARTED);
         }
 
         // 재검증(PR #111, 외부 AI 리뷰) — 재시도 횟수 체크부터 LLM 호출·이력 저장까지
@@ -148,12 +152,17 @@ public class AiFeedbackRetryFacade {
             throw new BusinessException(ErrorCode.AI_FEEDBACK_RETRY_LIMIT_EXCEEDED);
         }
 
+        // PR #182 리뷰(용현님 P2) 대응 — 세션이 이미 완료된 상태에서 이 선행 데이터들이
+        // 없는 건 "아직 준비 안 됨"이 아니라 데이터 정합성 이상이다(완료됐다는 건 역질문
+        // 답변 등록까지 끝났다는 뜻이라 정상 흐름이면 항상 있어야 함). AI_FEEDBACK_NOT_FOUND
+        // 의 "잠시 후 다시 시도해주세요"는 재시도해도 해결 안 되는 상태를 재시도하라고
+        // 잘못 안내하므로 전용 코드로 분리한다.
         Explanation explanation = findCompletionExplanation(session);
         FollowUpQuestion followUpQuestion = followUpQuestionRepository.findByExplanationId(explanation.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING));
         FollowUpAnswer followUpAnswer =
                 followUpAnswerRepository.findByFollowUpQuestionId(followUpQuestion.getId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND));
+                        .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING));
 
         feedbackGenerationFacade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
 
@@ -177,11 +186,14 @@ public class AiFeedbackRetryFacade {
     private Explanation findCompletionExplanation(CoachingSession session) {
         List<Explanation> candidates = explanationRepository.findByCoachingSessionId(session.getId());
 
+        // PR #182 리뷰(용현님 P2) 대응 — 세션은 완료됐는데 완료 시점 이전 Explanation
+        // 후보가 하나도 없는 건 위 followUpQuestion/followUpAnswer 누락과 같은 성격의
+        // 데이터 정합성 이상이다 — AI_FEEDBACK_PREREQUISITE_MISSING으로 통일한다.
         return candidates.stream()
                 .filter(candidate -> !candidate.getCreatedAt().isAfter(session.getCompletedAt()))
                 .min(Comparator.comparing(candidate ->
                         Duration.between(candidate.getCreatedAt(), session.getCompletedAt())
                 ))
-                .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING));
     }
 }

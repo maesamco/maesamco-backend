@@ -383,6 +383,58 @@ class AuthApiControllerTest {
 
     @Test
     @DisplayName(
+            "회원가입 요청에서 Java 경험 개월 수가 누락되면 "
+                    + "400 INVALID_INPUT_VALUE를 반환한다"
+    )
+    void signUp_missingJavaExperienceMonths()
+            throws Exception {
+
+        // given
+        String requestBody = """
+            {
+              "email": "learner@example.com",
+              "signupToken": "signup-token",
+              "password": "Abcd1234!",
+              "nickname": "김티암",
+              "learningLevel": "BEGINNER"
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/auth/signup")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(requestBody)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value("INVALID_INPUT_VALUE")
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors"
+                                        + "[?(@.field == "
+                                        + "'javaExperienceMonths')]"
+                        ).exists()
+                );
+
+        verify(
+                signUpService,
+                never()
+        ).signUp(any());
+    }
+
+    @Test
+    @DisplayName(
             "비밀번호 검증 실패 시 400을 반환하고 "
                     + "비밀번호 원문은 노출하지 않는다"
     )

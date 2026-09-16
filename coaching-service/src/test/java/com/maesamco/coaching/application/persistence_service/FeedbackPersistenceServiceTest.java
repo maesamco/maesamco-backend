@@ -114,7 +114,7 @@ class FeedbackPersistenceServiceTest {
         CoachingSession session = createSession(userId);
 
         feedbackPersistenceService.saveFeedback(
-                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 30,
+                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 1500, 30,
                 array("반복문"), array("경계값"), array("재귀"), array("변수명"), array("이분탐색"), "재귀를 복습하세요"
         );
 
@@ -136,7 +136,7 @@ class FeedbackPersistenceServiceTest {
         weakConceptRepository.save(WeakConcept.create(userId, "재귀"));
 
         feedbackPersistenceService.saveFeedback(
-                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 30,
+                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 1500, 30,
                 array("반복문"), array(), array("재귀"), array(), array(), null
         );
 
@@ -159,7 +159,7 @@ class FeedbackPersistenceServiceTest {
         String tooLongTag = "가".repeat(51);
 
         assertThatThrownBy(() -> feedbackPersistenceService.saveFeedback(
-                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 30,
+                session.getId(), userId, "claude-sonnet-5", "feedback-v1", 1500, 30,
                 array("반복문"), array(), array(tooLongTag), array(), array(), null
         )).isInstanceOfSatisfying(BusinessException.class, e ->
                 assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE)

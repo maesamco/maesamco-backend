@@ -85,5 +85,21 @@ class SubmissionInternalControllerTest {
                             .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isNotFound());
         }
+
+        // ⚠️ P2 리뷰(이슈 #185) — 이 클래스는 @WebMvcTest + 실제 InternalCallerAuthorizationConfig가
+        // 배선된 상태로 도는 judge-service의 유일한 테스트인데, 지금까지 허용된 호출자
+        // 헤더만 보내고 거부 케이스가 없었다. SubmissionInternalControllerAuthorizationTest는
+        // 인터셉터를 직접 새로 만들어 끼우는 방식이라, InternalCallerAuthorizationConfig
+        // (실제 앱에서 인터셉터를 배선하는 진짜 설정 클래스) 자체가 judge-service에서
+        // 거부 상황까지 실제로 관통되는지는 검증된 적이 없었다. 이 테스트로 그 공백을 메운다.
+        @Test
+        @DisplayName("허용되지 않은 호출자 헤더면 실제 Config 배선을 통해서도 403을 반환한다")
+        void returns403WhenCallerNotAllowed() throws Exception {
+            UUID submissionId = UUID.randomUUID();
+
+            mockMvc.perform(get("/internal/v1/submissions/{submissionId}", submissionId)
+                            .header(InternalCallHeaders.SERVICE, "some-other-service"))
+                    .andExpect(status().isForbidden());
+        }
     }
 }
