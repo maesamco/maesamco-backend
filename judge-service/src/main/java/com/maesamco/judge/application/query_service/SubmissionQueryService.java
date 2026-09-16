@@ -3,6 +3,7 @@ package com.maesamco.judge.application.query_service;
 import com.maesamco.judge.application.query.SubmissionGetQuery;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.application.result.SubmissionInternalGetResult;
+import com.maesamco.judge.application.result.SubmissionSummaryResult;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
@@ -14,7 +15,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import com.maesamco.judge.global.response.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,5 +54,12 @@ public class SubmissionQueryService {
                 : Collections.emptyList();
 
         return SubmissionExternalGetResult.of(submission, testResults);
+    }
+
+    public PageResponse<SubmissionSummaryResult> getSubmissions(UUID userId, UUID problemId, Pageable pageable) {
+        Page<Submission> submissions = (problemId != null)
+                ? submissionRepository.findByUserIdAndProblemId(userId, problemId, pageable)
+                : submissionRepository.findByUserId(userId, pageable);
+        return PageResponse.from(submissions, SubmissionSummaryResult::from);
     }
 }

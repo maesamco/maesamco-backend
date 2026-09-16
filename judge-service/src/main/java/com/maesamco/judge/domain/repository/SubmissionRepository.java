@@ -2,6 +2,7 @@ package com.maesamco.judge.domain.repository;
 
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +29,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             nativeQuery = true)
     List<Submission> findByStatusOrderBySubmittedAtAscForUpdateSkipLocked(
             @Param("status") String status, @Param("limit") int limit);
+
+    Page<Submission> findByUserId(UUID userId, Pageable pageable);
+
+    Page<Submission> findByUserIdAndProblemId(UUID userId, UUID problemId, Pageable pageable);
 }
