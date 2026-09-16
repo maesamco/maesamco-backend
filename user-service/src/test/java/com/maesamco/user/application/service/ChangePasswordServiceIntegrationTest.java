@@ -7,6 +7,8 @@ import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.infrastructure.persistence.UserRepositoryImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,13 +27,22 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
+import org.springframework.dao.OptimisticLockingFailureException;
+
+import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 /**
  * 비밀번호 변경 서비스의 실제 PostgreSQL 연동과
@@ -219,5 +230,240 @@ class ChangePasswordServiceIntegrationTest {
 
         when(clock.instant())
                 .thenReturn(NOW);
+    }
+
+    @Test
+    @DisplayName(
+            "같은 사용자의 비밀번호를 동시에 변경하면 "
+                    + "낙관적 락으로 한 요청만 성공한다"
+    )
+    void changePassword_concurrentRequestsDetectConflict()
+            throws Exception {
+        // given
+        User user = createUser(
+                "c".repeat(64),
+                "ConcurrentPassword"
+        );
+
+        String firstNewPassword =
+                "Firstpass123!";
+
+        String secondNewPassword =
+                "Secondpass123!";
+
+        String firstNewPasswordHash =
+                "first-new-password-hash";
+
+        String secondNewPasswordHash =
+                "second-new-password-hash";
+
+        CountDownLatch currentPasswordCheckLatch =
+                new CountDownLatch(2);
+
+        when(
+                passwordHasher.matches(
+                        anyString(),
+                        eq(OLD_PASSWORD_HASH)
+                )
+        ).thenAnswer(invocation -> {
+            String rawPassword =
+                    invocation.getArgument(0);
+
+            if (CURRENT_PASSWORD.equals(rawPassword)) {
+                currentPasswordCheckLatch.countDown();
+
+                if (!currentPasswordCheckLatch.await(
+                        5,
+                        TimeUnit.SECONDS
+                )) {
+                    throw new AssertionError(
+                            "두 비밀번호 변경 요청이 동시에 준비되지 않았습니다."
+                    );
+                }
+
+                return true;
+            }
+
+            return false;
+        });
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenReturn(EMAIL);
+
+        when(passwordHasher.hash(firstNewPassword))
+                .thenReturn(firstNewPasswordHash);
+
+        when(passwordHasher.hash(secondNewPassword))
+                .thenReturn(secondNewPasswordHash);
+
+        when(clock.instant())
+                .thenReturn(NOW);
+
+        ChangePasswordCommand firstCommand =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        firstNewPassword
+                );
+
+        ChangePasswordCommand secondCommand =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        secondNewPassword
+                );
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Throwable> firstFuture =
+                    executorService.submit(() -> {
+                        try {
+                            changePasswordService.changePassword(
+                                    user.getId(),
+                                    firstCommand
+                            );
+
+                            return null;
+                        } catch (Throwable throwable) {
+                            return throwable;
+                        }
+                    });
+
+            Future<Throwable> secondFuture =
+                    executorService.submit(() -> {
+                        try {
+                            changePasswordService.changePassword(
+                                    user.getId(),
+                                    secondCommand
+                            );
+
+                            return null;
+                        } catch (Throwable throwable) {
+                            return throwable;
+                        }
+                    });
+
+            Throwable firstFailure =
+                    firstFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    );
+
+            Throwable secondFailure =
+                    secondFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    );
+
+            long failureCount =
+                    java.util.stream.Stream.of(
+                                    firstFailure,
+                                    secondFailure
+                            )
+                            .filter(Objects::nonNull)
+                            .count();
+
+            assertThat(failureCount)
+                    .isEqualTo(1);
+
+            Throwable optimisticLockFailure =
+                    firstFailure != null
+                            ? firstFailure
+                            : secondFailure;
+
+            assertThat(optimisticLockFailure)
+                    .isInstanceOf(
+                            OptimisticLockingFailureException.class
+                    );
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "동일한 비밀번호 변경 요청을 반복하면 "
+                    + "첫 요청만 반영되고 두 번째 요청은 거부한다"
+    )
+    void changePassword_repeatedRequestIsSafelyRejected() {
+        // given
+        User user = createUser(
+                "d".repeat(64),
+                "RepeatedPassword"
+        );
+
+        when(
+                passwordHasher.matches(
+                        CURRENT_PASSWORD,
+                        OLD_PASSWORD_HASH
+                )
+        ).thenReturn(true);
+
+        when(
+                passwordHasher.matches(
+                        NEW_PASSWORD,
+                        OLD_PASSWORD_HASH
+                )
+        ).thenReturn(false);
+
+        when(
+                passwordHasher.matches(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD_HASH
+                )
+        ).thenReturn(false);
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenReturn(EMAIL);
+
+        when(passwordHasher.hash(NEW_PASSWORD))
+                .thenReturn(NEW_PASSWORD_HASH);
+
+        when(clock.instant())
+                .thenReturn(NOW);
+
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        // when
+        changePasswordService.changePassword(
+                user.getId(),
+                command
+        );
+
+        // then
+        assertThatThrownBy(
+                () -> changePasswordService.changePassword(
+                        user.getId(),
+                        command
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(
+                                        exception.getErrorCode()
+                                ).isEqualTo(
+                                        ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
+                                )
+                );
+
+        User updatedUser = userRepository
+                .findById(user.getId())
+                .orElseThrow();
+
+        assertThat(updatedUser.getPasswordHash())
+                .isEqualTo(NEW_PASSWORD_HASH);
+
+        verify(
+                authSessionLogoutAllStore,
+                times(1)
+        ).logoutAll(
+                user.getId(),
+                NOW
+        );
     }
 }

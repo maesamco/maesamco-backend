@@ -71,7 +71,7 @@ class UserApiControllerUpdateMyProfileTest {
     private GetMyProfileService getMyProfileService;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private ChangePasswordRetryService changePasswordRetryService;
 
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
@@ -370,6 +370,30 @@ class UserApiControllerUpdateMyProfileTest {
 
     @Test
     @DisplayName(
+            "동시 수정 충돌이 발생하면 "
+                    + "409 USER_PROFILE_UPDATE_CONFLICT를 반환한다"
+    )
+    void profileUpdateConflict() throws Exception {
+        stubServiceFailure(
+                ErrorCode.USER_PROFILE_UPDATE_CONFLICT
+        );
+
+        mockMvc.perform(
+                        authenticatedRequest()
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_PROFILE_UPDATE_CONFLICT"
+                                )
+                );
+    }
+
+    @Test
+    @DisplayName(
             "활성 상태가 아닌 사용자는 "
                     + "403 USER_NOT_ACTIVE를 반환한다"
     )
@@ -462,8 +486,8 @@ class UserApiControllerUpdateMyProfileTest {
                 """;
     }
 
-    private GetMyProfileResult createResult() {
-        return new GetMyProfileResult(
+    private UpdateMyProfileResult createResult() {
+        return new UpdateMyProfileResult(
                 USER_ID,
                 "learner@example.com",
                 "새닉네임",

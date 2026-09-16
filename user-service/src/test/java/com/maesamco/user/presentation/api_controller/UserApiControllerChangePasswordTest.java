@@ -23,19 +23,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * UserApiController의 비밀번호 변경 HTTP 계약을 검증합니다.
@@ -69,7 +61,7 @@ class UserApiControllerChangePasswordTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChangePasswordService changePasswordService;
+    private ChangePasswordRetryService changePasswordRetryService;
 
     @MockitoBean
     private GetMyProfileService getMyProfileService;
@@ -142,13 +134,16 @@ class UserApiControllerChangePasswordTest {
                         content().string("")
                 );
 
-        verify(changePasswordService)
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        verify(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
-                        new ChangePasswordCommand(
-                                CURRENT_PASSWORD,
-                                NEW_PASSWORD
-                        )
+                        command
                 );
     }
 
@@ -188,7 +183,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -237,7 +232,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -297,7 +292,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -370,7 +365,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -415,7 +410,7 @@ class UserApiControllerChangePasswordTest {
                 );
 
         verifyNoInteractions(
-                changePasswordService
+                changePasswordRetryService
         );
     }
 
@@ -437,7 +432,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_CURRENT_PASSWORD_MISMATCH
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
@@ -494,7 +489,7 @@ class UserApiControllerChangePasswordTest {
                         ErrorCode.USER_PASSWORD_POLICY_VIOLATION
                 )
         )
-                .when(changePasswordService)
+                .when(changePasswordRetryService)
                 .changePassword(
                         USER_ID,
                         command
@@ -579,5 +574,62 @@ class UserApiControllerChangePasswordTest {
 
             return http.build();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "비밀번호 변경 중 동시 수정 충돌이 지속되면 "
+                    + "409 USER_PASSWORD_CHANGE_CONFLICT를 반환한다"
+    )
+    void passwordChangeConflict() throws Exception {
+        // given
+        ChangePasswordCommand command =
+                new ChangePasswordCommand(
+                        CURRENT_PASSWORD,
+                        NEW_PASSWORD
+                );
+
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_PASSWORD_CHANGE_CONFLICT
+                )
+        )
+                .when(changePasswordRetryService)
+                .changePassword(
+                        USER_ID,
+                        command
+                );
+
+        // when & then
+        mockMvc.perform(
+                        patch("/api/v1/users/me/password")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequest()
+                                )
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "USER_PASSWORD_CHANGE_CONFLICT"
+                                )
+                )
+                .andExpect(
+                        header().doesNotExist(
+                                HttpHeaders.SET_COOKIE
+                        )
+                );
     }
 }

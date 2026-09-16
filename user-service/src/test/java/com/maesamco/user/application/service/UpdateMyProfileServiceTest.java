@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -22,6 +23,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -71,9 +73,6 @@ class UpdateMyProfileServiceTest {
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
 
-        when(user.getStatus())
-                .thenReturn(UserStatus.ACTIVE);
-
         when(user.getNickname())
                 .thenReturn(
                         "기존닉네임",
@@ -92,7 +91,7 @@ class UpdateMyProfileServiceTest {
         stubUpdatedUserResult();
 
         // when
-        GetMyProfileResult result =
+        UpdateMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
                         USER_ID,
                         command
@@ -149,9 +148,6 @@ class UpdateMyProfileServiceTest {
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
 
-        when(user.getStatus())
-                .thenReturn(UserStatus.ACTIVE);
-
         when(user.getNickname())
                 .thenReturn("현재닉네임");
 
@@ -161,7 +157,7 @@ class UpdateMyProfileServiceTest {
         stubUpdatedUserResult();
 
         // when
-        GetMyProfileResult result =
+        UpdateMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
                         USER_ID,
                         command
@@ -188,6 +184,56 @@ class UpdateMyProfileServiceTest {
 
     @Test
     @DisplayName(
+            "현재 닉네임과 대소문자만 다르면 "
+                    + "중복 조회 없이 수정할 수 있다"
+    )
+    void updateMyProfile_allowsCurrentNicknameIgnoringCase() {
+        // given
+        UpdateMyProfileCommand command =
+                createCommand("ALICE");
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(user.getNickname())
+                .thenReturn(
+                        "Alice",
+                        "ALICE"
+                );
+
+        when(userRepository.save(user))
+                .thenReturn(user);
+
+        stubUpdatedUserResult();
+
+        // when
+        UpdateMyProfileResult result =
+                updateMyProfileService.updateMyProfile(
+                        USER_ID,
+                        command
+                );
+
+        // then
+        verify(
+                userRepository,
+                never()
+        ).existsByNicknameIgnoreCase(
+                "ALICE"
+        );
+
+        verify(user)
+                .updateProfile(
+                        "ALICE",
+                        6,
+                        LearningLevel.BASIC
+                );
+
+        assertThat(result.nickname())
+                .isEqualTo("ALICE");
+    }
+
+    @Test
+    @DisplayName(
             "다른 사용자가 닉네임을 사용 중이면 "
                     + "USER_DUPLICATE_NICKNAME을 반환한다"
     )
@@ -198,9 +244,6 @@ class UpdateMyProfileServiceTest {
 
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
-
-        when(user.getStatus())
-                .thenReturn(UserStatus.ACTIVE);
 
         when(user.getNickname())
                 .thenReturn("기존닉네임");
@@ -267,7 +310,9 @@ class UpdateMyProfileServiceTest {
                                 ((BusinessException) exception)
                                         .getErrorCode()
                 )
-                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+                .isEqualTo(
+                        ErrorCode.USER_NOT_FOUND
+                );
 
         verifyNoInteractions(
                 user,
@@ -284,8 +329,11 @@ class UpdateMyProfileServiceTest {
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
 
-        when(user.getStatus())
-                .thenReturn(UserStatus.SUSPENDED);
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_NOT_ACTIVE
+                )
+        ).when(user).assertActive();
 
         // when & then
         assertThatThrownBy(
@@ -300,7 +348,9 @@ class UpdateMyProfileServiceTest {
                                 ((BusinessException) exception)
                                         .getErrorCode()
                 )
-                .isEqualTo(ErrorCode.USER_NOT_ACTIVE);
+                .isEqualTo(
+                        ErrorCode.USER_NOT_ACTIVE
+                );
 
         verify(
                 userRepository,
@@ -313,6 +363,56 @@ class UpdateMyProfileServiceTest {
                 userRepository,
                 never()
         ).save(user);
+
+        verifyNoInteractions(emailCipher);
+    }
+
+    @Test
+    @DisplayName(
+            "동시 수정 충돌이 발생하면 "
+                    + "USER_PROFILE_UPDATE_CONFLICT를 반환한다"
+    )
+    void updateMyProfile_convertsOptimisticLockConflict() {
+        // given
+        UpdateMyProfileCommand command =
+                createCommand("새닉네임");
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(user.getNickname())
+                .thenReturn("기존닉네임");
+
+        when(
+                userRepository.existsByNicknameIgnoreCase(
+                        "새닉네임"
+                )
+        ).thenReturn(false);
+
+        when(userRepository.save(user))
+                .thenThrow(
+                        new ObjectOptimisticLockingFailureException(
+                                User.class,
+                                USER_ID
+                        )
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> updateMyProfileService.updateMyProfile(
+                        USER_ID,
+                        command
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(
+                                        exception.getErrorCode()
+                                ).isEqualTo(
+                                        ErrorCode.USER_PROFILE_UPDATE_CONFLICT
+                                )
+                );
 
         verifyNoInteractions(emailCipher);
     }
@@ -389,6 +489,9 @@ class UpdateMyProfileServiceTest {
 
         when(user.getRole())
                 .thenReturn(UserRole.USER);
+
+        when(user.getStatus())
+                .thenReturn(UserStatus.ACTIVE);
 
         when(user.getLearningLevel())
                 .thenReturn(LearningLevel.BASIC);

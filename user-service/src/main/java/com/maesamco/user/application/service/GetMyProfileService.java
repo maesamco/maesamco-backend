@@ -50,15 +50,9 @@ public class GetMyProfileService {
                 user.getEncryptedEmail()
         );
 
-        return new GetMyProfileResult(
-                user.getId(),
-                email,
-                user.getNickname(),
-                user.getRole(),
-                user.getStatus(),
-                user.getLearningLevel(),
-                user.getJavaExperienceMonths(),
-                user.getCreatedAt()
+        return GetMyProfileResult.from(
+                user,
+                email
         );
     }
 }

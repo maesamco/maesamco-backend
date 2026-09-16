@@ -173,4 +173,93 @@ class GetMyProfileServiceTest {
                 emailCipher
         );
     }
+
+    @Test
+    @DisplayName(
+            "SUSPENDED 사용자도 자신의 프로필과 정지 상태를 조회할 수 있다"
+    )
+    void getMyProfile_returnsSuspendedUserProfile() {
+        // given
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(user.getId())
+                .thenReturn(USER_ID);
+
+        when(user.getEncryptedEmail())
+                .thenReturn(ENCRYPTED_EMAIL);
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenReturn(EMAIL);
+
+        when(user.getNickname())
+                .thenReturn("김티암");
+
+        when(user.getRole())
+                .thenReturn(UserRole.USER);
+
+        when(user.getStatus())
+                .thenReturn(UserStatus.SUSPENDED);
+
+        when(user.getLearningLevel())
+                .thenReturn(LearningLevel.BEGINNER);
+
+        when(user.getJavaExperienceMonths())
+                .thenReturn(3);
+
+        when(user.getCreatedAt())
+                .thenReturn(CREATED_AT);
+
+        // when
+        GetMyProfileResult result =
+                getMyProfileService.getMyProfile(USER_ID);
+
+        // then
+        assertThat(result.status())
+                .isEqualTo(UserStatus.SUSPENDED);
+
+        assertThat(result.email())
+                .isEqualTo(EMAIL);
+
+        verify(userRepository)
+                .findById(USER_ID);
+
+        verify(emailCipher)
+                .decrypt(ENCRYPTED_EMAIL);
+    }
+
+    @Test
+    @DisplayName(
+            "이메일 복호화에 실패하면 예외를 그대로 전파한다"
+    )
+    void getMyProfile_propagatesEmailDecryptionFailure() {
+        // given
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(user.getEncryptedEmail())
+                .thenReturn(ENCRYPTED_EMAIL);
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenThrow(
+                        new IllegalStateException(
+                                "이메일 복호화에 실패했습니다."
+                        )
+                );
+
+        // when & then
+        assertThatThrownBy(
+                () -> getMyProfileService.getMyProfile(USER_ID)
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(
+                        "이메일 복호화에 실패했습니다."
+                );
+
+        verify(userRepository)
+                .findById(USER_ID);
+
+        verify(emailCipher)
+                .decrypt(ENCRYPTED_EMAIL);
+    }
 }

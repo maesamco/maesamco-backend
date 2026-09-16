@@ -3,7 +3,6 @@ package com.maesamco.user.application.service;
 import com.maesamco.user.application.port.ConceptValidationPort;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
-import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -361,8 +360,11 @@ class UpdateMyInterestsServiceTest {
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
 
-        when(user.getStatus())
-                .thenReturn(UserStatus.SUSPENDED);
+        doThrow(
+                new BusinessException(
+                        ErrorCode.USER_NOT_ACTIVE
+                )
+        ).when(user).assertActive();
 
         assertBusinessError(
                 () -> updateMyInterestsService
@@ -433,12 +435,59 @@ class UpdateMyInterestsServiceTest {
         );
     }
 
+    @Test
+    @DisplayName(
+            "관심 개념이 없는 상태에서 빈 목록을 다시 요청하면 "
+                    + "변경 시각은 null이다"
+    )
+    void emptyInterestsRemainIdempotentWithoutUpdatedAt() {
+        stubActiveUser();
+        stubLockedActiveUser();
+
+        when(
+                interestConceptRepository.findAllByUserId(
+                        USER_ID
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        UpdateMyInterestsResult result =
+                updateMyInterestsService.updateMyInterests(
+                        USER_ID,
+                        new UpdateMyInterestsCommand(
+                                List.of()
+                        )
+                );
+
+        verifyNoInteractions(
+                conceptValidationPort
+        );
+
+        verify(
+                interestConceptRepository,
+                never()
+        ).saveAllAndFlush(
+                org.mockito.ArgumentMatchers.anyList()
+        );
+
+        assertThat(result.interestConceptIds())
+                .isEmpty();
+
+        assertThat(result.count())
+                .isZero();
+
+        assertThat(result.updatedAt())
+                .isNull();
+    }
+
     private void stubActiveUser() {
         when(userRepository.findById(USER_ID))
                 .thenReturn(Optional.of(user));
 
-        when(user.getStatus())
-                .thenReturn(UserStatus.ACTIVE);
+        doNothing()
+                .when(user)
+                .assertActive();
     }
 
     private void assertBusinessError(

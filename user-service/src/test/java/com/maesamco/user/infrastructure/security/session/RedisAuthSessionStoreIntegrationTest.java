@@ -1,6 +1,8 @@
 package com.maesamco.user.infrastructure.security.session;
 
 import com.maesamco.user.application.port.*;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.security.JwtProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -360,6 +362,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ORIGINAL_REFRESH_TOKEN_HASH,
                         ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -409,6 +413,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ORIGINAL_REFRESH_TOKEN_HASH,
                         ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -466,6 +472,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult previousTokenResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ORIGINAL_REFRESH_TOKEN_HASH,
                         SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -501,6 +509,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult latestTokenResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ROTATED_REFRESH_TOKEN_HASH,
                         SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -553,6 +563,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult reuseResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ORIGINAL_REFRESH_TOKEN_HASH,
                         SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -593,6 +605,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult reuseResult =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         "unrelated-refresh-token-hash",
                         SECOND_ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -619,6 +633,8 @@ class RedisAuthSessionStoreIntegrationTest {
         AuthSessionRotationResult result =
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        USER_ID,
+                        NOW,
                         ORIGINAL_REFRESH_TOKEN_HASH,
                         ROTATED_REFRESH_TOKEN_HASH
                 );
@@ -654,6 +670,8 @@ class RedisAuthSessionStoreIntegrationTest {
 
                         return authSessionStore.rotateRefreshToken(
                                 SESSION_ID,
+                                USER_ID,
+                                NOW,
                                 ORIGINAL_REFRESH_TOKEN_HASH,
                                 ROTATED_REFRESH_TOKEN_HASH
                         );
@@ -666,6 +684,8 @@ class RedisAuthSessionStoreIntegrationTest {
 
                         return authSessionStore.rotateRefreshToken(
                                 SESSION_ID,
+                                USER_ID,
+                                NOW,
                                 ORIGINAL_REFRESH_TOKEN_HASH,
                                 SECOND_ROTATED_REFRESH_TOKEN_HASH
                         );
@@ -1132,9 +1152,10 @@ class RedisAuthSessionStoreIntegrationTest {
 
     @Test
     @DisplayName(
-            "전체 로그아웃 시 사용자 무효화 시각을 Access Token TTL 동안 저장한다"
+            "전체 로그아웃 시 사용자 무효화 시각을 "
+                    + "Refresh Token TTL 동안 저장한다"
     )
-    void logoutAll_storesUserInvalidatedAtWithAccessTokenTtl() {
+    void logoutAll_storesUserInvalidatedAtWithRefreshTokenTtl() {
         // given
         authSessionStore.save(
                 createSession()
@@ -1167,7 +1188,12 @@ class RedisAuthSessionStoreIntegrationTest {
 
         assertThat(remainingTtl)
                 .isBetween(
-                        ACCESS_TOKEN_TTL.toMillis() - 5_000L,
+                        SESSION_TTL.toMillis() - 5_000L,
+                        SESSION_TTL.toMillis()
+                );
+
+        assertThat(remainingTtl)
+                .isGreaterThan(
                         ACCESS_TOKEN_TTL.toMillis()
                 );
     }
@@ -1228,6 +1254,86 @@ class RedisAuthSessionStoreIntegrationTest {
 
     @Test
     @DisplayName(
+            "사용자 세션 인덱스에 없는 기존 세션도 "
+                    + "전체 로그아웃 이후 Refresh Token Rotation을 차단한다"
+    )
+    void rotateRefreshToken_rejectsLegacySessionInvalidatedByLogoutAll() {
+        // given
+        AuthSession legacySession =
+                createSession();
+
+        authSessionStore.save(
+                legacySession
+        );
+
+        /*
+         * 배포 이전에 생성되어
+         * user:{userId}:sessions 인덱스에 등록되지 않았던
+         * 기존 인증 세션을 재현합니다.
+         */
+        redisTemplate
+                .opsForSet()
+                .remove(
+                        USER_SESSION_INDEX_KEY,
+                        SESSION_ID.toString()
+                );
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SESSION_KEY
+                )
+        ).isTrue();
+
+        assertThat(
+                redisTemplate.hasKey(
+                        USER_SESSION_INDEX_KEY
+                )
+        ).isFalse();
+
+        Instant invalidatedAt =
+                NOW.plusMillis(1);
+
+        authSessionLogoutAllStore.logoutAll(
+                USER_ID,
+                invalidatedAt
+        );
+
+        /*
+         * 인덱스에 없었기 때문에 logoutAll의 세션 순회에서는
+         * 이 legacy session을 직접 삭제하지 못합니다.
+         */
+        assertThat(
+                redisTemplate.hasKey(
+                        SESSION_KEY
+                )
+        ).isTrue();
+
+        // when
+        AuthSessionRotationResult reuseResult =
+                authSessionStore.rotateRefreshToken(
+                        SESSION_ID,
+                        USER_ID,
+                        NOW,
+                        "unrelated-refresh-token-hash",
+                        SECOND_ROTATED_REFRESH_TOKEN_HASH
+                );
+
+        // then
+        assertThat(reuseResult)
+                .isEqualTo(
+                        AuthSessionRotationResult
+                                .SESSION_NOT_FOUND
+                );
+
+        assertThat(
+                redisTemplate.hasKey(
+                        SESSION_KEY
+                )
+        ).isFalse();
+    }
+
+    @Test
+    @DisplayName(
             "전체 로그아웃 이전에 시작된 인증 세션이 "
                     + "뒤늦게 저장되면 거부한다"
     )
@@ -1255,10 +1361,15 @@ class RedisAuthSessionStoreIntegrationTest {
                 )
         )
                 .isInstanceOf(
-                        IllegalStateException.class
+                        BusinessException.class
                 )
-                .hasMessage(
-                        "전체 로그아웃 이전에 시작된 인증 세션은 저장할 수 없습니다."
+                .satisfies(exception ->
+                        assertThat(
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                        ).isEqualTo(
+                                ErrorCode.AUTH_TOKEN_REVOKED
+                        )
                 );
 
         assertThat(
@@ -1272,5 +1383,376 @@ class RedisAuthSessionStoreIntegrationTest {
                         USER_SESSION_INDEX_KEY
                 )
         ).isFalse();
+    }
+
+    @Test
+    @DisplayName(
+            "동일 사용자의 전체 로그아웃이 동시에 실행되어도 "
+                    + "가장 최신 무효화 시각을 유지한다"
+    )
+    void logoutAll_concurrentRequestsKeepLatestInvalidatedAt()
+            throws Exception {
+        // given
+        authSessionStore.save(
+                createSession()
+        );
+
+        Instant firstInvalidatedAt =
+                NOW.plusMillis(1);
+
+        Instant secondInvalidatedAt =
+                NOW.plusMillis(2);
+
+        CountDownLatch readyLatch =
+                new CountDownLatch(2);
+
+        CountDownLatch startLatch =
+                new CountDownLatch(1);
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> firstFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        authSessionLogoutAllStore.logoutAll(
+                                USER_ID,
+                                firstInvalidatedAt
+                        );
+
+                        return null;
+                    });
+
+            Future<?> secondFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        authSessionLogoutAllStore.logoutAll(
+                                USER_ID,
+                                secondInvalidatedAt
+                        );
+
+                        return null;
+                    });
+
+            assertThat(
+                    readyLatch.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // when
+            startLatch.countDown();
+
+            firstFuture.get(
+                    5,
+                    TimeUnit.SECONDS
+            );
+
+            secondFuture.get(
+                    5,
+                    TimeUnit.SECONDS
+            );
+
+            // then
+            assertThat(
+                    authSessionStore.findBySessionId(
+                            SESSION_ID
+                    )
+            ).isEmpty();
+
+            assertThat(
+                    redisTemplate.hasKey(
+                            USER_SESSION_INDEX_KEY
+                    )
+            ).isFalse();
+
+            assertThat(
+                    redisTemplate
+                            .opsForValue()
+                            .get(
+                                    USER_INVALIDATED_AT_KEY
+                            )
+            ).isEqualTo(
+                    Long.toString(
+                            secondInvalidatedAt.toEpochMilli()
+                    )
+            );
+
+            assertThat(
+                    redisTemplate.getExpire(
+                            USER_INVALIDATED_AT_KEY,
+                            TimeUnit.MILLISECONDS
+                    )
+            ).isPositive();
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃과 이전에 시작된 인증 세션 저장이 동시에 실행되어도 "
+                    + "무효화된 세션은 남지 않는다"
+    )
+    void logoutAll_concurrentSaveDoesNotLeaveStaleSession()
+            throws Exception {
+        // given
+        Instant invalidatedAt =
+                NOW.plusMillis(1);
+
+        AuthSession staleSession =
+                new AuthSession(
+                        SESSION_ID,
+                        FAMILY_ID,
+                        USER_ID,
+                        ORIGINAL_REFRESH_TOKEN_HASH,
+                        NOW,
+                        NOW.plus(SESSION_TTL)
+                );
+
+        CountDownLatch readyLatch =
+                new CountDownLatch(2);
+
+        CountDownLatch startLatch =
+                new CountDownLatch(1);
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> logoutAllFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        authSessionLogoutAllStore.logoutAll(
+                                USER_ID,
+                                invalidatedAt
+                        );
+
+                        return null;
+                    });
+
+            Future<Throwable> saveFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        try {
+                            authSessionStore.save(
+                                    staleSession
+                            );
+
+                            return null;
+                        } catch (Throwable throwable) {
+                            return throwable;
+                        }
+                    });
+
+            assertThat(
+                    readyLatch.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // when
+            startLatch.countDown();
+
+            logoutAllFuture.get(
+                    5,
+                    TimeUnit.SECONDS
+            );
+
+            Throwable saveFailure =
+                    saveFuture.get(
+                            5,
+                            TimeUnit.SECONDS
+                    );
+
+            // then
+            /*
+             * save가 먼저 끝난 경우:
+             * logoutAll이 인덱스를 통해 세션을 삭제합니다.
+             *
+             * logoutAll이 먼저 끝난 경우:
+             * save가 invalidatedAt을 보고 AUTH_TOKEN_REVOKED로 거부됩니다.
+             */
+            if (saveFailure != null) {
+                assertThat(saveFailure)
+                        .isInstanceOf(
+                                BusinessException.class
+                        );
+
+                assertThat(
+                        ((BusinessException) saveFailure)
+                                .getErrorCode()
+                ).isEqualTo(
+                        ErrorCode.AUTH_TOKEN_REVOKED
+                );
+            }
+
+            assertThat(
+                    authSessionStore.findBySessionId(
+                            SESSION_ID
+                    )
+            ).isEmpty();
+
+            assertThat(
+                    redisTemplate.hasKey(
+                            SESSION_KEY
+                    )
+            ).isFalse();
+
+            assertThat(
+                    redisTemplate.hasKey(
+                            USER_SESSION_INDEX_KEY
+                    )
+            ).isFalse();
+
+            assertThat(
+                    redisTemplate
+                            .opsForValue()
+                            .get(
+                                    USER_INVALIDATED_AT_KEY
+                            )
+            ).isEqualTo(
+                    Long.toString(
+                            invalidatedAt.toEpochMilli()
+                    )
+            );
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "전체 로그아웃과 Refresh Token Rotation이 동시에 실행되어도 "
+                    + "기존 인증 세션은 남지 않는다"
+    )
+    void logoutAll_concurrentRotationDoesNotLeaveSession()
+            throws Exception {
+        // given
+        AuthSession session =
+                createSession();
+
+        authSessionStore.save(
+                session
+        );
+
+        Instant invalidatedAt =
+                NOW.plusMillis(1);
+
+        CountDownLatch readyLatch =
+                new CountDownLatch(2);
+
+        CountDownLatch startLatch =
+                new CountDownLatch(1);
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> logoutAllFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        authSessionLogoutAllStore.logoutAll(
+                                USER_ID,
+                                invalidatedAt
+                        );
+
+                        return null;
+                    });
+
+            Future<AuthSessionRotationResult> rotationFuture =
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+
+                        return authSessionStore.rotateRefreshToken(
+                                SESSION_ID,
+                                USER_ID,
+                                session.createdAt(),
+                                ORIGINAL_REFRESH_TOKEN_HASH,
+                                ROTATED_REFRESH_TOKEN_HASH
+                        );
+                    });
+
+            assertThat(
+                    readyLatch.await(
+                            5,
+                            TimeUnit.SECONDS
+                    )
+            ).isTrue();
+
+            // when
+            startLatch.countDown();
+
+            logoutAllFuture.get(
+                    5,
+                    TimeUnit.SECONDS
+            );
+
+            AuthSessionRotationResult rotationResult =
+                    rotationFuture.get(
+                            5,
+                            TimeUnit.SECONDS
+                    );
+
+            // then
+            /*
+             * Rotation이 먼저 실행된 경우:
+             * ROTATED 후 logoutAll이 세션을 삭제합니다.
+             *
+             * logoutAll이 먼저 실행된 경우:
+             * 세션이 이미 삭제되어 SESSION_NOT_FOUND를 반환합니다.
+             */
+            assertThat(rotationResult)
+                    .isIn(
+                            AuthSessionRotationResult.ROTATED,
+                            AuthSessionRotationResult.SESSION_NOT_FOUND
+                    );
+
+            assertThat(
+                    authSessionStore.findBySessionId(
+                            SESSION_ID
+                    )
+            ).isEmpty();
+
+            assertThat(
+                    redisTemplate.hasKey(
+                            SESSION_KEY
+                    )
+            ).isFalse();
+
+            assertThat(
+                    redisTemplate.hasKey(
+                            USER_SESSION_INDEX_KEY
+                    )
+            ).isFalse();
+
+            assertThat(
+                    redisTemplate
+                            .opsForValue()
+                            .get(
+                                    USER_INVALIDATED_AT_KEY
+                            )
+            ).isEqualTo(
+                    Long.toString(
+                            invalidatedAt.toEpochMilli()
+                    )
+            );
+        } finally {
+            executorService.shutdownNow();
+        }
     }
 }

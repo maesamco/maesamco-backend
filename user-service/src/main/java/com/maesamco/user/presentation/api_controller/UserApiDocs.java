@@ -1,6 +1,5 @@
 package com.maesamco.user.presentation.api_controller;
 
-import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +13,13 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.GetMyProfileResult;
+import com.maesamco.user.application.service.UpdateMyInterestsCommand;
+import com.maesamco.user.application.service.UpdateMyInterestsResult;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.UpdateMyProfileResult;
+import com.maesamco.user.application.service.WithdrawUserCommand;
 
 /**
  * User API의 Swagger/OpenAPI 계약을 정의합니다.
@@ -40,7 +46,7 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    description = "AUTH_UNAUTHORIZED",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -101,7 +107,7 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    description = "AUTH_UNAUTHORIZED",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -128,7 +134,8 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "USER_DUPLICATE_NICKNAME",
+                    description = "USER_DUPLICATE_NICKNAME 또는 "
+                            + "USER_PROFILE_UPDATE_CONFLICT",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -145,7 +152,7 @@ public interface UserApiDocs {
                     )
             )
     })
-    ResponseEntity<SuccessResponse<GetMyProfileResult>> updateMyProfile(
+    ResponseEntity<SuccessResponse<UpdateMyProfileResult>> updateMyProfile(
             @Parameter(hidden = true)
             Authentication authentication,
 
@@ -194,7 +201,7 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    description = "AUTH_UNAUTHORIZED",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -213,6 +220,15 @@ public interface UserApiDocs {
             @ApiResponse(
                     responseCode = "404",
                     description = "USER_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "USER_PASSWORD_CHANGE_CONFLICT",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -268,7 +284,7 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    description = "AUTH_UNAUTHORIZED",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
