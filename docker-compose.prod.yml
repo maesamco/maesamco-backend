@@ -1,10 +1,17 @@
 version: "3.8"
 
-# 로컬 개발용 전체 인프라 + 서비스 기동 파일.
-# 사용법:
-#   1) .env.example을 복사해 .env로 만들고 값을 채운다
-#   2) docker compose up -d
-# 배포(prod) 환경에서는 api-gateway 외 포트를 절대 host에 노출하지 않습니다(인프라설계도.md 참고).
+# AWS 배포용(EC2 + RDS) 인프라 + 서비스 기동 파일.
+# 로컬 개발용 docker-compose.yml에서 postgres 4개 컨테이너를 제거하고,
+# 각 서비스가 RDS(PostgreSQL) 엔드포인트를 바라보도록 바꾼 버전입니다.
+# 10/1 시연 전 통합테스트 목적의 임시 배포 구성 — ALB 없이 EC2 IP로 api-gateway(8080)만
+# 직접 노출합니다. 나머지 포트(redis/kafka-ui/prometheus/grafana)는 보안그룹에서
+# 특정 IP(관리자 SSH 대역)로만 열어뒀습니다 — 인프라설계도.md 원칙(운영에선 api-gateway
+# 외 포트를 host에 노출하지 않음)과 달리 지금은 관측/디버깅 편의를 위해 좁게 열어둔
+# 임시 예외입니다. 정식 운영 배포 시엔 재검토 필요.
+#
+# 사용법(EC2 안에서):
+#   1) fetch-env.sh로 SSM Parameter Store에서 .env 생성 (RDS_ENDPOINT는 직접 채울 것)
+#   2) docker compose -f docker-compose.prod.yml up -d
 
 services:
   # ================= 데이터베이스 (서비스별 물리 분리) =================
@@ -13,7 +20,9 @@ services:
     image: redis:7
     container_name: redis
     ports:
-      - "6500:6379"   # 6379가 Windows 예약 포트 범위(6319~6418)에 걸려서 호스트 노출만 6500으로 변경(컨테이너 내부는 그대로 6379)
+      - "6500:6379"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
+        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 6379)
 
   # ================= Kafka (KRaft 모드, Apache 공식 이미지) + Kafka-UI =================
   # ⚠️ bitnami/kafka가 Docker Hub에서 태그 접근이 안 돼서(Broadcom 인수 이후
@@ -88,7 +97,9 @@ services:
     image: grafana/grafana:13.0.8
     container_name: grafana
     ports:
-      - "4000:3000"   # 3000/3001 모두 Windows 예약 포트 범위(2832~3031)에 걸려서 4000으로 변경(컨테이너 내부는 그대로 3000)
+      - "4000:3000"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
+        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 3000)
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
@@ -114,7 +125,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: dev   # 이 파일 자체가 로컬 개발용이라 dev profile 고정 활성화(Swagger 통합용, P1 리뷰 반영)
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -138,7 +148,6 @@ services:
     ports:
       - "9000:9000"
     environment:
-      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: ${RDS_ENDPOINT}
@@ -169,7 +178,6 @@ services:
     ports:
       - "9001:9001"
     environment:
-      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: ${RDS_ENDPOINT}
@@ -196,7 +204,6 @@ services:
     ports:
       - "9002:9002"
     environment:
-      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: ${RDS_ENDPOINT}
@@ -223,7 +230,6 @@ services:
     ports:
       - "9003:9003"
     environment:
-      SPRING_PROFILES_ACTIVE: dev   # 로컬 개발용 docker-compose 고정 활성화(리뷰 반영 — Swagger 기본 비활성화 대응)
       DB_USERNAME: ${DB_USERNAME:-maesamco}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DB_HOST: ${RDS_ENDPOINT}
