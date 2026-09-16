@@ -1,15 +1,19 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.Lesson;
-import org.jspecify.annotations.NonNull;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 import java.util.UUID;
 
-public interface LessonRepository extends JpaRepository<Lesson, UUID>, LessonSearchRepository {
+public interface LessonRepository {
 
-    @NonNull Optional<Lesson> findById(@NonNull UUID lessonId);
+    Lesson save(Lesson lesson);
+
+    Optional<Lesson> findById(UUID lessonId);
 
     long countByUnitId(UUID unitId);
+
+    Page<Lesson> searchLessons(UUID unitId, Pageable pageable);
 }

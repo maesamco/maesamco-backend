@@ -1,14 +1,19 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.Curriculum;
-import org.jspecify.annotations.NonNull;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 import java.util.UUID;
 
-public interface CurriculumRepository extends JpaRepository<Curriculum, UUID>, CurriculumSearchRepository {
+public interface CurriculumRepository {
 
-    /** 삭제되지 않은 커리큘럼 단건 조회 */
-    @NonNull Optional<Curriculum> findById(@NonNull UUID curriculumId);
+    Curriculum save(Curriculum curriculum);
+
+    Optional<Curriculum> findById(UUID curriculumId);
+
+    long count();
+
+    Page<Curriculum> searchCurriculums(Pageable pageable);
 }

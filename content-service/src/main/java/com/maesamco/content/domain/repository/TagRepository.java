@@ -1,17 +1,22 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.Tag;
-import org.jspecify.annotations.NonNull;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.maesamco.content.domain.entity.TagAttribute;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 import java.util.UUID;
 
-public interface TagRepository extends JpaRepository<Tag, UUID>, TagSearchRepository {
+public interface TagRepository {
 
-    /** 동일한 태그 이름 존재 여부 조회 */
+    Tag save(Tag tag);
+
     boolean existsByName(String name);
 
-    /** 삭제되지 않은 태그 단건 조회 */
-    @NonNull Optional<Tag> findById(@NonNull UUID id);
+    Optional<Tag> findById(UUID tagId);
+
+    Page<Tag> searchTags(Pageable pageable);
+
+    Page<Tag> searchTagsByAttribute(TagAttribute attribute, Pageable pageable);
 }
