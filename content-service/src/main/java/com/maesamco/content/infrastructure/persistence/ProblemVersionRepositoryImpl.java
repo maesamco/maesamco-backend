@@ -26,6 +26,11 @@ public class ProblemVersionRepositoryImpl implements ProblemVersionRepository {
     }
 
     @Override
+    public void flush() {
+        springDataProblemVersionRepository.flush();
+    }
+
+    @Override
     public Optional<ProblemVersion> findByProblemIdAndVersionNo(UUID problemId, Integer versionNo) {
         return springDataProblemVersionRepository
                 .findByProblemIdAndVersionNo(problemId, versionNo);

@@ -12,6 +12,8 @@ public interface ProblemVersionRepository {
 
     Optional<ProblemVersion> findById(UUID problemVersionId);
 
+    void flush();
+
     Optional<ProblemVersion> findByProblemIdAndVersionNo(
             UUID problemId,
             Integer versionNo
