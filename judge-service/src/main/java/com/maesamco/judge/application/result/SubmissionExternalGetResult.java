@@ -28,8 +28,13 @@ public record SubmissionExternalGetResult(
 
         List<TestResultItem> items = submission.getStatus() == SubmissionStatus.COMPLETED
                 ? testResults.stream()
-                .map(t -> new TestResultItem(
-                        t.getTestCaseId(), t.isPublic(), t.isPassed(), t.isPublic() ? t.getActualOutput() : null))
+                .map(t -> {
+                    boolean isPublic = t.isPublic();
+                    return new TestResultItem(
+                            isPublic ? t.getTestCaseId() : null,
+                            isPublic, t.isPassed(),
+                            isPublic ? t.getActualOutput() : null);
+                })
                 .toList()
                 : List.of();
 

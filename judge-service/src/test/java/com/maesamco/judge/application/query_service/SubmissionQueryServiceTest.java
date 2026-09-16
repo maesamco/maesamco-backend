@@ -295,4 +295,70 @@ class SubmissionQueryServiceTest {
             verify(submissionTestResultRepository, never()).findBySubmissionId(any());
         }
     }
+
+    @Test
+    @DisplayName("비공개 테스트케이스는 testCaseId도 노출하지 않는다 — UUID로 상관관계 추적 방지")
+    void hidesTestCaseIdForNonPublicTestCase() {
+        UUID submissionId = UUID.randomUUID();
+        Submission submission = pendingSubmission(submissionId);
+        submission.markQueued();
+        submission.markRunning();
+        submission.markCompleted(SubmissionResult.WRONG, 120, 15360);
+
+        SubmissionTestResult hidden = SubmissionTestResult.create(
+                submissionId, UUID.randomUUID(), false, false, null, null, null, null);
+
+        given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+        given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                .willReturn(List.of(hidden));
+
+        SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+        assertThat(result.testResults()).hasSize(1);
+        assertThat(result.testResults().get(0).testCaseId()).isNull();
+        assertThat(result.testResults().get(0).isPublic()).isFalse();
+        assertThat(result.testResults().get(0).passed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("공개 테스트케이스는 testCaseId를 그대로 노출한다")
+    void exposesTestCaseIdForPublicTestCase() {
+        UUID submissionId = UUID.randomUUID();
+        UUID testCaseId = UUID.randomUUID();
+        Submission submission = pendingSubmission(submissionId);
+        submission.markQueued();
+        submission.markRunning();
+        submission.markCompleted(SubmissionResult.CORRECT, 120, 15360);
+
+        SubmissionTestResult visible = SubmissionTestResult.create(
+                submissionId, testCaseId, true, true, "8", null, null, null);
+
+        given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+        given(submissionTestResultRepository.findBySubmissionId(submissionId))
+                .willReturn(List.of(visible));
+
+        SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+        assertThat(result.testResults().get(0).testCaseId()).isEqualTo(testCaseId);
+    }
+
+    @Test
+    @DisplayName("RETRY_WAIT 상태를 거친 제출도 진행 중으로 취급되어 testResults가 비어있다")
+    void treatsRetryWaitAsInProgress() {
+        UUID submissionId = UUID.randomUUID();
+        Submission submission = pendingSubmission(submissionId);
+        submission.markQueued();
+        submission.markRunning();
+        submission.markRetryWait();
+
+        given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+        SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
+
+        assertThat(result.status()).isEqualTo(SubmissionStatus.RETRY_WAIT);
+        assertThat(result.testResults()).isEmpty();
+        assertThat(result.result()).isNull();
+        assertThat(result.failureCode()).isNull();
+        verify(submissionTestResultRepository, never()).findBySubmissionId(any());
+    }
 }
