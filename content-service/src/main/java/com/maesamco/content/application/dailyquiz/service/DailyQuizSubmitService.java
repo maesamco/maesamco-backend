@@ -4,19 +4,27 @@ import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutbox;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.infrastructure.dailyquiz.messaging.event.DailyQuizCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Daily Quiz 문항 제출의 잠금·검증·채점·완료 처리를 조정합니다.
@@ -28,7 +36,9 @@ public class DailyQuizSubmitService {
     private final DailyQuizAttemptRepository attemptRepository;
     private final DailyQuizAttemptItemRepository attemptItemRepository;
     private final DailyQuizQuestionRepository questionRepository;
+    private final DailyQuizEventOutboxRepository eventOutboxRepository;
     private final Clock dailyQuizClock;
+    private final JsonMapper jsonMapper;
 
     @Transactional
     public DailyQuizSubmitResult submit(DailyQuizSubmitCommand command) {
@@ -78,8 +88,7 @@ public class DailyQuizSubmitService {
         // questionVersionId로 문제 버전을 조회
         DailyQuizQuestion question = questionRepository
                 .findById(command.questionVersionId())
-                .orElseThrow(() -> new BusinessException(
-                        ErrorCode.INTERNAL_SERVER_ERROR,
+                .orElseThrow(() -> new IllegalStateException(
                         "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId="
                                 + command.questionVersionId()
                 ));
@@ -121,7 +130,33 @@ public class DailyQuizSubmitService {
 
         // attempt.complete(correctCount, now)를 호출해 세트를 완료
         attempt.complete(correctCount, now);
-        attemptRepository.save(attempt);
+        DailyQuizAttempt completedAttempt = attemptRepository.save(attempt);
+
+        // 완료된 전체 문항의 문제 버전·개념·정답 여부를 이벤트 스냅샷으로 조립
+        List<DailyQuizCompletedEvent.QuestionResult> questionResults = createQuestionResults(completedAttempt);
+
+        UUID eventId = UUID.randomUUID();
+        DailyQuizCompletedEvent event =
+                DailyQuizCompletedEvent.fromCompletedAttempt(
+                        eventId,
+                        now,
+                        completedAttempt,
+                        questionResults
+                );
+
+        String payload = serializeEvent(event);
+
+        DailyQuizEventOutbox outbox =
+                DailyQuizEventOutbox.createPending(
+                        event.eventId(),
+                        event.quizAttemptId(),
+                        event.eventVersion(),
+                        payload,
+                        event.occurredAt()
+                );
+
+        // Attempt 완료와 Outbox 저장은 submit()의 같은 트랜잭션에서 함께 커밋
+        eventOutboxRepository.save(outbox);
 
         // attemptCompleted=true와 correctCount, totalCount를 담은 Result를 반환
         return new DailyQuizSubmitResult(
@@ -131,5 +166,81 @@ public class DailyQuizSubmitService {
                 correctCount,
                 attempt.getTotalCount()
         );
+    }
+
+    /**
+     * 완료된 세트의 문항 결과를 노출 순서대로 이벤트 항목으로 변환
+     */
+    private List<DailyQuizCompletedEvent.QuestionResult> createQuestionResults(
+            DailyQuizAttempt attempt
+    ) {
+        List<DailyQuizAttemptItem> attemptItems =
+                attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attempt.getId());
+
+        if (attemptItems.size() != attempt.getTotalCount()) {
+            throw new IllegalStateException(
+                    "완료된 Daily Quiz의 배정 문항 수가 전체 문항 수와 일치하지 않습니다."
+            );
+        }
+
+        List<UUID> questionIds =
+                attemptItems.stream()
+                        .map(DailyQuizAttemptItem::getQuestionId)
+                        .toList();
+
+        Map<UUID, DailyQuizQuestion> questionsById = new HashMap<>();
+        questionRepository.findAllById(questionIds)
+                .forEach(question -> questionsById.put(question.getId(), question));
+
+        if (questionsById.size() != questionIds.size()) {
+            throw new IllegalStateException(
+                    "완료된 Daily Quiz의 문제 버전 일부를 찾을 수 없습니다."
+            );
+        }
+
+        return attemptItems.stream()
+                .map(item -> toQuestionResult(item, questionsById))
+                .toList();
+    }
+
+    private DailyQuizCompletedEvent.QuestionResult toQuestionResult(
+            DailyQuizAttemptItem attemptItem,
+            Map<UUID, DailyQuizQuestion> questionsById
+    ) {
+        DailyQuizQuestion question = questionsById.get(attemptItem.getQuestionId());
+        if (question == null) {
+            throw new IllegalStateException(
+                    "완료된 Daily Quiz의 문제 버전을 찾을 수 없습니다. questionId="
+                            + attemptItem.getQuestionId()
+            );
+        }
+
+        Boolean correct = attemptItem.getCorrect();
+        if (correct == null) {
+            throw new IllegalStateException(
+                    "완료된 Daily Quiz 문항에 채점 결과가 없습니다. questionId="
+                            + attemptItem.getQuestionId()
+            );
+        }
+
+        return new DailyQuizCompletedEvent.QuestionResult(
+                question.getId(),
+                question.getConceptTags(),
+                correct
+        );
+    }
+
+    /**
+     * DailyQuizCompleted 이벤트를 Outbox 저장용 JSON으로 직렬화
+     */
+    private String serializeEvent(DailyQuizCompletedEvent event) {
+        try {
+            return jsonMapper.writeValueAsString(event);
+        } catch (Exception exception) {
+            throw new IllegalStateException(
+                    "DailyQuizCompleted 이벤트 직렬화에 실패했습니다.",
+                    exception
+            );
+        }
     }
 }

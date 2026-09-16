@@ -26,8 +26,10 @@ interface SpringDataDailyQuizAttemptItemRepository
 
     /**
      * 아직 제출하지 않은 문항에만 답안과 채점 결과를 기록합니다.
+     * 벌크 UPDATE 전에는 보류 중인 변경을 DB에 반영하고, 실행 후에는
+     * 영속성 컨텍스트를 비워 이벤트 생성 시 최신 채점 결과를 다시 조회합니다.
      */
-    @Modifying(flushAutomatically = true)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE DailyQuizAttemptItem item
             SET item.userAnswer = :userAnswer,

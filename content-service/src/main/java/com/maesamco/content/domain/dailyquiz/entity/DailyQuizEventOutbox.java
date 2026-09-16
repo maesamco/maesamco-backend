@@ -1,7 +1,5 @@
 package com.maesamco.content.domain.dailyquiz.entity;
 
-import com.maesamco.content.global.exception.BusinessException;
-import com.maesamco.content.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -142,33 +140,29 @@ public class DailyQuizEventOutbox {
 
     private static UUID requireId(UUID id, String fieldName) {
         if (id == null) {
-            throw internalError(fieldName + ": 필수입니다.");
+            throw new IllegalArgumentException(fieldName + "는 필수입니다.");
         }
         return id;
     }
 
     private static int requireEventVersion(int eventVersion) {
         if (eventVersion < 1) {
-            throw internalError("이벤트 버전은 1 이상이어야 합니다.");
+            throw new IllegalArgumentException("이벤트 버전은 1 이상이어야 합니다.");
         }
         return eventVersion;
     }
 
     private static String requirePayload(String payload) {
         if (payload == null || payload.isBlank()) {
-            throw internalError("이벤트 payload: 필수입니다.");
+            throw new IllegalArgumentException("이벤트 본문은 필수입니다.");
         }
         return payload;
     }
 
     private static Instant requireOccurredAt(Instant occurredAt) {
         if (occurredAt == null) {
-            throw internalError("이벤트 발생 시각: 필수입니다.");
+            throw new IllegalArgumentException("이벤트 발생 시각은 필수입니다.");
         }
         return occurredAt;
-    }
-
-    private static BusinessException internalError(String message) {
-        return new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, message);
     }
 }
