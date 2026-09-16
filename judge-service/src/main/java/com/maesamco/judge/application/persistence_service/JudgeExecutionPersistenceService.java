@@ -41,11 +41,15 @@ public class JudgeExecutionPersistenceService {
     @Value("${judge.retry.max-attempts:3}")
     private int maxRetryCount;
 
-    // Judge0 호출 전 준비 단계 — Submission을 RUNNING으로 전이시키고, 채점에 필요한
-    // 실행 명세를 같이 조회해서 Facade에 넘긴다. 이미 RUNNING이면(중복 이벤트) 빈 값을
-    // 반환해서 Facade가 Judge0 호출 자체를 스킵하게 함.
+    /**
+     * Judge Worker가 JudgeRequested를 수신해 Judge0 호출을 시작하기 직전에 호출.
+     * RUNNING 전이 자체를 독립된 트랜잭션으로 커밋해서, 뒤이은 실행 준비(스펙 조회 등)가
+     * 실패해도 이 RUNNING 전이는 롤백되지 않도록 분리한다 (재시도 처리 로직이 항상
+     * "실제로 RUNNING까지 갔다"는 걸 전제할 수 있게 하기 위함).
+     * 이미 RUNNING이면(중복 이벤트) 빈 값을 반환해서 Facade가 이후 단계를 스킵하게 함.
+     */
     @Transactional
-    public Optional<JudgeExecutionPreparation> prepareForExecution(UUID submissionId) {
+    public Optional<UUID> markRunningIfNeeded(UUID submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
@@ -54,12 +58,23 @@ public class JudgeExecutionPersistenceService {
             return Optional.empty();
         }
         submission.markRunning();
+        return Optional.of(submission.getId());
+    }
+
+    /**
+     * RUNNING 전이가 이미 커밋된 뒤 호출 — 채점에 필요한 실행 명세를 조회해서 Facade에 넘긴다.
+     * 여기서 실패해도(PROBLEM_NOT_FOUND 등) 이미 커밋된 RUNNING 상태는 영향받지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public JudgeExecutionPreparation loadExecutionPreparation(UUID submissionId) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
         ProblemExecutionSpec spec = problemExecutionSpecRepository
                 .findByProblemIdAndProblemVersionId(submission.getProblemId(), submission.getProblemVersionId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
-        return Optional.of(new JudgeExecutionPreparation(submission.getId(), submission.getCode(), spec));
+        return new JudgeExecutionPreparation(submission.getId(), submission.getCode(), spec);
     }
 
     // Judge0 배치 제출이 끝난 뒤 호출 — 토큰별로 PendingJudge0Execution을 저장.

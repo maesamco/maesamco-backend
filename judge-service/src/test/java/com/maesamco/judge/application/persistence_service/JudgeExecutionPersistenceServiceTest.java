@@ -80,6 +80,7 @@ class JudgeExecutionPersistenceServiceTest {
         Submission submission = Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "public class Main {}", SubmissionLanguage.JAVA17, "idem-key-" + UUID.randomUUID());
+        ReflectionTestUtils.setField(submission, "id", UUID.randomUUID());
         submission.markQueued();
         return submission;
     }
@@ -91,40 +92,31 @@ class JudgeExecutionPersistenceServiceTest {
     }
 
     @Nested
-    @DisplayName("prepareForExecution")
-    class PrepareForExecution {
+    @DisplayName("markRunningIfNeeded")
+    class MarkRunningIfNeeded {
 
         @Test
-        @DisplayName("정상 흐름에서는 Submission을 RUNNING으로 전이시키고 실행 준비 정보를 반환한다")
-        void marksRunningAndReturnsPreparation() {
+        @DisplayName("정상 흐름에서는 Submission을 RUNNING으로 전이시키고 submissionId를 반환한다")
+        void marksRunningAndReturnsSubmissionId() {
             Submission submission = queuedSubmission();
-            ProblemExecutionSpec spec = specFor(submission);
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
-            given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
-                    submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.of(spec));
 
-            Optional<JudgeExecutionPreparation> result =
-                    judgeExecutionPersistenceService.prepareForExecution(submission.getId());
+            Optional<UUID> result = judgeExecutionPersistenceService.markRunningIfNeeded(submission.getId());
 
-            assertThat(result).isPresent();
-            assertThat(result.get().submissionId()).isEqualTo(submission.getId());
-            assertThat(result.get().code()).isEqualTo(submission.getCode());
-            assertThat(result.get().spec()).isEqualTo(spec);
+            assertThat(result).contains(submission.getId());
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
         }
 
         @Test
-        @DisplayName("이미 RUNNING 상태인 중복 이벤트면 빈 값을 반환하고 실행 명세를 조회하지 않는다")
+        @DisplayName("이미 RUNNING 상태인 중복 이벤트면 빈 값을 반환한다")
         void returnsEmptyWhenAlreadyRunning() {
             Submission submission = queuedSubmission();
             submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
 
-            Optional<JudgeExecutionPreparation> result =
-                    judgeExecutionPersistenceService.prepareForExecution(submission.getId());
+            Optional<UUID> result = judgeExecutionPersistenceService.markRunningIfNeeded(submission.getId());
 
             assertThat(result).isEmpty();
-            verify(problemExecutionSpecRepository, never()).findByProblemIdAndProblemVersionId(any(), any());
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
         }
 
@@ -134,7 +126,41 @@ class JudgeExecutionPersistenceServiceTest {
             UUID submissionId = UUID.randomUUID();
             given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("loadExecutionPreparation")
+    class LoadExecutionPreparation {
+
+        @Test
+        @DisplayName("정상 흐름에서는 실행 준비 정보를 반환한다")
+        void returnsPreparation() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            ProblemExecutionSpec spec = specFor(submission);
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+            given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
+                    submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.of(spec));
+
+            JudgeExecutionPreparation result =
+                    judgeExecutionPersistenceService.loadExecutionPreparation(submission.getId());
+
+            assertThat(result.submissionId()).isEqualTo(submission.getId());
+            assertThat(result.code()).isEqualTo(submission.getCode());
+            assertThat(result.spec()).isEqualTo(spec);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
+        void throwsWhenSubmissionNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
         }
@@ -143,11 +169,12 @@ class JudgeExecutionPersistenceServiceTest {
         @DisplayName("실행 명세가 없으면 PROBLEM_NOT_FOUND 예외를 던진다")
         void throwsWhenProblemExecutionSpecNotFound() {
             Submission submission = queuedSubmission();
+            submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
             given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
                     submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> judgeExecutionPersistenceService.prepareForExecution(submission.getId()))
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.loadExecutionPreparation(submission.getId()))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROBLEM_NOT_FOUND);
         }

@@ -54,6 +54,13 @@ class JudgeExecutionFacadeTest {
                 "starter", testCasesJson, 2000, 256, Instant.now());
     }
 
+    private void stubReadyForExecution(UUID submissionId, JudgeExecutionPreparation preparation) {
+        given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                .willReturn(Optional.of(submissionId));
+        given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
+                .willReturn(preparation);
+    }
+
     @Nested
     @DisplayName("execute")
     class Execute {
@@ -69,8 +76,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
             given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1", "token-2"));
 
             judgeExecutionFacade.execute(submissionId);
@@ -83,14 +89,15 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("이미 RUNNING이라 준비 단계가 빈 값이면 Judge0를 호출하지 않는다")
-        void skipsWhenPreparationEmpty() {
+        @DisplayName("이미 RUNNING이라 markRunningIfNeeded가 빈 값이면 이후 단계를 호출하지 않는다")
+        void skipsWhenAlreadyRunning() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
                     .willReturn(Optional.empty());
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
+            verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
             verify(judgeExecutionPort, never()).submitBatch(any());
             verify(judgeExecutionPersistenceService, never())
                     .savePendingExecutions(any(), any(), any());
@@ -99,10 +106,43 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("prepareForExecution이 PROBLEM_NOT_FOUND를 던지면 재시도 없이 즉시 FAILED 처리한다")
-        void marksFailedWhenPrepareForExecutionThrowsProblemNotFound() {
+        @DisplayName("markRunningIfNeeded이 SUBMISSION_NOT_FOUND를 던지면 RUNNING 전이가 커밋된 적이 없으므로 "
+                + "재시도/실패 처리를 하지 않고 조용히 종료한다")
+        void doesNothingWhenMarkRunningIfNeededThrowsSubmissionNotFound() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+            verify(judgeExecutionPort, never()).submitBatch(any());
+        }
+
+        @Test
+        @DisplayName("markRunningIfNeeded이 예상치 못한 예외를 던져도 상태를 건드린 적이 없으므로 "
+                + "재시도/실패 처리를 하지 않고 조용히 종료한다")
+        void doesNothingWhenMarkRunningIfNeededThrowsUnexpectedException() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new RuntimeException("DB 연결 순단"));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
+            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
+            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+        }
+
+        @Test
+        @DisplayName("loadExecutionPreparation이 PROBLEM_NOT_FOUND를 던지면 재시도 없이 즉시 FAILED 처리한다")
+        void marksFailedWhenLoadExecutionPreparationThrowsProblemNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willReturn(Optional.of(submissionId));
+            given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .willThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
@@ -113,23 +153,12 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("prepareForExecution이 SUBMISSION_NOT_FOUND를 던지면 재시도 없이 즉시 FAILED 처리한다")
-        void marksFailedWhenPrepareForExecutionThrowsSubmissionNotFound() {
+        @DisplayName("loadExecutionPreparation이 그 외의 BusinessException을 던지면 재시도 경로로 보낸다")
+        void handlesAsRetryableWhenLoadExecutionPreparationThrowsOtherBusinessException() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willThrow(new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
-
-            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
-
-            verify(judgeExecutionPersistenceService).markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
-            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
-        }
-
-        @Test
-        @DisplayName("prepareForExecution이 그 외의 BusinessException을 던지면 재시도 경로로 보낸다")
-        void handlesAsRetryableWhenPrepareForExecutionThrowsOtherBusinessException() {
-            UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willReturn(Optional.of(submissionId));
+            given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .willThrow(new BusinessException(ErrorCode.SUBMISSION_INVALID_STATE_TRANSITION));
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
@@ -139,10 +168,12 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("prepareForExecution이 BusinessException이 아닌 예상치 못한 예외를 던지면 재시도 경로로 보낸다")
-        void handlesAsRetryableWhenPrepareForExecutionThrowsUnexpectedException() {
+        @DisplayName("loadExecutionPreparation이 BusinessException이 아닌 예상치 못한 예외를 던지면 재시도 경로로 보낸다")
+        void handlesAsRetryableWhenLoadExecutionPreparationThrowsUnexpectedException() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willReturn(Optional.of(submissionId));
+            given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .willThrow(new RuntimeException("DB 연결 순단"));
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
@@ -158,8 +189,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases("이건-JSON이-아님");
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
@@ -174,8 +204,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases("[]");
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
@@ -196,8 +225,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
             given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
 
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
@@ -217,8 +245,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
             given(judgeExecutionPort.submitBatch(anyList()))
                     .willThrow(new RuntimeException("Judge0 연결 실패"));
 
@@ -237,8 +264,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
             given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
             doThrow(new RuntimeException("DB 저장 실패"))
                     .when(judgeExecutionPersistenceService)
@@ -263,8 +289,7 @@ class JudgeExecutionFacadeTest {
             ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
             JudgeExecutionPreparation preparation =
                     new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(preparation));
+            stubReadyForExecution(submissionId, preparation);
             given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
             doThrow(new RuntimeException("DB 저장 실패 1회차"))
                     .doNothing()
@@ -283,9 +308,8 @@ class JudgeExecutionFacadeTest {
         @DisplayName("FAILED 처리 자체가 실패해도 예외를 전파하지 않는다")
         void doesNotPropagateWhenMarkFailedItselfThrows() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
-                    .willReturn(Optional.of(new JudgeExecutionPreparation(
-                            submissionId, "public class Main {}", specWithTestCases("이건-JSON이-아님"))));
+            stubReadyForExecution(submissionId, new JudgeExecutionPreparation(
+                    submissionId, "public class Main {}", specWithTestCases("이건-JSON이-아님")));
             doThrow(new RuntimeException("FAILED 전이 자체도 실패"))
                     .when(judgeExecutionPersistenceService)
                     .markFailed(any(), any());
@@ -297,7 +321,9 @@ class JudgeExecutionFacadeTest {
         @DisplayName("handleRetryableFailure 자체가 실패해도 예외를 전파하지 않는다")
         void doesNotPropagateWhenHandleRetryableFailureItselfThrows() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willReturn(Optional.of(submissionId));
+            given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .willThrow(new RuntimeException("DB 연결 순단"));
             doThrow(new RuntimeException("handleRetryableFailure 자체 실패"))
                     .when(judgeExecutionPersistenceService)
@@ -309,10 +335,10 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("prepareForExecution이 낙관적 락 충돌을 던지면 상태/재시도 카운트를 건드리지 않고 조용히 스킵한다")
-        void skipsWhenPrepareForExecutionThrowsOptimisticLockingFailure() {
+        @DisplayName("markRunningIfNeeded이 낙관적 락 충돌을 던지면 상태/재시도 카운트를 건드리지 않고 조용히 스킵한다")
+        void skipsWhenMarkRunningIfNeededThrowsOptimisticLockingFailure() {
             UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
                     .willThrow(new ObjectOptimisticLockingFailureException(
                             com.maesamco.judge.domain.entity.Submission.class, submissionId));
 
