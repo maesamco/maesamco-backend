@@ -27,6 +27,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 등장하지 않아, 개별 지목 방식이었다면 이 공백 자체가 리뷰에서만 겨우 발견됐을
  * 것이다). 이 테스트는 클래스패스를 실제로 스캔해서 전수 검사하므로, 사람이
  * 애노테이션을 빠뜨려도 CI가 자동으로 잡아준다.
+ *
+ * ⚠️ P3 리뷰(이슈 #175) — 이 "전수 검사" 보증은 다음 관례에 암묵적으로 의존한다.
+ * 현재 4개 서비스 어디에도 아래 스타일이 없어 지금 당장 도달 가능한 사각지대는
+ * 아니지만, 나중에 이런 스타일이 들어오면 이 테스트가 조용히 못 잡을 수 있다:
+ * 1) {@code @RequestMapping}을 value가 아니라 path 속성으로 쓰면
+ *    (예: {@code @RequestMapping(path = "/internal/v1/...")}) 순수 JDK
+ *    getAnnotation()으로는 Spring의 @AliasFor 합성이 일어나지 않아
+ *    mapping.value()가 빈 배열을 반환한다.
+ * 2) 클래스 레벨 {@code @RequestMapping}에 다중 경로를 매핑하면
+ *    (예: {@code {"/other", "/internal/v1/x"}}) 배열 첫 값만 취하므로
+ *    /internal/v1이 첫 번째가 아니면 스킵된다.
+ * 3) {@code @Controller} + 메서드별 {@code @ResponseBody} 조합으로 작성된
+ *    내부 핸들러는 {@code @RestController}만 스캔하는 이 테스트의 후보에서
+ *    제외된다.
  */
 class InternalControllerAuthorizationContractTest {
 
