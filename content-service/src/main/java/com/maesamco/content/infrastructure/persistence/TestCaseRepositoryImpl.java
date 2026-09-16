@@ -24,9 +24,24 @@ public class TestCaseRepositoryImpl implements TestCaseRepository {
     }
 
     @Override
+    public List<TestCase> saveAll(List<TestCase> testCases) {
+        return springDataTestCaseRepository.saveAll(testCases);
+    }
+
+    @Override
     public Optional<TestCase> findById(UUID testCaseId) {
         return springDataTestCaseRepository
                 .findByIdAndDeletedAtIsNull(testCaseId);
+    }
+
+    @Override
+    public void flush() {
+        springDataTestCaseRepository.flush();
+    }
+
+    @Override
+    public void delete(TestCase testCase) {
+        springDataTestCaseRepository.delete(testCase);
     }
 
     @Override

@@ -13,7 +13,13 @@ public interface TestCaseRepository {
 
     TestCase save(TestCase testCase);
 
+    List<TestCase> saveAll(List<TestCase> testCases);
+
     Optional<TestCase> findById(UUID testCaseId);
+
+    void delete(TestCase testCase);
+
+    void flush();
 
     int findMaxTestCaseOrderByProblemIdAndIsPublic(UUID problemId, boolean isPublic);
 
