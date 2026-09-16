@@ -162,7 +162,7 @@ public class DailyQuizSubmitService {
                 correct,
                 true,
                 correctCount,
-                attempt.getTotalCount()
+                completedAttempt.getTotalCount()
         );
     }
 
