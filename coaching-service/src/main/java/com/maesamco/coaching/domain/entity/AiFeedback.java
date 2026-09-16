@@ -104,7 +104,7 @@ public class AiFeedback {
     private String nextDirection;
 
     /*
-     * TODO: created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
+     * TODO(#218): created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
      * 없다(BaseEntity처럼 information_schema.columns.data_type을 직접 확인하는 테스트,
      * PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는 BaseEntity를
      * 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로 되돌려도

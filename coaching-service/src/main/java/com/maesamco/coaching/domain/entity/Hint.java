@@ -38,10 +38,10 @@ import java.util.UUID;
  * 임베딩해서 RAG에 활용할 수 있다(비슷한 개념 태그·오류 패턴의 과거 힌트를 새 힌트 생성
  * 프롬프트에 few-shot으로 포함하는 식). MVP 이후 검토 — 지금 스키마는 안 건드려도 된다.
  *
- * TODO(#10): stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 아직 없다 — 생성자
+ * TODO(#218): stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 아직 없다 — 생성자
  *            검증(requireValidStage)이 애플리케이션 레벨에서만 막고 있고, 매삼코_ERD.sql
  *            원본에도 이 CHECK가 원래 없었다(V1 베이스라인은 ERD를 그대로 옮긴 것). DB
- *            레벨 방어가 필요하면 V2 마이그레이션으로 추가할 것 — 팀에 별도 공유 필요.
+ *            레벨 방어가 필요하면 다음 버전 마이그레이션(V14~)으로 추가할 것.
  */
 @Entity
 @Table(
@@ -74,7 +74,7 @@ public class Hint {
     private String content;
 
     /*
-     * TODO: created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
+     * TODO(#218): created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
      * 없다(BaseEntity처럼 information_schema.columns.data_type을 직접 확인하는 테스트,
      * PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는 BaseEntity를
      * 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로 되돌려도

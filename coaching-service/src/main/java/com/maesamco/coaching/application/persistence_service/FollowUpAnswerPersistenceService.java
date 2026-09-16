@@ -35,7 +35,7 @@ import java.util.UUID;
  * COMPLETED인 상태에서 다른 역질문에 늦게 답하는 경우)를 별도로 처리한다. 두 요청이
  * 정말로 거의 동시에 들어와서 둘 다 세션을 IN_PROGRESS로 읽는 진짜 레이스까지 막으려면
  * CoachingSession에 낙관적 락(@Version)이 필요한데, 그건 advanceToSubmission() 쪽에도
- * 영향을 주는 더 큰 변경이라 이번엔 범위에서 뺐다(TODO로 남김).
+ * 영향을 주는 더 큰 변경이라 이번엔 범위에서 뺐다(TODO(#218)로 남김).
  */
 @Service
 @Transactional

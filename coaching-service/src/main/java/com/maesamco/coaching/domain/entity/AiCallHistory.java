@@ -76,7 +76,7 @@ public class AiCallHistory {
     private String requestStatus;
 
     /*
-     * TODO: called_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
+     * TODO(#218): called_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
      * 없다(AiFeedback의 information_schema.columns.data_type 검증 테스트와 같은 성격, PR #33).
      * Repository 통합 테스트에 추가할 것.
      */

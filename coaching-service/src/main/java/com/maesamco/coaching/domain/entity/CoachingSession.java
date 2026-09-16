@@ -92,7 +92,7 @@ public class CoachingSession {
     private CoachingSessionStatus status;
 
     /*
-     * TODO: created_at/completed_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는
+     * TODO(#218): created_at/completed_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는
      * 회귀 테스트가 없다(BaseEntity처럼 information_schema.columns.data_type을 직접
      * 확인하는 테스트, PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는
      * BaseEntity를 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로
@@ -146,7 +146,7 @@ public class CoachingSession {
      * FollowUpAnswerPersistenceService 트랜잭션(UNIQUE(follow_up_question_id) 제약)으로
      * 이미 해결됐지만, 이 메서드는 그런 UNIQUE 가드가 없어 별도로 남아 있다.
      *
-     * TODO: 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
+     * TODO(#218): 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
      */
     public boolean advanceToSubmission(UUID submissionId, int attemptNo) {
         if (attemptNo <= this.lastAttemptNo) {

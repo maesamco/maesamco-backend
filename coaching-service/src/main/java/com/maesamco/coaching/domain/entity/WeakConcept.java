@@ -63,7 +63,7 @@ public class WeakConcept {
     private int occurrenceCount;
 
     /*
-     * TODO: last_detected_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
+     * TODO(#218): last_detected_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
      * 없다(AiFeedback의 information_schema.columns.data_type 검증 테스트와 같은 성격, PR #33).
      * 누군가 실수로 Instant를 LocalDateTime으로 되돌려도 지금은 CI가 못 잡아낸다.
      * Repository 통합 테스트에 추가할 것.
@@ -105,10 +105,10 @@ public class WeakConcept {
      * 무방비다 — 나중에 저장하는 쪽이 먼저 저장된 값을 그대로 덮어써 발견 횟수 증가분이
      * 하나 유실될 수 있다.
      *
-     * TODO: 위 "이미 있는 행"에 대한 동시 갱신 경합은 @Version 등으로 아직 해결 안 됨 —
+     * TODO(#218): 위 "이미 있는 행"에 대한 동시 갱신 경합은 @Version 등으로 아직 해결 안 됨 —
      *       실제 트래픽에서 발생 빈도를 보고 방안 확정하고 이 TODO 제거.
      *
-     * TODO: improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
+     * TODO(#218): improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
      *       false로 되돌려야 하는지가 명세에 없다. 지금은 이 메서드가 improved를 건드리지 않고
      *       그대로 둔다 — 재발견 시 되돌릴지 여부는 응용 계층에서 결정하고 이 TODO 제거.
      */
