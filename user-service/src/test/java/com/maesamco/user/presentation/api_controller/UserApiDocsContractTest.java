@@ -79,6 +79,16 @@ class UserApiDocsContractTest {
                 UpdateMyProfileCommand.class
         );
 
+        assertThat(
+                findResponse(
+                        method,
+                        "409"
+                ).description()
+        ).contains(
+                "USER_DUPLICATE_NICKNAME",
+                "USER_PROFILE_UPDATE_CONFLICT"
+        );
+
         // then
         assertOperation(method);
 

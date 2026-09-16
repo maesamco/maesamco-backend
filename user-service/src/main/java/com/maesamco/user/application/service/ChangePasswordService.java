@@ -4,7 +4,6 @@ import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
 import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.domain.entity.User;
-import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
@@ -62,7 +61,7 @@ public class ChangePasswordService {
                         )
                 );
 
-        validateActiveUser(user);
+        user.assertActive();
 
         validateCurrentPassword(
                 command.currentPassword(),
@@ -92,17 +91,6 @@ public class ChangePasswordService {
                 userId,
                 invalidatedAt
         );
-    }
-
-    /**
-     * 정상 이용 상태의 사용자인지 확인합니다.
-     */
-    private void validateActiveUser(User user) {
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(
-                    ErrorCode.USER_NOT_ACTIVE
-            );
-        }
     }
 
     /**

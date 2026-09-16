@@ -5,6 +5,7 @@ import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.UpdateMyProfileResult;
 import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -80,7 +81,7 @@ public class UserApiController implements UserApiDocs {
      */
     @Override
     @PatchMapping
-    public ResponseEntity<SuccessResponse<GetMyProfileResult>>
+    public ResponseEntity<SuccessResponse<UpdateMyProfileResult>>
     updateMyProfile(
             Authentication authentication,
             @Valid @RequestBody UpdateMyProfileCommand command
@@ -90,7 +91,7 @@ public class UserApiController implements UserApiDocs {
                         authentication
                 );
 
-        GetMyProfileResult result =
+        UpdateMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
                         userId,
                         command

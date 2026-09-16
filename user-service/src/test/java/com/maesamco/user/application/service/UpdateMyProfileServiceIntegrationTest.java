@@ -17,6 +17,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -24,11 +25,22 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.util.List;
+import java.util.UUID;
+
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 로그인 사용자 정보 수정 서비스의 실제 PostgreSQL 연동을 검증합니다.
@@ -64,7 +76,7 @@ class UpdateMyProfileServiceIntegrationTest {
     @Autowired
     private UpdateMyProfileService updateMyProfileService;
 
-    @Autowired
+    @MockitoSpyBean
     private UserRepository userRepository;
 
     @MockitoBean
@@ -94,7 +106,7 @@ class UpdateMyProfileServiceIntegrationTest {
                 );
 
         // when
-        GetMyProfileResult result =
+        UpdateMyProfileResult result =
                 updateMyProfileService.updateMyProfile(
                         savedUser.getId(),
                         command
@@ -198,6 +210,126 @@ class UpdateMyProfileServiceIntegrationTest {
                 .isEqualTo(3);
 
         verifyNoInteractions(emailCipher);
+    }
+
+    @Test
+    @DisplayName(
+            "서로 다른 사용자가 같은 닉네임으로 동시에 변경하면 "
+                    + "DB UNIQUE 제약으로 한 요청만 성공한다"
+    )
+    void updateMyProfile_concurrentDuplicateNicknameIsRejected()
+            throws Exception {
+        // given
+        User firstUser = userRepository.save(
+                createUser(
+                        "d".repeat(64),
+                        "첫번째사용자"
+                )
+        );
+
+        User secondUser = userRepository.save(
+                createUser(
+                        "e".repeat(64),
+                        "두번째사용자"
+                )
+        );
+
+        String duplicatedNickname = "동시닉네임";
+
+        CyclicBarrier nicknameCheckBarrier =
+                new CyclicBarrier(2);
+
+        doAnswer(invocation -> {
+            nicknameCheckBarrier.await(
+                    5,
+                    TimeUnit.SECONDS
+            );
+
+            return false;
+        }).when(userRepository)
+                .existsByNicknameIgnoreCase(
+                        duplicatedNickname
+                );
+
+        when(emailCipher.decrypt(ENCRYPTED_EMAIL))
+                .thenReturn(EMAIL);
+
+        UpdateMyProfileCommand command =
+                new UpdateMyProfileCommand(
+                        duplicatedNickname,
+                        LearningLevel.BASIC,
+                        6
+                );
+
+        ExecutorService executorService =
+                Executors.newFixedThreadPool(2);
+
+        try {
+            // when
+            Future<Object> firstFuture =
+                    executorService.submit(
+                            () -> executeUpdate(
+                                    firstUser.getId(),
+                                    command
+                            )
+                    );
+
+            Future<Object> secondFuture =
+                    executorService.submit(
+                            () -> executeUpdate(
+                                    secondUser.getId(),
+                                    command
+                            )
+                    );
+
+            List<Object> results = List.of(
+                    firstFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    ),
+                    secondFuture.get(
+                            10,
+                            TimeUnit.SECONDS
+                    )
+            );
+
+            // then
+            assertThat(results)
+                    .filteredOn(
+                            UpdateMyProfileResult.class::isInstance
+                    )
+                    .hasSize(1);
+
+            assertThat(results)
+                    .filteredOn(
+                            BusinessException.class::isInstance
+                    )
+                    .singleElement()
+                    .satisfies(result ->
+                            assertThat(
+                                    ((BusinessException) result)
+                                            .getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.USER_DUPLICATE_NICKNAME
+                            )
+                    );
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    private Object executeUpdate(
+            UUID userId,
+            UpdateMyProfileCommand command
+    ) {
+        try {
+            return updateMyProfileService.updateMyProfile(
+                    userId,
+                    command
+            );
+        } catch (RuntimeException exception) {
+            return exception;
+        }
     }
 
     private User createUser(

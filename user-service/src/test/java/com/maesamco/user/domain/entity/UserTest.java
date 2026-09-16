@@ -111,10 +111,9 @@ class UserTest {
     }
 
     @Test
-    @DisplayName("닉네임이 50자를 초과하면 사용자를 생성할 수 없다")
+    @DisplayName("닉네임이 20자를 초과하면 사용자를 생성할 수 없다")
     void rejectTooLongNicknameOnCreate() {
-        // given
-        String tooLongNickname = "가".repeat(51);
+        String tooLongNickname = "가".repeat(21);
 
         // when & then
         assertThatThrownBy(() -> User.create(
@@ -131,18 +130,17 @@ class UserTest {
                             assertThat(exception.getErrorCode())
                                     .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
                             assertThat(exception.getMessage())
-                                    .isEqualTo("닉네임은 50자 이하여야 합니다.");
+                                    .isEqualTo("닉네임은 2자 이상 20자 이하여야 합니다.");
                         }
                 );
     }
 
     @Test
-    @DisplayName("닉네임이 50자를 초과하면 프로필을 변경할 수 없다")
+    @DisplayName("닉네임이 20자를 초과하면 프로필을 변경할 수 없다")
     void rejectTooLongNicknameOnUpdate() {
-        // given
         User user = createDefaultUser();
         String originalNickname = user.getNickname();
-        String tooLongNickname = "가".repeat(51);
+        String tooLongNickname = "가".repeat(21);
 
         // when & then
         assertThatThrownBy(() -> user.updateProfile(
@@ -156,10 +154,77 @@ class UserTest {
                             assertThat(exception.getErrorCode())
                                     .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
                             assertThat(exception.getMessage())
-                                    .isEqualTo("닉네임은 50자 이하여야 합니다.");
+                                    .isEqualTo("닉네임은 2자 이상 20자 이하여야 합니다.");
                         }
                 );
         assertThat(user.getNickname()).isEqualTo(originalNickname);
+    }
+
+    @Test
+    @DisplayName("닉네임이 2자 미만이면 사용자를 생성할 수 없다")
+    void rejectTooShortNicknameOnCreate() {
+        assertThatThrownBy(() -> User.create(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                PASSWORD_HASH,
+                "가",
+                3,
+                LearningLevel.BEGINNER
+        ))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(
+                                    exception.getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.INVALID_INPUT_VALUE
+                            );
+
+                            assertThat(
+                                    exception.getMessage()
+                            ).isEqualTo(
+                                    "닉네임은 2자 이상 20자 이하여야 합니다."
+                            );
+                        }
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "닉네임에 허용되지 않은 문자가 있으면 "
+                    + "프로필을 변경할 수 없다"
+    )
+    void rejectInvalidNicknameCharactersOnUpdate() {
+        // given
+        User user = createDefaultUser();
+
+        // when & then
+        assertThatThrownBy(
+                () -> user.updateProfile(
+                        "잘못된 닉네임!",
+                        12,
+                        LearningLevel.BASIC
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(
+                                    exception.getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.INVALID_INPUT_VALUE
+                            );
+
+                            assertThat(
+                                    exception.getMessage()
+                            ).isEqualTo(
+                                    "닉네임은 한글, 영문, 숫자만 사용할 수 있습니다."
+                            );
+                        }
+                );
+
+        assertThat(user.getNickname())
+                .isEqualTo("매삼코");
     }
 
     @Test
@@ -252,6 +317,40 @@ class UserTest {
         // then
         assertThat(user.getStatus())
                 .isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("활성 사용자는 상태 검증을 통과한다")
+    void assertActive_allowsActiveUser() {
+        // given
+        User user = createDefaultUser();
+
+        // when
+        user.assertActive();
+
+        // then
+        assertThat(user.getStatus())
+                .isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("정지 사용자는 USER_NOT_ACTIVE를 반환한다")
+    void assertActive_rejectsSuspendedUser() {
+        // given
+        User user = createDefaultUser();
+        user.suspend();
+
+        // when & then
+        assertThatThrownBy(user::assertActive)
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(
+                                        exception.getErrorCode()
+                                ).isEqualTo(
+                                        ErrorCode.USER_NOT_ACTIVE
+                                )
+                );
     }
 
     /**
