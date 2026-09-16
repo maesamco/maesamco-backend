@@ -1,4 +1,4 @@
-package com.maesamco.coaching.presentation.api_controller;
+package com.maesamco.coaching.presentation.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

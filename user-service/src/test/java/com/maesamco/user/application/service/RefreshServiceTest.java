@@ -189,6 +189,8 @@ class RefreshServiceTest {
         when(
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 )
@@ -245,6 +247,8 @@ class RefreshServiceTest {
         verify(authSessionStore)
                 .rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -620,6 +624,8 @@ class RefreshServiceTest {
         ).rotateRefreshToken(
                 any(),
                 any(),
+                any(),
+                any(),
                 any()
         );
     }
@@ -663,6 +669,8 @@ class RefreshServiceTest {
         verify(authSessionStore)
                 .rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -707,6 +715,8 @@ class RefreshServiceTest {
         verify(authSessionStore)
                 .rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -751,6 +761,8 @@ class RefreshServiceTest {
         verify(authSessionStore)
                 .rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 );
@@ -830,6 +842,8 @@ class RefreshServiceTest {
         when(
                 authSessionStore.rotateRefreshToken(
                         SESSION_ID,
+                        user.getId(),
+                        SESSION_CREATED_AT,
                         OLD_REFRESH_TOKEN_HASH,
                         NEW_REFRESH_TOKEN_HASH
                 )
