@@ -14,6 +14,7 @@ import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -34,18 +35,35 @@ public class JudgeExecutionFacade {
     private final JsonMapper jsonMapper;
 
     public void execute(UUID submissionId) {
-        Optional<JudgeExecutionPreparation> preparation;
+        Optional<UUID> markedRunning;
         try {
-            preparation = judgeExecutionPersistenceService.prepareForExecution(submissionId);
+            markedRunning = judgeExecutionPersistenceService.markRunningIfNeeded(submissionId);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.info("[Judge] 다른 워커가 이미 처리 중 — 낙관적 락 충돌로 스킵. submissionId={}", submissionId);
+            return;
+        } catch (Exception e) {
+            // RUNNING 전이가 커밋된 적이 없으므로 상태를 건드리지 않고 종료한다.
+            // QUEUED는 메시지 재전달이, RETRY_WAIT는 스케줄러가 알아서 다시 집어간다.
+            log.error("[Judge] RUNNING 전이 단계 실패 — 상태 변경 없이 종료. submissionId={}", submissionId, e);
+            return;
+        }
+
+        if (markedRunning.isEmpty()) {
+            return;
+        }
+
+        JudgeExecutionPreparation preparation;
+        try {
+            preparation = judgeExecutionPersistenceService.loadExecutionPreparation(submissionId);
         } catch (BusinessException e) {
-            if(isNonRetryable(e.getErrorCode())) {
+            if (isNonRetryable(e.getErrorCode())) {
                 log.error("[Judge] 실행 준비 단계에서 재시도 불가능한 오류 발생 - FAILED 처리, submissionId={}, errorCode={}",
                         submissionId, e.getErrorCode());
-                markFailedSafely(submissionId,FailureCode.INTERNAL_SYSTEM_ERROR);
+                markFailedSafely(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
             } else {
                 log.error("[Judge] 실행 준비 단계 실패 — 재시도 판단. submissionId={}, errorCode={}",
                         submissionId, e.getErrorCode(), e);
-                handleRetryableFailureSafely(submissionId,FailureCode.INTERNAL_SYSTEM_ERROR);
+                handleRetryableFailureSafely(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
             }
             return;
         } catch (Exception e) {
@@ -54,15 +72,9 @@ public class JudgeExecutionFacade {
             return;
         }
 
-        if (preparation.isEmpty()) {
-            return;
-        }
-
-        JudgeExecutionPreparation prep = preparation.get();
-
         List<ExecutionTestCase> testCases;
         try {
-            testCases = parseTestCases(prep.spec().getTestCases());
+            testCases = parseTestCases(preparation.spec().getTestCases());
         } catch (Exception e) {
             log.error("[Judge] 테스트케이스 파싱 실패 — FAILED 처리. submissionId={}", submissionId, e);
             markFailedSafely(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
@@ -80,8 +92,8 @@ public class JudgeExecutionFacade {
         try {
             List<JudgeExecutionRequest> requests = testCases.stream()
                     .map(tc -> new JudgeExecutionRequest(
-                            prep.code(), tc.input(), tc.expectedOutput(),
-                            prep.spec().getTimeLimitMs() / 1000.0, prep.spec().getMemoryLimitMb() * 1024))
+                            preparation.code(), tc.input(), tc.expectedOutput(),
+                            preparation.spec().getTimeLimitMs() / 1000.0, preparation.spec().getMemoryLimitMb() * 1024))
                     .toList();
             tokens = judgeExecutionPort.submitBatch(requests);
             if (tokens.size() != testCases.size()) {
