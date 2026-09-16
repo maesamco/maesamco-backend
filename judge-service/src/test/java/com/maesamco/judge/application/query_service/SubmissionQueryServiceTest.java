@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 
 import com.maesamco.judge.application.query.SubmissionGetQuery;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
-import com.maesamco.judge.application.result.SubmissionGetResult;
+import com.maesamco.judge.application.result.SubmissionInternalGetResult;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
@@ -76,7 +76,7 @@ class SubmissionQueryServiceTest {
             given(submissionTestResultRepository.findBySubmissionIdAndPassedFalse(submissionId))
                     .willReturn(List.of(failed));
 
-            SubmissionGetResult result =
+            SubmissionInternalGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
             assertThat(result.submissionId()).isEqualTo(submissionId);
@@ -103,7 +103,7 @@ class SubmissionQueryServiceTest {
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
-            SubmissionGetResult result =
+            SubmissionInternalGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
             assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
@@ -121,7 +121,7 @@ class SubmissionQueryServiceTest {
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
-            SubmissionGetResult result =
+            SubmissionInternalGetResult result =
                     submissionQueryService.getSubmissionForInternal(SubmissionGetQuery.from(submissionId));
 
             assertThat(result.status()).isEqualTo(SubmissionStatus.FAILED);
@@ -170,6 +170,8 @@ class SubmissionQueryServiceTest {
             assertThat(result.result()).isEqualTo(SubmissionResult.CORRECT);
             assertThat(result.testResults()).hasSize(1);
             assertThat(result.testResults().get(0).passed()).isTrue();
+            assertThat(result.executionTimeMs()).isEqualTo(120);
+            assertThat(result.memoryUsedKb()).isEqualTo(15360);
         }
 
         @Test
@@ -276,7 +278,7 @@ class SubmissionQueryServiceTest {
         }
 
         @Test
-        @DisplayName("Submission에 result/failureCode 값이 남아있어도 RUNNING이면 응답에서는 null로 내려간다 (도메인 가드가 아니라 이 메서드 자체가 계약을 보장)")
+        @DisplayName("Submission에 result/failureCode/executionTimeMs/memoryUsedKb 값이 남아있어도 RUNNING이면 응답에서는 null로 내려간다 (도메인 가드가 아니라 이 메서드 자체가 계약을 보장)")
         void nullsResultAndFailureCodeWhenNotTerminalEvenIfEntityHasStaleValue() {
             UUID submissionId = UUID.randomUUID();
             Submission submission = pendingSubmission(submissionId);
@@ -284,6 +286,8 @@ class SubmissionQueryServiceTest {
             submission.markRunning();
             ReflectionTestUtils.setField(submission, "result", SubmissionResult.CORRECT);
             ReflectionTestUtils.setField(submission, "failureCode", FailureCode.JUDGE0_RESPONSE_FAILURE);
+            ReflectionTestUtils.setField(submission, "executionTimeMs", 999);
+            ReflectionTestUtils.setField(submission, "memoryUsedKb", 99999);
 
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -292,6 +296,8 @@ class SubmissionQueryServiceTest {
             assertThat(result.status()).isEqualTo(SubmissionStatus.RUNNING);
             assertThat(result.result()).isNull();
             assertThat(result.failureCode()).isNull();
+            assertThat(result.executionTimeMs()).isNull();
+            assertThat(result.memoryUsedKb()).isNull();
             verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
         }
     }

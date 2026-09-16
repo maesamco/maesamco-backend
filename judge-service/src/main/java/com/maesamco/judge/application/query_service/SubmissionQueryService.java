@@ -2,7 +2,7 @@ package com.maesamco.judge.application.query_service;
 
 import com.maesamco.judge.application.query.SubmissionGetQuery;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
-import com.maesamco.judge.application.result.SubmissionGetResult;
+import com.maesamco.judge.application.result.SubmissionInternalGetResult;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
@@ -26,7 +26,7 @@ public class SubmissionQueryService {
     private final SubmissionRepository submissionRepository;
     private final SubmissionTestResultRepository submissionTestResultRepository;
 
-    public SubmissionGetResult getSubmissionForInternal(SubmissionGetQuery query) {
+    public SubmissionInternalGetResult getSubmissionForInternal(SubmissionGetQuery query) {
         Submission submission = submissionRepository.findById(query.submissionId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBMISSION_NOT_FOUND));
 
@@ -34,7 +34,7 @@ public class SubmissionQueryService {
                 ? submissionTestResultRepository.findBySubmissionIdAndPassedFalse(query.submissionId())
                 : Collections.emptyList();
 
-        return SubmissionGetResult.of(submission, failedResults);
+        return SubmissionInternalGetResult.of(submission, failedResults);
     }
 
     public SubmissionExternalGetResult getSubmission(UUID submissionId, UUID requesterID) {

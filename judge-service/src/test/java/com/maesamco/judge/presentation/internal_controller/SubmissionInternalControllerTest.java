@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
-import com.maesamco.judge.application.result.SubmissionGetResult;
+import com.maesamco.judge.application.result.SubmissionInternalGetResult;
 import com.maesamco.judge.domain.entity.SubmissionResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.global.exception.BusinessException;
@@ -42,10 +42,10 @@ class SubmissionInternalControllerTest {
         @DisplayName("조회에 성공하면 200과 success/data 포맷으로 응답한다")
         void returns200WithSubmission() throws Exception {
             UUID submissionId = UUID.randomUUID();
-            SubmissionGetResult result = new SubmissionGetResult(
+            SubmissionInternalGetResult result = new SubmissionInternalGetResult(
                     submissionId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "code",
                     SubmissionStatus.COMPLETED, SubmissionResult.WRONG, null,
-                    List.of(new SubmissionGetResult.FailedTestItem(true, "WRONG_ANSWER")),
+                    List.of(new SubmissionInternalGetResult.FailedTestItem(true, "WRONG_ANSWER")),
                     3
             );
             given(submissionQueryService.getSubmissionForInternal(any())).willReturn(result);

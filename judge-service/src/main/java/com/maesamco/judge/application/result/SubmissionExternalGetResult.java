@@ -1,7 +1,10 @@
 package com.maesamco.judge.application.result;
 
-import com.maesamco.judge.domain.entity.*;
-
+import com.maesamco.judge.domain.entity.FailureCode;
+import com.maesamco.judge.domain.entity.Submission;
+import com.maesamco.judge.domain.entity.SubmissionResult;
+import com.maesamco.judge.domain.entity.SubmissionStatus;
+import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -40,12 +43,14 @@ public record SubmissionExternalGetResult(
 
         SubmissionResult result = status == SubmissionStatus.COMPLETED ? submission.getResult() : null;
         FailureCode failureCode = status == SubmissionStatus.FAILED ? submission.getFailureCode() : null;
+        Integer executionTimeMs = status == SubmissionStatus.COMPLETED ? submission.getExecutionTimeMs() : null;
+        Integer memoryUsedKb = status == SubmissionStatus.COMPLETED ? submission.getMemoryUsedKb() : null;
 
         return new SubmissionExternalGetResult(
                 submission.getId(), submission.getProblemId(), submission.getProblemVersionId(),
                 submission.getAttemptNo(), status, result,
                 failureCode, items,
-                submission.getExecutionTimeMs(), submission.getMemoryUsedKb(),
+                executionTimeMs, memoryUsedKb,
                 submission.getSubmittedAt(), submission.getJudgedAt());
     }
 }
