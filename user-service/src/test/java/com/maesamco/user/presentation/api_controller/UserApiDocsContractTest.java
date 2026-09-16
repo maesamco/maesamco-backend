@@ -1,6 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -57,6 +58,81 @@ class UserApiDocsContractTest {
         assertErrorResponseSchema(
                 method,
                 "404"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "500"
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "내 정보 수정 API의 OpenAPI 성공 및 오류 응답을 정의한다"
+    )
+    void updateMyProfileContract()
+            throws NoSuchMethodException {
+        // given
+        Method method = UserApiDocs.class.getMethod(
+                "updateMyProfile",
+                Authentication.class,
+                UpdateMyProfileCommand.class
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "409"
+                ).description()
+        ).contains(
+                "USER_DUPLICATE_NICKNAME",
+                "USER_PROFILE_UPDATE_CONFLICT"
+        );
+
+        // then
+        assertOperation(method);
+
+        assertResponseCodes(
+                method,
+                "200",
+                "400",
+                "401",
+                "403",
+                "404",
+                "409",
+                "500"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "200"
+                ).useReturnTypeSchema()
+        ).isTrue();
+
+        assertErrorResponseSchema(
+                method,
+                "400"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "401"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "403"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "404"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "409"
         );
 
         assertErrorResponseSchema(

@@ -1,25 +1,23 @@
 package com.maesamco.user.application.service;
 
 import com.maesamco.user.global.exception.BusinessException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 
 import java.util.UUID;
-import com.maesamco.user.global.exception.BusinessException;
-import org.springframework.http.HttpStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
-@ExtendWith(MockitoExtension.class)
 class ChangePasswordRetryServiceTest {
 
     private static final UUID USER_ID =
@@ -33,11 +31,20 @@ class ChangePasswordRetryServiceTest {
                     "NewAbcd1234!"
             );
 
-    @Mock
     private ChangePasswordService changePasswordService;
 
-    @InjectMocks
     private ChangePasswordRetryService changePasswordRetryService;
+
+    @BeforeEach
+    void setUp() {
+        changePasswordService =
+                mock(ChangePasswordService.class);
+
+        changePasswordRetryService =
+                new ChangePasswordRetryService(
+                        changePasswordService
+                );
+    }
 
     @Test
     @DisplayName(

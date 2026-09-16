@@ -4,6 +4,9 @@ import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.UpdateMyProfileResult;
+import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -38,6 +41,8 @@ public class UserApiController implements UserApiDocs {
 
     private final ChangePasswordRetryService changePasswordRetryService;
 
+    private final UpdateMyProfileService updateMyProfileService;
+
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
      *
@@ -58,6 +63,38 @@ public class UserApiController implements UserApiDocs {
         GetMyProfileResult result =
                 getMyProfileService.getMyProfile(
                         userId
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 닉네임과 Java 학습 정보를 수정합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param command 변경할 사용자 기본 정보
+     * @return 변경된 사용자 기본 정보
+     */
+    @Override
+    @PatchMapping
+    public ResponseEntity<SuccessResponse<UpdateMyProfileResult>>
+    updateMyProfile(
+            Authentication authentication,
+            @Valid @RequestBody UpdateMyProfileCommand command
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        UpdateMyProfileResult result =
+                updateMyProfileService.updateMyProfile(
+                        userId,
+                        command
                 );
 
         return ResponseEntity.ok(

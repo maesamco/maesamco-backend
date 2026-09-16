@@ -4,6 +4,7 @@ import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.ChangePasswordService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
@@ -70,6 +71,9 @@ class UserApiControllerGetMyProfileTest {
 
     @MockitoBean
     private ChangePasswordRetryService changePasswordRetryService;
+
+    @MockitoBean
+    private UpdateMyProfileService updateMyProfileService;
 
     @Test
     @DisplayName(

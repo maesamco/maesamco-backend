@@ -65,6 +65,10 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "비밀번호 변경 중 동시 수정이 감지되었습니다. 다시 시도해주세요."
     ),
+    USER_PROFILE_UPDATE_CONFLICT(
+            HttpStatus.CONFLICT,
+            "사용자 정보 수정 중 동시 변경이 감지되었습니다. 다시 시도해주세요."
+    ),
     EMAIL_VERIFICATION_INVALID_CODE(
             HttpStatus.BAD_REQUEST,
             "인증 코드가 올바르지 않습니다."
