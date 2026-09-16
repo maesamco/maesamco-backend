@@ -57,9 +57,6 @@ public class DailyQuizEventOutbox {
     private static final String AGGREGATE_TYPE_DAILY_QUIZ =
             "DAILY_QUIZ";
 
-    private static final String EVENT_TYPE_DAILY_QUIZ_COMPLETED =
-            "DAILY_QUIZ_COMPLETED";
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -110,6 +107,7 @@ public class DailyQuizEventOutbox {
     private DailyQuizEventOutbox(
             UUID eventId,
             UUID quizAttemptId,
+            String eventType,
             int eventVersion,
             String payload,
             Instant occurredAt
@@ -117,7 +115,7 @@ public class DailyQuizEventOutbox {
         this.eventId = eventId;
         this.aggregateType = AGGREGATE_TYPE_DAILY_QUIZ;
         this.aggregateId = quizAttemptId;
-        this.eventType = EVENT_TYPE_DAILY_QUIZ_COMPLETED;
+        this.eventType = eventType;
         this.eventVersion = eventVersion;
         this.payload = payload;
         this.status = DailyQuizEventOutboxStatus.PENDING;
@@ -135,6 +133,7 @@ public class DailyQuizEventOutbox {
     public static DailyQuizEventOutbox createPending(
             UUID eventId,
             UUID quizAttemptId,
+            String eventType,
             int eventVersion,
             String payload,
             Instant occurredAt
@@ -142,10 +141,18 @@ public class DailyQuizEventOutbox {
         return new DailyQuizEventOutbox(
                 requireId(eventId, "이벤트 ID"),
                 requireId(quizAttemptId, "퀴즈 세트 ID"),
+                requireEventType(eventType),
                 requireEventVersion(eventVersion),
                 requirePayload(payload),
                 requireOccurredAt(occurredAt)
         );
+    }
+
+    private static String requireEventType(String eventType) {
+        if (eventType == null || eventType.isBlank()) {
+            throw new IllegalArgumentException("이벤트 타입은 필수입니다.");
+        }
+        return eventType;
     }
 
     private static UUID requireId(UUID id, String fieldName) {

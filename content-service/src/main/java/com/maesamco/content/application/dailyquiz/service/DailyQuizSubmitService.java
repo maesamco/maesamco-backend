@@ -1,22 +1,20 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventData;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventPort;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
-import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutbox;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
-import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.infrastructure.dailyquiz.messaging.event.DailyQuizCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -36,9 +34,8 @@ public class DailyQuizSubmitService {
     private final DailyQuizAttemptRepository attemptRepository;
     private final DailyQuizAttemptItemRepository attemptItemRepository;
     private final DailyQuizQuestionRepository questionRepository;
-    private final DailyQuizEventOutboxRepository eventOutboxRepository;
+    private final DailyQuizCompletedEventPort completedEventPort;
     private final Clock dailyQuizClock;
-    private final JsonMapper jsonMapper;
 
     @Transactional
     public DailyQuizSubmitResult submit(DailyQuizSubmitCommand command) {
@@ -130,31 +127,23 @@ public class DailyQuizSubmitService {
         attempt.complete(correctCount, now);
         DailyQuizAttempt completedAttempt = attemptRepository.save(attempt);
 
-        // 완료된 전체 문항의 문제 버전·개념·정답 여부를 이벤트 스냅샷으로 조립
-        List<DailyQuizCompletedEvent.QuestionResult> questionResults = createQuestionResults(completedAttempt);
+        // 완료된 전체 문항의 문제 버전·개념·정답 여부를 이벤트 의미 데이터로 조립
+        List<DailyQuizCompletedEventData.QuestionResult> questionResults =
+                createQuestionResults(completedAttempt);
 
-        UUID eventId = UUID.randomUUID();
-        DailyQuizCompletedEvent event =
-                DailyQuizCompletedEvent.fromCompletedAttempt(
-                        eventId,
+        DailyQuizCompletedEventData eventData =
+                new DailyQuizCompletedEventData(
                         now,
-                        completedAttempt,
+                        completedAttempt.getId(),
+                        completedAttempt.getUserId(),
+                        completedAttempt.getCorrectCount(),
+                        completedAttempt.getTotalCount(),
+                        completedAttempt.getCompletedAt(),
                         questionResults
                 );
 
-        String payload = serializeEvent(event);
-
-        DailyQuizEventOutbox outbox =
-                DailyQuizEventOutbox.createPending(
-                        event.eventId(),
-                        event.quizAttemptId(),
-                        event.eventVersion(),
-                        payload,
-                        event.occurredAt()
-                );
-
-        // Attempt 완료와 Outbox 저장은 submit()의 같은 트랜잭션에서 함께 커밋
-        eventOutboxRepository.save(outbox);
+        // 같은 트랜잭션 안에서 출력 포트를 호출하며, 직렬화와 Outbox 저장은 Adapter가 담당
+        completedEventPort.publish(eventData);
 
         // attemptCompleted=true와 correctCount, totalCount를 담은 Result를 반환
         return new DailyQuizSubmitResult(
@@ -169,7 +158,7 @@ public class DailyQuizSubmitService {
     /**
      * 완료된 세트의 문항 결과를 노출 순서대로 이벤트 항목으로 변환
      */
-    private List<DailyQuizCompletedEvent.QuestionResult> createQuestionResults(
+    private List<DailyQuizCompletedEventData.QuestionResult> createQuestionResults(
             DailyQuizAttempt attempt
     ) {
         List<DailyQuizAttemptItem> attemptItems =
@@ -203,7 +192,7 @@ public class DailyQuizSubmitService {
                 .toList();
     }
 
-    private DailyQuizCompletedEvent.QuestionResult toQuestionResult(
+    private DailyQuizCompletedEventData.QuestionResult toQuestionResult(
             DailyQuizAttemptItem attemptItem,
             Map<UUID, DailyQuizQuestion> questionsById
     ) {
@@ -225,24 +214,10 @@ public class DailyQuizSubmitService {
             );
         }
 
-        return new DailyQuizCompletedEvent.QuestionResult(
+        return new DailyQuizCompletedEventData.QuestionResult(
                 question.getId(),
                 question.getConceptTags(),
                 correct
         );
-    }
-
-    /**
-     * DailyQuizCompleted 이벤트를 Outbox 저장용 JSON으로 직렬화
-     */
-    private String serializeEvent(DailyQuizCompletedEvent event) {
-        try {
-            return jsonMapper.writeValueAsString(event);
-        } catch (Exception exception) {
-            throw new BusinessException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "DailyQuizCompleted 이벤트 직렬화에 실패했습니다."
-            );
-        }
     }
 }

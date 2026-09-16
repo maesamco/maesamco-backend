@@ -1,6 +1,6 @@
 package com.maesamco.content.infrastructure.dailyquiz.messaging.event;
 
-import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventData;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,12 +43,19 @@ public record DailyQuizCompletedEvent(
     /**
      * 완료된 Daily Quiz 세트와 문항별 결과를 기반으로 이벤트를 생성
      */
-    public static DailyQuizCompletedEvent fromCompletedAttempt(
+    public static DailyQuizCompletedEvent from(
             UUID eventId,
-            Instant occurredAt,
-            DailyQuizAttempt attempt,
-            List<QuestionResult> questionResults
+            DailyQuizCompletedEventData eventData
     ) {
+        List<QuestionResult> questionResults =
+                eventData.questionResults().stream()
+                        .map(result -> new QuestionResult(
+                                result.questionVersionId(),
+                                result.conceptTags(),
+                                result.correct()
+                        ))
+                        .toList();
+
         List<String> conceptTags =
                 questionResults.stream()
                         .flatMap(result -> result.conceptTags().stream())
@@ -59,13 +66,13 @@ public record DailyQuizCompletedEvent(
                 eventId,
                 EVENT_TYPE,
                 EVENT_VERSION,
-                occurredAt,
-                attempt.getId(),
-                attempt.getUserId(),
+                eventData.occurredAt(),
+                eventData.quizAttemptId(),
+                eventData.userId(),
                 conceptTags,
-                attempt.getCorrectCount(),
-                attempt.getTotalCount(),
-                attempt.getCompletedAt(),
+                eventData.correctCount(),
+                eventData.totalCount(),
+                eventData.completedAt(),
                 questionResults
         );
     }

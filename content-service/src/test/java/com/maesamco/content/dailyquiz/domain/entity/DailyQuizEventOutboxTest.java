@@ -33,6 +33,7 @@ class DailyQuizEventOutboxTest {
                 DailyQuizEventOutbox.createPending(
                         eventId,
                         quizAttemptId,
+                        "DAILY_QUIZ_COMPLETED",
                         1,
                         payload,
                         OCCURRED_AT
@@ -59,6 +60,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
                 null,
                 UUID.randomUUID(),
+                "DAILY_QUIZ_COMPLETED",
                 1,
                 "{}",
                 OCCURRED_AT
@@ -73,6 +75,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
                 UUID.randomUUID(),
                 null,
+                "DAILY_QUIZ_COMPLETED",
                 1,
                 "{}",
                 OCCURRED_AT
@@ -88,6 +91,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                "DAILY_QUIZ_COMPLETED",
                 eventVersion,
                 "{}",
                 OCCURRED_AT
@@ -104,6 +108,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                "DAILY_QUIZ_COMPLETED",
                 1,
                 payload,
                 OCCURRED_AT
@@ -118,11 +123,29 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                "DAILY_QUIZ_COMPLETED",
                 1,
                 "{}",
                 null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("이벤트 발생 시각은 필수입니다.");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n"})
+    @DisplayName("이벤트 타입이 비어 있으면 Outbox를 생성할 수 없다")
+    void createPending_rejectsBlankEventType(String eventType) {
+        assertThatThrownBy(() -> DailyQuizEventOutbox.createPending(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                eventType,
+                1,
+                "{}",
+                OCCURRED_AT
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이벤트 타입은 필수입니다.");
     }
 }

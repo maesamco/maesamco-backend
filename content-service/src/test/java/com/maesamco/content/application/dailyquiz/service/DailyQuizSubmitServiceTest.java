@@ -1,23 +1,23 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventData;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventPort;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
-import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.infrastructure.dailyquiz.messaging.event.DailyQuizCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -29,8 +29,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -58,10 +58,7 @@ class DailyQuizSubmitServiceTest {
     private DailyQuizQuestionRepository questionRepository;
 
     @Mock
-    private DailyQuizEventOutboxRepository eventOutboxRepository;
-
-    @Mock
-    private JsonMapper jsonMapper;
+    private DailyQuizCompletedEventPort completedEventPort;
 
     private DailyQuizSubmitService submitService;
     private DailyQuizAttempt attempt;
@@ -72,9 +69,8 @@ class DailyQuizSubmitServiceTest {
                 attemptRepository,
                 attemptItemRepository,
                 questionRepository,
-                eventOutboxRepository,
-                Clock.fixed(TEST_NOW, QUIZ_ZONE_ID),
-                jsonMapper
+                completedEventPort,
+                Clock.fixed(TEST_NOW, QUIZ_ZONE_ID)
         );
     }
 
@@ -96,7 +92,7 @@ class DailyQuizSubmitServiceTest {
                 )
                 .hasMessage("완료된 Daily Quiz의 배정 문항 수가 전체 문항 수와 일치하지 않습니다.");
 
-        verifyNoInteractions(eventOutboxRepository);
+        verifyNoInteractions(completedEventPort);
     }
 
     @Test
@@ -123,7 +119,7 @@ class DailyQuizSubmitServiceTest {
                 )
                 .hasMessage("완료된 Daily Quiz의 문제 버전 일부를 찾을 수 없습니다.");
 
-        verifyNoInteractions(eventOutboxRepository);
+        verifyNoInteractions(completedEventPort);
     }
 
     @Test
@@ -158,7 +154,7 @@ class DailyQuizSubmitServiceTest {
                                 + missingQuestionId
                 );
 
-        verifyNoInteractions(eventOutboxRepository);
+        verifyNoInteractions(completedEventPort);
     }
 
     @Test
@@ -187,12 +183,12 @@ class DailyQuizSubmitServiceTest {
                                 + questionId
                 );
 
-        verifyNoInteractions(eventOutboxRepository);
+        verifyNoInteractions(completedEventPort);
     }
 
     @Test
-    @DisplayName("이벤트 직렬화에 실패하면 Outbox를 저장하지 않는다")
-    void submit_doesNotSaveOutboxWhenSerializationFails() throws Exception {
+    @DisplayName("마지막 문항 제출 시 완료 의미 데이터를 이벤트 포트로 전달한다")
+    void submit_publishesCompletedEventData() {
         stubUntilCompleted(1);
 
         UUID questionId = UUID.randomUUID();
@@ -207,18 +203,25 @@ class DailyQuizSubmitServiceTest {
                 .thenReturn(List.of(item));
         when(questionRepository.findAllById(List.of(questionId)))
                 .thenReturn(List.of(question));
-        when(jsonMapper.writeValueAsString(any(DailyQuizCompletedEvent.class)))
-                .thenThrow(new RuntimeException("직렬화 실패"));
 
-        assertThatThrownBy(() -> submitService.submit(command()))
-                .isInstanceOfSatisfying(
-                        BusinessException.class,
-                        exception -> assertThat(exception.getErrorCode())
-                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
-                )
-                .hasMessage("DailyQuizCompleted 이벤트 직렬화에 실패했습니다.");
+        submitService.submit(command());
 
-        verifyNoInteractions(eventOutboxRepository);
+        ArgumentCaptor<DailyQuizCompletedEventData> eventDataCaptor =
+                ArgumentCaptor.forClass(DailyQuizCompletedEventData.class);
+        verify(completedEventPort).publish(eventDataCaptor.capture());
+
+        DailyQuizCompletedEventData eventData = eventDataCaptor.getValue();
+        assertThat(eventData.occurredAt()).isEqualTo(TEST_NOW);
+        assertThat(eventData.quizAttemptId()).isEqualTo(attemptId);
+        assertThat(eventData.userId()).isEqualTo(userId);
+        assertThat(eventData.correctCount()).isEqualTo(1);
+        assertThat(eventData.totalCount()).isEqualTo(1);
+        assertThat(eventData.completedAt()).isEqualTo(TEST_NOW);
+        assertThat(eventData.questionResults()).singleElement().satisfies(result -> {
+            assertThat(result.questionVersionId()).isEqualTo(questionId);
+            assertThat(result.conceptTags()).containsExactly("메서드");
+            assertThat(result.correct()).isTrue();
+        });
     }
 
     private void stubUntilCompleted(int totalCount) {
