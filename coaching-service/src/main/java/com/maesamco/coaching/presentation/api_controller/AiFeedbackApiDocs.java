@@ -38,11 +38,14 @@ public interface AiFeedbackApiDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "재시도 성공"),
-            @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND(제출이 없거나 본인 소유가 아님) 또는 "
-                    + "AI_FEEDBACK_NOT_FOUND(세션이 아직 완료 전이라 재시도할 생성 시도 자체가 없음)"),
+            @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND(제출이 없거나 본인 소유가 아님), "
+                    + "AI_FEEDBACK_NOT_STARTED(세션이 아직 완료 전이라 재시도할 생성 시도 자체가 없음) 또는 "
+                    + "AI_FEEDBACK_NOT_FOUND(방금 재시도했지만 여전히 생성되지 않음) 중 하나"),
             @ApiResponse(responseCode = "409", description = "AI_FEEDBACK_RETRY_IN_PROGRESS(동시 재시도 요청 중), "
                     + "AI_FEEDBACK_ALREADY_EXISTS(이미 피드백이 생성돼 있음), "
-                    + "AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(재시도 횟수 초과) 중 하나")
+                    + "AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(재시도 횟수 초과), "
+                    + "AI_FEEDBACK_PREREQUISITE_MISSING(세션 완료 후 재구성에 필요한 선행 데이터 누락 — "
+                    + "데이터 정합성 이상, 문의 필요) 중 하나")
     })
     ResponseEntity<SuccessResponse<AiFeedbackResponse>> retryFeedback(
             UUID submissionId,

@@ -52,13 +52,14 @@ public class FeedbackPersistenceService {
      * 자체는 이미 파싱된 값을 저장하는 것 외엔 아무 판단도 하지 않는다.
      */
     public void saveFeedback(
-            UUID coachingSessionId, UUID userId, String modelName, String promptVersion, Integer tokenUsage,
+            UUID coachingSessionId, UUID userId, String modelName, String promptVersion,
+            Integer responseTimeMs, Integer tokenUsage,
             JsonNode understoodConcepts, JsonNode explanationGaps, JsonNode weakConcepts,
             JsonNode syntaxToImprove, JsonNode recommendedProblems, String nextDirection
     ) {
         aiCallHistoryRepository.save(AiCallHistory.create(
                 coachingSessionId, AiCallPurpose.FEEDBACK, modelName, promptVersion,
-                "SUCCESS", null, tokenUsage, null, 0
+                "SUCCESS", responseTimeMs, tokenUsage, null, 0
         ));
 
         aiFeedbackRepository.save(AiFeedback.create(
