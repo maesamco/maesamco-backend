@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -90,6 +91,13 @@ public class DailyQuizEventOutbox {
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
@@ -114,6 +122,8 @@ public class DailyQuizEventOutbox {
         this.payload = payload;
         this.status = DailyQuizEventOutboxStatus.PENDING;
         this.retryCount = 0;
+        this.nextAttemptAt = null;
+        this.version = 0L;
         this.occurredAt = occurredAt;
         this.publishedAt = null;
         this.lastError = null;

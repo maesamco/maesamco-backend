@@ -46,6 +46,8 @@ class DailyQuizEventOutboxTest {
         assertThat(outbox.getPayload()).isEqualTo(payload);
         assertThat(outbox.getStatus()).isEqualTo(DailyQuizEventOutboxStatus.PENDING);
         assertThat(outbox.getRetryCount()).isZero();
+        assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getVersion()).isZero();
         assertThat(outbox.getOccurredAt()).isEqualTo(OCCURRED_AT);
         assertThat(outbox.getPublishedAt()).isNull();
         assertThat(outbox.getLastError()).isNull();

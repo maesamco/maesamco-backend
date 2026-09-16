@@ -43,6 +43,13 @@ CREATE TABLE content_schema.p_daily_quiz_event_outboxes
     -- Kafka 발행 실패 후 재시도 횟수입니다.
     retry_count INTEGER NOT NULL DEFAULT 0,
 
+    -- Relay가 이 시각 이후에 다시 발행할 수 있습니다.
+    -- NULL이면 즉시 발행할 수 있습니다.
+    next_attempt_at TIMESTAMPTZ,
+
+    -- 여러 Relay 인스턴스가 동시에 상태를 변경할 때 충돌을 감지합니다.
+    version BIGINT NOT NULL DEFAULT 0,
+
     -- DailyQuizCompleted 이벤트가 발생한 시각입니다.
     occurred_at TIMESTAMPTZ NOT NULL,
 
@@ -127,6 +134,12 @@ COMMENT ON COLUMN content_schema.p_daily_quiz_event_outboxes.payload IS
 
 COMMENT ON COLUMN content_schema.p_daily_quiz_event_outboxes.retry_count IS
     'Kafka 발행 실패 후 재시도 횟수';
+
+COMMENT ON COLUMN content_schema.p_daily_quiz_event_outboxes.next_attempt_at IS
+    '다음 Kafka 발행 시도 가능 시각. NULL이면 즉시 발행 가능';
+
+COMMENT ON COLUMN content_schema.p_daily_quiz_event_outboxes.version IS
+    '다중 Relay 인스턴스의 상태 변경 충돌 감지를 위한 낙관적 락 버전';
 
 COMMENT ON COLUMN content_schema.p_daily_quiz_event_outboxes.last_error IS
     '마지막 발행 실패 원인의 안전한 요약';

@@ -88,10 +88,8 @@ public class DailyQuizSubmitService {
         // questionVersionId로 문제 버전을 조회
         DailyQuizQuestion question = questionRepository
                 .findById(command.questionVersionId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId="
-                                + command.questionVersionId()
-                ));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,
+                        "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId=" + command.questionVersionId()));
 
         // DailyQuizQuestion.isCorrect(command.response())로 즉시 채점
         boolean correct = question.isCorrect(command.response());
