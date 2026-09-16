@@ -20,7 +20,7 @@ public class TagFinderService implements TagFinder {
     /** 태그 단건 조회 */
     @Override
     @Transactional(readOnly = true)
-    public Tag getTag(UUID tagId) {
+    public Tag getById(UUID tagId) {
         return tagRepository.findById(tagId)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.TAG_NOT_FOUND)

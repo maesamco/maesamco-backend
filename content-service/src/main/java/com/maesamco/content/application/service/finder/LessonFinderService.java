@@ -25,7 +25,7 @@ public class LessonFinderService implements LessonFinder {
 
     @Override
     @Transactional(readOnly = true)
-    public Lesson findLessonById(UUID lessonId) {
+    public Lesson getById(UUID lessonId) {
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(
                         () -> new BusinessException(

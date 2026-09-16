@@ -7,5 +7,5 @@ import java.util.UUID;
 public interface UnitFinder {
 
     /** 삭제되지 않은 유닛 단건 조회 */
-    Unit findById(UUID unitId);
+    Unit getById(UUID unitId);
 }

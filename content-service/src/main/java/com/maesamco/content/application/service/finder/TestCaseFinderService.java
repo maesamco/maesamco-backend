@@ -21,7 +21,7 @@ public class TestCaseFinderService implements TestCaseFinder {
     /** 테스트케이스를 조회합니다. */
     @Override
     @Transactional(readOnly = true)
-    public TestCase getTestCase(UUID testCaseId) {
+    public TestCase getById(UUID testCaseId) {
         return testCaseRepository.findById(testCaseId)
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.TEST_CASE_NOT_FOUND)

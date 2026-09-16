@@ -20,7 +20,7 @@ public class ProblemVersionFinderService implements ProblemVersionFinder {
 
     @Override
     @Transactional(readOnly = true)
-    public ProblemVersion getProblemVersion(UUID problemVersionId) {
+    public ProblemVersion getById(UUID problemVersionId) {
         return problemVersionRepository.findById(problemVersionId)
                 .orElseThrow(() ->
                         new BusinessException(

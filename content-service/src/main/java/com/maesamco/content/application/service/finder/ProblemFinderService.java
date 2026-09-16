@@ -20,7 +20,7 @@ public class ProblemFinderService implements ProblemFinder {
 
     @Override
     @Transactional(readOnly = true)
-    public Problem getProblem(UUID problemId) {
+    public Problem getById(UUID problemId) {
         return problemRepository.findById(problemId)
                 .orElseThrow(() ->
                         new BusinessException(
@@ -31,8 +31,8 @@ public class ProblemFinderService implements ProblemFinder {
 
     @Override
     @Transactional
-    public Problem getProblemForUpdate(UUID problemId) {
-        return problemRepository.findByIdForUpdate(problemId)
+    public void getByIdForUpdate(UUID problemId) {
+        problemRepository.findByIdForUpdate(problemId)
                 .orElseThrow(() ->
                         new BusinessException(
                                 ErrorCode.PROBLEM_NOT_FOUND

@@ -8,5 +8,5 @@ import java.util.UUID;
 public interface TestCaseFinder {
 
     /** 테스트케이스를 조회합니다. */
-    TestCase getTestCase(UUID testCaseId);
+    TestCase getById(UUID testCaseId);
 }

@@ -7,5 +7,5 @@ import java.util.UUID;
 public interface TagFinder {
 
     /** 태그 단건 조회 */
-    Tag getTag(UUID tagId);
+    Tag getById(UUID tagId);
 }

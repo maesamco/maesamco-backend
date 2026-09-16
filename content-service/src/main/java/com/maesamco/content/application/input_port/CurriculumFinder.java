@@ -8,5 +8,5 @@ import java.util.UUID;
 public interface CurriculumFinder {
 
     /** ID로 커리큘럼을 조회합니다. */
-    Curriculum findById(UUID curriculumId);
+    Curriculum getById(UUID curriculumId);
 }

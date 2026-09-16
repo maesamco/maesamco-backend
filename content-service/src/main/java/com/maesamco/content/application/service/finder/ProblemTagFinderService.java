@@ -21,14 +21,14 @@ public class ProblemTagFinderService implements ProblemTagFinder {
     /** 문제-태그 연결 존재 여부 조회 */
     @Override
     @Transactional(readOnly = true)
-    public boolean existsProblemTag(UUID problemId, UUID tagId) {
+    public boolean existsByProblemIdAndTagId(UUID problemId, UUID tagId) {
         return problemTagRepository.existsByProblemIdAndTagId(problemId, tagId);
     }
 
     /** 특정 문제의 문제-태그 연결 목록 조회 */
     @Override
     @Transactional(readOnly = true)
-    public List<ProblemTag> getProblemTags(UUID problemId) {
+    public List<ProblemTag> getByProblemId(UUID problemId) {
         return problemTagRepository.findAllByProblemId(problemId);
     }
 

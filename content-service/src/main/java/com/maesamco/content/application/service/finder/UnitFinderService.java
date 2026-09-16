@@ -22,7 +22,7 @@ public class UnitFinderService implements UnitFinder {
     /** 삭제되지 않은 유닛과 활성 커리큘럼을 함께 확인합니다. */
     @Override
     @Transactional(readOnly = true)
-    public Unit findById(UUID unitId) {
+    public Unit getById(UUID unitId) {
         Unit unit = unitRepository.findById(unitId)
                 .orElseThrow(
                         () -> new BusinessException(
