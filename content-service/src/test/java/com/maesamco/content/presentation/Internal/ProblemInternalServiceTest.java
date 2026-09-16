@@ -1,4 +1,4 @@
-package com.maesamco.content.Internal;
+package com.maesamco.content.presentation.Internal;
 
 import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.application.input_port.ProblemTagFinder;
