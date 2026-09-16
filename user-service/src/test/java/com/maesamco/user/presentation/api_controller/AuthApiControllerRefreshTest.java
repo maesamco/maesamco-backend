@@ -1,12 +1,7 @@
 package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.port.IssuedTokens;
-import com.maesamco.user.application.service.EmailVerificationService;
-import com.maesamco.user.application.service.LoginService;
-import com.maesamco.user.application.service.LogoutService;
-import com.maesamco.user.application.service.RefreshResult;
-import com.maesamco.user.application.service.RefreshService;
-import com.maesamco.user.application.service.SignUpService;
+import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -67,6 +62,9 @@ class AuthApiControllerRefreshTest {
     private LoginService loginService;
 
     @Mock
+    private LogoutAllService logoutAllService;
+
+    @Mock
     private RefreshService refreshService;
 
     @Mock
@@ -88,7 +86,8 @@ class AuthApiControllerRefreshTest {
                         loginService,
                         refreshService,
                         logoutService,
-                        clock
+                        clock,
+                        logoutAllService
                 );
 
         JsonMapper jsonMapper =

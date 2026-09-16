@@ -16,6 +16,13 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.maesamco.user.global.response.ErrorResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -52,6 +59,7 @@ public class AuthApiController implements AuthApiDocs {
     private final RefreshService refreshService;
     private final LogoutService logoutService;
     private final Clock clock;
+    private final LogoutAllService logoutAllService;
 
     /**
      * 회원가입을 위한 이메일 인증 코드를 요청합니다.
@@ -234,6 +242,74 @@ public class AuthApiController implements AuthApiDocs {
                         userId,
                         details.sessionId(),
                         details.expiresAt()
+                )
+        );
+
+        ResponseCookie expiredRefreshTokenCookie =
+                createExpiredRefreshTokenCookie();
+
+        return ResponseEntity
+                .noContent()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        expiredRefreshTokenCookie.toString()
+                )
+                .build();
+    }
+
+    /**
+     * 현재 사용자에게 발급된 모든 인증 세션을 종료합니다.
+     *
+     * <p>사용자의 모든 Refresh Token 세션을 제거하고
+     * 전체 로그아웃 이전에 발급된 Access Token을 사용자 단위로
+     * 무효화한 뒤, 현재 클라이언트의 Refresh Token Cookie를 삭제합니다.</p>
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 본문이 없는 204 응답
+     */
+    @Operation(
+            summary = "전체 기기 로그아웃",
+            description = "현재 사용자에게 발급된 모든 인증 세션을 종료합니다. "
+                    + "모든 Refresh Token 세션을 제거하고, "
+                    + "전체 로그아웃 이전에 발급된 Access Token을 "
+                    + "사용자 단위로 무효화합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "전체 기기 로그아웃 성공",
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Refresh Token Cookie 삭제 "
+                                    + "(Max-Age=0, Secure, HttpOnly, "
+                                    + "SameSite=Lax, Path=/api/v1/auth)",
+                            schema = @Schema(
+                                    type = "string"
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutAll(
+            Authentication authentication
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        logoutAllService.logoutAll(
+                new LogoutAllCommand(
+                        userId
                 )
         );
 

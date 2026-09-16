@@ -136,6 +136,9 @@ public class LoginService {
         UUID sessionId = UUID.randomUUID();
         UUID familyId = UUID.randomUUID();
 
+        Instant sessionStartedAt =
+                clock.instant();
+
         IssuedTokens issuedTokens =
                 tokenIssuer.issueTokens(
                         user.getId(),
@@ -143,7 +146,8 @@ public class LoginService {
                         sessionId
                 );
 
-        Instant now = clock.instant();
+        Instant now =
+                clock.instant();
 
         String refreshTokenHash =
                 refreshTokenHasher.hash(
@@ -156,7 +160,7 @@ public class LoginService {
                         familyId,
                         user.getId(),
                         refreshTokenHash,
-                        now,
+                        sessionStartedAt,
                         issuedTokens.refreshTokenExpiresAt()
                 );
 
