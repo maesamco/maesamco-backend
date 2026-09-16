@@ -71,7 +71,7 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenReturn(2L);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -93,7 +93,7 @@ class LessonServiceTest {
             assertThat(savedLesson.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
             assertThat(savedLesson.getDisplayOrder()).isEqualTo(3);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).countByUnitId(unitId);
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
@@ -112,7 +112,7 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenReturn(0L);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -121,7 +121,7 @@ class LessonServiceTest {
 
             // then
             InOrder inOrder = inOrder(unitFinder, lessonRepository);
-            inOrder.verify(unitFinder).findById(unitId);
+            inOrder.verify(unitFinder).getById(unitId);
             inOrder.verify(lessonRepository).countByUnitId(unitId);
             inOrder.verify(lessonRepository).save(any(Lesson.class));
             inOrder.verifyNoMoreInteractions();
@@ -142,7 +142,7 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenReturn(7L);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -155,7 +155,7 @@ class LessonServiceTest {
             verify(lessonRepository).save(captor.capture());
             assertThat(captor.getValue().getDisplayOrder()).isEqualTo(8);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).countByUnitId(unitId);
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
@@ -175,7 +175,7 @@ class LessonServiceTest {
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request))
@@ -184,7 +184,7 @@ class LessonServiceTest {
                             .isEqualTo(ErrorCode.UNIT_NOT_FOUND));
 
             verify(request).getUnitId();
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(lessonRepository, lessonFinder);
             verifyNoMoreInteractions(request, unitFinder);
         }
@@ -198,14 +198,14 @@ class LessonServiceTest {
             RuntimeException exception = new RuntimeException("count failure");
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request)).isSameAs(exception);
 
             verify(request, times(2)).getUnitId();
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).countByUnitId(unitId);
             verify(lessonRepository, never()).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
@@ -227,14 +227,14 @@ class LessonServiceTest {
 
             RuntimeException exception = new RuntimeException("save failure");
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenReturn(0L);
             when(lessonRepository.save(any(Lesson.class))).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request)).isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).countByUnitId(unitId);
             verify(lessonRepository).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
@@ -249,7 +249,7 @@ class LessonServiceTest {
             LessonCreateRequest request = mock(LessonCreateRequest.class);
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.countByUnitId(unitId)).thenReturn((long) Integer.MAX_VALUE);
 
             // when & then
@@ -257,7 +257,7 @@ class LessonServiceTest {
                     .isInstanceOf(ArithmeticException.class);
 
             verify(request, times(2)).getUnitId();
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).countByUnitId(unitId);
             verify(lessonRepository, never()).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
@@ -276,7 +276,7 @@ class LessonServiceTest {
             UUID lessonId = UUID.randomUUID();
             Lesson lesson = createLessonEntity(UUID.randomUUID());
 
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             LessonResponse result = lessonService.getLesson(lessonId);
@@ -284,7 +284,7 @@ class LessonServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
             verifyNoMoreInteractions(lessonFinder);
         }
@@ -296,12 +296,12 @@ class LessonServiceTest {
             UUID lessonId = UUID.randomUUID();
             BusinessException exception = new BusinessException(ErrorCode.LESSON_NOT_FOUND);
 
-            when(lessonFinder.findLessonById(lessonId)).thenThrow(exception);
+            when(lessonFinder.getById(lessonId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.getLesson(lessonId)).isSameAs(exception);
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
             verifyNoMoreInteractions(lessonFinder);
         }
@@ -338,7 +338,7 @@ class LessonServiceTest {
 
             Page<Lesson> page = new PageImpl<>(List.of(first, second), pageable, 5);
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.searchLessons(unitId, pageable)).thenReturn(page);
 
             // when
@@ -352,7 +352,7 @@ class LessonServiceTest {
             assertThat(result.totalPages()).isEqualTo(3);
             assertThat(result.hasNext()).isTrue();
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).searchLessons(unitId, pageable);
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
@@ -366,7 +366,7 @@ class LessonServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<Lesson> page = new PageImpl<>(List.of(), pageable, 0);
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.searchLessons(unitId, pageable)).thenReturn(page);
 
             // when
@@ -380,7 +380,7 @@ class LessonServiceTest {
             assertThat(result.totalPages()).isZero();
             assertThat(result.hasNext()).isFalse();
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).searchLessons(unitId, pageable);
         }
 
@@ -391,7 +391,7 @@ class LessonServiceTest {
             UUID unitId = UUID.randomUUID();
             Pageable pageable = PageRequest.of(0, 20);
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.searchLessons(unitId, pageable))
                     .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
@@ -400,7 +400,7 @@ class LessonServiceTest {
 
             // then
             InOrder inOrder = inOrder(unitFinder, lessonRepository);
-            inOrder.verify(unitFinder).findById(unitId);
+            inOrder.verify(unitFinder).getById(unitId);
             inOrder.verify(lessonRepository).searchLessons(unitId, pageable);
             inOrder.verifyNoMoreInteractions();
         }
@@ -418,13 +418,13 @@ class LessonServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.searchLessons(unitId, pageable))
                     .isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(lessonRepository, lessonFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -437,14 +437,14 @@ class LessonServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             RuntimeException exception = new RuntimeException("search failure");
 
-            when(unitFinder.findById(unitId)).thenReturn(mock(Unit.class));
+            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
             when(lessonRepository.searchLessons(unitId, pageable)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.searchLessons(unitId, pageable))
                     .isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(lessonRepository).searchLessons(unitId, pageable);
             verifyNoInteractions(lessonFinder);
         }
@@ -467,7 +467,7 @@ class LessonServiceTest {
             when(request.getContent()).thenReturn("수정된 내용");
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
             when(request.getDisplayOrder()).thenReturn(10);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             LessonResponse result = lessonService.updateLesson(lessonId, request);
@@ -486,7 +486,7 @@ class LessonServiceTest {
             verify(lesson).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(lesson).changeDisplayOrder(10);
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
         }
 
@@ -500,7 +500,7 @@ class LessonServiceTest {
 
             when(request.getTitle()).thenReturn("새로운 제목");
             when(request.getDisplayOrder()).thenReturn(null);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.updateLesson(lessonId, request);
@@ -527,7 +527,7 @@ class LessonServiceTest {
 
             when(request.getDescription()).thenReturn("새로운 설명");
             when(request.getDisplayOrder()).thenReturn(null);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.updateLesson(lessonId, request);
@@ -552,7 +552,7 @@ class LessonServiceTest {
 
             when(request.getContent()).thenReturn("새로운 내용");
             when(request.getDisplayOrder()).thenReturn(null);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.updateLesson(lessonId, request);
@@ -577,7 +577,7 @@ class LessonServiceTest {
 
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
             when(request.getDisplayOrder()).thenReturn(null);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.updateLesson(lessonId, request);
@@ -601,7 +601,7 @@ class LessonServiceTest {
             LessonUpdateRequest request = mock(LessonUpdateRequest.class);
 
             when(request.getDisplayOrder()).thenReturn(5);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.updateLesson(lessonId, request);
@@ -625,7 +625,7 @@ class LessonServiceTest {
             LessonUpdateRequest request = mock(LessonUpdateRequest.class);
 
             when(request.getDisplayOrder()).thenReturn(null);
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             LessonResponse result = lessonService.updateLesson(lessonId, request);
@@ -639,7 +639,7 @@ class LessonServiceTest {
             verify(lesson, never()).changeLanguage(any());
             verify(lesson, never()).changeDisplayOrder(anyInt());
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
         }
     }
@@ -656,13 +656,13 @@ class LessonServiceTest {
             LessonUpdateRequest request = mock(LessonUpdateRequest.class);
             BusinessException exception = new BusinessException(ErrorCode.LESSON_NOT_FOUND);
 
-            when(lessonFinder.findLessonById(lessonId)).thenThrow(exception);
+            when(lessonFinder.getById(lessonId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.updateLesson(lessonId, request))
                     .isSameAs(exception);
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(request, lessonRepository, unitFinder);
         }
     }
@@ -679,13 +679,13 @@ class LessonServiceTest {
             UUID userId = UUID.randomUUID();
             Lesson lesson = spy(createLessonEntity(UUID.randomUUID()));
 
-            when(lessonFinder.findLessonById(lessonId)).thenReturn(lesson);
+            when(lessonFinder.getById(lessonId)).thenReturn(lesson);
 
             // when
             lessonService.deleteLesson(lessonId, userId);
 
             // then
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verify(lesson).softDelete(userId);
 
             assertThat(lesson.isDeleted()).isTrue();
@@ -702,13 +702,13 @@ class LessonServiceTest {
             UUID userId = UUID.randomUUID();
             BusinessException exception = new BusinessException(ErrorCode.LESSON_NOT_FOUND);
 
-            when(lessonFinder.findLessonById(lessonId)).thenThrow(exception);
+            when(lessonFinder.getById(lessonId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.deleteLesson(lessonId, userId))
                     .isSameAs(exception);
 
-            verify(lessonFinder).findLessonById(lessonId);
+            verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
         }
     }

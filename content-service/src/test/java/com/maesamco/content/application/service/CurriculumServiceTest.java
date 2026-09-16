@@ -157,7 +157,7 @@ class CurriculumServiceTest {
             UUID curriculumId = UUID.randomUUID();
             Curriculum curriculum = mock(Curriculum.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
 
             // when
             CurriculumResponse result = curriculumService.getCurriculum(curriculumId);
@@ -165,7 +165,7 @@ class CurriculumServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verifyNoInteractions(curriculumRepository);
             verifyNoMoreInteractions(curriculumFinder);
         }
@@ -263,7 +263,7 @@ class CurriculumServiceTest {
             Curriculum curriculum = mock(Curriculum.class);
             CurriculumUpdateRequest request = mock(CurriculumUpdateRequest.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
             when(request.getTitle()).thenReturn("Python 심화");
 
@@ -273,7 +273,7 @@ class CurriculumServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(curriculum).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(curriculum).changeTitle("Python 심화");
 
@@ -290,7 +290,7 @@ class CurriculumServiceTest {
             Curriculum curriculum = mock(Curriculum.class);
             CurriculumUpdateRequest request = mock(CurriculumUpdateRequest.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
             when(request.getTitle()).thenReturn(null);
 
@@ -298,7 +298,7 @@ class CurriculumServiceTest {
             curriculumService.updateCurriculum(curriculumId, request);
 
             // then
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(curriculum).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(curriculum, never()).changeTitle(anyString());
 
@@ -314,7 +314,7 @@ class CurriculumServiceTest {
             Curriculum curriculum = mock(Curriculum.class);
             CurriculumUpdateRequest request = mock(CurriculumUpdateRequest.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
             when(request.getLanguage()).thenReturn(null);
             when(request.getTitle()).thenReturn("변경된 제목");
 
@@ -322,7 +322,7 @@ class CurriculumServiceTest {
             curriculumService.updateCurriculum(curriculumId, request);
 
             // then
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(curriculum, never()).changeLanguage(any());
             verify(curriculum).changeTitle("변경된 제목");
 
@@ -338,7 +338,7 @@ class CurriculumServiceTest {
             Curriculum curriculum = mock(Curriculum.class);
             CurriculumUpdateRequest request = mock(CurriculumUpdateRequest.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
             when(request.getLanguage()).thenReturn(null);
             when(request.getTitle()).thenReturn(null);
 
@@ -346,7 +346,7 @@ class CurriculumServiceTest {
             curriculumService.updateCurriculum(curriculumId, request);
 
             // then
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(curriculum, never()).changeLanguage(any());
             verify(curriculum, never()).changeTitle(anyString());
 
@@ -362,7 +362,7 @@ class CurriculumServiceTest {
             Curriculum curriculum = mock(Curriculum.class);
             CurriculumUpdateRequest request = mock(CurriculumUpdateRequest.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
             when(request.getTitle()).thenReturn("수정된 제목");
 
             // when
@@ -392,13 +392,13 @@ class CurriculumServiceTest {
             UUID userId = UUID.randomUUID();
             Curriculum curriculum = mock(Curriculum.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
 
             // when
             curriculumService.deleteCurriculum(curriculumId, userId);
 
             // then
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(curriculum).softDelete(userId);
 
             verifyNoInteractions(curriculumRepository);
@@ -414,7 +414,7 @@ class CurriculumServiceTest {
             UUID userId = UUID.randomUUID();
             Curriculum curriculum = mock(Curriculum.class);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(curriculum);
+            when(curriculumFinder.getById(curriculumId)).thenReturn(curriculum);
 
             // when
             curriculumService.deleteCurriculum(curriculumId, userId);

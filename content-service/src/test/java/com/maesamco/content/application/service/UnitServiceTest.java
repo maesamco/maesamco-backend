@@ -69,7 +69,7 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(2L);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -89,7 +89,7 @@ class UnitServiceTest {
             assertThat(savedUnit.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
             assertThat(savedUnit.getDisplayOrder()).isEqualTo(3);
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).countByCurriculumId(curriculumId);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -106,7 +106,7 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(0L);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -116,7 +116,7 @@ class UnitServiceTest {
             // then
             InOrder inOrder = inOrder(curriculumFinder, unitRepository);
 
-            inOrder.verify(curriculumFinder).findById(curriculumId);
+            inOrder.verify(curriculumFinder).getById(curriculumId);
             inOrder.verify(unitRepository).countByCurriculumId(curriculumId);
             inOrder.verify(unitRepository).save(any(Unit.class));
             inOrder.verifyNoMoreInteractions();
@@ -135,7 +135,7 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(7L);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -149,7 +149,7 @@ class UnitServiceTest {
 
             assertThat(captor.getValue().getDisplayOrder()).isEqualTo(8);
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).countByCurriculumId(curriculumId);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -169,7 +169,7 @@ class UnitServiceTest {
             BusinessException exception = new BusinessException(ErrorCode.CURRICULUM_NOT_FOUND);
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.findById(curriculumId)).thenThrow(exception);
+            when(curriculumFinder.getById(curriculumId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request))
@@ -178,7 +178,7 @@ class UnitServiceTest {
                             .isEqualTo(ErrorCode.CURRICULUM_NOT_FOUND));
 
             verify(request).getCurriculumId();
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verifyNoInteractions(unitRepository, unitFinder);
             verifyNoMoreInteractions(request, curriculumFinder);
         }
@@ -192,14 +192,14 @@ class UnitServiceTest {
             RuntimeException exception = new RuntimeException("count failure");
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request)).isSameAs(exception);
 
             verify(request, times(2)).getCurriculumId();
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).countByCurriculumId(curriculumId);
             verify(unitRepository, never()).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
@@ -219,14 +219,14 @@ class UnitServiceTest {
 
             RuntimeException exception = new RuntimeException("save failure");
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(0L);
             when(unitRepository.save(any(Unit.class))).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request)).isSameAs(exception);
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).countByCurriculumId(curriculumId);
             verify(unitRepository).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
@@ -241,7 +241,7 @@ class UnitServiceTest {
             UnitCreateRequest request = mock(UnitCreateRequest.class);
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.countByCurriculumId(curriculumId)).thenReturn((long) Integer.MAX_VALUE);
 
             // when & then
@@ -249,7 +249,7 @@ class UnitServiceTest {
                     .isInstanceOf(ArithmeticException.class);
 
             verify(request, times(2)).getCurriculumId();
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).countByCurriculumId(curriculumId);
             verify(unitRepository, never()).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
@@ -268,7 +268,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = createUnitEntity(UUID.randomUUID());
 
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             UnitResponse result = unitService.getUnit(unitId);
@@ -276,7 +276,7 @@ class UnitServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -288,12 +288,12 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.getUnit(unitId)).isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -305,12 +305,12 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             RuntimeException exception = new RuntimeException("unit finder failure");
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.getUnit(unitId)).isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -347,7 +347,7 @@ class UnitServiceTest {
                     5
             );
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.searchUnits(curriculumId, pageable)).thenReturn(page);
 
             // when
@@ -362,7 +362,7 @@ class UnitServiceTest {
             assertThat(result.totalPages()).isEqualTo(3);
             assertThat(result.hasNext()).isTrue();
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).searchUnits(curriculumId, pageable);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -376,7 +376,7 @@ class UnitServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             Page<Unit> page = new PageImpl<>(List.of(), pageable, 0);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.searchUnits(curriculumId, pageable)).thenReturn(page);
 
             // when
@@ -390,7 +390,7 @@ class UnitServiceTest {
             assertThat(result.totalPages()).isZero();
             assertThat(result.hasNext()).isFalse();
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).searchUnits(curriculumId, pageable);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -403,7 +403,7 @@ class UnitServiceTest {
             UUID curriculumId = UUID.randomUUID();
             Pageable pageable = PageRequest.of(0, 20);
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.searchUnits(curriculumId, pageable))
                     .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
@@ -413,7 +413,7 @@ class UnitServiceTest {
             // then
             InOrder inOrder = inOrder(curriculumFinder, unitRepository);
 
-            inOrder.verify(curriculumFinder).findById(curriculumId);
+            inOrder.verify(curriculumFinder).getById(curriculumId);
             inOrder.verify(unitRepository).searchUnits(curriculumId, pageable);
             inOrder.verifyNoMoreInteractions();
 
@@ -433,7 +433,7 @@ class UnitServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             BusinessException exception = new BusinessException(ErrorCode.CURRICULUM_NOT_FOUND);
 
-            when(curriculumFinder.findById(curriculumId)).thenThrow(exception);
+            when(curriculumFinder.getById(curriculumId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.searchUnits(curriculumId, pageable))
@@ -441,7 +441,7 @@ class UnitServiceTest {
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(ErrorCode.CURRICULUM_NOT_FOUND));
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verifyNoInteractions(unitRepository, unitFinder);
             verifyNoMoreInteractions(curriculumFinder);
         }
@@ -454,14 +454,14 @@ class UnitServiceTest {
             Pageable pageable = PageRequest.of(0, 20);
             RuntimeException exception = new RuntimeException("unit search failure");
 
-            when(curriculumFinder.findById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
             when(unitRepository.searchUnits(curriculumId, pageable)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.searchUnits(curriculumId, pageable))
                     .isSameAs(exception);
 
-            verify(curriculumFinder).findById(curriculumId);
+            verify(curriculumFinder).getById(curriculumId);
             verify(unitRepository).searchUnits(curriculumId, pageable);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -482,7 +482,7 @@ class UnitServiceTest {
 
             when(request.getTitle()).thenReturn("수정된 제목");
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             UnitResponse result = unitService.updateUnit(unitId, request);
@@ -494,7 +494,7 @@ class UnitServiceTest {
 
             verify(unit).changeTitle("수정된 제목");
             verify(unit).changeLanguage(ProgrammingLanguage.PYTHON);
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
 
             verifyNoInteractions(unitRepository, curriculumFinder);
         }
@@ -508,7 +508,7 @@ class UnitServiceTest {
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
 
             when(request.getTitle()).thenReturn("새로운 제목");
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             unitService.updateUnit(unitId, request);
@@ -518,7 +518,7 @@ class UnitServiceTest {
 
             verify(unit).changeTitle("새로운 제목");
             verify(unit, never()).changeLanguage(any());
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
 
             verifyNoInteractions(unitRepository, curriculumFinder);
         }
@@ -532,7 +532,7 @@ class UnitServiceTest {
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
 
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             unitService.updateUnit(unitId, request);
@@ -542,7 +542,7 @@ class UnitServiceTest {
 
             verify(unit).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(unit, never()).changeTitle(anyString());
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
 
             verifyNoInteractions(unitRepository, curriculumFinder);
         }
@@ -555,7 +555,7 @@ class UnitServiceTest {
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
 
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             UnitResponse result = unitService.updateUnit(unitId, request);
@@ -565,7 +565,7 @@ class UnitServiceTest {
 
             verify(unit, never()).changeTitle(anyString());
             verify(unit, never()).changeLanguage(any());
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
 
             verifyNoInteractions(unitRepository, curriculumFinder);
         }
@@ -579,7 +579,7 @@ class UnitServiceTest {
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
 
             when(request.getTitle()).thenReturn("수정된 제목");
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             unitService.updateUnit(unitId, request);
@@ -587,7 +587,7 @@ class UnitServiceTest {
             // then
             verify(unit).changeTitle("수정된 제목");
             verify(unitRepository, never()).save(any(Unit.class));
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(curriculumFinder);
         }
     }
@@ -604,7 +604,7 @@ class UnitServiceTest {
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.updateUnit(unitId, request))
@@ -612,7 +612,7 @@ class UnitServiceTest {
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(ErrorCode.UNIT_NOT_FOUND));
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(request, unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -625,13 +625,13 @@ class UnitServiceTest {
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
             RuntimeException exception = new RuntimeException("unit finder failure");
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.updateUnit(unitId, request))
                     .isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(request, unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -649,13 +649,13 @@ class UnitServiceTest {
             UUID userId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
 
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             unitService.deleteUnit(unitId, userId);
 
             // then
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(unit).softDelete(userId);
 
             assertThat(unit.isDeleted()).isTrue();
@@ -672,13 +672,13 @@ class UnitServiceTest {
             UUID userId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
 
-            when(unitFinder.findById(unitId)).thenReturn(unit);
+            when(unitFinder.getById(unitId)).thenReturn(unit);
 
             // when
             unitService.deleteUnit(unitId, userId);
 
             // then
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verify(unit).softDelete(userId);
             verify(unitRepository, never()).save(any(Unit.class));
             verifyNoInteractions(curriculumFinder);
@@ -692,7 +692,7 @@ class UnitServiceTest {
             UUID userId = UUID.randomUUID();
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.deleteUnit(unitId, userId))
@@ -700,7 +700,7 @@ class UnitServiceTest {
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(ErrorCode.UNIT_NOT_FOUND));
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }
@@ -713,13 +713,13 @@ class UnitServiceTest {
             UUID userId = UUID.randomUUID();
             RuntimeException exception = new RuntimeException("unit finder failure");
 
-            when(unitFinder.findById(unitId)).thenThrow(exception);
+            when(unitFinder.getById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.deleteUnit(unitId, userId))
                     .isSameAs(exception);
 
-            verify(unitFinder).findById(unitId);
+            verify(unitFinder).getById(unitId);
             verifyNoInteractions(unitRepository, curriculumFinder);
             verifyNoMoreInteractions(unitFinder);
         }

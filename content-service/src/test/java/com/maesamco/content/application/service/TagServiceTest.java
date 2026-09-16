@@ -306,7 +306,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
             when(request.getName()).thenReturn("새 이름");
             when(request.getAttribute()).thenReturn(TagAttribute.CONCEPT);
@@ -316,7 +316,7 @@ class TagServiceTest {
             tagService.updateTag(tagId, request);
 
             // then
-            verify(tagFinder).getTag(tagId);
+            verify(tagFinder).getById(tagId);
             verify(tagRepository).existsByName("새 이름");
             verify(tag).changeName("새 이름");
             verify(tag).changeAttribute(TagAttribute.CONCEPT);
@@ -332,7 +332,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
             when(request.getName()).thenReturn("새 이름");
             when(request.getAttribute()).thenReturn(null);
@@ -358,7 +358,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(request.getName()).thenReturn(null);
             when(request.getAttribute()).thenReturn(TagAttribute.CONCEPT);
 
@@ -380,7 +380,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(request.getName()).thenReturn(null);
             when(request.getAttribute()).thenReturn(null);
 
@@ -388,7 +388,7 @@ class TagServiceTest {
             tagService.updateTag(tagId, request);
 
             // then
-            verify(tagFinder).getTag(tagId);
+            verify(tagFinder).getById(tagId);
             verify(tag, never()).changeName(anyString());
             verify(tag, never()).changeAttribute(any());
 
@@ -404,7 +404,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("자료구조");
             when(request.getName()).thenReturn("자료구조");
             when(request.getAttribute()).thenReturn(null);
@@ -413,7 +413,7 @@ class TagServiceTest {
             tagService.updateTag(tagId, request);
 
             // then
-            verify(tagFinder).getTag(tagId);
+            verify(tagFinder).getById(tagId);
             verify(tagRepository, never()).existsByName(anyString());
             verify(tag, never()).changeName(anyString());
             verify(tag, never()).changeAttribute(any());
@@ -430,7 +430,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
             when(request.getName()).thenReturn("중복 이름");
             when(tagRepository.existsByName("중복 이름")).thenReturn(true);
@@ -443,7 +443,7 @@ class TagServiceTest {
                         assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.TAG_NAME_ALREADY_EXISTS);
                     });
 
-            verify(tagFinder).getTag(tagId);
+            verify(tagFinder).getById(tagId);
             verify(tagRepository).existsByName("중복 이름");
             verify(tag, never()).changeName(anyString());
             verify(tag, never()).changeAttribute(any());
@@ -460,7 +460,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
             when(request.getName()).thenReturn("중복 이름");
             when(tagRepository.existsByName("중복 이름")).thenReturn(true);
@@ -483,7 +483,7 @@ class TagServiceTest {
             Tag tag = mock(Tag.class);
             TagUpdateRequest request = mock(TagUpdateRequest.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
             when(request.getName()).thenReturn("수정된 이름");
             when(tagRepository.existsByName("수정된 이름")).thenReturn(false);
@@ -515,13 +515,13 @@ class TagServiceTest {
             UUID userId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
 
             // when
             tagService.deleteTag(tagId, userId);
 
             // then
-            verify(tagFinder).getTag(tagId);
+            verify(tagFinder).getById(tagId);
             verify(problemTagRepository).deleteAllByTagId(tagId);
             verify(tag).softDelete(userId);
 
@@ -538,7 +538,7 @@ class TagServiceTest {
             UUID userId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
 
             // when
             tagService.deleteTag(tagId, userId);
@@ -558,7 +558,7 @@ class TagServiceTest {
             UUID userId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
 
-            when(tagFinder.getTag(tagId)).thenReturn(tag);
+            when(tagFinder.getById(tagId)).thenReturn(tag);
 
             // when
             tagService.deleteTag(tagId, userId);

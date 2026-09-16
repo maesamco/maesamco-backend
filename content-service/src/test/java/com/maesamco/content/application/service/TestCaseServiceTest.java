@@ -81,7 +81,7 @@ class TestCaseServiceTest {
             // then
             ArgumentCaptor<TestCase> captor = ArgumentCaptor.forClass(TestCase.class);
 
-            verify(problemFinder).getProblemForUpdate(problemId);
+            verify(problemFinder).lockById(problemId);
             verify(testCaseRepository).findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, true);
             verify(testCaseRepository).save(captor.capture());
 
@@ -140,7 +140,7 @@ class TestCaseServiceTest {
 
             // then
             InOrder inOrder = inOrder(problemFinder, testCaseRepository);
-            inOrder.verify(problemFinder).getProblemForUpdate(problemId);
+            inOrder.verify(problemFinder).lockById(problemId);
             inOrder.verify(testCaseRepository).findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, true);
             inOrder.verify(testCaseRepository).save(any(TestCase.class));
         }
@@ -163,7 +163,7 @@ class TestCaseServiceTest {
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
             TestCaseResponse result = testCaseService.getTestCase(testCaseId);
@@ -171,7 +171,7 @@ class TestCaseServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(testCaseFinder).getTestCase(testCaseId);
+            verify(testCaseFinder).getById(testCaseId);
             verifyNoInteractions(testCaseRepository, problemFinder);
             verifyNoMoreInteractions(testCaseFinder);
         }
@@ -194,7 +194,7 @@ class TestCaseServiceTest {
             UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
             when(testCase.getIsPublic()).thenReturn(true);
 
@@ -204,8 +204,8 @@ class TestCaseServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(testCaseFinder).getTestCase(testCaseId);
-            verify(problemFinder).getProblem(problemId);
+            verify(testCaseFinder).getById(testCaseId);
+            verify(problemFinder).getById(problemId);
             verifyNoInteractions(testCaseRepository);
         }
 
@@ -218,7 +218,7 @@ class TestCaseServiceTest {
             UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
             when(testCase.getIsPublic()).thenReturn(false);
 
@@ -230,8 +230,8 @@ class TestCaseServiceTest {
                         assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.TEST_CASE_ACCESS_DENIED);
                     });
 
-            verify(testCaseFinder).getTestCase(testCaseId);
-            verify(problemFinder).getProblem(problemId);
+            verify(testCaseFinder).getById(testCaseId);
+            verify(problemFinder).getById(problemId);
             verifyNoInteractions(testCaseRepository);
         }
 
@@ -244,7 +244,7 @@ class TestCaseServiceTest {
             UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
             when(testCase.getIsPublic()).thenReturn(true);
 
@@ -253,8 +253,8 @@ class TestCaseServiceTest {
 
             // then
             InOrder inOrder = inOrder(testCaseFinder, problemFinder, testCase);
-            inOrder.verify(testCaseFinder).getTestCase(testCaseId);
-            inOrder.verify(problemFinder).getProblem(problemId);
+            inOrder.verify(testCaseFinder).getById(testCaseId);
+            inOrder.verify(problemFinder).getById(problemId);
             inOrder.verify(testCase).getIsPublic();
         }
     }
@@ -284,7 +284,7 @@ class TestCaseServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(problemFinder).getProblem(problemId);
+            verify(problemFinder).getById(problemId);
             verify(testCaseRepository).searchTestCases(problemId, true, pageable);
             verifyNoInteractions(testCaseFinder);
         }
@@ -305,7 +305,7 @@ class TestCaseServiceTest {
 
             // then
             InOrder inOrder = inOrder(problemFinder, testCaseRepository);
-            inOrder.verify(problemFinder).getProblem(problemId);
+            inOrder.verify(problemFinder).getById(problemId);
             inOrder.verify(testCaseRepository).searchTestCases(problemId, true, pageable);
         }
 
@@ -353,7 +353,7 @@ class TestCaseServiceTest {
             // then
             assertThat(result).isNotNull();
 
-            verify(problemFinder).getProblem(problemId);
+            verify(problemFinder).getById(problemId);
             verify(testCaseRepository).searchTestCasesAll(problemId, pageable);
             verifyNoInteractions(testCaseFinder);
         }
@@ -374,7 +374,7 @@ class TestCaseServiceTest {
 
             // then
             InOrder inOrder = inOrder(problemFinder, testCaseRepository);
-            inOrder.verify(problemFinder).getProblem(problemId);
+            inOrder.verify(problemFinder).getById(problemId);
             inOrder.verify(testCaseRepository).searchTestCasesAll(problemId, pageable);
         }
 
@@ -415,7 +415,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("10 20");
             when(request.getExpectedOutput()).thenReturn("30");
 
@@ -439,7 +439,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("새 입력");
 
             // when
@@ -460,7 +460,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getExpectedOutput()).thenReturn("새 출력");
 
             // when
@@ -482,7 +482,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
             when(testCase.getIsPublic()).thenReturn(false);
             when(request.getIsPublic()).thenReturn(true);
@@ -492,7 +492,7 @@ class TestCaseServiceTest {
             testCaseService.updateTestCase(testCaseId, request);
 
             // then
-            verify(problemFinder).getProblemForUpdate(problemId);
+            verify(problemFinder).lockById(problemId);
             verify(testCaseRepository).findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, true);
             verify(testCase).changeIsPublic(true);
             verify(testCase).changeTestCaseOrder(6);
@@ -515,7 +515,7 @@ class TestCaseServiceTest {
 
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getIsPublic()).thenReturn(true);
             when(request.getTestCaseOrder()).thenReturn(null);
 
@@ -527,7 +527,7 @@ class TestCaseServiceTest {
             assertThat(testCase.getIsPublic()).isTrue();
             assertThat(testCase.getTestCaseOrder()).isEqualTo(1);
 
-            verify(testCaseFinder).getTestCase(testCaseId);
+            verify(testCaseFinder).getById(testCaseId);
             verifyNoInteractions(testCaseRepository, problemFinder);
         }
 
@@ -540,7 +540,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getIsPublic()).thenReturn(null);
             when(request.getTestCaseOrder()).thenReturn(null);
 
@@ -548,7 +548,7 @@ class TestCaseServiceTest {
             testCaseService.updateTestCase(testCaseId, request);
 
             // then
-            verify(testCaseFinder).getTestCase(testCaseId);
+            verify(testCaseFinder).getById(testCaseId);
             verify(testCase, never()).changeIsPublic(anyBoolean());
             verify(testCase, never()).changeTestCaseOrder(anyInt());
             verifyNoInteractions(testCaseRepository, problemFinder);
@@ -563,7 +563,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getTestCaseOrder()).thenReturn(10);
 
             // when
@@ -584,7 +584,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
             when(testCase.getIsPublic()).thenReturn(false);
             when(request.getIsPublic()).thenReturn(true);
@@ -620,7 +620,7 @@ class TestCaseServiceTest {
 
             when(request.getIsPublic()).thenReturn(null);
             when(request.getTestCaseOrder()).thenReturn(null);
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
             TestCaseResponse result = testCaseService.updateTestCase(testCaseId, request);
@@ -632,7 +632,7 @@ class TestCaseServiceTest {
             assertThat(testCase.getIsPublic()).isTrue();
             assertThat(testCase.getTestCaseOrder()).isEqualTo(3);
 
-            verify(testCaseFinder).getTestCase(testCaseId);
+            verify(testCaseFinder).getById(testCaseId);
             verifyNoInteractions(testCaseRepository, problemFinder);
         }
 
@@ -645,7 +645,7 @@ class TestCaseServiceTest {
             TestCase testCase = mock(TestCase.class);
             TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("수정된 입력");
 
             // when
@@ -675,13 +675,13 @@ class TestCaseServiceTest {
             UUID userId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
             testCaseService.deleteTestCase(testCaseId, userId);
 
             // then
-            verify(testCaseFinder).getTestCase(testCaseId);
+            verify(testCaseFinder).getById(testCaseId);
             verify(testCase).softDelete(userId);
             verifyNoInteractions(testCaseRepository, problemFinder);
         }
@@ -695,7 +695,7 @@ class TestCaseServiceTest {
             UUID userId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
-            when(testCaseFinder.getTestCase(testCaseId)).thenReturn(testCase);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
             testCaseService.deleteTestCase(testCaseId, userId);
