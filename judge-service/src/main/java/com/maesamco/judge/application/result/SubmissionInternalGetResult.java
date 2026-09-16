@@ -8,7 +8,7 @@ import com.maesamco.judge.domain.entity.SubmissionTestResult;
 import java.util.List;
 import java.util.UUID;
 
-public record SubmissionGetResult(
+public record SubmissionInternalGetResult(
         UUID submissionId,
         UUID userId,
         UUID problemId,
@@ -24,7 +24,7 @@ public record SubmissionGetResult(
     public record FailedTestItem(boolean isPublic, String errorType) {
     }
 
-    public static SubmissionGetResult of(Submission submission, List<SubmissionTestResult> failedResults) {
+    public static SubmissionInternalGetResult of(Submission submission, List<SubmissionTestResult> failedResults) {
         List<FailedTestItem> summaries = failedResults.stream()
                 .map(r -> new FailedTestItem(
                         r.isPublic(),
@@ -32,7 +32,7 @@ public record SubmissionGetResult(
                 ))
                 .toList();
 
-        return new SubmissionGetResult(
+        return new SubmissionInternalGetResult(
                 submission.getId(),
                 submission.getUserId(),
                 submission.getProblemId(),
