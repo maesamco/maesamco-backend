@@ -1,10 +1,9 @@
-package com.maesamco.content.presentation.Internal;
+package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.application.input_port.ProblemTagFinder;
 import com.maesamco.content.application.input_port.ProblemVersionFinder;
 import com.maesamco.content.application.result.ProblemInternalResult;
-import com.maesamco.content.application.service.ProblemInternalService;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.Tag;
@@ -71,7 +70,7 @@ class ProblemInternalServiceTest {
         Tag algorithmTag = org.mockito.Mockito.mock(Tag.class);
         Tag dataStructureTag = org.mockito.Mockito.mock(Tag.class);
 
-        when(problemFinder.getProblem(problemId))
+        when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         when(problem.getId())
@@ -157,7 +156,7 @@ class ProblemInternalServiceTest {
         // given
         UUID problemId = UUID.randomUUID();
 
-        when(problemFinder.getProblem(problemId))
+        when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         when(problemTagFinder.getTagsByProblemId(problemId))
@@ -221,7 +220,7 @@ class ProblemInternalServiceTest {
         // given
         UUID problemId = UUID.randomUUID();
 
-        when(problemFinder.getProblem(problemId))
+        when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         when(problemTagFinder.getTagsByProblemId(problemId))
@@ -283,7 +282,7 @@ class ProblemInternalServiceTest {
         ObjectNode snapshot = JsonNodeFactory.instance.objectNode();
         snapshot.put("description", "제출 시점 지문");
 
-        when(problemVersionFinder.getProblemVersion(problemVersionId))
+        when(problemVersionFinder.getById(problemVersionId))
                 .thenReturn(problemVersion);
 
         when(problemVersion.getProblemId())
