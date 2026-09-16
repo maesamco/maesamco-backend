@@ -21,14 +21,20 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class JudgeExecutionPersistenceServiceTest {
@@ -42,13 +48,39 @@ class JudgeExecutionPersistenceServiceTest {
     @Mock
     private PendingJudge0ExecutionRepository pendingJudge0ExecutionRepository;
 
-    @InjectMocks
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private JudgeExecutionPersistenceService judgeExecutionPersistenceService;
+
+    @BeforeEach
+    void setUp() {
+        judgeExecutionPersistenceService = new JudgeExecutionPersistenceService(
+                submissionRepository, problemExecutionSpecRepository, pendingJudge0ExecutionRepository, meterRegistry);
+        ReflectionTestUtils.setField(judgeExecutionPersistenceService, "maxRetryCount", 3);
+    }
+
+    /**
+     * registerAfterCommitMetric()이 TransactionSynchronizationManager를 쓰기 때문에,
+     * 실제 트랜잭션 없이 호출하면 "synchronization is not active" 예외가 난다.
+     * 여기서 동기화를 직접 열고, action 실행 후 등록된 afterCommit 콜백을 수동으로
+     * 트리거해서 실제 커밋이 성공한 상황을 흉내낸다.
+     */
+    private void runAsCommittedTransaction(Runnable action) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            action.run();
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
 
     private Submission queuedSubmission() {
         Submission submission = Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "public class Main {}", SubmissionLanguage.JAVA17, "idem-key-" + UUID.randomUUID());
+        ReflectionTestUtils.setField(submission, "id", UUID.randomUUID());
         submission.markQueued();
         return submission;
     }
@@ -60,40 +92,31 @@ class JudgeExecutionPersistenceServiceTest {
     }
 
     @Nested
-    @DisplayName("prepareForExecution")
-    class PrepareForExecution {
+    @DisplayName("markRunningIfNeeded")
+    class MarkRunningIfNeeded {
 
         @Test
-        @DisplayName("정상 흐름에서는 Submission을 RUNNING으로 전이시키고 실행 준비 정보를 반환한다")
-        void marksRunningAndReturnsPreparation() {
+        @DisplayName("정상 흐름에서는 Submission을 RUNNING으로 전이시키고 submissionId를 반환한다")
+        void marksRunningAndReturnsSubmissionId() {
             Submission submission = queuedSubmission();
-            ProblemExecutionSpec spec = specFor(submission);
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
-            given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
-                    submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.of(spec));
 
-            Optional<JudgeExecutionPreparation> result =
-                    judgeExecutionPersistenceService.prepareForExecution(submission.getId());
+            Optional<UUID> result = judgeExecutionPersistenceService.markRunningIfNeeded(submission.getId());
 
-            assertThat(result).isPresent();
-            assertThat(result.get().submissionId()).isEqualTo(submission.getId());
-            assertThat(result.get().code()).isEqualTo(submission.getCode());
-            assertThat(result.get().spec()).isEqualTo(spec);
+            assertThat(result).contains(submission.getId());
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
         }
 
         @Test
-        @DisplayName("이미 RUNNING 상태인 중복 이벤트면 빈 값을 반환하고 실행 명세를 조회하지 않는다")
+        @DisplayName("이미 RUNNING 상태인 중복 이벤트면 빈 값을 반환한다")
         void returnsEmptyWhenAlreadyRunning() {
             Submission submission = queuedSubmission();
-            submission.markRunning(); // 이미 첫 번째 이벤트로 RUNNING까지 전이된 상황을 재현
+            submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
 
-            Optional<JudgeExecutionPreparation> result =
-                    judgeExecutionPersistenceService.prepareForExecution(submission.getId());
+            Optional<UUID> result = judgeExecutionPersistenceService.markRunningIfNeeded(submission.getId());
 
             assertThat(result).isEmpty();
-            verify(problemExecutionSpecRepository, never()).findByProblemIdAndProblemVersionId(any(), any());
             assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RUNNING);
         }
 
@@ -103,7 +126,41 @@ class JudgeExecutionPersistenceServiceTest {
             UUID submissionId = UUID.randomUUID();
             given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> judgeExecutionPersistenceService.prepareForExecution(submissionId))
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("loadExecutionPreparation")
+    class LoadExecutionPreparation {
+
+        @Test
+        @DisplayName("정상 흐름에서는 실행 준비 정보를 반환한다")
+        void returnsPreparation() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            ProblemExecutionSpec spec = specFor(submission);
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+            given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
+                    submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.of(spec));
+
+            JudgeExecutionPreparation result =
+                    judgeExecutionPersistenceService.loadExecutionPreparation(submission.getId());
+
+            assertThat(result.submissionId()).isEqualTo(submission.getId());
+            assertThat(result.code()).isEqualTo(submission.getCode());
+            assertThat(result.spec()).isEqualTo(spec);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 제출이면 SUBMISSION_NOT_FOUND 예외를 던진다")
+        void throwsWhenSubmissionNotFound() {
+            UUID submissionId = UUID.randomUUID();
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
         }
@@ -112,11 +169,12 @@ class JudgeExecutionPersistenceServiceTest {
         @DisplayName("실행 명세가 없으면 PROBLEM_NOT_FOUND 예외를 던진다")
         void throwsWhenProblemExecutionSpecNotFound() {
             Submission submission = queuedSubmission();
+            submission.markRunning();
             given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
             given(problemExecutionSpecRepository.findByProblemIdAndProblemVersionId(
                     submission.getProblemId(), submission.getProblemVersionId())).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> judgeExecutionPersistenceService.prepareForExecution(submission.getId()))
+            assertThatThrownBy(() -> judgeExecutionPersistenceService.loadExecutionPreparation(submission.getId()))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROBLEM_NOT_FOUND);
         }
@@ -188,6 +246,69 @@ class JudgeExecutionPersistenceServiceTest {
                     judgeExecutionPersistenceService.markFailed(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SUBMISSION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("handleRetryableFailure")
+    class HandleRetryableFailure {
+
+        @Test
+        @DisplayName("재시도 횟수가 남아있으면 RETRY_WAIT로 전이시키고, 커밋 후 카운터를 증가시킨다")
+        void marksRetryWaitWhenRetriesRemain() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            runAsCommittedTransaction(() -> judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE));
+
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.RETRY_WAIT);
+            assertThat(submission.getRetryCount()).isEqualTo(1);
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "wait", "failureCode", "judge0_response_failure").count())
+                    .isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("재시도 횟수가 소진되면 FAILED로 전이시키고, 커밋 후 카운터를 증가시킨다")
+        void marksFailedWhenRetriesExhausted() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            submission.markRetryWait(); submission.markRunning(); // retryCount=1
+            submission.markRetryWait(); submission.markRunning(); // retryCount=2
+            submission.markRetryWait(); submission.markRunning(); // retryCount=3 (MAX)
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            runAsCommittedTransaction(() -> judgeExecutionPersistenceService.handleRetryableFailure(
+                    submission.getId(), FailureCode.RESULT_SAVE_FAILURE));
+
+            assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.FAILED);
+            assertThat(submission.getFailureCode()).isEqualTo(FailureCode.RESULT_SAVE_FAILURE);
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "exhausted", "failureCode", "result_save_failure").count())
+                    .isEqualTo(1.0);
+        }
+
+        @Test
+        @DisplayName("커밋되지 않으면(트랜잭션 실패) 카운터가 증가하지 않는다")
+        void doesNotIncrementCounterWhenNotCommitted() {
+            Submission submission = queuedSubmission();
+            submission.markRunning();
+            given(submissionRepository.findById(submission.getId())).willReturn(Optional.of(submission));
+
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                judgeExecutionPersistenceService.handleRetryableFailure(
+                        submission.getId(), FailureCode.JUDGE0_RESPONSE_FAILURE);
+                // afterCommit()을 트리거하지 않고 그냥 클리어 — 롤백된 상황을 흉내냄
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+
+            assertThat(meterRegistry.counter("judge.submission.retry",
+                    "outcome", "wait", "failureCode", "judge0_response_failure").count())
+                    .isEqualTo(0.0);
         }
     }
 }

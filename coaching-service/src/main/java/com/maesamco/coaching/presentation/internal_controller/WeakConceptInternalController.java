@@ -3,7 +3,7 @@ package com.maesamco.coaching.presentation.internal_controller;
 import com.maesamco.coaching.application.query_service.WeakConceptQueryService;
 import com.maesamco.coaching.global.response.SuccessResponse;
 import com.maesamco.coaching.global.security.hmac.AllowedInternalCallers;
-import com.maesamco.coaching.presentation.api_controller.WeakConceptResponse;
+import com.maesamco.coaching.presentation.response.WeakConceptResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

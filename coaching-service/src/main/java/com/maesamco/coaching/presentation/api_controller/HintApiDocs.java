@@ -1,6 +1,8 @@
 package com.maesamco.coaching.presentation.api_controller;
 
 import com.maesamco.coaching.global.response.SuccessResponse;
+import com.maesamco.coaching.presentation.response.HintListItemResponse;
+import com.maesamco.coaching.presentation.response.HintResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
