@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 /**
  * ClaudeModelAdapterTest와 동일한 이유(재검증, PR #111) — GeminiModelAdapter도
  * ClaudeModelAdapter와 같은 CircuitBreaker(ai-model)·같은 generateFallback() 분류 로직을
- * 공유하므로, 응답 매핑 버그가 circuitOpen으로 오분류되지 않는지 동일하게 검증한다.
+ * 공유하므로, 응답 매핑 버그가 AiModelCallException으로 오분류되지 않는지 동일하게 검증한다.
  */
 @SpringBootTest(classes = {
         GeminiModelAdapter.class,
@@ -79,12 +79,18 @@ class GeminiModelAdapterTest {
         assertThat(AopUtils.isAopProxy(geminiModelAdapter)).isTrue();
     }
 
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — ClaudeModelAdapterTest와 동일한 이유로 neverCalled()
+     * 값까지 확인한다.
+     */
     @Test
     void 서킷이_닫혀있으면_호출_실패가_AiModelCallException으로_그대로_전파된다() {
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("네트워크 오류"));
 
         assertThatThrownBy(() -> geminiModelAdapter.generate("system", "user"))
-                .isInstanceOf(AiModelCallException.class);
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(false);
     }
 
     @Test
@@ -93,7 +99,9 @@ class GeminiModelAdapterTest {
         circuitBreaker.transitionToForcedOpenState();
 
         assertThatThrownBy(() -> geminiModelAdapter.generate("system", "user"))
-                .isInstanceOf(AiModelCallException.class);
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(true);
 
         // 서킷이 열려있었으니 chatModel은 실제로 호출되지 않았어야 한다
         verifyNoInteractions(chatModel);
@@ -103,7 +111,7 @@ class GeminiModelAdapterTest {
     void 응답_매핑_단계의_버그는_서킷차단으로_오분류되지_않고_그대로_전파된다() {
         // ClaudeModelAdapterTest와 동일한 재현 방법 — chatModel.call()은 성공(null 반환)했지만
         // 이후 response.getResult() 단계에서 NPE가 나는 상황. CallNotPermittedException이
-        // 아니므로 AiModelCallException(circuitOpen=true)으로 잘못 감싸지 않고 원본 그대로
+        // 아니므로 AiModelCallException으로 잘못 감싸지 않고 원본 그대로
         // 전파돼야 한다.
         when(chatModel.call(any(Prompt.class))).thenReturn(null);
 

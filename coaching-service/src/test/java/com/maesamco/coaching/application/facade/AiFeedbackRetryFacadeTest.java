@@ -204,6 +204,87 @@ class AiFeedbackRetryFacadeTest {
                 .generateFeedback(any(), any(), any(), any());
     }
 
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 세션은 완료됐는데 완료 시점 이전 Explanation 후보가
+     * 하나도 없는 건 데이터 정합성 이상이다. 예전엔 AI_FEEDBACK_NOT_FOUND(재시도를 권하는
+     * 문구)로 응답했는데, 이 상태는 재시도해도 절대 해결되지 않으므로 전용 코드로 분리한다.
+     */
+    @Test
+    void 완료_시점_이전_설명_후보가_없으면_AI_FEEDBACK_PREREQUISITE_MISSING() {
+        CoachingSession session = completedSession(callerId);
+        stubOwnedSession(session);
+        when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
+        when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
+                .thenReturn(0L);
+        when(explanationRepository.findByCoachingSessionId(session.getId()))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING);
+
+        verify(feedbackGenerationFacade, never())
+                .generateFeedback(any(), any(), any(), any());
+    }
+
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — Explanation은 있는데 FollowUpQuestion이 없는 경우도
+     * 위와 같은 이유로 AI_FEEDBACK_PREREQUISITE_MISSING이어야 한다.
+     */
+    @Test
+    void FollowUpQuestion이_없으면_AI_FEEDBACK_PREREQUISITE_MISSING() {
+        CoachingSession session = completedSession(callerId);
+        Explanation explanation = explanationCreatedAt(session.getId(), completedAt);
+
+        stubOwnedSession(session);
+        when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
+        when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
+                .thenReturn(0L);
+        when(explanationRepository.findByCoachingSessionId(session.getId()))
+                .thenReturn(List.of(explanation));
+        when(followUpQuestionRepository.findByExplanationId(explanation.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING);
+
+        verify(feedbackGenerationFacade, never())
+                .generateFeedback(any(), any(), any(), any());
+    }
+
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — FollowUpAnswer가 없는 경우도 동일하게
+     * AI_FEEDBACK_PREREQUISITE_MISSING이어야 한다.
+     */
+    @Test
+    void FollowUpAnswer가_없으면_AI_FEEDBACK_PREREQUISITE_MISSING() {
+        CoachingSession session = completedSession(callerId);
+        Explanation explanation = explanationCreatedAt(session.getId(), completedAt);
+        FollowUpQuestion question = followUpQuestion(explanation.getId());
+
+        stubOwnedSession(session);
+        when(aiFeedbackRepository.findByCoachingSessionId(session.getId())).thenReturn(Optional.empty());
+        when(aiCallHistoryRepository.countRealAttemptsByCoachingSessionIdAndPurpose(session.getId(), AiCallPurpose.FEEDBACK))
+                .thenReturn(0L);
+        when(explanationRepository.findByCoachingSessionId(session.getId()))
+                .thenReturn(List.of(explanation));
+        when(followUpQuestionRepository.findByExplanationId(explanation.getId()))
+                .thenReturn(Optional.of(question));
+        when(followUpAnswerRepository.findByFollowUpQuestionId(question.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AI_FEEDBACK_PREREQUISITE_MISSING);
+
+        verify(feedbackGenerationFacade, never())
+                .generateFeedback(any(), any(), any(), any());
+    }
+
     @Test
     void 재시도에_성공하면_새로_생성된_피드백을_반환한다() {
         CoachingSession session = completedSession(callerId);
@@ -294,17 +375,21 @@ class AiFeedbackRetryFacadeTest {
      * Duration.between()에서 NPE가 나던 케이스. 후보가 정확히 1개면 Stream.min()이
      * 컴파레이터를 아예 호출하지 않아 NPE가 안 나므로, 반드시 2개 이상으로 재현해야 한다.
      * 지금은 isCompleted() 체크가 그 전에 막아서 이 경로 자체를 안 타야 한다 — NPE 대신
-     * AI_FEEDBACK_NOT_FOUND(404)로 응답하는지 확인한다.
+     * AI_FEEDBACK_NOT_STARTED(404)로 응답하는지 확인한다.
+     *
+     * PR #182 리뷰(용현님 P2) 대응 — 예전엔 AI_FEEDBACK_NOT_FOUND였는데, GET 피드백
+     * 조회(AiFeedbackQueryService)가 완전히 같은 "세션 미완료" 상태에 이미 쓰고 있는
+     * AI_FEEDBACK_NOT_STARTED로 맞춘다.
      */
     @Test
-    void 세션이_아직_완료되지_않았으면_설명이_여러_개여도_NPE_대신_AI_FEEDBACK_NOT_FOUND() {
+    void 세션이_아직_완료되지_않았으면_설명이_여러_개여도_NPE_대신_AI_FEEDBACK_NOT_STARTED() {
         CoachingSession session = inProgressSession(callerId);
         stubOwnedSession(session);
 
         assertThatThrownBy(() -> retryFacade.retryFeedback(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.AI_FEEDBACK_NOT_FOUND);
+                .isEqualTo(ErrorCode.AI_FEEDBACK_NOT_STARTED);
 
         verify(explanationRepository, never()).findByCoachingSessionId(any());
         verify(feedbackGenerationFacade, never()).generateFeedback(any(), any(), any(), any());

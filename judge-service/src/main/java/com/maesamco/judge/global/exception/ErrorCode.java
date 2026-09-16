@@ -43,7 +43,11 @@ public enum ErrorCode {
     SUBMISSION_INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 채점 상태 전이입니다."),
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
     IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 키로 다른 요청이 이미 처리되었습니다."),
-    LANGUAGE_MISMATCH(HttpStatus.BAD_REQUEST, "문제가 요구하는 언어와 제출한 언어가 다릅니다.");
+    LANGUAGE_MISMATCH(HttpStatus.BAD_REQUEST, "문제가 요구하는 언어와 제출한 언어가 다릅니다."),
+    // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
+    // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
+    // 대상이 아닌 서비스가 호출한 경우에 쓴다(PR #124 리뷰, 용현님).
+    INTERNAL_CALLER_NOT_ALLOWED(HttpStatus.FORBIDDEN, "이 내부 API를 호출할 수 없는 서비스입니다.");
 
     // ===== coaching =====
     // HINT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "본인의 오답 제출에만 힌트를 요청할 수 있습니다.");
