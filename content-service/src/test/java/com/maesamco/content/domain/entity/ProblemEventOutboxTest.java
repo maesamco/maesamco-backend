@@ -1,4 +1,4 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.entity;
 
 import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
 import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;

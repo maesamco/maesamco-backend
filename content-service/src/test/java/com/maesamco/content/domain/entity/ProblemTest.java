@@ -1,6 +1,5 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.entity;
 
-import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;

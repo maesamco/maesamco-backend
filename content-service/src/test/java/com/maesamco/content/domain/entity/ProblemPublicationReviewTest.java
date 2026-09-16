@@ -1,6 +1,5 @@
-package com.maesamco.content.problem.domain.entity;
+package com.maesamco.content.domain.entity;
 
-import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -13,42 +12,42 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * 문제 발행 승인 상태 전이 규칙을 검증합니다.
+ * 문제 발행 심사 상태 전이 규칙을 검증합니다.
  */
-class ProblemPublicationApprovalTest {
+class ProblemPublicationReviewTest {
 
     @Test
     @DisplayName(
-            "REVIEW_PENDING 문제를 승인하면 "
-                    + "PUBLISHED 상태가 된다"
+            "DRAFT 문제에 발행 심사를 요청하면 "
+                    + "REVIEW_PENDING 상태가 된다"
     )
-    void approvePublication_changesStatusToPublished() {
+    void requestPublicationReview_changesStatusToReviewPending() {
         // given
         Problem problem = createProblem(
-                ProblemStatus.REVIEW_PENDING
+                ProblemStatus.DRAFT
         );
 
         // when
-        problem.approvePublication();
+        problem.requestPublicationReview();
 
         // then
         assertThat(problem.getProblemStatus())
                 .isEqualTo(
-                        ProblemStatus.PUBLISHED
+                        ProblemStatus.REVIEW_PENDING
                 );
     }
 
     @ParameterizedTest
     @EnumSource(
             value = ProblemStatus.class,
-            names = "REVIEW_PENDING",
+            names = "DRAFT",
             mode = EnumSource.Mode.EXCLUDE
     )
     @DisplayName(
-            "REVIEW_PENDING이 아닌 문제를 승인하면 "
+            "DRAFT가 아닌 문제에 발행 심사를 요청하면 "
                     + "상태 전이 예외가 발생한다"
     )
-    void approvePublication_whenNotReviewPending_throwsException(
+    void requestPublicationReview_whenNotDraft_throwsException(
             ProblemStatus problemStatus
     ) {
         // given
@@ -60,7 +59,7 @@ class ProblemPublicationApprovalTest {
         BusinessException exception =
                 assertThrows(
                         BusinessException.class,
-                        problem::approvePublication
+                        problem::requestPublicationReview
                 );
 
         // then
@@ -74,7 +73,7 @@ class ProblemPublicationApprovalTest {
     }
 
     /**
-     * 발행 승인 테스트용 문제를 생성합니다.
+     * 발행 심사 테스트용 문제를 생성합니다.
      */
     private Problem createProblem(
             ProblemStatus problemStatus
