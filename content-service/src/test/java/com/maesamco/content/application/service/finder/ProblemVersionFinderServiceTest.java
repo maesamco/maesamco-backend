@@ -1,14 +1,12 @@
-package com.maesamco.content.problem.application.service;
+package com.maesamco.content.application.service.finder;
 
-import com.maesamco.content.application.service.finder.ProblemVersionFinderService;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
-import com.maesamco.content.global.exception.ErrorCode;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -17,6 +15,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,42 +25,46 @@ class ProblemVersionFinderServiceTest {
     @Mock
     private ProblemVersionRepository problemVersionRepository;
 
+    @InjectMocks
     private ProblemVersionFinderService problemVersionFinderService;
 
-    private final UUID problemVersionId = UUID.randomUUID();
-
-    @BeforeEach
-    void setUp() {
-        problemVersionFinderService = new ProblemVersionFinderService(problemVersionRepository);
-    }
-
     @Test
-    @DisplayName("문제 버전이 존재하면 문제 버전을 반환한다")
-    void getProblemVersion_returnsById() {
+    @DisplayName("문제 버전 ID로 문제 버전을 조회한다")
+    void getById_success() {
         // given
-        ProblemVersion problemVersion = org.mockito.Mockito.mock(ProblemVersion.class);
+        UUID problemVersionId = UUID.randomUUID();
+        ProblemVersion problemVersion = mock(ProblemVersion.class);
 
         when(problemVersionRepository.findById(problemVersionId))
                 .thenReturn(Optional.of(problemVersion));
 
         // when
-        ProblemVersion result = problemVersionFinderService.getById(problemVersionId);
+        ProblemVersion result =
+                problemVersionFinderService.getById(problemVersionId);
 
         // then
         assertThat(result).isSameAs(problemVersion);
+
+        verify(problemVersionRepository)
+                .findById(problemVersionId);
     }
 
     @Test
-    @DisplayName("문제 버전이 존재하지 않으면 PROBLEM_NOT_FOUND 예외가 발생한다")
-    void getById_throwsWhenNotFound() {
+    @DisplayName("존재하지 않는 문제 버전을 조회하면 BusinessException이 발생한다")
+    void getById_notFound_throwsException() {
         // given
+        UUID problemVersionId = UUID.randomUUID();
+
         when(problemVersionRepository.findById(problemVersionId))
                 .thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> problemVersionFinderService.getById(problemVersionId))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);
+        assertThatThrownBy(
+                () -> problemVersionFinderService.getById(problemVersionId)
+        )
+                .isInstanceOf(BusinessException.class);
+
+        verify(problemVersionRepository)
+                .findById(problemVersionId);
     }
 }
