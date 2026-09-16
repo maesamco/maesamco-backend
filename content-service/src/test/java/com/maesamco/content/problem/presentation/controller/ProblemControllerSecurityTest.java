@@ -1,8 +1,9 @@
 package com.maesamco.content.problem.presentation.controller;
 
+import com.maesamco.content.application.problem.service.ProblemPublicationService;
+import com.maesamco.content.application.problem.service.ProblemService;
 import com.maesamco.content.global.config.SecurityConfig;
-import com.maesamco.content.problem.application.service.ProblemService;
-import com.maesamco.content.problem.application.service.ProblemPublicationService;
+import com.maesamco.content.presentation.problem.controller.ProblemController;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

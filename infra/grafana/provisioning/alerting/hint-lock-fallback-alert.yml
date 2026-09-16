@@ -1,0 +1,182 @@
+apiVersion: 1
+
+# 이슈 #74 — Coaching Service의 힌트 생성 락(RedisHintGenerationLockAdapter)이
+# Redis 장애 시 fail-open(락 없이 진행)하는데, 지금까지는 log.warn 한 줄만 남기고
+# 넘어가서 "비용 보호 장치가 꺼진 상태"가 방치될 수 있었다. 이 카운터는 그 fail-open
+# 시점에 Micrometer(hint.generation.lock.fallback, 태그 operation=try_lock/unlock)로
+# 증가한다.
+#
+# PR #190 리뷰 — 완전히 동일한 fail-open 로직을 가진 형제 락(RedisAiFeedbackRetryLockAdapter,
+# ai.feedback.retry.lock.fallback)에는 관측 자체가 없었다. 이쪽이 TTL도 더 길어서(240초)
+# Redis 장애 시 무방비로 노출되는 시간이 더 긴데도 그랬다 — 이 파일에 같은 패턴으로
+# 알림을 추가했다(파일명은 이슈 #74 당시 그대로 남겨둠).
+#
+# tryLock 실패(operation="try_lock")만 알림 대상이다 — 락 없이 진행되어 동시 요청 시
+# LLM 중복 호출이 실제로 가능해지는 상태이기 때문이다. unlock 실패(operation="unlock")는
+# 이미 끝난 요청의 락 삭제만 실패한 것이라 TTL로 자연 만료되고, 그 사이엔 오히려
+# 후속 요청이 과잉 차단될 뿐 비용 리스크는 아니라서 알림 조건에서 제외한다.
+#
+# Counter 타입이라 CPU 알림(Gauge, 순간값 임계치)과 달리 increase()로 구간 내
+# 증가량을 본다. Warning/Critical 두 임계치는 실제 발생 빈도 데이터가 없는 상태에서
+# 시작값으로 임의로 정한 것(MAX_RETRY_COUNT=3과 같은 성격) — 나중에 데이터가 쌓이면
+# 조정한다.
+#
+# ⚠️ cpu-alert.yml과 마찬가지로, provisioning 후 Grafana 컨테이너 로그와
+# Alerting > Alert rules 화면에서 정상 로드됐는지 확인 필요.
+#
+# ⚠️ 이 파일은 org 1의 notification policies를 선언하지 않는다(PR #190 리뷰) — org당
+# 정책 트리는 하나뿐이라, 이 파일이 따로 최상위 policies:를 선언하면 provisioning 로드
+# 순서에 따라 cpu-alert.yml의 루트 정책을 통째로 덮어써서 CPU 알림이 조용히 다른
+# 채널/템플릿으로 새 나가는 회귀가 생긴다(실제로 재현 확인됨). 대신 아래 규칙들에
+# component: lock-fallback 라벨을 붙이고, cpu-alert.yml의 policies.routes에서 그 라벨을
+# 매칭해 이 파일의 slack-hint-lock-fallback-alert로 보내도록 라우팅한다.
+
+contactPoints:
+  - orgId: 1
+    name: slack-hint-lock-fallback-alert
+    receivers:
+      - uid: slack-hint-lock-fallback-receiver
+        type: slack
+        settings:
+          url: $__env{SLACK_WEBHOOK_URL}
+          title: '{{ .CommonLabels.alertname }} — Redis 락 fail-open 감지'
+          text: |
+            서비스: coaching-service
+            심각도: {{ .CommonLabels.severity }}
+            최근 발생 건수: {{ .CommonAnnotations.recent_count }}
+            트리거 시각: {{ .StartsAt }}
+
+groups:
+  - orgId: 1
+    name: hint-lock-fallback-alerts
+    folder: 매삼코 알림
+    interval: 1m
+    rules:
+      - uid: hint-lock-fallback-warning
+        title: 힌트 생성 락 fail-open 발생 (Warning, 5분 내 1건 이상)
+        condition: C
+        for: 0m
+        # fail-open이 한 번도 없으면 Micrometer 카운터 자체가 아직 생성되지 않아
+        # Prometheus에 시계열이 없다 — 즉 "정상 상태"가 곧 "데이터 없음"이다.
+        # 기본값(Alerting)으로 두면 실제 장애 없이 Grafana를 새로 띄우자마자
+        # NoData가 Alerting으로 취급돼 오탐이 나가므로 반드시 OK로 지정한다.
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          recent_count: '{{ $values.A }}'
+        data:
+          - refId: A
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              # try_lock 실패만 본다(unlock 실패는 비용 리스크가 아니라서 제외).
+              expr: sum(increase(hint_generation_lock_fallback_total{operation="try_lock"}[5m]))
+              instant: true
+          - refId: C
+            datasourceUid: '__expr__'
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+        labels:
+          severity: warning
+          component: lock-fallback
+
+      - uid: hint-lock-fallback-critical
+        title: 힌트 생성 락 fail-open 지속 (Critical, 15분 내 5건 이상)
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          recent_count: '{{ $values.A }}'
+        data:
+          - refId: A
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: sum(increase(hint_generation_lock_fallback_total{operation="try_lock"}[15m]))
+              instant: true
+          - refId: C
+            datasourceUid: '__expr__'
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gte
+                    params: [5]
+        labels:
+          severity: critical
+          component: lock-fallback
+
+      # PR #190 리뷰 — RedisAiFeedbackRetryLockAdapter에도 동일한 fail-open 카운터를
+      # 추가하면서, 완전히 동일한 패턴(Warning 5분/1건, Critical 15분/5건)으로 알림도
+      # 같이 추가한다. 이 락은 TTL이 240초로 더 길어 Redis 장애 시 무방비 노출 시간이
+      # 더 크다.
+      - uid: ai-feedback-retry-lock-fallback-warning
+        title: AI 피드백 재시도 락 fail-open 발생 (Warning, 5분 내 1건 이상)
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          recent_count: '{{ $values.A }}'
+        data:
+          - refId: A
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: sum(increase(ai_feedback_retry_lock_fallback_total{operation="try_lock"}[5m]))
+              instant: true
+          - refId: C
+            datasourceUid: '__expr__'
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+        labels:
+          severity: warning
+          component: lock-fallback
+
+      - uid: ai-feedback-retry-lock-fallback-critical
+        title: AI 피드백 재시도 락 fail-open 지속 (Critical, 15분 내 5건 이상)
+        condition: C
+        for: 0m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          recent_count: '{{ $values.A }}'
+        data:
+          - refId: A
+            datasourceUid: prometheus-uid
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: sum(increase(ai_feedback_retry_lock_fallback_total{operation="try_lock"}[15m]))
+              instant: true
+          - refId: C
+            datasourceUid: '__expr__'
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gte
+                    params: [5]
+        labels:
+          severity: critical
+          component: lock-fallback

@@ -1,16 +1,16 @@
 package com.maesamco.content.quicktest;
 
+import com.maesamco.content.application.problem.port.ProblemFinder;
+import com.maesamco.content.application.problem.port.ProblemTagFinder;
+import com.maesamco.content.application.problem.service.ProblemTagService;
+import com.maesamco.content.application.tag.port.TagFinder;
+import com.maesamco.content.domain.problem.entity.Problem;
+import com.maesamco.content.domain.problem.entity.ProblemTag;
+import com.maesamco.content.domain.problem.enums.ProblemStatus;
+import com.maesamco.content.domain.problem.repository.ProblemTagRepository;
+import com.maesamco.content.domain.tag.entity.Tag;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.problem.application.port.ProblemFinder;
-import com.maesamco.content.problem.application.port.ProblemTagFinder;
-import com.maesamco.content.problem.application.service.ProblemTagService;
-import com.maesamco.content.problem.domain.entity.Problem;
-import com.maesamco.content.problem.domain.entity.ProblemTag;
-import com.maesamco.content.problem.domain.enums.ProblemStatus;
-import com.maesamco.content.problem.domain.repository.ProblemTagRepository;
-import com.maesamco.content.tag.application.port.TagFinder;
-import com.maesamco.content.tag.domain.entity.Tag;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

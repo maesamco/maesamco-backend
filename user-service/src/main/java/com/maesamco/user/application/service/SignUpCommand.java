@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.validation.ValidSignUpPassword;
 import com.maesamco.user.domain.entity.LearningLevel;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -25,11 +26,23 @@ import jakarta.validation.constraints.Size;
 @ValidSignUpPassword
 public record SignUpCommand(
 
+        @Schema(
+                description = "로그인과 이메일 인증에 사용하는 이메일",
+                format = "email",
+                maxLength = 255,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotBlank(message = "이메일은 필수입니다.")
         @Email(message = "올바른 이메일 형식이어야 합니다.")
         @Size(max = 255, message = "이메일은 255자 이하여야 합니다.")
         String email,
 
+        @Schema(
+                description = "이메일 인증 확인 API에서 발급받은 일회용 회원가입 토큰",
+                maxLength = 256,
+                accessMode = Schema.AccessMode.WRITE_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotBlank(message = "회원가입 인증 토큰은 필수입니다.")
         @Size(
                 max = 256,
@@ -37,6 +50,14 @@ public record SignUpCommand(
         )
         String signupToken,
 
+        @Schema(
+                description = "영문 대문자·소문자·숫자·특수문자를 포함한 비밀번호",
+                format = "password",
+                minLength = 8,
+                maxLength = 64,
+                accessMode = Schema.AccessMode.WRITE_ONLY,
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotBlank(message = "비밀번호는 필수입니다.")
         @Size(
                 min = 8,
@@ -49,6 +70,13 @@ public record SignUpCommand(
         )
         String password,
 
+        @Schema(
+                description = "서비스에서 사용할 닉네임 (한글, 영문, 숫자만 허용)",
+                minLength = 2,
+                maxLength = 20,
+                pattern = "^[가-힣A-Za-z0-9]+$",
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotBlank(message = "닉네임은 필수입니다.")
         @Size(
                 min = 2,
@@ -61,11 +89,22 @@ public record SignUpCommand(
         )
         String nickname,
 
+        @Schema(
+                description = "Java 학습 경험 개월 수",
+                minimum = "0",
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
+        @NotNull(message = "Java 경험 개월 수는 필수입니다.")
         @PositiveOrZero(
                 message = "Java 경험 개월 수는 0 이상이어야 합니다."
         )
-        int javaExperienceMonths,
+        Integer javaExperienceMonths,
 
+        @Schema(
+                description = "Java 학습 수준",
+                allowableValues = {"BEGINNER", "BASIC"},
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotNull(message = "학습 수준은 필수입니다.")
         LearningLevel learningLevel
 ) {

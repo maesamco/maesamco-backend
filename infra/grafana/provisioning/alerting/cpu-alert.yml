@@ -23,10 +23,25 @@ contactPoints:
             현재 값: {{ .CommonAnnotations.current_value }}
             트리거 시각: {{ .StartsAt }}
 
+# PR #190 리뷰 — org 1의 알림 정책 트리는 파일마다 따로 있는 게 아니라 org당 하나뿐이다.
+# 이 파일과 hint-lock-fallback-alert.yml이 둘 다 최상위 policies:를 각자 선언하면
+# provisioning 로드 순서에 따라 나중에 적용되는 쪽이 이전 트리를 통째로 덮어써서, 이
+# cpu-usage-over-50(자기 receiver가 없어 루트 정책에 의존)이 조용히 다른 채널/템플릿으로
+# 새 나갈 수 있다(실제로 재현됨 — Grafana API로 확인 시 루트 receiver가
+# slack-hint-lock-fallback-alert로 덮어써져 있었음). 그래서 org 1의 정책 트리는 이 파일
+# 하나만 정의하고, hint-lock-fallback-alert.yml은 자기 policies:를 갖지 않는다 — 그
+# 파일이 추가하는 알림(hint-lock/ai-feedback-retry-lock fallback)은 아래 routes:로
+# component=lock-fallback 라벨을 매칭해서 별도 receiver로 보낸다. 규칙 제목(alertname)이
+# 아니라 라벨로 매칭하는 이유: 제목 문구가 나중에 바뀌어도 라우팅이 안 깨지게 하기 위함.
 policies:
   - orgId: 1
     receiver: slack-cpu-alert
     group_by: ['alertname']
+    routes:
+      - receiver: slack-hint-lock-fallback-alert
+        object_matchers:
+          - ['component', '=', 'lock-fallback']
+        group_by: ['alertname']
 
 groups:
   - orgId: 1

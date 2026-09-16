@@ -1,0 +1,27 @@
+package com.maesamco.content.domain.dailyquiz.repository;
+
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface DailyQuizQuestionRepository {
+
+    DailyQuizQuestion save(DailyQuizQuestion question);
+
+    /**
+     * 특정 Daily Quiz 문제 버전을 ID로 단건 조회합니다.
+     */
+    Optional<DailyQuizQuestion> findById(UUID questionId);
+
+    List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags);
+
+    /**
+     * 사용자 세트에 배정된 특정 문제 버전들을 ID로 일괄 조회합니다.
+     * 이미 배정된 문항은 현재 상태와 관계없이 재조회할 수 있어야 하므로
+     * ACTIVE 상태 조건을 적용하지 않습니다.
+     */
+    List<DailyQuizQuestion> findAllById(Collection<UUID> questionIds);
+}

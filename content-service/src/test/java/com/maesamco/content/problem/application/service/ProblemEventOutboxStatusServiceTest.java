@@ -1,9 +1,10 @@
 package com.maesamco.content.problem.application.service;
 
+import com.maesamco.content.application.problem.service.ProblemEventOutboxStatusService;
+import com.maesamco.content.domain.problem.entity.ProblemEventOutbox;
+import com.maesamco.content.domain.problem.enums.ProblemEventOutboxStatus;
+import com.maesamco.content.domain.problem.repository.ProblemEventOutboxRepository;
 import com.maesamco.content.global.exception.BusinessException;
-import com.maesamco.content.problem.domain.entity.ProblemEventOutbox;
-import com.maesamco.content.problem.domain.enums.ProblemEventOutboxStatus;
-import com.maesamco.content.problem.domain.repository.ProblemEventOutboxRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

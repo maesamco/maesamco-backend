@@ -173,11 +173,82 @@ class RedisAuthSessionStoreTest {
                         authSession
                 )
         )
-                .isInstanceOf(
-                        IllegalStateException.class
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(
+                                    exception.getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.INTERNAL_SERVER_ERROR
+                            );
+
+                            assertThat(exception)
+                                    .hasMessage(
+                                            "인증 세션 저장 결과를 확인할 수 없습니다."
+                                    );
+                        }
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "인증 세션 저장 스크립트가 예상하지 못한 결과를 반환하면 "
+                    + "INTERNAL_SERVER_ERROR를 반환한다"
+    )
+    void save_throwsWhenRedisResultIsUnknown()
+            throws JacksonException {
+        // given
+        long unknownResult =
+                2L;
+
+        when(
+                jsonMapper.writeValueAsString(
+                        authSession
                 )
-                .hasMessage(
-                        "인증 세션 저장 결과를 확인할 수 없습니다."
+        ).thenReturn(
+                SESSION_JSON
+        );
+
+        when(
+                redisTemplate.execute(
+                        any(),
+                        eq(
+                                List.of(
+                                        SESSION_KEY,
+                                        USER_SESSION_INDEX_KEY,
+                                        USER_INVALIDATED_AT_KEY
+                                )
+                        ),
+                        eq(SESSION_JSON),
+                        eq(SESSION_ID.toString()),
+                        eq(SESSION_TTL_MILLIS),
+                        eq(SESSION_CREATED_AT_EPOCH_MILLIS)
+                )
+        ).thenReturn(
+                unknownResult
+        );
+
+        // when & then
+        assertThatThrownBy(
+                () -> authSessionStore.save(
+                        authSession
+                )
+        )
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> {
+                            assertThat(
+                                    exception.getErrorCode()
+                            ).isEqualTo(
+                                    ErrorCode.INTERNAL_SERVER_ERROR
+                            );
+
+                            assertThat(exception)
+                                    .hasMessage(
+                                            "알 수 없는 인증 세션 저장 결과입니다: "
+                                                    + unknownResult
+                                    );
+                        }
                 );
     }
 
