@@ -10,6 +10,7 @@ import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
+import com.maesamco.judge.presentation.response.SubmissionExternalGetResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -48,13 +49,14 @@ public class SubmissionApiController implements SubmissionApiDocs {
 
     @Override
     @GetMapping("/{submissionId}")
-    public ResponseEntity<SuccessResponse<SubmissionExternalGetResult>> getSubmission(
+    public ResponseEntity<SuccessResponse<SubmissionExternalGetResponse>> getSubmission(
             @PathVariable UUID submissionId,
             @AuthenticationPrincipal UUID userId
     ) {
         requireAuthenticated(userId);
         SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
-        return ResponseEntity.status(HttpStatus.OK).body(SuccessResponse.success(result));
+        SubmissionExternalGetResponse response = SubmissionExternalGetResponse.from(result);
+        return ResponseEntity.status(HttpStatus.OK).body(SuccessResponse.success(response));
     }
 
 

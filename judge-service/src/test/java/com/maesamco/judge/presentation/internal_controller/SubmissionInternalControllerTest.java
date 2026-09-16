@@ -1,4 +1,4 @@
-package com.maesamco.judge.presentation.api_controller;
+package com.maesamco.judge.presentation.internal_controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -15,7 +15,6 @@ import com.maesamco.judge.global.exception.ErrorCode;
 import java.util.List;
 import java.util.UUID;
 
-import com.maesamco.judge.presentation.internal_controller.SubmissionInternalController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

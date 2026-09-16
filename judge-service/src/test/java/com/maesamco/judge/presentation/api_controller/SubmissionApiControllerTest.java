@@ -1,4 +1,4 @@
-package com.maesamco.judge.presentation.internal_controller;
+package com.maesamco.judge.presentation.api_controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -15,10 +15,8 @@ import com.maesamco.judge.application.result.SubmissionCreateResult;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.domain.entity.SubmissionResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
-import com.maesamco.judge.global.config.SecurityConfig;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
-import com.maesamco.judge.presentation.api_controller.SubmissionApiController;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import java.time.Instant;
 import java.util.List;
@@ -41,7 +39,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.test.context.NestedTestConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 

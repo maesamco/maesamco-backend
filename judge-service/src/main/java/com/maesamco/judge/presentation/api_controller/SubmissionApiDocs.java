@@ -1,9 +1,9 @@
 package com.maesamco.judge.presentation.api_controller;
 
-import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
+import com.maesamco.judge.presentation.response.SubmissionExternalGetResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,7 +42,7 @@ public interface SubmissionApiDocs {
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
             @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND — 존재하지 않거나 본인 제출이 아님")
     })
-    ResponseEntity<SuccessResponse<SubmissionExternalGetResult>> getSubmission(
+    ResponseEntity<SuccessResponse<SubmissionExternalGetResponse>> getSubmission(
             @Parameter(name = "submissionId", required = true) UUID submissionId,
             @Parameter(hidden = true) UUID userId
     );
