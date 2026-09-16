@@ -111,8 +111,13 @@ class FeedbackGenerationFacadeTest {
 
         facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
 
+        // PR #182 리뷰(다른 AI 초안 발견 사항) 대응 — responseTimeMs를 any()로 느슨하게
+        // 두면 이 값이 실제로 채워지는지, 심지어 인자 순서가 tokenUsage와 뒤바뀌어도 이
+        // 테스트가 못 잡는다. 정확한 값을 직접 계산할 수는 없으니(System.currentTimeMillis()
+        // 기반) 최소한 "null이 아닌 0 이상의 값"까지는 검증한다.
         verify(feedbackPersistenceService).saveFeedback(
-                eq(session.getId()), eq(userId), eq("claude-sonnet-5"), anyString(), eq(30),
+                eq(session.getId()), eq(userId), eq("claude-sonnet-5"), anyString(),
+                argThat(responseTimeMs -> responseTimeMs != null && responseTimeMs >= 0), eq(30),
                 argThat(node -> node.get(0).asString().equals("반복문")),
                 any(JsonNode.class),
                 argThat(node -> node.get(0).asString().equals("재귀")),
@@ -142,7 +147,7 @@ class FeedbackGenerationFacadeTest {
                 "claude-sonnet-5", 30
         ));
         doThrow(new RuntimeException("DB 오류")).when(feedbackPersistenceService)
-                .saveFeedback(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+                .saveFeedback(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();
@@ -176,8 +181,18 @@ class FeedbackGenerationFacadeTest {
         verifyNoInteractions(feedbackPersistenceService);
     }
 
+    /**
+     * 이슈 #173 — AiModelCallException은 원인(quota 소진·네트워크 오류·서킷오픈 등)과
+     * 무관하게 chatModel.call() 자체가 실패해 토큰이 청구되지 않은 시도이므로,
+     * AiFeedbackRetryFacade의 재시도 예산 계산에서 전부 제외돼야 한다.
+     *
+     * PR #182 리뷰(용현님 P2) 대응 — 다만 requestStatus 자체는 SKIPPED로 뭉개지 않고
+     * neverCalled()로 구분한다. 이 테스트의 예외(2-인자 생성자, neverCalled()=false)는
+     * "호출은 했지만 실패"한 경우를 나타내므로 INFRA_FAILED로 남아야 한다 — 진짜
+     * 서킷오픈(neverCalled()=true)만 SKIPPED가 된다(재시도 예산 제외 여부는 둘 다 동일).
+     */
     @Test
-    void LLM_호출이_실패해도_예외_없이_종료한다() {
+    void LLM_호출이_인프라_사정으로_실패하면_INFRA_FAILED_이력을_남기고_예외_없이_종료한다() {
         stubSubmission();
         when(aiModelPort.generate(any(), any())).thenThrow(new AiModelCallException("timeout", new RuntimeException()));
 
@@ -185,20 +200,18 @@ class FeedbackGenerationFacadeTest {
                 .doesNotThrowAnyException();
 
         verifyNoInteractions(feedbackPersistenceService);
-        verify(aiCallHistoryRepository).save(argThat(h -> "FAILED".equals(h.getRequestStatus())));
+        verify(aiCallHistoryRepository).save(argThat(h -> "INFRA_FAILED".equals(h.getRequestStatus())));
     }
 
     /**
-     * 재검증(PR #111, 외부 AI 리뷰) — 서킷브레이커가 열려서 실제 LLM 호출 자체가 없었던
-     * 경우(circuitOpen=true)는 "FAILED"가 아니라 "SKIPPED"로 남겨야
-     * AiFeedbackRetryFacade의 재시도 카운트에서 제외된다. 힌트/역질문 생성 쪽 장애로 서킷이
-     * 열렸을 때, 이 사용자의 피드백 재시도 예산이 실제 시도 없이 소모되는 걸 막기 위함.
+     * PR #182 리뷰(용현님 P2) 대응 — 서킷오픈(neverCalled()=true)은 SKIPPED로 남아야
+     * "실제 외부 호출 자체가 없었던 시도"라는 원래 의미가 유지된다.
      */
     @Test
-    void 서킷브레이커가_열려서_호출이_차단되면_FAILED_대신_SKIPPED_이력을_남긴다() {
+    void 서킷오픈으로_호출_자체가_없었으면_SKIPPED_이력을_남긴다() {
         stubSubmission();
         when(aiModelPort.generate(any(), any()))
-                .thenThrow(new AiModelCallException("Claude 호출이 차단되었습니다(circuit open).", new RuntimeException(), true));
+                .thenThrow(new AiModelCallException("circuit open", new RuntimeException(), true));
 
         assertThatCode(() -> facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer))
                 .doesNotThrowAnyException();
@@ -262,7 +275,7 @@ class FeedbackGenerationFacadeTest {
         facade.generateFeedback(session, explanation, followUpQuestion, followUpAnswer);
 
         verify(feedbackPersistenceService).saveFeedback(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq("계속 진행하세요")
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), eq("계속 진행하세요")
         );
     }
 

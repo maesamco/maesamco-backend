@@ -1,7 +1,8 @@
 package com.maesamco.coaching.infrastructure.redis;
 
 import com.maesamco.coaching.application.port.AiFeedbackRetryLockPort;
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -30,17 +31,31 @@ import java.util.UUID;
  * 기존 TTL(150초)보다 실제로 더 길 수 있었다(락이 먼저 풀려 보호 목적이 무의미해지는 상황).
  * 240초로 올려 여유를 두되, 재시도/타임아웃 설정값이 나중에 또 바뀔 수 있으므로 이 숫자를
  * 다시 계산해야 한다는 걸 여기 남겨둔다.
+ *
+ * PR #190 리뷰 — RedisHintGenerationLockAdapter와 완전히 동일한 fail-open 로직(catch에서
+ * log.warn만 하고 계속 진행)인데 관측 카운터가 없었다. 이쪽이 TTL도 240초로 더 길어서
+ * Redis 장애 시 무방비로 노출되는 시간이 더 긴데도 그랬다 — 동일한 방식(생성자 즉시 등록,
+ * 이유는 RedisHintGenerationLockAdapter 클래스 Javadoc 참고)으로 추가한다.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RedisAiFeedbackRetryLockAdapter implements AiFeedbackRetryLockPort {
 
     private static final Duration LOCK_TTL = Duration.ofSeconds(240);
+    private static final String FALLBACK_METRIC_NAME = "ai.feedback.retry.lock.fallback";
+    private static final String OPERATION_TAG = "operation";
 
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<Long> unlockScript = RedisScript.of(
             new ClassPathResource("scripts/feedback_retry_lock_unlock.lua"), Long.class);
+    private final Counter tryLockFallbackCounter;
+    private final Counter unlockFallbackCounter;
+
+    public RedisAiFeedbackRetryLockAdapter(StringRedisTemplate redisTemplate, MeterRegistry meterRegistry) {
+        this.redisTemplate = redisTemplate;
+        this.tryLockFallbackCounter = meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "try_lock");
+        this.unlockFallbackCounter = meterRegistry.counter(FALLBACK_METRIC_NAME, OPERATION_TAG, "unlock");
+    }
 
     @Override
     public boolean tryLock(UUID coachingSessionId, String lockToken) {
@@ -48,6 +63,7 @@ public class RedisAiFeedbackRetryLockAdapter implements AiFeedbackRetryLockPort 
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key(coachingSessionId), lockToken, LOCK_TTL);
             return Boolean.TRUE.equals(acquired);
         } catch (RuntimeException e) {
+            tryLockFallbackCounter.increment();
             log.warn("AI 피드백 재시도 락 획득 실패(Redis 오류) - coachingSessionId={}, 락 없이 진행합니다.", coachingSessionId, e);
             return true;
         }
@@ -58,6 +74,7 @@ public class RedisAiFeedbackRetryLockAdapter implements AiFeedbackRetryLockPort 
         try {
             redisTemplate.execute(unlockScript, List.of(key(coachingSessionId)), lockToken);
         } catch (RuntimeException e) {
+            unlockFallbackCounter.increment();
             // 못 지워도 TTL이 있어서 언젠가 자연 만료된다 — 핵심 기능을 막을 이유는 없다.
             log.warn("AI 피드백 재시도 락 해제 실패(Redis 오류) - coachingSessionId={}, TTL로 자연 만료됩니다.", coachingSessionId, e);
         }

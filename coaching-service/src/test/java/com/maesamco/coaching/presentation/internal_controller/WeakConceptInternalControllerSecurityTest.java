@@ -5,6 +5,7 @@ import com.maesamco.coaching.global.exception.GlobalExceptionHandler;
 import com.maesamco.coaching.global.security.hmac.HmacSignatureUtil;
 import com.maesamco.coaching.global.security.hmac.HmacVerificationFilter;
 import com.maesamco.coaching.global.security.hmac.InternalCallHeaders;
+import com.maesamco.coaching.global.security.hmac.InternalCallerAuthorizationInterceptor;
 import com.maesamco.coaching.global.security.hmac.InternalServiceKeyProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -35,6 +36,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * 이 서비스의 첫 실제 `/internal/v1/**` 컨트롤러라 여기서 처음 만든다 — 이후 내부
  * 컨트롤러가 추가되면 이 테스트 구조를 그대로 참고하면 된다.
+ *
+ * ⚠️ P1 리뷰(이슈 #175) — 인가 체크가 컨트롤러 안 if문에서 별도 HandlerInterceptor로
+ * 빠지면서, WebMvcConfigurer.addInterceptors()로 등록되는 이 인터셉터를
+ * standaloneSetup()은 실제 앱(전체 Spring 컨텍스트)과 달리 자동으로 안 태운다.
+ * 그래서 명시적으로 등록해줘야 이 테스트가 실제 앱 동작을 정확히 반영한다
+ * (안 그러면 rejectsValidSignatureFromDisallowedCaller가 200을 받아 거짓으로 통과함).
  */
 class WeakConceptInternalControllerSecurityTest {
 
@@ -87,6 +94,7 @@ class WeakConceptInternalControllerSecurityTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilter(hmacVerificationFilter, "/internal/v1/*")
+                .addInterceptors(new InternalCallerAuthorizationInterceptor())
                 .build();
     }
 
@@ -187,6 +195,7 @@ class WeakConceptInternalControllerSecurityTest {
         MockMvc mockMvcWithOtherCaller = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilter(filterWithOtherCaller, "/internal/v1/*")
+                .addInterceptors(new InternalCallerAuthorizationInterceptor())
                 .build();
 
         long timestamp = System.currentTimeMillis();
