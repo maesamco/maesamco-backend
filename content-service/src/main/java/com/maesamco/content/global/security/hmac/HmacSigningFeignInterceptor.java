@@ -3,7 +3,6 @@ package com.maesamco.content.global.security.hmac;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 
 /**
  * /internal/v1/** 를 호출하는 모든 Feign Client에 등록한다.
@@ -19,19 +18,20 @@ import org.springframework.beans.factory.annotation.Value;
  * 그래서 apply() 시점의 template.url()에는 그 prefix가 아직 없는데, 서명은 이 값을
  * 그대로 써버려서 실제 도착한 요청 경로(수신측 request.getRequestURI(), prefix 포함)와
  * 어긋나 정상 요청도 401이 났다. basePath를 생성자로 받아 서명 시 직접 앞에 붙여서
- * 맞춘다. 기존 2-인자 생성자는 path prefix가 없는 Feign Client(호출 시 이미 전체
- * 경로를 쓰는 경우)를 위해 하위 호환으로 남겨둔다(basePath 빈 문자열과 동일).
+ * 맞춘다.
+ *
+ * ⚠️ P2 리뷰(PR #164) — 이전엔 basePath 없는 2-인자 생성자도 하위 호환으로
+ * 남겨뒀는데, 이 PR이 고치는 버그 자체가 "누군가 prefix를 서명 인터셉터에 안
+ * 알려줘서 조용히 어긋난 것"이라 2-인자 생성자를 남겨두면 나중에 새 Feign Client를
+ * 추가하며 실수로 이걸 다시 쓰는 순간 같은 버그가 재발할 수 있다(PR #162와 대조해
+ * 확인 — coaching-service는 2-인자 생성자를 아예 제거함). 실제로 이 생성자를
+ * 호출하는 곳이 하나도 없어 순수 죽은 코드이기도 했다 — 제거하고 3-인자만 남긴다.
  */
 public class HmacSigningFeignInterceptor implements RequestInterceptor {
 
     private final String serviceName;
     private final String secretKeyForTarget;
     private final String basePath;
-
-    public HmacSigningFeignInterceptor(@Value("${spring.application.name}") String serviceName,
-                                       String secretKeyForTarget) {
-        this(serviceName, secretKeyForTarget, "");
-    }
 
     /**
      * @param basePath {@code @FeignClient(path = ...)}에 지정한 값과 반드시 동일해야 한다.
