@@ -3,7 +3,6 @@ package com.maesamco.user.application.service;
 import com.maesamco.user.application.port.ConceptValidationPort;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
-import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -13,11 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 로그인 사용자의 관심 개념 목록 전체 교체를 처리합니다.
@@ -63,7 +58,7 @@ public class UpdateMyInterestsService {
                         )
                 );
 
-        validateActiveUser(user);
+        user.assertActive();
 
         List<UUID> requestedConceptIds =
                 command.conceptIds();
@@ -92,11 +87,7 @@ public class UpdateMyInterestsService {
          * 최초 조회 이후 계정 상태가 변경됐을 수 있으므로
          * 잠금을 획득한 상태에서 다시 확인합니다.
          */
-        if (lockedUser.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(
-                    ErrorCode.USER_NOT_ACTIVE
-            );
-        }
+        lockedUser.assertActive();
 
         List<UserInterestConcept> currentInterests =
                 interestConceptRepository.findAllByUserId(
@@ -172,17 +163,6 @@ public class UpdateMyInterestsService {
     }
 
     /**
-     * 정상 이용 상태의 사용자인지 확인합니다.
-     */
-    private void validateActiveUser(User user) {
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(
-                    ErrorCode.USER_NOT_ACTIVE
-            );
-        }
-    }
-
-    /**
      * 변경이 발생하면 현재 시각을 반환하고, 동일한 목록을 요청한 경우
      * 기존 관심 개념의 마지막 변경 시각을 반환합니다.
      */
@@ -204,6 +184,6 @@ public class UpdateMyInterestsService {
                 .map(UserInterestConcept::getUpdatedAt)
                 .filter(Objects::nonNull)
                 .max(Instant::compareTo)
-                .orElseGet(Instant::now);
+                .orElse(null);
     }
 }

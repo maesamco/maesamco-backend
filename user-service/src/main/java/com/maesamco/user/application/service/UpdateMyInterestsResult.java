@@ -46,9 +46,11 @@ public record UpdateMyInterestsResult(
         int count,
 
         @Schema(
-                description = "관심 개념 변경 완료 시각",
+                description = "관심 개념의 마지막 변경 시각. "
+                        + "변경 이력이 없으면 null입니다.",
                 example = "2026-09-15T06:30:00Z",
-                requiredMode = Schema.RequiredMode.REQUIRED
+                requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+                nullable = true
         )
         Instant updatedAt
 ) {
@@ -60,10 +62,6 @@ public record UpdateMyInterestsResult(
         Objects.requireNonNull(
                 interestConceptIds,
                 "관심 개념 ID 목록은 필수입니다."
-        );
-        Objects.requireNonNull(
-                updatedAt,
-                "관심 개념 변경 시각은 필수입니다."
         );
 
         interestConceptIds =

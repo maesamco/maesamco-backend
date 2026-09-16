@@ -228,4 +228,30 @@ class UpdateMyInterestsCommandValidationTest {
                         java.util.stream.Collectors.toSet()
                 );
     }
+
+    @Test
+    @DisplayName(
+            "동일한 개념 ID가 10개를 초과해 반복돼도 "
+                    + "중복 제거 후 10개 이하이면 허용한다"
+    )
+    void acceptsDuplicatedIdsWhenUniqueCountIsWithinLimit() {
+        UUID conceptId = UUID.randomUUID();
+
+        List<UUID> conceptIds =
+                IntStream.range(0, 50)
+                        .mapToObj(index -> conceptId)
+                        .toList();
+
+        UpdateMyInterestsCommand command =
+                new UpdateMyInterestsCommand(
+                        conceptIds
+                );
+
+        assertThat(command.conceptIds())
+                .containsExactly(conceptId);
+
+        assertThat(
+                validator.validate(command)
+        ).isEmpty();
+    }
 }
