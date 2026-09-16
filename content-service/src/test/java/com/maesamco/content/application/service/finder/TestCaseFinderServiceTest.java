@@ -52,7 +52,7 @@ class TestCaseFinderServiceTest {
             when(testCaseRepository.findById(testCaseId)).thenReturn(Optional.of(testCase));
 
             // when
-            TestCase result = testCaseFinderService.getTestCase(testCaseId);
+            TestCase result = testCaseFinderService.getById(testCaseId);
 
             // then
             assertThat(result).isNotNull();
@@ -77,8 +77,8 @@ class TestCaseFinderServiceTest {
             when(testCaseRepository.findById(secondTestCaseId)).thenReturn(Optional.of(secondTestCase));
 
             // when
-            TestCase firstResult = testCaseFinderService.getTestCase(firstTestCaseId);
-            TestCase secondResult = testCaseFinderService.getTestCase(secondTestCaseId);
+            TestCase firstResult = testCaseFinderService.getById(firstTestCaseId);
+            TestCase secondResult = testCaseFinderService.getById(secondTestCaseId);
 
             // then
             assertThat(firstResult).isSameAs(firstTestCase);
@@ -109,7 +109,7 @@ class TestCaseFinderServiceTest {
             when(testCaseRepository.findById(testCaseId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> testCaseFinderService.getTestCase(testCaseId))
+            assertThatThrownBy(() -> testCaseFinderService.getById(testCaseId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
@@ -130,7 +130,7 @@ class TestCaseFinderServiceTest {
             when(testCaseRepository.findById(testCaseId)).thenReturn(Optional.empty());
 
             // when
-            assertThatThrownBy(() -> testCaseFinderService.getTestCase(testCaseId))
+            assertThatThrownBy(() -> testCaseFinderService.getById(testCaseId))
                     .isInstanceOf(BusinessException.class);
 
             // then
@@ -158,7 +158,7 @@ class TestCaseFinderServiceTest {
             when(testCaseRepository.findById(testCaseId)).thenThrow(repositoryException);
 
             // when & then
-            assertThatThrownBy(() -> testCaseFinderService.getTestCase(testCaseId))
+            assertThatThrownBy(() -> testCaseFinderService.getById(testCaseId))
                     .isSameAs(repositoryException);
 
             verify(testCaseRepository).findById(testCaseId);

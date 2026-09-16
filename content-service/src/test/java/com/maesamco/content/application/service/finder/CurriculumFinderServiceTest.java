@@ -52,7 +52,7 @@ class CurriculumFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.of(curriculum));
 
             // when
-            Curriculum result = curriculumFinderService.findById(curriculumId);
+            Curriculum result = curriculumFinderService.getById(curriculumId);
 
             // then
             assertThat(result).isNotNull();
@@ -77,8 +77,8 @@ class CurriculumFinderServiceTest {
             when(curriculumRepository.findById(secondCurriculumId)).thenReturn(Optional.of(secondCurriculum));
 
             // when
-            Curriculum firstResult = curriculumFinderService.findById(firstCurriculumId);
-            Curriculum secondResult = curriculumFinderService.findById(secondCurriculumId);
+            Curriculum firstResult = curriculumFinderService.getById(firstCurriculumId);
+            Curriculum secondResult = curriculumFinderService.getById(secondCurriculumId);
 
             // then
             assertThat(firstResult).isSameAs(firstCurriculum);
@@ -109,7 +109,7 @@ class CurriculumFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> curriculumFinderService.findById(curriculumId))
+            assertThatThrownBy(() -> curriculumFinderService.getById(curriculumId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
@@ -130,7 +130,7 @@ class CurriculumFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.empty());
 
             // when
-            assertThatThrownBy(() -> curriculumFinderService.findById(curriculumId))
+            assertThatThrownBy(() -> curriculumFinderService.getById(curriculumId))
                     .isInstanceOf(BusinessException.class);
 
             // then
@@ -158,7 +158,7 @@ class CurriculumFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenThrow(repositoryException);
 
             // when & then
-            assertThatThrownBy(() -> curriculumFinderService.findById(curriculumId))
+            assertThatThrownBy(() -> curriculumFinderService.getById(curriculumId))
                     .isSameAs(repositoryException);
 
             verify(curriculumRepository).findById(curriculumId);

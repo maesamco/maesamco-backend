@@ -72,7 +72,7 @@ class LessonFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.of(curriculum));
 
             // when
-            Lesson result = lessonFinderService.findLessonById(lessonId);
+            Lesson result = lessonFinderService.getById(lessonId);
 
             // then
             assertThat(result).isNotNull();
@@ -106,7 +106,7 @@ class LessonFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.of(curriculum));
 
             // when
-            Lesson result = lessonFinderService.findLessonById(lessonId);
+            Lesson result = lessonFinderService.getById(lessonId);
 
             // then
             assertThat(result).isSameAs(lesson);
@@ -136,7 +136,7 @@ class LessonFinderServiceTest {
             when(lessonRepository.findById(lessonId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
@@ -171,7 +171,7 @@ class LessonFinderServiceTest {
             when(unitRepository.findById(unitId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
@@ -212,7 +212,7 @@ class LessonFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException = (BusinessException) exception;
@@ -245,7 +245,7 @@ class LessonFinderServiceTest {
             when(lessonRepository.findById(lessonId)).thenThrow(repositoryException);
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isSameAs(repositoryException);
 
             verify(lessonRepository).findById(lessonId);
@@ -269,7 +269,7 @@ class LessonFinderServiceTest {
             when(unitRepository.findById(unitId)).thenThrow(repositoryException);
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isSameAs(repositoryException);
 
             verify(lessonRepository).findById(lessonId);
@@ -298,7 +298,7 @@ class LessonFinderServiceTest {
             when(curriculumRepository.findById(curriculumId)).thenThrow(repositoryException);
 
             // when & then
-            assertThatThrownBy(() -> lessonFinderService.findLessonById(lessonId))
+            assertThatThrownBy(() -> lessonFinderService.getById(lessonId))
                     .isSameAs(repositoryException);
 
             verify(lessonRepository).findById(lessonId);

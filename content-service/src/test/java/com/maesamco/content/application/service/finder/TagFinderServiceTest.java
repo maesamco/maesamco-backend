@@ -56,7 +56,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.of(tag));
 
             // when
-            Tag result = tagFinderService.getTag(tagId);
+            Tag result = tagFinderService.getById(tagId);
 
             // then
             assertThat(result).isNotNull();
@@ -79,7 +79,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.of(tag));
 
             // when
-            Tag result = tagFinderService.getTag(tagId);
+            Tag result = tagFinderService.getById(tagId);
 
             // then
             assertThat(result)
@@ -101,7 +101,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.of(tag));
 
             // when
-            tagFinderService.getTag(tagId);
+            tagFinderService.getById(tagId);
 
             // then
             verify(tagRepository, times(1))
@@ -127,8 +127,8 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.of(secondTag));
 
             // when
-            Tag firstResult = tagFinderService.getTag(firstTagId);
-            Tag secondResult = tagFinderService.getTag(secondTagId);
+            Tag firstResult = tagFinderService.getById(firstTagId);
+            Tag secondResult = tagFinderService.getById(secondTagId);
 
             // then
             assertThat(firstResult).isSameAs(firstTag);
@@ -162,7 +162,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> tagFinderService.getTag(tagId))
+            assertThatThrownBy(() -> tagFinderService.getById(tagId))
                     .isInstanceOf(BusinessException.class);
 
             verify(tagRepository, times(1))
@@ -181,7 +181,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> tagFinderService.getTag(tagId))
+            assertThatThrownBy(() -> tagFinderService.getById(tagId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException =
@@ -207,7 +207,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> tagFinderService.getTag(tagId))
+            assertThatThrownBy(() -> tagFinderService.getById(tagId))
                     .isInstanceOf(BusinessException.class)
                     .hasMessage(ErrorCode.TAG_NOT_FOUND.getMessage());
 
@@ -228,7 +228,7 @@ class TagFinderServiceTest {
 
             // when
             try {
-                tagFinderService.getTag(tagId);
+                tagFinderService.getById(tagId);
             } catch (BusinessException ignored) {
             }
 
@@ -259,7 +259,7 @@ class TagFinderServiceTest {
                     .thenReturn(Optional.of(tag));
 
             // when
-            tagFinderService.getTag(tagId);
+            tagFinderService.getById(tagId);
 
             // then
             verify(tagRepository, times(1))

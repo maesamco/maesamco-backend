@@ -77,7 +77,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            Unit result = unitFinderService.findById(unitId);
+            Unit result = unitFinderService.getById(unitId);
 
             // then
             assertThat(result).isNotNull();
@@ -120,7 +120,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            Unit result = unitFinderService.findById(unitId);
+            Unit result = unitFinderService.getById(unitId);
 
             // then
             assertThat(result)
@@ -159,7 +159,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            unitFinderService.findById(unitId);
+            unitFinderService.getById(unitId);
 
             // then
             verify(unitRepository, times(1))
@@ -198,7 +198,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            unitFinderService.findById(unitId);
+            unitFinderService.getById(unitId);
 
             // then
             verify(unit, times(1))
@@ -238,7 +238,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            Unit result = unitFinderService.findById(unitId);
+            Unit result = unitFinderService.getById(unitId);
 
             // then
             assertThat(result).isSameAs(unit);
@@ -298,10 +298,10 @@ class UnitFinderServiceTest {
 
             // when
             Unit firstResult =
-                    unitFinderService.findById(firstUnitId);
+                    unitFinderService.getById(firstUnitId);
 
             Unit secondResult =
-                    unitFinderService.findById(secondUnitId);
+                    unitFinderService.getById(secondUnitId);
 
             // then
             assertThat(firstResult).isSameAs(firstUnit);
@@ -352,7 +352,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class);
 
             verify(unitRepository, times(1))
@@ -372,7 +372,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException =
@@ -399,7 +399,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class)
                     .hasMessage(ErrorCode.UNIT_NOT_FOUND.getMessage());
 
@@ -421,7 +421,7 @@ class UnitFinderServiceTest {
 
             // when
             try {
-                unitFinderService.findById(unitId);
+                unitFinderService.getById(unitId);
             } catch (BusinessException ignored) {
             }
 
@@ -444,7 +444,7 @@ class UnitFinderServiceTest {
 
             // when
             try {
-                unitFinderService.findById(unitId);
+                unitFinderService.getById(unitId);
             } catch (BusinessException ignored) {
             }
 
@@ -484,7 +484,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class);
 
             verify(unitRepository, times(1))
@@ -522,7 +522,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException =
@@ -567,7 +567,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class)
                     .hasMessage(
                             ErrorCode.CURRICULUM_NOT_FOUND.getMessage()
@@ -611,7 +611,7 @@ class UnitFinderServiceTest {
 
             // when
             try {
-                unitFinderService.findById(unitId);
+                unitFinderService.getById(unitId);
             } catch (BusinessException ignored) {
             }
 
@@ -655,7 +655,7 @@ class UnitFinderServiceTest {
 
             // when
             try {
-                unitFinderService.findById(unitId);
+                unitFinderService.getById(unitId);
             } catch (BusinessException ignored) {
             }
 
@@ -695,7 +695,7 @@ class UnitFinderServiceTest {
                     .thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> unitFinderService.findById(unitId))
+            assertThatThrownBy(() -> unitFinderService.getById(unitId))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(exception -> {
                         BusinessException businessException =
@@ -733,7 +733,7 @@ class UnitFinderServiceTest {
                     )));
 
             // when
-            Unit result = unitFinderService.findById(unitId);
+            Unit result = unitFinderService.getById(unitId);
 
             // then
             assertThat(result).isSameAs(unit);
