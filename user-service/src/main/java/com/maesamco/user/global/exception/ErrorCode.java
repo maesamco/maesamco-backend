@@ -93,6 +93,10 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
     ),
+    GAMIFICATION_STATE_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "게이미피케이션 상태를 찾을 수 없습니다."
+    ),
     USER_INTEREST_CONCEPT_ALREADY_EXISTS(
             HttpStatus.CONFLICT,
             "이미 등록된 관심 개념입니다."

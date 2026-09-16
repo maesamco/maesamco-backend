@@ -2,6 +2,8 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordRetryService;
+import com.maesamco.user.application.service.GetMyGamificationResult;
+import com.maesamco.user.application.service.GetMyGamificationService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.UpdateMyInterestsCommand;
@@ -46,6 +48,8 @@ public class UserApiController implements UserApiDocs {
 
     private final GetMyProfileService getMyProfileService;
 
+    private final GetMyGamificationService getMyGamificationService;
+
     private final ChangePasswordRetryService changePasswordRetryService;
 
     private final UpdateMyProfileService updateMyProfileService;
@@ -75,6 +79,36 @@ public class UserApiController implements UserApiDocs {
                 getMyProfileService.getMyProfile(
                         userId
                 );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 현재 게이미피케이션 상태를 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 누적 XP, 레벨과 연속 학습 상태
+     */
+    @Override
+    @GetMapping("/gamification")
+    public ResponseEntity<SuccessResponse<GetMyGamificationResult>>
+    getMyGamification(
+            Authentication authentication
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyGamificationResult result =
+                getMyGamificationService
+                        .getMyGamification(
+                                userId
+                        );
 
         return ResponseEntity.ok(
                 SuccessResponse.success(

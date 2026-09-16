@@ -446,4 +446,87 @@ class UserApiDocsContractTest {
                 "500"
         );
     }
+
+    @Test
+    @DisplayName(
+            "내 게이미피케이션 상태 조회 API의 OpenAPI 성공 및 오류 응답을 정의한다"
+    )
+    void getMyGamificationContract()
+            throws NoSuchMethodException {
+
+        Method method =
+                UserApiDocs.class.getMethod(
+                        "getMyGamification",
+                        Authentication.class
+                );
+
+        assertOperation(
+                method
+        );
+
+        assertResponseCodes(
+                method,
+                "200",
+                "401",
+                "403",
+                "404",
+                "500"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "200"
+                ).useReturnTypeSchema()
+        ).isTrue();
+
+        assertThat(
+                findResponse(
+                        method,
+                        "401"
+                ).description()
+        ).contains(
+                "AUTH_UNAUTHORIZED",
+                "AUTH_INVALID_TOKEN"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "403"
+                ).description()
+        ).contains(
+                "USER_NOT_ACTIVE"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "404"
+                ).description()
+        ).contains(
+                "USER_NOT_FOUND",
+                "GAMIFICATION_STATE_NOT_FOUND"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "401"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "403"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "404"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "500"
+        );
+    }
 }
