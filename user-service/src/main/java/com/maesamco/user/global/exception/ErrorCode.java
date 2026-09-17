@@ -93,9 +93,13 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "게이미피케이션 상태가 동시에 변경되었습니다. 다시 시도해주세요."
     ),
+    // 회원가입 시 User와 UserGamificationState는 같은 트랜잭션에서 생성된다.
+    // 따라서 사용자는 존재하지만 상태가 없는 경우는 정상 운영 중 발생하면 안 되는
+    // 데이터 정합성 이상이다. 이슈 #223의 404 응답 계약은 유지하되,
+    // 반복 재시도 대신 관리자 확인이 필요함을 메시지로 안내한다.
     GAMIFICATION_STATE_NOT_FOUND(
             HttpStatus.NOT_FOUND,
-            "게이미피케이션 상태를 찾을 수 없습니다."
+            "게이미피케이션 상태를 확인할 수 없습니다. 관리자에게 문의해주세요."
     ),
     USER_INTEREST_CONCEPT_ALREADY_EXISTS(
             HttpStatus.CONFLICT,

@@ -393,6 +393,13 @@ class UserApiControllerGetMyGamificationTest {
                                 .value(
                                         "GAMIFICATION_STATE_NOT_FOUND"
                                 )
+                )
+                .andExpect(
+                        jsonPath("$.error.message")
+                                .value(
+                                        "게이미피케이션 상태를 확인할 수 없습니다. "
+                                                + "관리자에게 문의해주세요."
+                                )
                 );
     }
 
