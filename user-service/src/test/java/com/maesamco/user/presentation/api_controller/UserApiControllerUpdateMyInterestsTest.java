@@ -12,6 +12,7 @@ import com.maesamco.user.application.service.WithdrawUserService;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
+import com.maesamco.user.presentation.support.AuthCookieConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         }
 )
 @Import({
+        AuthCookieConfig.class,
         GlobalExceptionHandler.class,
         UserApiControllerUpdateMyInterestsTest
                 .TestSecurityConfiguration.class
