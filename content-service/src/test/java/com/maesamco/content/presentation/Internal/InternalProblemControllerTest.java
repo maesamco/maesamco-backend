@@ -4,6 +4,7 @@ import com.maesamco.content.application.result.ProblemInternalResult;
 import com.maesamco.content.application.service.ProblemInternalService;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.global.security.hmac.InternalCallHeaders;
 import com.maesamco.content.presentation.internal_controller.InternalProblemController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.List;
 import java.util.UUID;
@@ -54,6 +56,10 @@ class InternalProblemControllerTest {
     private static final String PROBLEM_VERSION_URL =
             "/internal/v1/problem-versions/{problemVersionId}";
 
+    // InternalCallerAuthorizationInterceptor를 통과할 수 있는 허용된 내부 서비스명을 사용한다.
+    private static final String ALLOWED_CALLER =
+            "coaching-service";
+
     private static final String DESCRIPTION =
             "두 정수를 입력받아 두 수의 합을 출력하는 문제입니다.";
 
@@ -82,15 +88,11 @@ class InternalProblemControllerTest {
     class GetProblem {
 
         @Test
-        @DisplayName(
-                "문제 ID로 내부 문제 메타데이터를 조회하면 200을 반환한다"
-        )
-        void getProblem_success_returns200()
-                throws Exception {
+        @DisplayName("문제 ID로 내부 문제 메타데이터를 조회하면 200을 반환한다")
+        void getProblem_success_returns200() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -99,25 +101,19 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자 헤더를 포함해 인가 단계에서 차단되지 않도록 요청한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    )
+                    .andExpect(status().isOk())
                     .andExpect(
                             content()
                                     .contentTypeCompatibleWith(
@@ -125,35 +121,24 @@ class InternalProblemControllerTest {
                                     )
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    true
-                            )
+                            jsonPath("$.success")
+                                    .value(true)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data"
-                            ).exists()
+                            jsonPath("$.data")
+                                    .exists()
                     );
 
-            verify(
-                    problemInternalService
-            ).getProblemMetaData(
-                    problemId
-            );
+            verify(problemInternalService)
+                    .getProblemMetaData(problemId);
         }
 
         @Test
-        @DisplayName(
-                "문제 조회 결과의 ID를 응답에 그대로 반환한다"
-        )
-        void getProblem_mapsIdToResponse()
-                throws Exception {
+        @DisplayName("문제 조회 결과의 ID를 응답에 그대로 반환한다")
+        void getProblem_mapsIdToResponse() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -162,44 +147,31 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자 헤더를 포함해 Controller 응답 변환 로직만 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.id"
-                            ).value(
-                                    problemId.toString()
-                            )
+                            jsonPath("$.data.id")
+                                    .value(problemId.toString())
                     );
         }
 
         @Test
-        @DisplayName(
-                "문제 조회 결과의 description을 응답에 그대로 반환한다"
-        )
-        void getProblem_mapsDescriptionToResponse()
-                throws Exception {
+        @DisplayName("문제 조회 결과의 description을 응답에 그대로 반환한다")
+        void getProblem_mapsDescriptionToResponse() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -208,44 +180,31 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자 헤더를 포함해 인가 실패가 테스트 결과에 영향을 주지 않도록 한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.description"
-                            ).value(
-                                    DESCRIPTION
-                            )
+                            jsonPath("$.data.description")
+                                    .value(DESCRIPTION)
                     );
         }
 
         @Test
-        @DisplayName(
-                "문제 조회 결과의 conceptTags를 응답에 그대로 반환한다"
-        )
-        void getProblem_mapsConceptTagsToResponse()
-                throws Exception {
+        @DisplayName("문제 조회 결과의 conceptTags를 응답에 그대로 반환한다")
+        void getProblem_mapsConceptTagsToResponse() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -254,70 +213,47 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자 헤더를 포함해 실제 Controller 응답 구조를 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
+                            jsonPath("$.data.conceptTags")
+                                    .isArray()
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags"
-                            ).isArray()
+                            jsonPath("$.data.conceptTags.length()")
+                                    .value(3)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags.length()"
-                            ).value(
-                                    3
-                            )
+                            jsonPath("$.data.conceptTags[0]")
+                                    .value("구현")
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags[0]"
-                            ).value(
-                                    "구현"
-                            )
+                            jsonPath("$.data.conceptTags[1]")
+                                    .value("입출력")
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags[1]"
-                            ).value(
-                                    "입출력"
-                            )
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags[2]"
-                            ).value(
-                                    "기초 연산"
-                            )
+                            jsonPath("$.data.conceptTags[2]")
+                                    .value("기초 연산")
                     );
         }
 
         @Test
-        @DisplayName(
-                "문제 조회 시 PathVariable의 problemId를 서비스에 정확히 전달한다"
-        )
-        void getProblem_passesProblemIdToService()
-                throws Exception {
+        @DisplayName("문제 조회 시 PathVariable의 problemId를 서비스에 정확히 전달한다")
+        void getProblem_passesProblemIdToService() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -326,33 +262,25 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when
+
+            // 허용된 내부 호출자로 요청해 Service 호출 여부까지 도달하도록 한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    );
+                    .andExpect(status().isOk());
 
             // then
             verify(
                     problemInternalService,
                     times(1)
-            ).getProblemMetaData(
-                    problemId
-            );
+            ).getProblemMetaData(problemId);
 
             verify(
                     problemInternalService,
@@ -363,57 +291,40 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "문제가 존재하지 않으면 404와 PROBLEM_NOT_FOUND를 반환한다"
-        )
-        void getProblem_notFound_returns404()
-                throws Exception {
+        @DisplayName("문제가 존재하지 않으면 404와 PROBLEM_NOT_FOUND를 반환한다")
+        void getProblem_notFound_returns404() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenThrow(
+                            new BusinessException(
+                                    ErrorCode.PROBLEM_NOT_FOUND
                             )
-            ).thenThrow(
-                    new BusinessException(
-                            ErrorCode.PROBLEM_NOT_FOUND
-                    )
-            );
+                    );
 
             // when & then
+
+            // 인가 단계의 403이 아닌 Service의 PROBLEM_NOT_FOUND 응답을 검증하기 위해 허용된 호출자로 요청한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
+                    .andExpect(status().isNotFound())
                     .andExpect(
-                            status().isNotFound()
+                            jsonPath("$.success")
+                                    .value(false)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    false
-                            )
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.error.code"
-                            ).value(
-                                    "PROBLEM_NOT_FOUND"
-                            )
+                            jsonPath("$.error.code")
+                                    .value("PROBLEM_NOT_FOUND")
                     );
 
-            verify(
-                    problemInternalService
-            ).getProblemMetaData(
-                    problemId
-            );
+            verify(problemInternalService)
+                    .getProblemMetaData(problemId);
 
             verify(
                     problemInternalService,
@@ -424,26 +335,23 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "problemId가 UUID 형식이 아니면 400을 반환하고 서비스를 호출하지 않는다"
-        )
-        void getProblem_invalidUuid_returns400()
-                throws Exception {
+        @DisplayName("problemId가 UUID 형식이 아니면 400을 반환하고 서비스를 호출하지 않는다")
+        void getProblem_invalidUuid_returns400() throws Exception {
 
             // given
             String invalidProblemId =
                     "invalid-problem-id";
 
             // when & then
+
+            // 인가를 먼저 통과시켜 PathVariable UUID 변환 실패로 인한 400 응답을 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     invalidProblemId
                             )
                     )
-                    .andExpect(
-                            status().isBadRequest()
-                    );
+                    .andExpect(status().isBadRequest());
 
             verifyNoInteractions(
                     problemInternalService
@@ -451,15 +359,11 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "conceptTags가 비어 있어도 정상적으로 빈 배열을 반환한다"
-        )
-        void getProblem_emptyConceptTags_returnsEmptyArray()
-                throws Exception {
+        @DisplayName("conceptTags가 비어 있어도 정상적으로 빈 배열을 반환한다")
+        void getProblem_emptyConceptTags_returnsEmptyArray() throws Exception {
 
             // given
-            UUID problemId =
-                    UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
 
             ProblemInternalResult result =
                     createProblemInternalResult(
@@ -468,43 +372,30 @@ class InternalProblemControllerTest {
                             List.of()
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자로 요청해 빈 conceptTags 응답 변환을 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
+                            jsonPath("$.success")
+                                    .value(true)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    true
-                            )
+                            jsonPath("$.data.conceptTags")
+                                    .isArray()
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags"
-                            ).isArray()
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags.length()"
-                            ).value(
-                                    0
-                            )
+                            jsonPath("$.data.conceptTags.length()")
+                                    .value(0)
                     );
         }
     }
@@ -521,11 +412,8 @@ class InternalProblemControllerTest {
     class GetProblemVersion {
 
         @Test
-        @DisplayName(
-                "문제 버전 ID로 메타데이터를 조회하면 200을 반환한다"
-        )
-        void getProblemVersion_success_returns200()
-                throws Exception {
+        @DisplayName("문제 버전 ID로 메타데이터를 조회하면 200을 반환한다")
+        void getProblemVersion_success_returns200() throws Exception {
 
             // given
             UUID problemVersionId =
@@ -541,25 +429,19 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자 헤더를 포함해 정상적인 문제 버전 조회 흐름을 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    )
+                    .andExpect(status().isOk())
                     .andExpect(
                             content()
                                     .contentTypeCompatibleWith(
@@ -567,31 +449,21 @@ class InternalProblemControllerTest {
                                     )
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    true
-                            )
+                            jsonPath("$.success")
+                                    .value(true)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data"
-                            ).exists()
+                            jsonPath("$.data")
+                                    .exists()
                     );
 
-            verify(
-                    problemInternalService
-            ).getProblemVersionMetaData(
-                    problemVersionId
-            );
+            verify(problemInternalService)
+                    .getProblemVersionMetaData(problemVersionId);
         }
 
         @Test
-        @DisplayName(
-                "문제 버전 조회 결과를 InternalProblemResponse 형태로 반환한다"
-        )
-        void getProblemVersion_mapsResultToResponse()
-                throws Exception {
+        @DisplayName("문제 버전 조회 결과를 InternalProblemResponse 형태로 반환한다")
+        void getProblemVersion_mapsResultToResponse() throws Exception {
 
             // given
             UUID problemVersionId =
@@ -610,75 +482,48 @@ class InternalProblemControllerTest {
                             )
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자로 요청해 ProblemInternalResult의 응답 변환만 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
+                            jsonPath("$.success")
+                                    .value(true)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    true
-                            )
+                            jsonPath("$.data.id")
+                                    .value(problemId.toString())
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.id"
-                            ).value(
-                                    problemId.toString()
-                            )
+                            jsonPath("$.data.description")
+                                    .value("버전 2 시점 문제 설명")
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.description"
-                            ).value(
-                                    "버전 2 시점 문제 설명"
-                            )
+                            jsonPath("$.data.conceptTags.length()")
+                                    .value(2)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags.length()"
-                            ).value(
-                                    2
-                            )
+                            jsonPath("$.data.conceptTags[0]")
+                                    .value("배열")
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags[0]"
-                            ).value(
-                                    "배열"
-                            )
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags[1]"
-                            ).value(
-                                    "반복문"
-                            )
+                            jsonPath("$.data.conceptTags[1]")
+                                    .value("반복문")
                     );
         }
 
         @Test
-        @DisplayName(
-                "문제 버전 조회 시 problemVersionId를 서비스에 정확히 전달한다"
-        )
-        void getProblemVersion_passesVersionIdToService()
-                throws Exception {
+        @DisplayName("문제 버전 조회 시 problemVersionId를 서비스에 정확히 전달한다")
+        void getProblemVersion_passesVersionIdToService() throws Exception {
 
             // given
             UUID problemVersionId =
@@ -691,25 +536,19 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenReturn(result);
 
             // when
+
+            // 인가를 통과시켜 problemVersionId가 실제 Service까지 전달되는지 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    );
+                    .andExpect(status().isOk());
 
             // then
             verify(
@@ -728,57 +567,41 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "문제 버전이 존재하지 않으면 404를 반환한다"
-        )
-        void getProblemVersion_notFound_returns404()
-                throws Exception {
+        @DisplayName("문제 버전이 존재하지 않으면 404를 반환한다")
+        void getProblemVersion_notFound_returns404() throws Exception {
 
             // given
             UUID problemVersionId =
                     UUID.randomUUID();
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenThrow(
+                            new BusinessException(
+                                    ErrorCode.PROBLEM_NOT_FOUND
                             )
-            ).thenThrow(
-                    new BusinessException(
-                            ErrorCode.PROBLEM_NOT_FOUND
-                    )
-            );
+                    );
 
             // when & then
+
+            // 인가 단계의 403이 아닌 Service의 404 예외 처리 결과를 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
+                    .andExpect(status().isNotFound())
                     .andExpect(
-                            status().isNotFound()
+                            jsonPath("$.success")
+                                    .value(false)
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.success"
-                            ).value(
-                                    false
-                            )
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.error.code"
-                            ).value(
-                                    "PROBLEM_NOT_FOUND"
-                            )
+                            jsonPath("$.error.code")
+                                    .value("PROBLEM_NOT_FOUND")
                     );
 
-            verify(
-                    problemInternalService
-            ).getProblemVersionMetaData(
-                    problemVersionId
-            );
+            verify(problemInternalService)
+                    .getProblemVersionMetaData(problemVersionId);
 
             verify(
                     problemInternalService,
@@ -789,26 +612,23 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "problemVersionId가 UUID 형식이 아니면 400을 반환하고 서비스를 호출하지 않는다"
-        )
-        void getProblemVersion_invalidUuid_returns400()
-                throws Exception {
+        @DisplayName("problemVersionId가 UUID 형식이 아니면 400을 반환하고 서비스를 호출하지 않는다")
+        void getProblemVersion_invalidUuid_returns400() throws Exception {
 
             // given
             String invalidProblemVersionId =
                     "invalid-version-id";
 
             // when & then
+
+            // 허용된 호출자 헤더를 먼저 전달해 UUID 형식 오류에 의한 400을 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     invalidProblemVersionId
                             )
                     )
-                    .andExpect(
-                            status().isBadRequest()
-                    );
+                    .andExpect(status().isBadRequest());
 
             verifyNoInteractions(
                     problemInternalService
@@ -816,9 +636,7 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "문제 버전 조회에서도 conceptTags가 비어 있으면 빈 배열을 반환한다"
-        )
+        @DisplayName("문제 버전 조회에서도 conceptTags가 비어 있으면 빈 배열을 반환한다")
         void getProblemVersion_emptyConceptTags_returnsEmptyArray()
                 throws Exception {
 
@@ -836,50 +654,34 @@ class InternalProblemControllerTest {
                             List.of()
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenReturn(result);
 
             // when & then
+
+            // 허용된 내부 호출자로 요청해 빈 conceptTags의 응답 변환 결과를 검증한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
+                    .andExpect(status().isOk())
                     .andExpect(
-                            status().isOk()
+                            jsonPath("$.data.id")
+                                    .value(problemId.toString())
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.id"
-                            ).value(
-                                    problemId.toString()
-                            )
+                            jsonPath("$.data.description")
+                                    .value("태그가 없는 문제 버전")
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.description"
-                            ).value(
-                                    "태그가 없는 문제 버전"
-                            )
+                            jsonPath("$.data.conceptTags")
+                                    .isArray()
                     )
                     .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags"
-                            ).isArray()
-                    )
-                    .andExpect(
-                            jsonPath(
-                                    "$.data.conceptTags.length()"
-                            ).value(
-                                    0
-                            )
+                            jsonPath("$.data.conceptTags.length()")
+                                    .value(0)
                     );
         }
     }
@@ -895,9 +697,7 @@ class InternalProblemControllerTest {
     class Routing {
 
         @Test
-        @DisplayName(
-                "/problems/{id} 요청은 현재 문제 조회 메서드만 호출한다"
-        )
+        @DisplayName("/problems/{id} 요청은 현재 문제 조회 메서드만 호출한다")
         void problemRoute_callsOnlyCurrentProblemServiceMethod()
                 throws Exception {
 
@@ -912,25 +712,19 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemMetaData(
-                                    problemId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemMetaData(problemId))
+                    .thenReturn(result);
 
             // when
+
+            // 허용된 내부 호출자로 요청해 실제 라우팅 결과가 Service 호출까지 이어지도록 한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_URL,
                                     problemId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    );
+                    .andExpect(status().isOk());
 
             // then
             verify(
@@ -949,9 +743,7 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "/problem-versions/{id} 요청은 버전 문제 조회 메서드만 호출한다"
-        )
+        @DisplayName("/problem-versions/{id} 요청은 버전 문제 조회 메서드만 호출한다")
         void problemVersionRoute_callsOnlyVersionServiceMethod()
                 throws Exception {
 
@@ -966,25 +758,19 @@ class InternalProblemControllerTest {
                             CONCEPT_TAGS
                     );
 
-            when(
-                    problemInternalService
-                            .getProblemVersionMetaData(
-                                    problemVersionId
-                            )
-            ).thenReturn(
-                    result
-            );
+            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
+                    .thenReturn(result);
 
             // when
+
+            // 허용된 내부 호출자로 요청해 문제 버전 라우팅이 Service 호출까지 도달하도록 한다.
             mockMvc.perform(
-                            get(
+                            internalGet(
                                     PROBLEM_VERSION_URL,
                                     problemVersionId
                             )
                     )
-                    .andExpect(
-                            status().isOk()
-                    );
+                    .andExpect(status().isOk());
 
             // then
             verify(
@@ -1003,22 +789,19 @@ class InternalProblemControllerTest {
         }
 
         @Test
-        @DisplayName(
-                "존재하지 않는 내부 API 경로는 서비스 호출 없이 404를 반환한다"
-        )
+        @DisplayName("존재하지 않는 내부 API 경로는 서비스 호출 없이 404를 반환한다")
         void unknownInternalRoute_returns404()
                 throws Exception {
 
             // when & then
+            // 존재하지 않는 URL 자체의 404를 검증하므로 내부 호출자 helper를 사용하지 않는다.
             mockMvc.perform(
                             get(
                                     "/internal/v1/unknown/{id}",
                                     UUID.randomUUID()
                             )
                     )
-                    .andExpect(
-                            status().isNotFound()
-                    );
+                    .andExpect(status().isNotFound());
 
             verifyNoInteractions(
                     problemInternalService
@@ -1049,28 +832,31 @@ class InternalProblemControllerTest {
             List<String> conceptTags
     ) {
         ProblemInternalResult result =
-                mock(
-                        ProblemInternalResult.class
-                );
+                mock(ProblemInternalResult.class);
 
-        when(
-                result.getId()
-        ).thenReturn(
-                id
-        );
+        when(result.getId())
+                .thenReturn(id);
 
-        when(
-                result.getDescription()
-        ).thenReturn(
-                description
-        );
+        when(result.getDescription())
+                .thenReturn(description);
 
-        when(
-                result.getConceptTags()
-        ).thenReturn(
-                conceptTags
-        );
+        when(result.getConceptTags())
+                .thenReturn(conceptTags);
 
         return result;
+    }
+
+    // InternalCallerAuthorizationInterceptor가 Controller 호출 전에 내부 서비스 호출자를 검사한다.
+    // 기존 Controller 테스트에는 SERVICE 헤더가 없어 모든 요청이 403으로 차단되었기 때문에 helper를 추가한다.
+    // Controller의 HTTP 동작 테스트에서는 인가 자체가 목적이 아니므로 허용된 coaching-service 헤더를 공통으로 적용한다.
+    private MockHttpServletRequestBuilder internalGet(
+            String urlTemplate,
+            Object... uriVariables
+    ) {
+        return get(urlTemplate, uriVariables)
+                .header(
+                        InternalCallHeaders.SERVICE,
+                        ALLOWED_CALLER
+                );
     }
 }
