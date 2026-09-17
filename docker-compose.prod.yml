@@ -10,7 +10,7 @@ version: "3.8"
 # 임시 예외입니다. 정식 운영 배포 시엔 재검토 필요.
 #
 # 사용법(EC2 안에서):
-#   1) fetch-env.sh로 SSM Parameter Store에서 .env 생성 (RDS_ENDPOINT는 직접 채울 것)
+#   1) fetch-env.sh로 SSM Parameter Store에서 .env, judge0.conf 생성
 #   2) docker compose -f docker-compose.prod.yml up -d
 
 services:
@@ -75,14 +75,56 @@ services:
         condition: service_healthy
 
   # ================= Judge0 =================
-  # ⚠️ 플레이스홀더: Judge0는 자체적으로 PostgreSQL·Redis·Server·Worker로 구성된
-  # 별도의 다중 컨테이너 스택입니다(공식: https://github.com/judge0/judge0).
-  # 여기서는 자리만 남겨두고, 실제 연동 시 공식 docker-compose를 이 파일에 merge하거나
-  # `docker compose -f docker-compose.yml -f judge0/docker-compose.yml up -d` 형태로 합쳐 씁니다.
-  # judge0:
-  #   image: judge0/judge0:1.13.1
-  #   ports:
-  #     - "2358:2358"
+  # 실제 코드 채점 스택. Windows+Docker Desktop에서만 알려진 실행 호환성 문제가
+  # 있었고, 여기(AWS EC2, 리눅스)는 Docker를 네이티브로 돌리니 그 문제 자체가
+  # 없다 — 배포 후엔 어느 OS에서 개발하는 팀원이든 HTTP로 이 엔드포인트만
+  # 호출하면 되므로 다들 이 배포본 하나만 쓰면 된다.
+  #
+  # 공식 docker-compose(judge0/judge0 GitHub)의 4개 서비스(server/worker/db/redis)를
+  # 그대로 가져왔다 — server만 우리 쪽 명명 규칙(judge0)에 맞춰 이름을 바꿨고,
+  # 나머지는 공식 이미지/설정 그대로다. judge0-db/judge0-redis는 우리 앱의
+  # RDS/Redis와 완전히 분리된, Judge0 전용 별도 인스턴스다(공식 스택이 원래
+  # 그렇게 설계됨 — 공유하지 않는 것이 의도된 격리).
+  judge0:
+    image: judge0/judge0:latest
+    container_name: judge0
+    env_file: judge0.conf
+    ports:
+      - "2358:2358"
+    privileged: true
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  judge0-worker:
+    image: judge0/judge0:latest
+    container_name: judge0-worker
+    command: ["./scripts/workers"]
+    env_file: judge0.conf
+    privileged: true
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  judge0-db:
+    image: postgres:16.2
+    container_name: judge0-db
+    env_file: judge0.conf
+    volumes:
+      - judge0-data:/var/lib/postgresql/data/
+    restart: always
+
+  judge0-redis:
+    image: redis:7.2.4
+    container_name: judge0-redis
+    command: [
+      "bash", "-c",
+      'docker-entrypoint.sh --appendonly no --requirepass "$$REDIS_PASSWORD"'
+    ]
+    env_file: judge0.conf
+    restart: always
 
   # ================= 모니터링 =================
   prometheus:
@@ -158,6 +200,16 @@ services:
       JWT_REFRESH_PRIVATE_KEY: ${JWT_REFRESH_PRIVATE_KEY}
       EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
       EMAIL_LOOKUP_HMAC_KEY: ${EMAIL_LOOKUP_HMAC_KEY}
+      # ⚠️ 배포 스크립트 리뷰로 발견 — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
+      # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
+      EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_STARTTLS_REQUIRED: ${MAIL_STARTTLS_REQUIRED:-true}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
@@ -253,3 +305,4 @@ services:
 
 volumes:
   kafka-data:
+  judge0-data:
