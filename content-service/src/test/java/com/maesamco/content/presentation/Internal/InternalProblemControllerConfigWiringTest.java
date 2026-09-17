@@ -1,4 +1,4 @@
-package com.maesamco.content.presentation.api_controller;
+package com.maesamco.content.presentation.Internal;
 
 import com.maesamco.content.application.result.ProblemInternalResult;
 import com.maesamco.content.application.service.ProblemInternalService;
@@ -8,7 +8,6 @@ import com.maesamco.content.presentation.internal_controller.InternalProblemCont
 import java.util.List;
 import java.util.UUID;
 
-import com.maesamco.content.presentation.response.InternalProblemResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

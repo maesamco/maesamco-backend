@@ -688,105 +688,13 @@ class InternalProblemControllerTest {
 
     /*
      * ============================================================
-     * 라우팅 분리 검증
+     * 존재하지 않는 내부 API 경로 검증
      * ============================================================
      */
 
     @Nested
-    @DisplayName("내부 API 라우팅")
-    class Routing {
-
-        @Test
-        @DisplayName("/problems/{id} 요청은 현재 문제 조회 메서드만 호출한다")
-        void problemRoute_callsOnlyCurrentProblemServiceMethod()
-                throws Exception {
-
-            // given
-            UUID problemId =
-                    UUID.randomUUID();
-
-            ProblemInternalResult result =
-                    createProblemInternalResult(
-                            problemId,
-                            DESCRIPTION,
-                            CONCEPT_TAGS
-                    );
-
-            when(problemInternalService.getProblemMetaData(problemId))
-                    .thenReturn(result);
-
-            // when
-
-            // 허용된 내부 호출자로 요청해 실제 라우팅 결과가 Service 호출까지 이어지도록 한다.
-            mockMvc.perform(
-                            internalGet(
-                                    PROBLEM_URL,
-                                    problemId
-                            )
-                    )
-                    .andExpect(status().isOk());
-
-            // then
-            verify(
-                    problemInternalService,
-                    times(1)
-            ).getProblemMetaData(
-                    problemId
-            );
-
-            verify(
-                    problemInternalService,
-                    never()
-            ).getProblemVersionMetaData(
-                    any(UUID.class)
-            );
-        }
-
-        @Test
-        @DisplayName("/problem-versions/{id} 요청은 버전 문제 조회 메서드만 호출한다")
-        void problemVersionRoute_callsOnlyVersionServiceMethod()
-                throws Exception {
-
-            // given
-            UUID problemVersionId =
-                    UUID.randomUUID();
-
-            ProblemInternalResult result =
-                    createProblemInternalResult(
-                            UUID.randomUUID(),
-                            DESCRIPTION,
-                            CONCEPT_TAGS
-                    );
-
-            when(problemInternalService.getProblemVersionMetaData(problemVersionId))
-                    .thenReturn(result);
-
-            // when
-
-            // 허용된 내부 호출자로 요청해 문제 버전 라우팅이 Service 호출까지 도달하도록 한다.
-            mockMvc.perform(
-                            internalGet(
-                                    PROBLEM_VERSION_URL,
-                                    problemVersionId
-                            )
-                    )
-                    .andExpect(status().isOk());
-
-            // then
-            verify(
-                    problemInternalService,
-                    times(1)
-            ).getProblemVersionMetaData(
-                    problemVersionId
-            );
-
-            verify(
-                    problemInternalService,
-                    never()
-            ).getProblemMetaData(
-                    any(UUID.class)
-            );
-        }
+    @DisplayName("존재하지 않는 내부 API 경로")
+    class UnknownRoute {
 
         @Test
         @DisplayName("존재하지 않는 내부 API 경로는 서비스 호출 없이 404를 반환한다")

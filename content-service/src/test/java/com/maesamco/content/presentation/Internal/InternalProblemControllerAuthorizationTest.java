@@ -1,4 +1,4 @@
-package com.maesamco.content.presentation.api_controller;
+package com.maesamco.content.presentation.Internal;
 
 import com.maesamco.content.application.result.ProblemInternalResult;
 import com.maesamco.content.application.service.ProblemInternalService;
