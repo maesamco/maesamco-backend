@@ -38,10 +38,9 @@ import java.util.UUID;
  * 임베딩해서 RAG에 활용할 수 있다(비슷한 개념 태그·오류 패턴의 과거 힌트를 새 힌트 생성
  * 프롬프트에 few-shot으로 포함하는 식). MVP 이후 검토 — 지금 스키마는 안 건드려도 된다.
  *
- * TODO(#218): stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 아직 없다 — 생성자
- *            검증(requireValidStage)이 애플리케이션 레벨에서만 막고 있고, 매삼코_ERD.sql
- *            원본에도 이 CHECK가 원래 없었다(V1 베이스라인은 ERD를 그대로 옮긴 것). DB
- *            레벨 방어가 필요하면 다음 버전 마이그레이션(V14~)으로 추가할 것.
+ * stage에 대한 CHECK (stage BETWEEN 1 AND 4) 제약은 V14 마이그레이션(이슈 #218)으로
+ * 추가됐다 — 생성자 검증(requireValidStage)은 애플리케이션 레벨 방어로 계속 유지하고,
+ * DB 레벨에서도 이중으로 막는다.
  */
 @Entity
 @Table(
