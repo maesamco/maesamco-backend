@@ -1,12 +1,14 @@
-package com.maesamco.content.problem.presentation.controller;
+package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.problem.service.ProblemInternalService;
+import com.maesamco.content.application.result.ProblemInternalResult;
+import com.maesamco.content.application.service.ProblemInternalService;
 import com.maesamco.content.global.security.hmac.InternalCallHeaders;
-import com.maesamco.content.presentation.problem.controller.InternalProblemController;
 
-import com.maesamco.content.presentation.problem.dto.response.InternalProblemResponse;
+import com.maesamco.content.presentation.internal_controller.InternalProblemController;
 import java.util.List;
 import java.util.UUID;
+
+import com.maesamco.content.presentation.response.InternalProblemResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -52,22 +54,45 @@ class InternalProblemControllerConfigWiringTest {
         @Test
         @DisplayName("허용된 호출자(coaching-service) 헤더면 실제 Config 배선을 통해 200을 반환한다")
         void returns200ForAllowedCaller() throws Exception {
-            UUID problemId = UUID.randomUUID();
-            given(problemInternalService.getProblemMetaData(problemId))
-                    .willReturn(new InternalProblemResponse(problemId, "설명", List.of("배열")));
 
-            mockMvc.perform(get("/internal/v1/problems/{problemId}", problemId)
-                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+            // given
+            UUID problemId = UUID.randomUUID();
+
+            given(problemInternalService.getProblemMetaData(problemId))
+                    .willReturn(
+                            new ProblemInternalResult(
+                                    problemId,
+                                    "설명",
+                                    List.of("배열")
+                            )
+                    );
+
+            // when & then
+            mockMvc.perform(
+                            get("/internal/v1/problems/{problemId}", problemId)
+                                    .header(
+                                            InternalCallHeaders.SERVICE,
+                                            ALLOWED_CALLER
+                                    )
+                    )
                     .andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("허용되지 않은 호출자 헤더면 실제 Config 배선을 통해서도 403을 반환한다")
         void returns403WhenCallerNotAllowed() throws Exception {
+
+            // given
             UUID problemId = UUID.randomUUID();
 
-            mockMvc.perform(get("/internal/v1/problems/{problemId}", problemId)
-                            .header(InternalCallHeaders.SERVICE, "some-other-service"))
+            // when & then
+            mockMvc.perform(
+                            get("/internal/v1/problems/{problemId}", problemId)
+                                    .header(
+                                            InternalCallHeaders.SERVICE,
+                                            "some-other-service"
+                                    )
+                    )
                     .andExpect(status().isForbidden());
         }
     }
