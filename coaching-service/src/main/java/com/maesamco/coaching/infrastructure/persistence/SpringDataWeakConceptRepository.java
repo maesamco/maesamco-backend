@@ -21,8 +21,9 @@ interface SpringDataWeakConceptRepository extends JpaRepository<WeakConcept, UUI
     /**
      * PR #166 리뷰(용현님 P1) 대응 — id는 컬럼 DEFAULT(gen_random_uuid())에 맡기고,
      * 최초 생성/재발견 갱신을 한 문장으로 원자 처리한다. improved는 갱신 대상에서 빼서
-     * 기존 값을 그대로 유지한다(재발견 시 improved를 되돌릴지는 아직 미정 — WeakConcept
-     * 엔티티의 TODO 참고).
+     * 기존 값을 그대로 유지한다(재발견 시 improved를 되돌릴지는 여전히 미정 — 이 정책을
+     * 추적하던 WeakConcept.recordOccurrence()의 TODO는 PR #228에서 죽은 코드와 함께
+     * 제거됐다).
      *
      * @Modifying 커스텀 쿼리는 SimpleJpaRepository의 기본 CRUD 메서드와 달리 자동으로
      * 트랜잭션이 걸리지 않는다 — 호출 측에 이미 트랜잭션이 있으면 참여하고, 없으면 이
