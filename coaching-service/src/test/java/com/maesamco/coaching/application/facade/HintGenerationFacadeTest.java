@@ -439,8 +439,14 @@ class HintGenerationFacadeTest {
         verify(hintGenerationLockPort, never()).unlock(any(), any()); // 락을 못 얻었으니 해제할 것도 없다
     }
 
+    /**
+     * 이슈 #207 — 이 경로는 LLM 호출 자체가 실패한 게 아니라, 다른 요청이 여전히
+     * 생성 중일 가능성이 높은 채로 대기창(2초)만 못 채운 것이다. AI_GENERATION_FAILED와
+     * 구분되는 HINT_GENERATION_IN_PROGRESS(409)로 응답해야 한다(HintGenerationConcurrencyLoadTest
+     * 가 실제 Redis+동시 스레드로 이 시나리오 자체를 재현·검증한다).
+     */
     @Test
-    void 락을_못_얻고_기다려도_힌트가_안_나타나면_AI_GENERATION_FAILED() {
+    void 락을_못_얻고_기다려도_힌트가_안_나타나면_HINT_GENERATION_IN_PROGRESS() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
@@ -451,7 +457,7 @@ class HintGenerationFacadeTest {
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.AI_GENERATION_FAILED);
+                .isEqualTo(ErrorCode.HINT_GENERATION_IN_PROGRESS);
 
         verify(aiModelPort, never()).generate(any(), any());
     }
