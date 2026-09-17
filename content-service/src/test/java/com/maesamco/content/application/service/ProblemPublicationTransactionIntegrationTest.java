@@ -397,10 +397,10 @@ class ProblemPublicationTransactionIntegrationTest {
                 }
 
                 @Override
-                public void lockById(
+                public Problem lockById(
                         UUID problemId
                 ) {
-                    findProblem(
+                    return findProblem(
                             problemId
                     );
                 }

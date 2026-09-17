@@ -111,7 +111,7 @@ public class ProblemService {
             ProblemUpdateCommand command
     ) {
 
-        Problem problem = problemFinder.getById(problemId);
+        Problem problem = problemFinder.lockById(problemId);
 
         // 관리자가 조회했던 버전과 현재 DB 버전이 다르면
         // 오래된 데이터를 기준으로 한 수정 요청이므로 거부한다.
@@ -197,7 +197,7 @@ public class ProblemService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteProblem(UUID problemId, UUID userId) {
 
-        Problem problem = problemFinder.getById(problemId);
+        Problem problem = problemFinder.lockById(problemId);
 
         problem.softDelete(userId);
 

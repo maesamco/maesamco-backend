@@ -32,8 +32,8 @@ public class ProblemFinderService implements ProblemFinder {
 
     @Override
     @Transactional
-    public void lockById(UUID problemId) {
-        problemCommandRepository.findByIdForUpdate(problemId)
+    public Problem lockById(UUID problemId) {
+        return problemCommandRepository.findByIdForUpdate(problemId)
                 .orElseThrow(() ->
                         new BusinessException(
                                 ErrorCode.PROBLEM_NOT_FOUND

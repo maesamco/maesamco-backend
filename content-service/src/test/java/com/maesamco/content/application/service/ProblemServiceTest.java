@@ -55,53 +55,75 @@ class ProblemServiceTest {
     @InjectMocks
     private ProblemService problemService;
 
-    private final UUID problemId = UUID.randomUUID();
+    private final UUID problemId =
+            UUID.randomUUID();
 
     @Test
     @DisplayName("문제를 생성하면 REVIEW_PENDING 상태로 저장하고 초기 버전을 생성한다")
     void createProblem_success() {
         // given
-        ProblemCreateCommand command = createCommand();
+        ProblemCreateCommand command =
+                createCommand();
 
-        when(problemCommandRepository.save(any(Problem.class)))
-                .thenAnswer(invocation -> {
-                    Problem problem = invocation.getArgument(0);
-                    ReflectionTestUtils.setField(problem, "id", problemId);
-                    return problem;
-                });
+        when(problemCommandRepository.save(
+                any(Problem.class)
+        )).thenAnswer(invocation -> {
+            Problem problem =
+                    invocation.getArgument(0);
+
+            ReflectionTestUtils.setField(
+                    problem,
+                    "id",
+                    problemId
+            );
+
+            return problem;
+        });
 
         // when
         ProblemResult result =
                 problemService.createProblem(command);
 
         // then
-        assertThat(result).isNotNull();
+        assertThat(result)
+                .isNotNull();
 
         ArgumentCaptor<Problem> problemCaptor =
-                ArgumentCaptor.forClass(Problem.class);
+                ArgumentCaptor.forClass(
+                        Problem.class
+                );
 
         verify(problemCommandRepository)
                 .save(problemCaptor.capture());
 
-        Problem savedProblem = problemCaptor.getValue();
+        Problem savedProblem =
+                problemCaptor.getValue();
 
         assertThat(savedProblem.getTitle())
                 .isEqualTo("두 수의 합");
+
         assertThat(savedProblem.getProblemStatus())
-                .isEqualTo(ProblemStatus.REVIEW_PENDING);
+                .isEqualTo(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
         assertThat(savedProblem.getCurrentVersionNo())
                 .isEqualTo(1);
 
         ArgumentCaptor<ProblemVersion> versionCaptor =
-                ArgumentCaptor.forClass(ProblemVersion.class);
+                ArgumentCaptor.forClass(
+                        ProblemVersion.class
+                );
 
         verify(problemVersionRepository)
                 .save(versionCaptor.capture());
 
-        ProblemVersion version = versionCaptor.getValue();
+        ProblemVersion version =
+                versionCaptor.getValue();
 
         assertThat(version.getProblemId())
                 .isEqualTo(problemId);
+
         assertThat(version.getVersionNo())
                 .isEqualTo(1);
     }
@@ -110,60 +132,94 @@ class ProblemServiceTest {
     @DisplayName("관리자 문제 조회는 ProblemFinder를 통해 문제를 조회한다")
     void getProblemForAdmin_success() {
         // given
-        Problem problem = createProblem(ProblemStatus.REVIEW_PENDING);
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
         when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         // when
         ProblemResult result =
-                problemService.getProblemForAdmin(problemId);
+                problemService.getProblemForAdmin(
+                        problemId
+                );
 
         // then
-        assertThat(result).isNotNull();
+        assertThat(result)
+                .isNotNull();
 
         verify(problemFinder)
                 .getById(problemId);
+
+        verify(problemFinder, never())
+                .lockById(any());
     }
 
     @Test
     @DisplayName("사용자는 PUBLISHED 문제를 조회할 수 있다")
     void getProblemForUser_published_success() {
         // given
-        Problem problem = createProblem(ProblemStatus.PUBLISHED);
+        Problem problem =
+                createProblem(
+                        ProblemStatus.PUBLISHED
+                );
 
         when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         // when
         ProblemResult result =
-                problemService.getProblemForUser(problemId);
+                problemService.getProblemForUser(
+                        problemId
+                );
 
         // then
-        assertThat(result).isNotNull();
+        assertThat(result)
+                .isNotNull();
 
         verify(problemFinder)
                 .getById(problemId);
+
+        verify(problemFinder, never())
+                .lockById(any());
     }
 
     @Test
     @DisplayName("PUBLISHED 상태가 아닌 문제를 사용자가 조회하면 예외가 발생한다")
     void getProblemForUser_notPublished_throwsException() {
         // given
-        Problem problem = createProblem(ProblemStatus.REVIEW_PENDING);
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
         when(problemFinder.getById(problemId))
                 .thenReturn(problem);
 
         // when & then
         assertThatThrownBy(
-                () -> problemService.getProblemForUser(problemId)
-        )
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception ->
-                        ((BusinessException) exception).getErrorCode()
+                () -> problemService.getProblemForUser(
+                        problemId
                 )
-                .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);
+        )
+                .isInstanceOf(
+                        BusinessException.class
+                )
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.PROBLEM_NOT_FOUND
+                );
+
+        verify(problemFinder)
+                .getById(problemId);
+
+        verify(problemFinder, never())
+                .lockById(any());
     }
 
     @Test
@@ -177,10 +233,15 @@ class ProblemServiceTest {
                 mock(ProblemSearchCondition.class);
 
         Pageable pageable =
-                PageRequest.of(0, 20);
+                PageRequest.of(
+                        0,
+                        20
+                );
 
         Problem problem =
-                createProblem(ProblemStatus.PUBLISHED);
+                createProblem(
+                        ProblemStatus.PUBLISHED
+                );
 
         when(query.toCondition())
                 .thenReturn(condition);
@@ -213,7 +274,9 @@ class ProblemServiceTest {
                         pageable
                 );
 
-        verifyNoInteractions(problemCommandRepository);
+        verifyNoInteractions(
+                problemCommandRepository
+        );
     }
 
     @Test
@@ -221,22 +284,33 @@ class ProblemServiceTest {
     void updateProblem_success() {
         // given
         Problem problem =
-                createProblem(ProblemStatus.REVIEW_PENDING);
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
         ProblemUpdateCommand command =
                 mock(ProblemUpdateCommand.class);
 
-        when(problemFinder.getById(problemId))
+        // 수정 대상 Problem은 Command Repository를 사용하는
+        // lockById를 통해 조회한다.
+        when(problemFinder.lockById(problemId))
                 .thenReturn(problem);
 
         when(command.getLockVersion())
                 .thenReturn(0L);
+
         when(command.getTitle())
                 .thenReturn("변경된 문제");
+
         when(command.getDifficulty())
-                .thenReturn(ProblemDifficulty.HARD);
+                .thenReturn(
+                        ProblemDifficulty.HARD
+                );
+
         when(command.getStarterCode())
-                .thenReturn(JsonNullable.undefined());
+                .thenReturn(
+                        JsonNullable.undefined()
+                );
 
         // when
         ProblemResult result =
@@ -246,26 +320,41 @@ class ProblemServiceTest {
                 );
 
         // then
-        assertThat(result).isNotNull();
+        assertThat(result)
+                .isNotNull();
 
         assertThat(problem.getTitle())
                 .isEqualTo("변경된 문제");
+
         assertThat(problem.getDifficulty())
-                .isEqualTo(ProblemDifficulty.HARD);
+                .isEqualTo(
+                        ProblemDifficulty.HARD
+                );
+
         assertThat(problem.getCurrentVersionNo())
                 .isEqualTo(2);
+
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemFinder, never())
+                .getById(problemId);
 
         verify(problemCommandRepository)
                 .flush();
 
         ArgumentCaptor<ProblemVersion> captor =
-                ArgumentCaptor.forClass(ProblemVersion.class);
+                ArgumentCaptor.forClass(
+                        ProblemVersion.class
+                );
 
         verify(problemVersionRepository)
                 .save(captor.capture());
 
-        assertThat(captor.getValue().getVersionNo())
-                .isEqualTo(2);
+        assertThat(
+                captor.getValue()
+                        .getVersionNo()
+        ).isEqualTo(2);
     }
 
     @Test
@@ -273,12 +362,16 @@ class ProblemServiceTest {
     void updateProblem_staleLockVersion_throwsException() {
         // given
         Problem problem =
-                createProblem(ProblemStatus.REVIEW_PENDING);
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
         ProblemUpdateCommand command =
                 mock(ProblemUpdateCommand.class);
 
-        when(problemFinder.getById(problemId))
+        // 수정 대상 Problem은 Query 조회가 아니라
+        // Command 경로를 통해 가져온다.
+        when(problemFinder.lockById(problemId))
                 .thenReturn(problem);
 
         when(command.getLockVersion())
@@ -291,7 +384,9 @@ class ProblemServiceTest {
                         command
                 )
         )
-                .isInstanceOf(BusinessException.class)
+                .isInstanceOf(
+                        BusinessException.class
+                )
                 .extracting(exception ->
                         ((BusinessException) exception)
                                 .getErrorCode()
@@ -301,12 +396,19 @@ class ProblemServiceTest {
                 );
 
         verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemFinder, never())
                 .getById(problemId);
 
-        verifyNoInteractions(problemVersionRepository);
+        verifyNoInteractions(
+                problemVersionRepository
+        );
 
-        verify(problemCommandRepository, never())
-                .flush();
+        verify(
+                problemCommandRepository,
+                never()
+        ).flush();
     }
 
     @Test
@@ -314,20 +416,26 @@ class ProblemServiceTest {
     void updateProblem_flushConflict_propagatesException() {
         // given
         Problem problem =
-                createProblem(ProblemStatus.REVIEW_PENDING);
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
         ProblemUpdateCommand command =
                 mock(ProblemUpdateCommand.class);
 
-        when(problemFinder.getById(problemId))
+        when(problemFinder.lockById(problemId))
                 .thenReturn(problem);
 
         when(command.getLockVersion())
                 .thenReturn(0L);
+
         when(command.getTitle())
                 .thenReturn("동시 수정");
+
         when(command.getStarterCode())
-                .thenReturn(JsonNullable.undefined());
+                .thenReturn(
+                        JsonNullable.undefined()
+                );
 
         doThrow(
                 new ObjectOptimisticLockingFailureException(
@@ -349,20 +457,31 @@ class ProblemServiceTest {
                         ObjectOptimisticLockingFailureException.class
                 );
 
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemFinder, never())
+                .getById(problemId);
+
         verify(problemCommandRepository)
                 .flush();
     }
 
     @Test
-    @DisplayName("문제를 삭제하면 soft delete 처리하고 flush한다")
+    @DisplayName("문제를 삭제하면 수정용 조회 후 soft delete 처리하고 flush한다")
     void deleteProblem_success() {
         // given
-        UUID userId = UUID.randomUUID();
+        UUID userId =
+                UUID.randomUUID();
 
         Problem problem =
-                createProblem(ProblemStatus.REVIEW_PENDING);
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
 
-        when(problemFinder.getById(problemId))
+        // 삭제 또한 상태를 변경하는 Command이므로
+        // Command Repository 기반의 lockById를 사용한다.
+        when(problemFinder.lockById(problemId))
                 .thenReturn(problem);
 
         // when
@@ -374,10 +493,18 @@ class ProblemServiceTest {
         // then
         assertThat(problem.isDeleted())
                 .isTrue();
+
         assertThat(problem.getDeletedAt())
                 .isNotNull();
+
         assertThat(problem.getDeletedBy())
                 .isEqualTo(userId);
+
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemFinder, never())
+                .getById(problemId);
 
         verify(problemCommandRepository)
                 .flush();
@@ -389,24 +516,51 @@ class ProblemServiceTest {
 
         when(command.getTitle())
                 .thenReturn("두 수의 합");
+
         when(command.getLanguage())
-                .thenReturn(ProgrammingLanguage.JAVA);
+                .thenReturn(
+                        ProgrammingLanguage.JAVA
+                );
+
         when(command.getDifficulty())
-                .thenReturn(ProblemDifficulty.EASY);
+                .thenReturn(
+                        ProblemDifficulty.EASY
+                );
+
         when(command.getType())
-                .thenReturn(ProblemType.CODE);
+                .thenReturn(
+                        ProblemType.CODE
+                );
+
         when(command.getDescription())
-                .thenReturn("두 정수를 더하세요.");
+                .thenReturn(
+                        "두 정수를 더하세요."
+                );
+
         when(command.getStarterCode())
-                .thenReturn("public class Main {}");
+                .thenReturn(
+                        "public class Main {}"
+                );
+
         when(command.getRunningTimeLimit())
-                .thenReturn(RunningTimeLimit.SECOND_1);
+                .thenReturn(
+                        RunningTimeLimit.SECOND_1
+                );
+
         when(command.getRunningMemoryLimit())
-                .thenReturn(RunningMemoryLimit.MB_128);
+                .thenReturn(
+                        RunningMemoryLimit.MB_128
+                );
+
         when(command.getTimerPolicy())
-                .thenReturn(TimerPolicy.APPLY60);
+                .thenReturn(
+                        TimerPolicy.APPLY60
+                );
+
         when(command.getSource())
-                .thenReturn(ProblemSource.HUMAN_AUTHORED);
+                .thenReturn(
+                        ProblemSource.HUMAN_AUTHORED
+                );
 
         return command;
     }
