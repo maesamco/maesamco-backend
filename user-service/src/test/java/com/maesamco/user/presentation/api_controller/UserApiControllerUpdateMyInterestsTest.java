@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyGamificationService;
+import com.maesamco.user.application.service.GetMyXpHistoriesService;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyInterestsResult;
@@ -80,6 +81,9 @@ class UserApiControllerUpdateMyInterestsTest {
 
     @MockitoBean
     private GetMyGamificationService getMyGamificationService;
+
+    @MockitoBean
+    private GetMyXpHistoriesService getMyXpHistoriesService;
 
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;

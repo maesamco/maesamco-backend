@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyGamificationService;
+import com.maesamco.user.application.service.GetMyXpHistoriesService;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileService;
@@ -73,6 +74,9 @@ class UserApiControllerWithdrawTest {
 
     @MockitoBean
     private GetMyGamificationService getMyGamificationService;
+
+    @MockitoBean
+    private GetMyXpHistoriesService getMyXpHistoriesService;
 
     @MockitoBean
     private WithdrawUserService withdrawUserService;
