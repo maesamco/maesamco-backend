@@ -86,7 +86,7 @@ services:
   # RDS/Redis와 완전히 분리된, Judge0 전용 별도 인스턴스다(공식 스택이 원래
   # 그렇게 설계됨 — 공유하지 않는 것이 의도된 격리).
   judge0:
-    image: judge0/judge0:v1.13.1
+    image: judge0/judge0:1.13.1
     container_name: judge0
     env_file: judge0.conf
     ports:
@@ -98,7 +98,7 @@ services:
     restart: always
 
   judge0-worker:
-    image: judge0/judge0:v1.13.1
+    image: judge0/judge0:1.13.1
     container_name: judge0-worker
     command: ["./scripts/workers"]
     env_file: judge0.conf
