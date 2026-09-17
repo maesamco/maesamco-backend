@@ -14,6 +14,9 @@ import java.util.regex.Pattern;
 
 /**
  * XP 이력 pagination cursor를 버전화된 Base64URL 문자열로 변환합니다.
+ *
+ * <p>외부 API에는 정렬 키의 내부 구조를 노출하지 않고,
+ * 추후 형식 변경을 허용할 수 있도록 opaque cursor로 제공합니다.</p>
  */
 @Component
 public class XpHistoryCursorCodec {
@@ -27,8 +30,8 @@ public class XpHistoryCursorCodec {
     private static final int PAYLOAD_PART_COUNT = 3;
 
     /**
-     * PostgreSQL TIMESTAMPTZ에 안전하게 전달할 수 있도록
-     * 애플리케이션에서 지원하는 cursor 시각 범위를 제한합니다.
+     * cursor 시각을 애플리케이션이 지원하는 4자리 연도 범위로 제한합니다.
+     * PostgreSQL TIMESTAMPTZ 전체 지원 범위와는 별개의 정책입니다.
      */
     private static final Instant MIN_SUPPORTED_EARNED_AT =
             Instant.parse(
@@ -186,7 +189,7 @@ public class XpHistoryCursorCodec {
     }
 
     /**
-     * DB 조회 파라미터로 안전하게 사용할 수 있는 시각인지 확인합니다.
+     * 애플리케이션이 지원하는 cursor 시각 범위인지 확인합니다.
      */
     private void validateSupportedEarnedAt(
             Instant earnedAt

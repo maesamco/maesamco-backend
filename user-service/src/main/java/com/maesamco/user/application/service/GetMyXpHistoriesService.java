@@ -16,6 +16,9 @@ import java.util.UUID;
 
 /**
  * 로그인 사용자의 XP 이력 조회를 처리합니다.
+ *
+ * <p>계속 누적되는 이력을 offset 없이 안정적으로 순회하기 위해
+ * {@code (earnedAt, id)} 기반 keyset pagination을 사용합니다.</p>
  */
 @Service
 @RequiredArgsConstructor

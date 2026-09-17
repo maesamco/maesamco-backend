@@ -359,6 +359,83 @@ class XpHistoryRepositoryKeysetIntegrationTest {
 
     @Test
     @DisplayName(
+            "다른 사용자의 실제 XP 이력 cursor를 사용해도 "
+                    + "인증 사용자 이력만 조회한다"
+    )
+    void findNextPage_filtersByTargetUserWhenCursorBelongsToOtherUser() {
+        UUID targetUserId =
+                persistUser(
+                        'f',
+                        "XpKeysetCursorTarget"
+                );
+
+        UUID otherUserId =
+                persistUser(
+                        'g',
+                        "XpKeysetCursorOther"
+                );
+
+        XpHistory targetAfterCursor =
+                saveHistory(
+                        targetUserId,
+                        Instant.parse(
+                                "2026-09-17T03:00:00Z"
+                        ),
+                        20L
+                );
+
+        XpHistory targetBeforeCursor =
+                saveHistory(
+                        targetUserId,
+                        Instant.parse(
+                                "2026-09-17T01:00:00Z"
+                        ),
+                        10L
+                );
+
+        XpHistory otherCursorHistory =
+                saveHistory(
+                        otherUserId,
+                        Instant.parse(
+                                "2026-09-17T02:00:00Z"
+                        ),
+                        30L
+                );
+
+        XpHistory otherOlderHistory =
+                saveHistory(
+                        otherUserId,
+                        Instant.parse(
+                                "2026-09-17T00:30:00Z"
+                        ),
+                        40L
+                );
+
+        entityManager.clear();
+
+        List<XpHistory> page =
+                xpHistoryRepository
+                        .findNextPageByUserId(
+                                targetUserId,
+                                otherCursorHistory.getEarnedAt(),
+                                otherCursorHistory.getId(),
+                                10
+                        );
+
+        assertThat(page)
+                .extracting(XpHistory::getId)
+                .containsExactly(
+                        targetBeforeCursor.getId()
+                )
+                .doesNotContain(
+                        targetAfterCursor.getId(),
+                        otherCursorHistory.getId(),
+                        otherOlderHistory.getId()
+                );
+    }
+
+    @Test
+    @DisplayName(
             "XP 이력이 없으면 빈 목록을 반환한다"
     )
     void findFirstPage_returnsEmptyList() {

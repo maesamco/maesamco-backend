@@ -244,13 +244,28 @@ class XpHistoryCursorCodecTest {
 
     @Test
     @DisplayName(
-            "PostgreSQL 조회 범위를 벗어난 미래 시각 cursor를 거부한다"
+            "애플리케이션 지원 범위를 벗어난 미래 시각 cursor를 거부한다"
     )
     void decode_rejectsInstantAfterSupportedRange() {
         assertInvalidCursor(
                 encodePayload(
                         "v1|"
                                 + Instant.MAX
+                                + "|"
+                                + XP_HISTORY_ID
+                )
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "애플리케이션 지원 범위를 벗어난 과거 시각 cursor를 거부한다"
+    )
+    void decode_rejectsInstantBeforeSupportedRange() {
+        assertInvalidCursor(
+                encodePayload(
+                        "v1|"
+                                + Instant.MIN
                                 + "|"
                                 + XP_HISTORY_ID
                 )
