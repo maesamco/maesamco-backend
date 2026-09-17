@@ -12,6 +12,11 @@ import java.util.UUID;
 /**
  * Content Service의 Daily Quiz 생성 대상 사용자를
  * UUID cursor 방식으로 조회합니다.
+ *
+ * <p>사용자 ID는 가입 순서와 무관한 무작위 UUID이므로
+ * 페이지 순회 중 생성된 사용자는 현재 회차에서 누락될 수 있습니다.
+ * 이 조회는 다음 정기 실행에서 해당 사용자를 처리하는 방식을 전제로 하며,
+ * 특정 시점의 전체 사용자 집합에 대한 snapshot을 보장하지 않습니다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -92,16 +97,12 @@ public class GetQuizTargetUsersService {
             boolean hasNext
     ) {
         if (!hasNext) {
-            return List.copyOf(
-                    fetchedUserIds
-            );
+            return fetchedUserIds;
         }
 
-        return List.copyOf(
-                fetchedUserIds.subList(
-                        0,
-                        requestedSize
-                )
+        return fetchedUserIds.subList(
+                0,
+                requestedSize
         );
     }
 }

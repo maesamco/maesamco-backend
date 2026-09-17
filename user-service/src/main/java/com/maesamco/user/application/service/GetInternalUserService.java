@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
+import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -10,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -55,7 +55,7 @@ public class GetInternalUserService {
                                 )
                         );
 
-        user.assertActive();
+        validateLookupTarget(user);
 
         List<UUID> interestConceptIds =
                 interestConceptRepository
@@ -66,15 +66,27 @@ public class GetInternalUserService {
                         .map(
                                 UserInterestConcept::getConceptId
                         )
-                        .sorted(
-                                Comparator.comparing(
-                                        UUID::toString
-                                )
-                        )
+                        .sorted()
                         .toList();
 
         return new GetInternalUserResult(
                 interestConceptIds
         );
+    }
+
+    /**
+     * 내부 사용자 조회 대상이 일반 활성 사용자인지 검증합니다.
+     *
+     * <p>관리자 계정은 Content Service에 노출하지 않기 위해
+     * 존재하지 않는 사용자와 동일하게 처리합니다.</p>
+     */
+    private void validateLookupTarget(User user) {
+        if (user.getRole() != UserRole.USER) {
+            throw new BusinessException(
+                    ErrorCode.USER_NOT_FOUND
+            );
+        }
+
+        user.assertActive();
     }
 }

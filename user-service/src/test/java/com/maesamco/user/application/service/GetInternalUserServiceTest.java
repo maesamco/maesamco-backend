@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
+import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -80,6 +82,9 @@ class GetInternalUserServiceTest {
                         Optional.of(user)
                 );
 
+        when(user.getRole())
+                .thenReturn(UserRole.USER);
+
         when(user.getId())
                 .thenReturn(USER_ID);
 
@@ -112,6 +117,9 @@ class GetInternalUserServiceTest {
                 .findById(USER_ID);
 
         verify(user)
+                .getRole();
+
+        verify(user)
                 .assertActive();
 
         verify(user)
@@ -132,6 +140,9 @@ class GetInternalUserServiceTest {
                 .thenReturn(
                         Optional.of(user)
                 );
+
+        when(user.getRole())
+                .thenReturn(UserRole.USER);
 
         when(user.getId())
                 .thenReturn(USER_ID);
@@ -157,6 +168,9 @@ class GetInternalUserServiceTest {
 
         verify(userRepository)
                 .findById(USER_ID);
+
+        verify(user)
+                .getRole();
 
         verify(user)
                 .assertActive();
@@ -209,6 +223,9 @@ class GetInternalUserServiceTest {
                         Optional.of(user)
                 );
 
+        when(user.getRole())
+                .thenReturn(UserRole.USER);
+
         doThrow(
                 new BusinessException(
                         ErrorCode.USER_NOT_ACTIVE
@@ -228,6 +245,46 @@ class GetInternalUserServiceTest {
                 .findById(USER_ID);
 
         verify(user)
+                .getRole();
+
+        verify(user)
+                .assertActive();
+
+        verifyNoInteractions(
+                userInterestConceptRepository
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "관리자 계정은 USER_NOT_FOUND를 반환하고 "
+                    + "관심 개념을 조회하지 않는다"
+    )
+    void getInternalUser_rejectsAdminUser() {
+        // given
+        when(userRepository.findById(USER_ID))
+                .thenReturn(
+                        Optional.of(user)
+                );
+
+        when(user.getRole())
+                .thenReturn(UserRole.ADMIN);
+
+        // when & then
+        assertBusinessError(
+                () -> getInternalUserService.getInternalUser(
+                        USER_ID
+                ),
+                ErrorCode.USER_NOT_FOUND
+        );
+
+        verify(userRepository)
+                .findById(USER_ID);
+
+        verify(user)
+                .getRole();
+
+        verify(user, never())
                 .assertActive();
 
         verifyNoInteractions(
