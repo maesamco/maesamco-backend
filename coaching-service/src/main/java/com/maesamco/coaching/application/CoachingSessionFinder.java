@@ -5,6 +5,7 @@ import com.maesamco.coaching.domain.entity.CoachingSession;
 import com.maesamco.coaching.domain.repository.CoachingSessionRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -50,12 +51,7 @@ public class CoachingSessionFinder {
 
     public CoachingSession findOrCreate(SubmissionSnapshot submission) {
         return coachingSessionRepository.findByUserIdAndProblemId(submission.userId(), submission.problemId())
-                .map(session -> {
-                    if (session.advanceToSubmission(submission.submissionId(), submission.attemptNo())) {
-                        return coachingSessionRepository.save(session);
-                    }
-                    return session;
-                })
+                .map(session -> advanceAndSave(session, submission))
                 .orElseGet(() -> {
                     try {
                         return coachingSessionRepository.save(
@@ -72,5 +68,41 @@ public class CoachingSessionFinder {
                         throw e;
                     }
                 });
+    }
+
+    /**
+     * 이슈 #218(V15) — CoachingSession에 @Version이 도입된 뒤로, 이 save()는
+     * 서로 다른 힌트/설명 요청이 같은 세션의 submission_id를 거의 동시에 갈아태우면
+     * ObjectOptimisticLockingFailureException을 던질 수 있다(그 전까지는 나중에 flush된
+     * 쪽이 먼저 flush된 attemptNo 증가분을 조용히 덮어쓰는 lost-update였음).
+     * user-service의 ChangePasswordRetryService와 동일한 패턴으로 한 번만 재시도하고,
+     * 재시도한 save()마저 충돌하면 COACHING_SESSION_UPDATE_CONFLICT로 변환한다 —
+     * 세션 자체는 이미 존재가 확인된 상태라 재조회 실패(orElseThrow)는 이론상 발생하지
+     * 않지만, 이 메서드가 findOrCreate()의 "이미 있는 세션" 분기에서만 호출되므로
+     * 방어적으로 COACHING_SESSION_NOT_FOUND로 처리한다.
+     */
+    private CoachingSession advanceAndSave(CoachingSession session, SubmissionSnapshot submission) {
+        if (!session.advanceToSubmission(submission.submissionId(), submission.attemptNo())) {
+            return session;
+        }
+        try {
+            return coachingSessionRepository.save(session);
+        } catch (OptimisticLockingFailureException firstException) {
+            return retryAdvanceAndSave(submission);
+        }
+    }
+
+    private CoachingSession retryAdvanceAndSave(SubmissionSnapshot submission) {
+        CoachingSession freshSession = coachingSessionRepository
+                .findByUserIdAndProblemId(submission.userId(), submission.problemId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.COACHING_SESSION_NOT_FOUND));
+        if (!freshSession.advanceToSubmission(submission.submissionId(), submission.attemptNo())) {
+            return freshSession;
+        }
+        try {
+            return coachingSessionRepository.save(freshSession);
+        } catch (OptimisticLockingFailureException secondException) {
+            throw new BusinessException(ErrorCode.COACHING_SESSION_UPDATE_CONFLICT);
+        }
     }
 }

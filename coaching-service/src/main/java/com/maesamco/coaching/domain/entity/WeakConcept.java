@@ -63,10 +63,8 @@ public class WeakConcept {
     private int occurrenceCount;
 
     /*
-     * TODO(#218): last_detected_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
-     * 없다(AiFeedback의 information_schema.columns.data_type 검증 테스트와 같은 성격, PR #33).
-     * 누군가 실수로 Instant를 LocalDateTime으로 되돌려도 지금은 CI가 못 잡아낸다.
-     * Repository 통합 테스트에 추가할 것.
+     * last_detected_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지는
+     * TimestamptzColumnRegressionTest(이슈 #218)가 검증한다.
      */
     @Column(name = "last_detected_at", nullable = false)
     private Instant lastDetectedAt;
@@ -90,45 +88,6 @@ public class WeakConcept {
                 .userId(userId)
                 .conceptTag(conceptTag)
                 .build();
-    }
-
-    /**
-     * 같은 개념이 다시 발견됐을 때 호출 — 새 행을 만들지 않고 기존 집계 행의 발견 횟수/시각만
-     * 갱신한다.
-     *
-     * ⚠️ 낙관적 락 없이 값을 읽고 바로 갱신한다(check-then-act). 이슈 #51의
-     * FeedbackGenerationFacade.recordWeakConcept()가 실제 조회 후 갱신하는 Facade다 —
-     * 그 행이 아직 없어서 처음 만드는 경우의 경합은 UNIQUE(user_id, concept_tag) 제약 +
-     * WEAK_CONCEPT_ALREADY_EXISTS 재조회로 방어했지만(WeakConceptRepositoryImpl), 이미
-     * 있는 행을 두 트랜잭션이 동시에 조회해서 각자 recordOccurrence() 후 저장하는
-     * 경우(같은 개념이 짧은 시간에 서로 다른 코칭 세션에서 재발견되는 경로)는 여전히
-     * 무방비다 — 나중에 저장하는 쪽이 먼저 저장된 값을 그대로 덮어써 발견 횟수 증가분이
-     * 하나 유실될 수 있다.
-     *
-     * TODO(#218): 위 "이미 있는 행"에 대한 동시 갱신 경합은 @Version 등으로 아직 해결 안 됨 —
-     *       실제 트래픽에서 발생 빈도를 보고 방안 확정하고 이 TODO 제거.
-     *
-     * TODO(#218): improved=true로 표시된 행이 나중에 다시 발견되면(occurrenceCount 증가) improved를
-     *       false로 되돌려야 하는지가 명세에 없다. 지금은 이 메서드가 improved를 건드리지 않고
-     *       그대로 둔다 — 재발견 시 되돌릴지 여부는 응용 계층에서 결정하고 이 TODO 제거.
-     */
-    public void recordOccurrence() {
-        recordOccurrence(Instant.now());
-    }
-
-    /**
-     * recordOccurrence()가 내부적으로 호출하는 오버로드 — 발견 시각을 직접 주입할 수 있게
-     * 분리했다(PR #34 리뷰). Instant.now()만 쓰면 두 번의 호출이 같은 나노초에 걸릴 가능성이
-     * 0은 아니라서 "정확히 이 시각으로 갱신됐는지" 자체를 테스트로 결정적으로 검증하기 어려운데,
-     * 이 오버로드로 고정된 Instant를 넘겨서 검증할 수 있다. 나중에 이벤트의 발생 시각을 그대로
-     * 반영해야 하는 경우에도 그대로 쓸 수 있다.
-     */
-    public void recordOccurrence(Instant detectedAt) {
-        // occurrenceCount는 DB 컬럼도 INT(32비트)라 Integer.MAX_VALUE에서 그냥 += 1하면
-        // 조용히 음수로 뒤집힌다 — 실제로 21억 번 발견될 일은 거의 없지만(PR #34 리뷰),
-        // addExact로 넘칠 때 조용히 틀린 값이 되는 대신 명시적으로 실패하게 한다.
-        this.occurrenceCount = Math.addExact(this.occurrenceCount, 1);
-        this.lastDetectedAt = Validate.requireNonNull(detectedAt, "발견 시각");
     }
 
     public void markImproved() {

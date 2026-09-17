@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -92,11 +93,8 @@ public class CoachingSession {
     private CoachingSessionStatus status;
 
     /*
-     * TODO(#218): created_at/completed_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는
-     * 회귀 테스트가 없다(BaseEntity처럼 information_schema.columns.data_type을 직접
-     * 확인하는 테스트, PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는
-     * BaseEntity를 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로
-     * 되돌려도 지금은 CI가 못 잡아낸다. Repository 통합 테스트에 추가할 것.
+     * created_at/completed_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지는
+     * TimestamptzColumnRegressionTest(이슈 #218)가 검증한다.
      */
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
@@ -104,6 +102,14 @@ public class CoachingSession {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    // 이슈 #218(V15) — advanceToSubmission()/complete() 둘 다 check-then-act로 상태를
+    // 바꿔서 동시 요청이 겹치면 먼저 flush된 변경이 나중 flush에 조용히 덮어써질 수
+    // 있었다. @Version으로 그 경합을 실제 충돌(ObjectOptimisticLockingFailureException)로
+    // 드러내고, 호출자(CoachingSessionFinder/FollowUpAnswerFacade)가 재시도한다.
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     @Builder
     private CoachingSession(UUID submissionId, UUID userId, UUID problemId, int attemptNo) {
@@ -139,14 +145,11 @@ public class CoachingSession {
      * 이전 제출에 대해 뒤늦게 설명을 등록)이므로 예외로 막지 않고 조용히 무시한다.
      * 호출자(CoachingSessionFinder)는 반환값이 true일 때만 save()한다.
      *
-     * ⚠️ 낙관적 락 없이 값을 바로 덮어쓴다(PR #70 리뷰). 같은 세션에 서로 다른
-     * submissionId로 두 힌트 요청이 짧은 시간 안에 동시에 들어오면, 나중에 flush되는
-     * 쪽이 조용히 덮어써서 하나가 유실될 수 있다. 발생 가능성은 낮지만
-     * recordOccurrence()와 같은 계열의 문제라 같이 트래킹할 것 — complete()는 이슈 #51의
-     * FollowUpAnswerPersistenceService 트랜잭션(UNIQUE(follow_up_question_id) 제약)으로
-     * 이미 해결됐지만, 이 메서드는 그런 UNIQUE 가드가 없어 별도로 남아 있다.
-     *
-     * TODO(#218): 위 동시성 문제 해결 방안(낙관적 락 등) 확정하고 이 TODO 제거.
+     * 이슈 #218(V15) — 같은 세션에 서로 다른 submissionId로 두 힌트 요청이 짧은 시간
+     * 안에 동시에 들어오면, 나중에 flush되는 쪽이 먼저 flush된 값을 조용히 덮어써서
+     * attemptNo 증가분 하나가 유실될 수 있었다(check-then-act). @Version을 도입해 이
+     * 경합을 ObjectOptimisticLockingFailureException으로 드러내고,
+     * CoachingSessionFinder가 이를 감지해 한 번 재시도한다.
      */
     public boolean advanceToSubmission(UUID submissionId, int attemptNo) {
         if (attemptNo <= this.lastAttemptNo) {
@@ -160,11 +163,10 @@ public class CoachingSession {
     /**
      * 역질문 답변까지 완료된 시점에 호출 — 스트릭 반영 기준(서비스 기능 요약 [1]-4절).
      *
-     * 낙관적 락(@Version) 없이 상태를 확인 후 변경한다(check-then-act). 이슈 #51의
-     * FollowUpAnswerPersistenceService가 이 메서드 호출을 FollowUpAnswer 저장과 한
-     * 트랜잭션으로 묶어서, **같은** 역질문에 대한 동시 답변은 안전하다(FollowUpAnswer의
-     * UNIQUE(follow_up_question_id) 제약으로 한쪽이 저장 단계에서 롤백되므로 이 완료
-     * 처리까지 도달 못 함).
+     * 이슈 #51의 FollowUpAnswerPersistenceService가 이 메서드 호출을 FollowUpAnswer
+     * 저장과 한 트랜잭션으로 묶어서, **같은** 역질문에 대한 동시 답변은 안전하다
+     * (FollowUpAnswer의 UNIQUE(follow_up_question_id) 제약으로 한쪽이 저장 단계에서
+     * 롤백되므로 이 완료 처리까지 도달 못 함).
      *
      * 다만 한 세션에 서로 다른 역질문이 여러 개 쌓일 수 있어서(재도전 시 새 설명 등록,
      * 이슈 #84), **서로 다른** 역질문 두 개를 순차적으로(며칠 뒤라도) 또는 거의 동시에
@@ -172,8 +174,11 @@ public class CoachingSession {
      * 답변이 들어오면 이 메서드가 예외를 던지는데, 순차 재진입 케이스는
      * FollowUpAnswerPersistenceService.completeSessionIfNeeded()가 이 메서드 호출 자체를
      * 건너뛰어 해소했다(PR #98 자가 리뷰, 용현님 P1). 두 요청이 진짜 거의 동시에 들어와서
-     * 둘 다 이 세션을 COMPLETED 이전 상태로 읽는 레이스까지는 여전히 미해결 —
-     * advanceToSubmission()과 함께 @Version 도입 시 같이 해결할 것.
+     * 둘 다 이 세션을 COMPLETED 이전 상태로 읽는 진짜 레이스는, 이슈 #218(V15)의
+     * @Version이 나중에 flush되는 쪽을 ObjectOptimisticLockingFailureException으로 막고
+     * FollowUpAnswerFacade가 completeWithAnswer() 전체를 한 번 재시도한다 — 재시도로
+     * 세션을 다시 조회하면 이미 COMPLETED이므로, completeSessionIfNeeded()의
+     * isCompleted() 가드가 이 메서드 재호출 자체를 건너뛴다.
      */
     public void complete() {
         if (this.status == CoachingSessionStatus.COMPLETED) {

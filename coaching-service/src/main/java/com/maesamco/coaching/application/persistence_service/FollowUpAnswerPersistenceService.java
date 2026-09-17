@@ -33,9 +33,11 @@ import java.util.UUID;
  * 동시에든 답하면 이 UNIQUE 제약만으로는 못 막는다(PR #98 자가 리뷰 반영, 용현님 P1) —
  * 아래 completeSessionIfNeeded()가 그 순차 재진입 케이스(가장 흔한 경우: 세션이 이미
  * COMPLETED인 상태에서 다른 역질문에 늦게 답하는 경우)를 별도로 처리한다. 두 요청이
- * 정말로 거의 동시에 들어와서 둘 다 세션을 IN_PROGRESS로 읽는 진짜 레이스까지 막으려면
- * CoachingSession에 낙관적 락(@Version)이 필요한데, 그건 advanceToSubmission() 쪽에도
- * 영향을 주는 더 큰 변경이라 이번엔 범위에서 뺐다(TODO(#218)로 남김).
+ * 정말로 거의 동시에 들어와서 둘 다 세션을 IN_PROGRESS로 읽는 진짜 레이스는, 이슈
+ * #218(V15)에서 도입한 CoachingSession의 낙관적 락(@Version)이 막는다 — 나중에
+ * flush되는 쪽의 save()가 ObjectOptimisticLockingFailureException으로 실패해 이
+ * 트랜잭션(방금 저장한 FollowUpAnswer 포함) 전체가 롤백되고, 호출자인
+ * FollowUpAnswerFacade.completeWithAnswer()가 이 메서드 전체를 한 번 재시도한다.
  */
 @Service
 @Transactional
