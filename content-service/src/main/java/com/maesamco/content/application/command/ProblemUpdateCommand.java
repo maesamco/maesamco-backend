@@ -4,7 +4,6 @@ import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.openapitools.jackson.nullable.JsonNullable;
 
 @Getter
 @AllArgsConstructor
@@ -22,7 +21,7 @@ public class ProblemUpdateCommand {
 
     private String description;
 
-    private JsonNullable<String> starterCode;
+    private UpdateField<String> starterCode; // private JsonNullable<String> starterCode;
 
     private RunningTimeLimit runningTimeLimit;
 

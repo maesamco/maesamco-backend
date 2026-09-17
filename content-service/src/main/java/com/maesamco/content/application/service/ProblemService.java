@@ -121,20 +121,13 @@ public class ProblemService {
             );
         }
 
-        // JsonNullable 객체의 내부 함수를 사용하려면 not null이어야 한다.
-        if (command.getStarterCode() == null) {
-            throw new BusinessException(
-                    ErrorCode.STARTER_CODE_NOT_INITIALIZED
-            );
-        }
-
         boolean isModified =
                 command.getTitle() != null
                         || command.getLanguage() != null
                         || command.getDifficulty() != null
                         || command.getType() != null
                         || command.getDescription() != null
-                        || command.getStarterCode().isPresent()
+                        || command.getStarterCode().isDefined()
                         || command.getRunningTimeLimit() != null
                         || command.getRunningMemoryLimit() != null
                         || command.getTimerPolicy() != null
@@ -157,9 +150,9 @@ public class ProblemService {
             problem.changeDescription(command.getDescription());
         }
         // 들어왔는데 null인 경우 -> 기존값을 null / 안 들어와서 null인 경우 -> 안 바꿈
-        if (command.getStarterCode().isPresent()) {
+        if (command.getStarterCode().isDefined()) {
             problem.changeStarterCode(
-                    command.getStarterCode().orElse(null)
+                    command.getStarterCode().getValue()
             );
         }
         if (command.getRunningTimeLimit() != null) {

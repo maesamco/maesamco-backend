@@ -1,6 +1,7 @@
 package com.maesamco.content.presentation.request;
 
 import com.maesamco.content.application.command.ProblemUpdateCommand;
+import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import jakarta.validation.constraints.NotNull;
@@ -67,11 +68,22 @@ public class ProblemUpdateRequest {
                 difficulty,
                 type,
                 description,
-                starterCode,
+                toUpdateField(starterCode),
                 runningTimeLimit,
                 runningMemoryLimit,
                 timerPolicy,
                 source
+        );
+    }
+
+    private <T> UpdateField<T> toUpdateField(JsonNullable<T> field) {
+
+        if (field == null || !field.isPresent()) {
+            return UpdateField.undefined();
+        }
+
+        return UpdateField.of(
+                field.orElse(null)
         );
     }
 }

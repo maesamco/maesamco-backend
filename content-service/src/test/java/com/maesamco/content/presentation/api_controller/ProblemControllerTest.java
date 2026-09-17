@@ -61,9 +61,14 @@ class ProblemControllerTest {
     @MockitoBean
     private ProblemPublicationService problemPublicationService;
 
-    private final UUID problemId = UUID.randomUUID();
-    private final UUID adminId = UUID.randomUUID();
-    private final UUID userId = UUID.randomUUID();
+    private final UUID problemId =
+            UUID.randomUUID();
+
+    private final UUID adminId =
+            UUID.randomUUID();
+
+    private final UUID userId =
+            UUID.randomUUID();
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -74,34 +79,46 @@ class ProblemControllerTest {
                 HttpSecurity http
         ) throws Exception {
 
-            http.csrf(AbstractHttpConfigurer::disable)
+            http.csrf(
+                            AbstractHttpConfigurer::disable
+                    )
                     .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
+                            auth ->
+                                    auth.anyRequest()
+                                            .permitAll()
                     );
 
             return http.build();
         }
     }
 
-    private static RequestPostProcessor asAdmin(UUID adminId) {
+    private static RequestPostProcessor asAdmin(
+            UUID adminId
+    ) {
         return authentication(
                 new UsernamePasswordAuthenticationToken(
                         adminId,
                         null,
                         List.of(
-                                new SimpleGrantedAuthority("ROLE_ADMIN")
+                                new SimpleGrantedAuthority(
+                                        "ROLE_ADMIN"
+                                )
                         )
                 )
         );
     }
 
-    private static RequestPostProcessor asUser(UUID userId) {
+    private static RequestPostProcessor asUser(
+            UUID userId
+    ) {
         return authentication(
                 new UsernamePasswordAuthenticationToken(
                         userId,
                         null,
                         List.of(
-                                new SimpleGrantedAuthority("ROLE_USER")
+                                new SimpleGrantedAuthority(
+                                        "ROLE_USER"
+                                )
                         )
                 )
         );
@@ -109,7 +126,9 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName("ADMIN이 문제를 생성하면 Request를 Command로 변환하여 서비스에 전달한다")
-    void createProblem_admin_returns201() throws Exception {
+    void createProblem_admin_returns201()
+            throws Exception {
+
         // given
         Problem problem =
                 createProblem(
@@ -139,20 +158,35 @@ class ProblemControllerTest {
 
         // when & then
         mockMvc.perform(
-                        post("/api/v1/contents/problems")
-                                .with(asAdmin(adminId))
-                                .contentType("application/json")
+                        post(
+                                "/api/v1/contents/problems"
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
                                 .content(json)
                 )
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        status().isCreated()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
                 .andExpect(
                         jsonPath("$.data.id")
-                                .value(problemId.toString())
+                                .value(
+                                        problemId.toString()
+                                )
                 )
                 .andExpect(
                         jsonPath("$.data.title")
-                                .value("두 수의 합")
+                                .value(
+                                        "두 수의 합"
+                                )
                 );
 
         ArgumentCaptor<ProblemCreateCommand> captor =
@@ -161,30 +195,44 @@ class ProblemControllerTest {
                 );
 
         verify(problemService)
-                .createProblem(captor.capture());
+                .createProblem(
+                        captor.capture()
+                );
 
         ProblemCreateCommand command =
                 captor.getValue();
 
         assertThat(command.getTitle())
-                .isEqualTo("두 수의 합");
+                .isEqualTo(
+                        "두 수의 합"
+                );
 
         assertThat(command.getLanguage())
-                .isEqualTo(ProgrammingLanguage.JAVA);
+                .isEqualTo(
+                        ProgrammingLanguage.JAVA
+                );
 
         assertThat(command.getDifficulty())
-                .isEqualTo(ProblemDifficulty.EASY);
+                .isEqualTo(
+                        ProblemDifficulty.EASY
+                );
 
         assertThat(command.getTimerPolicy())
-                .isEqualTo(TimerPolicy.APPLY60);
+                .isEqualTo(
+                        TimerPolicy.APPLY60
+                );
 
         assertThat(command.getSource())
-                .isEqualTo(ProblemSource.HUMAN_AUTHORED);
+                .isEqualTo(
+                        ProblemSource.HUMAN_AUTHORED
+                );
     }
 
     @Test
     @DisplayName("ADMIN이 아닌 사용자가 문제를 생성하면 403을 반환한다")
-    void createProblem_nonAdmin_returns403() throws Exception {
+    void createProblem_nonAdmin_returns403()
+            throws Exception {
+
         String json = """
                 {
                     "title": "두 수의 합",
@@ -200,19 +248,31 @@ class ProblemControllerTest {
                 """;
 
         mockMvc.perform(
-                        post("/api/v1/contents/problems")
-                                .with(asUser(userId))
-                                .contentType("application/json")
+                        post(
+                                "/api/v1/contents/problems"
+                        )
+                                .with(
+                                        asUser(userId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
                                 .content(json)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(
+                        status().isForbidden()
+                );
 
-        verifyNoInteractions(problemService);
+        verifyNoInteractions(
+                problemService
+        );
     }
 
     @Test
     @DisplayName("문제 생성 필수값이 누락되면 400을 반환한다")
-    void createProblem_invalidRequest_returns400() throws Exception {
+    void createProblem_invalidRequest_returns400()
+            throws Exception {
+
         String json = """
                 {
                     "language": "JAVA",
@@ -227,29 +287,42 @@ class ProblemControllerTest {
                 """;
 
         mockMvc.perform(
-                        post("/api/v1/contents/problems")
-                                .with(asAdmin(adminId))
-                                .contentType("application/json")
+                        post(
+                                "/api/v1/contents/problems"
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
                                 .content(json)
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(
+                        status().isBadRequest()
+                );
 
-        verifyNoInteractions(problemService);
+        verifyNoInteractions(
+                problemService
+        );
     }
 
     @Test
     @DisplayName("공개 문제를 단건 조회하면 200을 반환한다")
-    void getProblem_returns200() throws Exception {
+    void getProblem_returns200()
+            throws Exception {
+
         // given
         Problem problem =
                 createProblem(
                         ProblemStatus.PUBLISHED
                 );
 
-        when(problemService.getProblemForUser(problemId))
-                .thenReturn(
-                        ProblemResult.from(problem)
-                );
+        when(problemService.getProblemForUser(
+                problemId
+        )).thenReturn(
+                ProblemResult.from(problem)
+        );
 
         // when & then
         mockMvc.perform(
@@ -258,39 +331,57 @@ class ProblemControllerTest {
                                 problemId
                         )
                 )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
                 .andExpect(
                         jsonPath("$.data.id")
-                                .value(problemId.toString())
+                                .value(
+                                        problemId.toString()
+                                )
                 )
                 .andExpect(
                         jsonPath("$.data.title")
-                                .value("두 수의 합")
+                                .value(
+                                        "두 수의 합"
+                                )
                 )
                 .andExpect(
                         jsonPath("$.data.language")
-                                .value("JAVA")
+                                .value(
+                                        "JAVA"
+                                )
                 )
                 .andExpect(
                         jsonPath("$.data.difficulty")
-                                .value("EASY")
+                                .value(
+                                        "EASY"
+                                )
                 );
 
         verify(problemService)
-                .getProblemForUser(problemId);
+                .getProblemForUser(
+                        problemId
+                );
     }
 
     @Test
     @DisplayName("존재하지 않는 문제를 조회하면 404를 반환한다")
-    void getProblem_notFound_returns404() throws Exception {
+    void getProblem_notFound_returns404()
+            throws Exception {
+
         // given
-        when(problemService.getProblemForUser(problemId))
-                .thenThrow(
-                        new BusinessException(
-                                ErrorCode.PROBLEM_NOT_FOUND
-                        )
-                );
+        when(problemService.getProblemForUser(
+                problemId
+        )).thenThrow(
+                new BusinessException(
+                        ErrorCode.PROBLEM_NOT_FOUND
+                )
+        );
 
         // when & then
         mockMvc.perform(
@@ -299,16 +390,22 @@ class ProblemControllerTest {
                                 problemId
                         )
                 )
-                .andExpect(status().isNotFound())
+                .andExpect(
+                        status().isNotFound()
+                )
                 .andExpect(
                         jsonPath("$.error.code")
-                                .value("PROBLEM_NOT_FOUND")
+                                .value(
+                                        "PROBLEM_NOT_FOUND"
+                                )
                 );
     }
 
     @Test
     @DisplayName("검색 Request를 Query로 변환하고 Pageable과 함께 서비스에 전달한다")
-    void getProblems_returnsPagedProblems() throws Exception {
+    void getProblems_returnsPagedProblems()
+            throws Exception {
+
         // given
         ProblemSearchResult searchResult =
                 ProblemSearchResult.from(
@@ -318,14 +415,19 @@ class ProblemControllerTest {
                 );
 
         Pageable pageable =
-                PageRequest.of(1, 2);
+                PageRequest.of(
+                        1,
+                        2
+                );
 
         when(problemService.searchProblems(
                 any(ProblemSearchQuery.class),
                 any(Pageable.class)
         )).thenReturn(
                 new PageImpl<>(
-                        List.of(searchResult),
+                        List.of(
+                                searchResult
+                        ),
                         pageable,
                         3
                 )
@@ -333,21 +435,53 @@ class ProblemControllerTest {
 
         // when & then
         mockMvc.perform(
-                        get("/api/v1/contents/problems")
-                                .param("language", "JAVA")
-                                .param("difficulty", "EASY")
-                                .param("type", "CODE")
-                                .param("source", "HUMAN_AUTHORED")
-                                .param("page", "1")
-                                .param("size", "2")
-                                .param("sort", "title")
-                                .param("direction", "asc")
+                        get(
+                                "/api/v1/contents/problems"
+                        )
+                                .param(
+                                        "language",
+                                        "JAVA"
+                                )
+                                .param(
+                                        "difficulty",
+                                        "EASY"
+                                )
+                                .param(
+                                        "type",
+                                        "CODE"
+                                )
+                                .param(
+                                        "source",
+                                        "HUMAN_AUTHORED"
+                                )
+                                .param(
+                                        "page",
+                                        "1"
+                                )
+                                .param(
+                                        "size",
+                                        "2"
+                                )
+                                .param(
+                                        "sort",
+                                        "title"
+                                )
+                                .param(
+                                        "direction",
+                                        "asc"
+                                )
                 )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
                 .andExpect(
-                        jsonPath("$.data.content.length()")
-                                .value(1)
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.data.content.length()"
+                        ).value(1)
                 )
                 .andExpect(
                         jsonPath("$.data.page")
@@ -358,8 +492,9 @@ class ProblemControllerTest {
                                 .value(2)
                 )
                 .andExpect(
-                        jsonPath("$.data.totalElements")
-                                .value(3)
+                        jsonPath(
+                                "$.data.totalElements"
+                        ).value(3)
                 );
 
         ArgumentCaptor<ProblemSearchQuery> queryCaptor =
@@ -382,25 +517,35 @@ class ProblemControllerTest {
                 queryCaptor.getValue();
 
         assertThat(query.getLanguage())
-                .isEqualTo(ProgrammingLanguage.JAVA);
+                .isEqualTo(
+                        ProgrammingLanguage.JAVA
+                );
 
         assertThat(query.getDifficulty())
-                .isEqualTo(ProblemDifficulty.EASY);
+                .isEqualTo(
+                        ProblemDifficulty.EASY
+                );
 
         assertThat(query.getType())
-                .isEqualTo(ProblemType.CODE);
+                .isEqualTo(
+                        ProblemType.CODE
+                );
 
         assertThat(query.getSource())
-                .isEqualTo(ProblemSource.HUMAN_AUTHORED);
+                .isEqualTo(
+                        ProblemSource.HUMAN_AUTHORED
+                );
 
         Pageable capturedPageable =
                 pageableCaptor.getValue();
 
-        assertThat(capturedPageable.getPageNumber())
-                .isEqualTo(1);
+        assertThat(
+                capturedPageable.getPageNumber()
+        ).isEqualTo(1);
 
-        assertThat(capturedPageable.getPageSize())
-                .isEqualTo(2);
+        assertThat(
+                capturedPageable.getPageSize()
+        ).isEqualTo(2);
 
         assertThat(
                 capturedPageable
@@ -412,22 +557,32 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName("잘못된 enum 검색 조건을 전달하면 400을 반환한다")
-    void getProblems_invalidEnum_returns400() throws Exception {
+    void getProblems_invalidEnum_returns400()
+            throws Exception {
+
         mockMvc.perform(
-                        get("/api/v1/contents/problems")
+                        get(
+                                "/api/v1/contents/problems"
+                        )
                                 .param(
                                         "difficulty",
                                         "IMPOSSIBLE"
                                 )
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(
+                        status().isBadRequest()
+                );
 
-        verifyNoInteractions(problemService);
+        verifyNoInteractions(
+                problemService
+        );
     }
 
     @Test
     @DisplayName("ADMIN이 문제를 수정하면 Request를 Command로 변환하여 전달한다")
-    void updateProblem_admin_returns200() throws Exception {
+    void updateProblem_admin_returns200()
+            throws Exception {
+
         // given
         Problem updatedProblem =
                 createProblem(
@@ -448,7 +603,9 @@ class ProblemControllerTest {
                 eq(problemId),
                 any(ProblemUpdateCommand.class)
         )).thenReturn(
-                ProblemResult.from(updatedProblem)
+                ProblemResult.from(
+                        updatedProblem
+                )
         );
 
         String json = """
@@ -468,23 +625,37 @@ class ProblemControllerTest {
                                 "/api/v1/contents/problems/{problemId}",
                                 problemId
                         )
-                                .with(asAdmin(adminId))
-                                .contentType("application/json")
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
                                 .content(json)
                 )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
                 .andExpect(
                         jsonPath("$.data.title")
-                                .value("수정된 문제")
+                                .value(
+                                        "수정된 문제"
+                                )
                 )
                 .andExpect(
                         jsonPath("$.data.difficulty")
-                                .value("HARD")
+                                .value(
+                                        "HARD"
+                                )
                 )
                 .andExpect(
-                        jsonPath("$.data.currentVersionNo")
-                                .value(2)
+                        jsonPath(
+                                "$.data.currentVersionNo"
+                        ).value(2)
                 );
 
         ArgumentCaptor<ProblemUpdateCommand> captor =
@@ -501,30 +672,285 @@ class ProblemControllerTest {
         ProblemUpdateCommand command =
                 captor.getValue();
 
-        assertThat(command.getLockVersion())
-                .isEqualTo(0L);
+        assertThat(
+                command.getLockVersion()
+        ).isEqualTo(0L);
 
-        assertThat(command.getTitle())
-                .isEqualTo("수정된 문제");
+        assertThat(
+                command.getTitle()
+        ).isEqualTo(
+                "수정된 문제"
+        );
 
-        assertThat(command.getDifficulty())
-                .isEqualTo(ProblemDifficulty.HARD);
+        assertThat(
+                command.getDifficulty()
+        ).isEqualTo(
+                ProblemDifficulty.HARD
+        );
 
-        assertThat(command.getStarterCode())
-                .isNotNull();
-
-        assertThat(command.getStarterCode().isPresent())
-                .isTrue();
+        /*
+         * Presentation의 JsonNullable은
+         * Application의 UpdateField로 변환되어 전달되어야 한다.
+         *
+         * "starterCode": null은 필드가 요청에 포함된 상태이므로
+         * defined=true이고 실제 value는 null이어야 한다.
+         */
+        assertThat(
+                command.getStarterCode()
+        ).isNotNull();
 
         assertThat(
                 command.getStarterCode()
-                        .orElse("default")
+                        .isDefined()
+        ).isTrue();
+
+        assertThat(
+                command.getStarterCode()
+                        .getValue()
         ).isNull();
     }
 
     @Test
+    @DisplayName("starterCode가 수정 요청에 없으면 undefined 상태로 Command에 전달한다")
+    void updateProblem_starterCodeUndefined_passesUndefinedField()
+            throws Exception {
+
+        // given
+        Problem updatedProblem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        when(problemService.updateProblem(
+                eq(problemId),
+                any(ProblemUpdateCommand.class)
+        )).thenReturn(
+                ProblemResult.from(
+                        updatedProblem
+                )
+        );
+
+        String json = """
+                {
+                    "lockVersion": 0,
+                    "title": "수정된 문제"
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isOk()
+                );
+
+        ArgumentCaptor<ProblemUpdateCommand> captor =
+                ArgumentCaptor.forClass(
+                        ProblemUpdateCommand.class
+                );
+
+        verify(problemService)
+                .updateProblem(
+                        eq(problemId),
+                        captor.capture()
+                );
+
+        ProblemUpdateCommand command =
+                captor.getValue();
+
+        /*
+         * starterCode가 JSON 요청에 아예 없으면
+         * Application에는 UpdateField.undefined() 상태로 전달한다.
+         */
+        assertThat(
+                command.getStarterCode()
+        ).isNotNull();
+
+        assertThat(
+                command.getStarterCode()
+                        .isDefined()
+        ).isFalse();
+
+        assertThat(
+                command.getStarterCode()
+                        .getValue()
+        ).isNull();
+    }
+
+    @Test
+    @DisplayName("starterCode를 명시적으로 null로 전달하면 defined 상태와 null 값을 Command에 전달한다")
+    void updateProblem_starterCodeNull_passesDefinedNullField()
+            throws Exception {
+
+        // given
+        Problem updatedProblem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        when(problemService.updateProblem(
+                eq(problemId),
+                any(ProblemUpdateCommand.class)
+        )).thenReturn(
+                ProblemResult.from(
+                        updatedProblem
+                )
+        );
+
+        String json = """
+                {
+                    "lockVersion": 0,
+                    "starterCode": null
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isOk()
+                );
+
+        ArgumentCaptor<ProblemUpdateCommand> captor =
+                ArgumentCaptor.forClass(
+                        ProblemUpdateCommand.class
+                );
+
+        verify(problemService)
+                .updateProblem(
+                        eq(problemId),
+                        captor.capture()
+                );
+
+        ProblemUpdateCommand command =
+                captor.getValue();
+
+        /*
+         * starterCode가 명시적으로 null이면
+         * 필드는 전달된 상태이므로 defined=true이다.
+         */
+        assertThat(
+                command.getStarterCode()
+        ).isNotNull();
+
+        assertThat(
+                command.getStarterCode()
+                        .isDefined()
+        ).isTrue();
+
+        assertThat(
+                command.getStarterCode()
+                        .getValue()
+        ).isNull();
+    }
+
+    @Test
+    @DisplayName("starterCode에 실제 값을 전달하면 defined 상태와 값을 Command에 전달한다")
+    void updateProblem_starterCodeValue_passesDefinedField()
+            throws Exception {
+
+        // given
+        Problem updatedProblem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        when(problemService.updateProblem(
+                eq(problemId),
+                any(ProblemUpdateCommand.class)
+        )).thenReturn(
+                ProblemResult.from(
+                        updatedProblem
+                )
+        );
+
+        String json = """
+                {
+                    "lockVersion": 0,
+                    "starterCode": "public class UpdatedMain {}"
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isOk()
+                );
+
+        ArgumentCaptor<ProblemUpdateCommand> captor =
+                ArgumentCaptor.forClass(
+                        ProblemUpdateCommand.class
+                );
+
+        verify(problemService)
+                .updateProblem(
+                        eq(problemId),
+                        captor.capture()
+                );
+
+        ProblemUpdateCommand command =
+                captor.getValue();
+
+        /*
+         * 실제 starterCode 값이 전달되면
+         * defined=true이며 전달된 값을 그대로 보존한다.
+         */
+        assertThat(
+                command.getStarterCode()
+        ).isNotNull();
+
+        assertThat(
+                command.getStarterCode()
+                        .isDefined()
+        ).isTrue();
+
+        assertThat(
+                command.getStarterCode()
+                        .getValue()
+        ).isEqualTo(
+                "public class UpdatedMain {}"
+        );
+    }
+
+    @Test
     @DisplayName("ADMIN이 아닌 사용자가 문제를 수정하면 403을 반환한다")
-    void updateProblem_nonAdmin_returns403() throws Exception {
+    void updateProblem_nonAdmin_returns403()
+            throws Exception {
+
         String json = """
                 {
                     "lockVersion": 0,
@@ -537,26 +963,40 @@ class ProblemControllerTest {
                                 "/api/v1/contents/problems/{problemId}",
                                 problemId
                         )
-                                .with(asUser(userId))
-                                .contentType("application/json")
+                                .with(
+                                        asUser(userId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
                                 .content(json)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(
+                        status().isForbidden()
+                );
 
-        verifyNoInteractions(problemService);
+        verifyNoInteractions(
+                problemService
+        );
     }
 
     @Test
     @DisplayName("ADMIN이 문제를 삭제하면 사용자 ID를 서비스에 전달한다")
-    void deleteProblem_admin_returns200() throws Exception {
+    void deleteProblem_admin_returns200()
+            throws Exception {
+
         mockMvc.perform(
                         delete(
                                 "/api/v1/contents/problems/{problemId}",
                                 problemId
                         )
-                                .with(asAdmin(adminId))
+                                .with(
+                                        asAdmin(adminId)
+                                )
                 )
-                .andExpect(status().isOk())
+                .andExpect(
+                        status().isOk()
+                )
                 .andExpect(
                         jsonPath("$.success")
                                 .value(true)
@@ -571,17 +1011,25 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName("ADMIN이 아닌 사용자가 문제를 삭제하면 403을 반환한다")
-    void deleteProblem_nonAdmin_returns403() throws Exception {
+    void deleteProblem_nonAdmin_returns403()
+            throws Exception {
+
         mockMvc.perform(
                         delete(
                                 "/api/v1/contents/problems/{problemId}",
                                 problemId
                         )
-                                .with(asUser(userId))
+                                .with(
+                                        asUser(userId)
+                                )
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(
+                        status().isForbidden()
+                );
 
-        verifyNoInteractions(problemService);
+        verifyNoInteractions(
+                problemService
+        );
     }
 
     private Problem createProblem(

@@ -2,6 +2,7 @@ package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
+import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.application.input_port.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
@@ -21,7 +22,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.openapitools.jackson.nullable.JsonNullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -307,9 +307,10 @@ class ProblemServiceTest {
                         ProblemDifficulty.HARD
                 );
 
+        // starterCode가 요청에 포함되지 않았음을 표현한다.
         when(command.getStarterCode())
                 .thenReturn(
-                        JsonNullable.undefined()
+                        UpdateField.undefined()
                 );
 
         // when
@@ -329,6 +330,11 @@ class ProblemServiceTest {
         assertThat(problem.getDifficulty())
                 .isEqualTo(
                         ProblemDifficulty.HARD
+                );
+
+        assertThat(problem.getStarterCode())
+                .isEqualTo(
+                        "public class Main {}"
                 );
 
         assertThat(problem.getCurrentVersionNo())
@@ -355,6 +361,150 @@ class ProblemServiceTest {
                 captor.getValue()
                         .getVersionNo()
         ).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("starterCode가 요청에 포함되지 않으면 기존 값을 유지한다")
+    void updateProblem_starterCodeUndefined_keepsExistingValue() {
+        // given
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        ProblemUpdateCommand command =
+                mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId))
+                .thenReturn(problem);
+
+        when(command.getLockVersion())
+                .thenReturn(0L);
+
+        when(command.getTitle())
+                .thenReturn("변경된 문제");
+
+        // 요청에 starterCode 필드 자체가 없는 경우
+        when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(
+                problemId,
+                command
+        );
+
+        // then
+        assertThat(problem.getStarterCode())
+                .isEqualTo(
+                        "public class Main {}"
+                );
+
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemCommandRepository)
+                .flush();
+    }
+
+    @Test
+    @DisplayName("starterCode가 명시적으로 null이면 기존 값을 null로 변경한다")
+    void updateProblem_starterCodeNull_changesToNull() {
+        // given
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        ProblemUpdateCommand command =
+                mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId))
+                .thenReturn(problem);
+
+        when(command.getLockVersion())
+                .thenReturn(0L);
+
+        // 요청에 starterCode가 존재하지만 값이 null인 경우
+        when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.of(null)
+                );
+
+        // when
+        problemService.updateProblem(
+                problemId,
+                command
+        );
+
+        // then
+        assertThat(problem.getStarterCode())
+                .isNull();
+
+        assertThat(problem.getCurrentVersionNo())
+                .isEqualTo(2);
+
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemCommandRepository)
+                .flush();
+
+        verify(problemVersionRepository)
+                .save(any(ProblemVersion.class));
+    }
+
+    @Test
+    @DisplayName("starterCode에 실제 값이 전달되면 해당 값으로 변경한다")
+    void updateProblem_starterCodeValue_changesValue() {
+        // given
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        ProblemUpdateCommand command =
+                mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId))
+                .thenReturn(problem);
+
+        when(command.getLockVersion())
+                .thenReturn(0L);
+
+        // 요청에 starterCode 실제 값이 포함된 경우
+        when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.of(
+                                "public class UpdatedMain {}"
+                        )
+                );
+
+        // when
+        problemService.updateProblem(
+                problemId,
+                command
+        );
+
+        // then
+        assertThat(problem.getStarterCode())
+                .isEqualTo(
+                        "public class UpdatedMain {}"
+                );
+
+        assertThat(problem.getCurrentVersionNo())
+                .isEqualTo(2);
+
+        verify(problemFinder)
+                .lockById(problemId);
+
+        verify(problemCommandRepository)
+                .flush();
+
+        verify(problemVersionRepository)
+                .save(any(ProblemVersion.class));
     }
 
     @Test
@@ -434,7 +584,7 @@ class ProblemServiceTest {
 
         when(command.getStarterCode())
                 .thenReturn(
-                        JsonNullable.undefined()
+                        UpdateField.undefined()
                 );
 
         doThrow(
