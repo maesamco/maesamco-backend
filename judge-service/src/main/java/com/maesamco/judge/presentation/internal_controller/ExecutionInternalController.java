@@ -21,6 +21,7 @@ public class ExecutionInternalController {
 
     private final ExecutionValidationFacade executionValidationFacade;
 
+    @AllowedInternalCallers({"content-service"})
     @PostMapping
     public SuccessResponse<ExecutionValidateResponse> validate(
             @RequestBody ExecutionValidateRequest request

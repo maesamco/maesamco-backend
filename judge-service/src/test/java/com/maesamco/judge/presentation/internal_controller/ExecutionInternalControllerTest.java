@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.maesamco.judge.application.facade.ExecutionValidationFacade;
 import com.maesamco.judge.application.result.ExecutionValidationResult;
+import com.maesamco.judge.global.security.hmac.InternalCallHeaders;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,11 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc(addFilters = false)
 class ExecutionInternalControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    private static final String ALLOWED_CALLER = "content-service";
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private MockMvc mockMvc;
 
     @MockitoBean
     private ExecutionValidationFacade executionValidationFacade;
@@ -54,7 +53,8 @@ class ExecutionInternalControllerTest {
 
             mockMvc.perform(post("/internal/v1/executions")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestBody))
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.results[0].testCaseIndex").value(0))
@@ -73,10 +73,25 @@ class ExecutionInternalControllerTest {
 
             mockMvc.perform(post("/internal/v1/executions")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(requestBody))
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.results").isEmpty());
+        }
+
+        @Test
+        @DisplayName("허용되지 않은 호출자 헤더면 실제 Config 배선을 통해서도 403을 반환한다")
+        void returns403WhenCallerNotAllowed() throws Exception {
+            String requestBody = """
+                    { "code": "public class Main {}", "testCases": [] }
+                    """;
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, "some-other-service"))
+                    .andExpect(status().isForbidden());
         }
     }
 }
