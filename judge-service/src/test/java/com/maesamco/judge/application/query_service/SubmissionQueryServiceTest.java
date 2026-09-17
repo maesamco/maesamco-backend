@@ -383,15 +383,13 @@ class SubmissionQueryServiceTest {
         @DisplayName("problemId가 없으면 findByUserId로 조회하고 PageResponse로 매핑한다")
         void returnsPageResponseWithoutProblemIdFilter() {
             UUID submissionId = UUID.randomUUID();
-            Submission submission = pendingSubmission(submissionId);
-            submission.markQueued();
-            submission.markRunning();
-            submission.markCompleted(SubmissionResult.CORRECT, 100, 1024);
+            SubmissionSummaryResult summary = new SubmissionSummaryResult(
+                    submissionId, problemId, 3, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
 
             Pageable pageable = PageRequest.of(0, 20);
-            Page<Submission> page = new PageImpl<>(List.of(submission), pageable, 1);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-            given(submissionRepository.findByUserId(userId, pageable)).willReturn(page);
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
 
             PageResponse<SubmissionSummaryResult> result =
                     submissionQueryService.getSubmissions(userId, null, pageable);
@@ -400,7 +398,7 @@ class SubmissionQueryServiceTest {
             assertThat(result.content().get(0).submissionId()).isEqualTo(submissionId);
             assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.COMPLETED);
             assertThat(result.totalElements()).isEqualTo(1);
-            verify(submissionRepository, never()).findByUserIdAndProblemId(any(), any(), any());
+            verify(submissionRepository, never()).findSummariesByUserIdAndProblemId(any(), any(), any());
         }
 
         @Test
@@ -408,16 +406,16 @@ class SubmissionQueryServiceTest {
         void returnsPageResponseWithProblemIdFilter() {
             UUID filterProblemId = UUID.randomUUID();
             Pageable pageable = PageRequest.of(0, 20);
-            Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+            Page<SubmissionSummaryResult> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-            given(submissionRepository.findByUserIdAndProblemId(userId, filterProblemId, pageable))
+            given(submissionRepository.findSummariesByUserIdAndProblemId(userId, filterProblemId, pageable))
                     .willReturn(emptyPage);
 
             PageResponse<SubmissionSummaryResult> result =
                     submissionQueryService.getSubmissions(userId, filterProblemId, pageable);
 
             assertThat(result.content()).isEmpty();
-            verify(submissionRepository, never()).findByUserId(any(), any());
+            verify(submissionRepository, never()).findSummariesByUserId(any(), any());
         }
     }
 }
