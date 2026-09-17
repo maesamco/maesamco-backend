@@ -35,10 +35,7 @@ import java.util.UUID;
         name = "p_problem_versions",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        columnNames = {
-                                "problem_id",
-                                "version_no"
-                        }
+                        columnNames = {"problem_id", "version_no"}
                 )
         }
 )
@@ -47,25 +44,13 @@ public class ProblemVersion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(
-            name = "id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(
-            name = "problem_id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "problem_id", nullable = false, updatable = false)
     private UUID problemId;
 
-    @Column(
-            name = "version_no",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "version_no", nullable = false, updatable = false)
     private Integer versionNo;
 
     /**
@@ -75,12 +60,7 @@ public class ProblemVersion {
      * problem_snapshot을 그대로 사용합니다.</p>
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(
-            name = "problem_snapshot",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "jsonb"
-    )
+    @Column(name = "problem_snapshot", nullable = false, updatable = false, columnDefinition = "jsonb")
     private JsonNode problemSnapshot;
 
     /**
@@ -88,11 +68,7 @@ public class ProblemVersion {
      *
      * <p>발행 승인으로 생성되는 버전의 경우 실제 발행 시각으로 사용합니다.</p>
      */
-    @Column(
-            name = "published_at",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "published_at", nullable = false, updatable = false)
     private Instant publishedAt;
 
     private ProblemVersion(
@@ -205,11 +181,9 @@ public class ProblemVersion {
     public ProblemVersionSnapshot getContentSnapshot() {
         JsonNode snapshot = this.problemSnapshot;
 
-        List<TestCaseItem> testCases =
-                new ArrayList<>();
+        List<TestCaseItem> testCases = new ArrayList<>();
 
-        JsonNode testCaseNodes =
-                snapshot.path("testCases");
+        JsonNode testCaseNodes = snapshot.path("testCases");
 
         if (testCaseNodes.isArray()) {
             for (JsonNode testCaseNode : testCaseNodes) {
