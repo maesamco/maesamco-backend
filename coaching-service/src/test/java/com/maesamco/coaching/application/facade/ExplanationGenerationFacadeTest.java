@@ -141,7 +141,14 @@ class ExplanationGenerationFacadeTest {
         assertThat(result.explanation().getSubmissionId()).isEqualTo(submissionId);
         assertThat(result.explanation().getContent()).isEqualTo("이 코드는 반복문으로 배열을 순회합니다.");
         assertThat(result.followUpQuestion().getQuestionText()).isEqualTo("반복문의 종료 조건은?");
-        verify(aiCallHistoryRepository).save(any());
+        // PR #182 리뷰(다른 AI 초안 발견 사항) 대응 — responseTimeMs 계측 자체를 검증하는
+        // 테스트가 없어서 타이머 위치를 잘못 옮겨도 CI가 못 잡았다. SUCCESS 상태와
+        // responseTimeMs가 채워지는지까지 확인한다.
+        verify(aiCallHistoryRepository).save(org.mockito.ArgumentMatchers.argThat(h ->
+                "SUCCESS".equals(h.getRequestStatus())
+                        && h.getResponseTimeMs() != null
+                        && h.getResponseTimeMs() >= 0
+        ));
     }
 
     @Test
@@ -237,9 +244,13 @@ class ExplanationGenerationFacadeTest {
      * LLM 실패 시 AI_GENERATION_FAILED를 던지는 것과 다르다 — 힌트는 그 자체가
      * 산출물이라 실패하면 줄 게 없지만, 설명은 이미 사용자가 작성한 본문이 핵심 산출물이고
      * 역질문은 부가 기능이라 실패해도 등록 자체는 성공으로 본다.
+     *
+     * PR #182 리뷰(용현님 P2) 대응 — 이 예외(2-인자 생성자, neverCalled()=false)는 "호출은
+     * 했지만 인프라 사정으로 실패"한 경우를 나타내므로 INFRA_FAILED로 남아야 한다(이전엔
+     * 원인 구분 없이 전부 FAILED였음).
      */
     @Test
-    void AI_역질문_생성이_실패해도_설명은_저장된_채로_반환하고_예외를_던지지_않는다() {
+    void AI_역질문_생성이_인프라_사정으로_실패해도_설명은_저장된_채로_반환하고_예외를_던지지_않는다() {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
@@ -251,8 +262,30 @@ class ExplanationGenerationFacadeTest {
 
         assertThat(result.explanation()).isNotNull();
         assertThat(result.followUpQuestion()).isNull();
-        verify(aiCallHistoryRepository).save(argThatFailed());
+        verify(aiCallHistoryRepository)
+                .save(org.mockito.ArgumentMatchers.argThat(h -> "INFRA_FAILED".equals(h.getRequestStatus())));
         verify(followUpQuestionRepository, never()).save(any());
+    }
+
+    /**
+     * PR #182 리뷰(용현님 P2) 대응 — 서킷오픈(neverCalled()=true)은 "호출 자체가 없었던
+     * 시도"라 SKIPPED로 남아야 원래 의미가 유지된다.
+     */
+    @Test
+    void 서킷오픈으로_호출_자체가_없었으면_SKIPPED_이력을_남긴다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(correctSubmission(callerId));
+        CoachingSession existingSession = persistedSession();
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(explanationRepository.save(any())).thenAnswer(inv -> persistedExplanation(inv.getArgument(0)));
+        when(aiModelPort.generate(any(), any()))
+                .thenThrow(new AiModelCallException("circuit open", new RuntimeException(), true));
+
+        ExplanationGenerationFacade.ExplanationRegistrationResult result =
+                facade.registerExplanation(submissionId, "설명", callerId);
+
+        assertThat(result.followUpQuestion()).isNull();
+        verify(aiCallHistoryRepository)
+                .save(org.mockito.ArgumentMatchers.argThat(h -> "SKIPPED".equals(h.getRequestStatus())));
     }
 
     @Test

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 /**
  * LoginService의 로그인 인증 및 세션 생성 흐름을 검증하는 단위 테스트입니다.
@@ -176,7 +178,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -215,6 +217,22 @@ class LoginServiceTest {
         LoginResult result =
                 loginService.login(command);
 
+        InOrder loginOrder =
+                inOrder(
+                        clock,
+                        tokenIssuer
+                );
+
+        loginOrder.verify(clock)
+                .instant();
+
+        loginOrder.verify(tokenIssuer)
+                .issueTokens(
+                        eq(user.getId()),
+                        eq(UserRole.USER),
+                        any(UUID.class)
+                );
+
         // then
         verify(emailNormalizer)
                 .normalize(
@@ -227,7 +245,7 @@ class LoginServiceTest {
                 );
 
         verify(userRepository)
-                .findByEmailLookupHash(
+                .findByEmailLookupHashForUpdate(
                         emailLookupHash
                 );
 
@@ -413,7 +431,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -517,7 +535,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(
@@ -630,7 +648,7 @@ class LoginServiceTest {
 
         when(
                 userRepository
-                        .findByEmailLookupHash(
+                        .findByEmailLookupHashForUpdate(
                                 emailLookupHash
                         )
         ).thenReturn(

@@ -1,6 +1,5 @@
 package com.maesamco.judge.application.persistence_service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.maesamco.judge.application.exception.ProblemExecutionSpecNotFoundException;
 import com.maesamco.judge.application.port.JudgeExecutionResult;
 import com.maesamco.judge.application.port.JudgeExecutionStatus;
@@ -115,7 +114,7 @@ public class JudgeResultPersistenceService {
 
         if (allDone) {
             List<SubmissionTestResult> allResults =
-                    submissionTestResultRepository.findBySubmissionId(pending.getSubmissionId());
+                    submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(pending.getSubmissionId());
             List<SubmissionTestResult> failed = allResults.stream().filter(r -> !r.isPassed()).toList();
             SubmissionResult overallResult = failed.isEmpty()
                     ? SubmissionResult.CORRECT

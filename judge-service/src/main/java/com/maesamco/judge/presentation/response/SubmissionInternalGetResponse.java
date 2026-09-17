@@ -1,9 +1,7 @@
 package com.maesamco.judge.presentation.response;
 
-import com.maesamco.judge.application.result.SubmissionGetResult;
-import com.maesamco.judge.domain.entity.Submission;
-import com.maesamco.judge.domain.entity.SubmissionTestResult;
-import com.maesamco.judge.domain.entity.SubmissionStatus;
+import com.maesamco.judge.application.result.SubmissionInternalGetResult;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -23,7 +21,7 @@ public record SubmissionInternalGetResponse(
     public record FailedTestSummary(boolean isPublic, String errorType) {
     }
 
-    public static SubmissionInternalGetResponse from(SubmissionGetResult result) {
+    public static SubmissionInternalGetResponse from(SubmissionInternalGetResult result) {
         List<FailedTestSummary> summaries = result.failedTestSummary().stream()
                 .map(f -> new FailedTestSummary(f.isPublic(), f.errorType()))
                 .toList();

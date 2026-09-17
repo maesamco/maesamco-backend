@@ -1,26 +1,19 @@
 package com.maesamco.user.application.service;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionRotationResult;
-import com.maesamco.user.application.port.AuthSessionStore;
-import com.maesamco.user.application.port.IssuedTokens;
-import com.maesamco.user.application.port.RefreshTokenHasher;
-import com.maesamco.user.application.port.RefreshTokenVerifier;
-import com.maesamco.user.application.port.TokenIssuer;
-import com.maesamco.user.application.port.VerifiedRefreshToken;
+import com.maesamco.user.application.port.*;
 import com.maesamco.user.domain.entity.User;
-import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.security.TokenExpirationCalculator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 /**
  * Refresh Token을 검증하고 새로운 Access Token 및 Refresh Token을
@@ -98,7 +91,7 @@ public class RefreshService {
                                 )
                         );
 
-        validateActiveUser(user);
+        user.assertActive();
 
         IssuedTokens issuedTokens =
                 tokenIssuer.issueRotatedTokens(
@@ -119,6 +112,8 @@ public class RefreshService {
         AuthSessionRotationResult rotationResult =
                 authSessionStore.rotateRefreshToken(
                         authSession.sessionId(),
+                        authSession.userId(),
+                        authSession.createdAt(),
                         expectedRefreshTokenHash,
                         newRefreshTokenHash
                 );
@@ -183,19 +178,6 @@ public class RefreshService {
         )) {
             throw new BusinessException(
                     ErrorCode.AUTH_INVALID_TOKEN
-            );
-        }
-    }
-
-    /**
-     * 사용자가 Refresh 가능한 ACTIVE 상태인지 확인합니다.
-     *
-     * @param user 인증 세션의 사용자
-     */
-    private void validateActiveUser(User user) {
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new BusinessException(
-                    ErrorCode.USER_NOT_ACTIVE
             );
         }
     }

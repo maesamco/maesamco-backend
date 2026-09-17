@@ -63,17 +63,36 @@ public enum ErrorCode {
     // 재시도해볼 수 있는 상태 둘 다 이 코드로 응답한다. 이 둘을 세분화하려면 생성 "시작"
     // 시점의 PENDING 마커가 있어야 하는데, 지금은 성공/실패가 끝난 뒤에만 이력을 남겨서
     // 구분할 수 없다 — PR #111 재검증에서 확인된 별도 개선 과제).
-    AI_FEEDBACK_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 생성된 피드백이 없습니다."),
+    // 이슈 #173 — 이 코드는 "아직 예산이 남아있어 재시도해볼 만한 상태"라, 문구도 재시도를
+    // 권하는 톤으로 바꿨다(quota 소진 같은 내부 사정은 노출하지 않는다).
+    AI_FEEDBACK_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요."),
     // PR #111 재검증(외부 AI 리뷰) — "세션이 아직 완료 안 됨"과 "완료됐지만 피드백이 아직
     // 없음"을 같은 404로 뭉개면 클라이언트가 폴링할지 재시도 버튼을 보여줄지 구분할 수
     // 없다. 코칭이 끝나야 피드백 생성 자체가 시작되므로 별도 코드로 분리한다.
     AI_FEEDBACK_NOT_STARTED(HttpStatus.NOT_FOUND, "아직 코칭 세션이 완료되지 않아 피드백 생성이 시작되지 않았습니다."),
-    // 이슈 #52 — 세션당 재시도 3회(최초 1회 + 재시도 3회, 총 4회) 소진.
-    AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "AI 피드백 재시도 횟수를 초과했습니다."),
+    // PR #182 리뷰(용현님 P2) — AiFeedbackRetryFacade가 세션 완료 이후 재구성에 필요한
+    // 선행 데이터(FollowUpQuestion/FollowUpAnswer, 완료 시점 이전 Explanation 후보)를
+    // 찾다가 하나라도 없으면 이 코드로 응답한다. 세션이 이미 완료된 상태에서 이 데이터들이
+    // 없다는 건 "아직 준비 안 됨"이 아니라 데이터 정합성 이상이라, AI_FEEDBACK_NOT_FOUND의
+    // "잠시 후 다시 시도해주세요" 문구를 그대로 쓰면 재시도해도 절대 해결되지 않는 상태를
+    // 재시도하라고 안내하게 된다 — AI_FEEDBACK_RETRY_LIMIT_EXCEEDED와 같은 "문의" 톤으로
+    // 분리한다.
+    AI_FEEDBACK_PREREQUISITE_MISSING(HttpStatus.CONFLICT, "피드백을 생성할 수 없는 상태입니다. 문의해주세요."),
+    // 이슈 #52 — 세션당 재시도 3회(최초 1회 + 재시도 3회, 총 4회) 소진. 이슈 #173로
+    // 인프라 실패(quota 소진 등)는 이 카운트에서 제외돼서, 이 코드는 이제 콘텐츠 자체가
+    // 반복 실패하는 드문 경우로 좁혀졌다 — 재시도를 권하는 대신 문의로 유도하는 톤으로 변경.
+    AI_FEEDBACK_RETRY_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "AI 피드백 생성에 계속 실패했습니다. 문의해주세요."),
     // PR #111 재검증(외부 AI 리뷰) — 같은 세션에 대한 재시도 요청이 이미 처리 중일 때
     // (Redis 락 획득 실패) 응답. 락 없이 진행하면 동시 요청이 전부 재시도 예산을 소모할
     // 수 있어 추가했다.
     AI_FEEDBACK_RETRY_IN_PROGRESS(HttpStatus.CONFLICT, "이미 AI 피드백 재시도가 진행 중입니다. 잠시 후 다시 시도해주세요."),
+    // 이슈 #207 — waitForConcurrentHint()가 폴링 시간(2초) 안에 다른 요청이 만든 힌트를
+    // 못 찾았을 때 쓴다. 이건 AI_GENERATION_FAILED(진짜 LLM 호출 실패)와 다르다 — 다른
+    // 요청이 여전히 정상적으로 생성 중일 가능성이 높고(LOCK_TTL 150초 안에서는 계속
+    // 진행 중), 그저 대기창이 짧아서 못 기다린 것뿐이다. 같은 503으로 뭉개면 클라이언트가
+    // "완전히 실패했다"고 오인해 재시도 타이밍을 그르칠 수 있어 AiFeedbackRetryFacade의
+    // AI_FEEDBACK_RETRY_IN_PROGRESS와 동일한 취지로 분리한다.
+    HINT_GENERATION_IN_PROGRESS(HttpStatus.CONFLICT, "다른 요청이 이미 이 힌트를 생성하고 있습니다. 잠시 후 다시 시도해주세요."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
     WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다."),
     // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가

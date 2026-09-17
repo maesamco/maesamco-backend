@@ -49,6 +49,26 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 사용 중인 닉네임입니다."
     ),
+    USER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "사용자를 찾을 수 없습니다."
+    ),
+    USER_CURRENT_PASSWORD_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "현재 비밀번호가 일치하지 않습니다."
+    ),
+    USER_PASSWORD_POLICY_VIOLATION(
+            HttpStatus.BAD_REQUEST,
+            "새 비밀번호가 비밀번호 정책을 만족하지 않습니다."
+    ),
+    USER_PASSWORD_CHANGE_CONFLICT(
+            HttpStatus.CONFLICT,
+            "비밀번호 변경 중 동시 수정이 감지되었습니다. 다시 시도해주세요."
+    ),
+    USER_PROFILE_UPDATE_CONFLICT(
+            HttpStatus.CONFLICT,
+            "사용자 정보 수정 중 동시 변경이 감지되었습니다. 다시 시도해주세요."
+    ),
     EMAIL_VERIFICATION_INVALID_CODE(
             HttpStatus.BAD_REQUEST,
             "인증 코드가 올바르지 않습니다."
@@ -77,12 +97,20 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 등록된 관심 개념입니다."
     ),
+    CONCEPT_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "존재하지 않거나 사용할 수 없는 개념이 포함되어 있습니다."
+    ),
     XP_HISTORY_ALREADY_EXISTS(
             HttpStatus.CONFLICT,
             "이미 처리된 XP 이력입니다."
     ),
 
     // ===== 서비스 간 통신 =====
+    CONTENT_SERVICE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "개념 정보를 확인할 수 없어 잠시 후 다시 시도해주세요."
+    ),
     FEIGN_CLIENT_ERROR(
             HttpStatus.BAD_GATEWAY,
             "서비스 간 통신 중 오류가 발생했습니다."
@@ -94,7 +122,11 @@ public enum ErrorCode {
     INTERNAL_CALL_TIMESTAMP_EXPIRED(
             HttpStatus.UNAUTHORIZED,
             "내부 호출 요청이 만료되었습니다(재전송 의심)."
-    );
+    ),
+    // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
+    // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
+    // 대상이 아닌 서비스가 호출한 경우에 쓴다(PR #124 리뷰, 용현님).
+    INTERNAL_CALLER_NOT_ALLOWED(HttpStatus.FORBIDDEN, "이 내부 API를 호출할 수 없는 서비스입니다.");
 
     // ===== judge =====
     // SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),

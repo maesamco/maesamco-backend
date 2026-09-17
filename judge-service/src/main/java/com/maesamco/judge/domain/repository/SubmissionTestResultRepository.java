@@ -9,5 +9,5 @@ public interface SubmissionTestResultRepository extends JpaRepository<Submission
 
     List<SubmissionTestResult> findBySubmissionIdAndPassedFalse(UUID submissionId);
 
-    List<SubmissionTestResult> findBySubmissionId(UUID submissionId);
+    List<SubmissionTestResult> findBySubmissionIdOrderByCreatedAtAscIdAsc(UUID submissionId);
 }

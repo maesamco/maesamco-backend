@@ -18,6 +18,8 @@ import com.maesamco.coaching.domain.repository.AiCallHistoryRepository;
 import com.maesamco.coaching.domain.repository.HintRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -67,6 +69,7 @@ public class HintGenerationFacade {
     private final AiCallHistoryRepository aiCallHistoryRepository;
     private final HintGenerationLockPort hintGenerationLockPort;
     private final WeakConceptPersistenceService weakConceptPersistenceService;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
 
     public HintGenerationFacade(
             JudgeServicePort judgeServicePort,
@@ -76,7 +79,8 @@ public class HintGenerationFacade {
             AiModelPort aiModelPort,
             AiCallHistoryRepository aiCallHistoryRepository,
             HintGenerationLockPort hintGenerationLockPort,
-            WeakConceptPersistenceService weakConceptPersistenceService
+            WeakConceptPersistenceService weakConceptPersistenceService,
+            CircuitBreakerRegistry circuitBreakerRegistry
     ) {
         this.judgeServicePort = judgeServicePort;
         this.contentServicePort = contentServicePort;
@@ -86,6 +90,7 @@ public class HintGenerationFacade {
         this.aiCallHistoryRepository = aiCallHistoryRepository;
         this.hintGenerationLockPort = hintGenerationLockPort;
         this.weakConceptPersistenceService = weakConceptPersistenceService;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
     public HintGenerationResult requestHint(UUID submissionId, UUID callerId) {
@@ -220,8 +225,13 @@ public class HintGenerationFacade {
 
     /**
      * 다른 요청이 이미 이 stage의 힌트를 생성 중일 때, LLM을 또 호출하지 않고 그 요청이
-     * 저장을 마칠 때까지 짧게 폴링한다. 시간 안에 나타나지 않으면(그 요청이 실패했거나
-     * 예상보다 오래 걸리는 경우) 클라이언트에 재시도 가능한 실패로 응답한다.
+     * 저장을 마칠 때까지 짧게 폴링한다.
+     *
+     * 이슈 #207 — 시간 안에 나타나지 않아도 그 요청이 실패했다고 단정하지 않는다.
+     * LOCK_TTL(150초) 안에서는 여전히 정상적으로 진행 중일 가능성이 높고, 이 폴링
+     * 시간(2초)이 LLM 왕복 시간(최악 90~100초)보다 훨씬 짧아서 대부분 못 기다리고
+     * 포기하는 것뿐이다 — HINT_GENERATION_IN_PROGRESS(409)로 응답해 "실패"가 아니라
+     * "아직 진행 중이니 잠시 후 다시 시도"임을 클라이언트에 구분해서 알린다.
      */
     private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int expectedStage, boolean skipAvailable) {
         for (int attempt = 0; attempt < LOCK_WAIT_MAX_ATTEMPTS; attempt++) {
@@ -237,7 +247,7 @@ public class HintGenerationFacade {
             }
         }
         log.warn("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
-        throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+        throw new BusinessException(ErrorCode.HINT_GENERATION_IN_PROGRESS);
     }
 
     private Hint maxStageHint(List<Hint> existingHints) {
@@ -309,27 +319,73 @@ public class HintGenerationFacade {
                 problem.description(), String.join(", ", problem.conceptTags()),
                 submission.code(), submission.failedTestSummary(), formatPreviousHints(previousHints));
 
+        // 이슈 #150 — 응답시간 계측 인프라. AiCallHistory.responseTimeMs가 지금까지 항상
+        // null로 하드코딩돼 있어 실제 병목(네트워크/모델 추론/재시도 대기)을 데이터로 확인할
+        // 방법이 없었다 — aiModelPort.generate() 호출 전후 시간만 재서 채운다.
+        long startedAt = System.currentTimeMillis();
+        AiModelResponse response;
         try {
-            AiModelResponse response = aiModelPort.generate(systemPrompt, userPrompt);
-            // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 —
-            // 그대로 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
-            // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
-            // 잘못 분류된다(PR #70 리뷰, 용현님 P2).
-            if (response.content() == null || response.content().isBlank()) {
-                throw new AiModelCallException("AI가 빈 응답을 반환했습니다.", null);
-            }
-            recordAiCallHistory(AiCallHistory.create(
-                    session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
-                    "SUCCESS", null, response.tokenUsage(), null, 0
-            ));
-            return response.content();
+            response = aiModelPort.generate(systemPrompt, userPrompt);
         } catch (AiModelCallException e) {
+            // PR #182 리뷰(용현님 P2) 대응 — 이 catch는 이제 chatModel.call() 자체가
+            // 실패한 "진짜" 어댑터 예외만 잡는다(빈 응답 케이스는 아래에서 별도 처리).
+            // neverCalled()로 "호출 자체가 없었음"(SKIPPED)과 "호출은 했지만 인프라
+            // 실패"(INFRA_FAILED)를 구분해서, FeedbackGenerationFacade와 동일한 의미로
+            // 기록한다(전에는 원인 무관하게 전부 FAILED였음).
+            int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+            String status = e.neverCalled() ? "SKIPPED" : "INFRA_FAILED";
+            log.warn("AI 힌트 생성 실패 - coachingSessionId={}", session.getId(), e);
             recordAiCallHistory(AiCallHistory.create(
                     session.getId(), AiCallPurpose.HINT, "unknown", PROMPT_VERSION,
-                    "FAILED", null, null, e.getMessage(), 0
+                    status, responseTimeMs, null, e.getMessage(), 0
             ));
-            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED, hintGenerationFailedMessage());
         }
+        int responseTimeMs = (int) (System.currentTimeMillis() - startedAt);
+
+        // 예외 없이 성공했지만 content가 null/blank인 경우도 실패로 취급한다 — 그대로
+        // 두면 SUCCESS 이력이 남고, 이후 Hint.create()의 requireText()가
+        // INVALID_INPUT_VALUE(400)를 던져서 AI 생성 실패가 클라이언트 입력 오류처럼
+        // 잘못 분류된다(PR #70 리뷰, 용현님 P2). PR #182 리뷰(용현님 P2) 대응 — 이 경우는
+        // 호출 자체는 성공했으므로(SKIPPED/INFRA_FAILED 둘 다 아님) 예외를 거치지 않고
+        // FAILED로 직접 기록한다.
+        if (response.content() == null || response.content().isBlank()) {
+            recordAiCallHistory(AiCallHistory.create(
+                    session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
+                    "FAILED", responseTimeMs, response.tokenUsage(), "AI가 빈 응답을 반환했습니다.", 0
+            ));
+            throw new BusinessException(ErrorCode.AI_GENERATION_FAILED, hintGenerationFailedMessage());
+        }
+
+        recordAiCallHistory(AiCallHistory.create(
+                session.getId(), AiCallPurpose.HINT, response.modelName(), PROMPT_VERSION,
+                "SUCCESS", responseTimeMs, response.tokenUsage(), null, 0
+        ));
+        return response.content();
+    }
+
+    /**
+     * 이슈 #149 — 힌트는 재시도 예산 개념이 없어(Feedback과 달리) 학생이 언제든 다시
+     * 요청할 수 있지만, "언제까지 기다려야 하는지" 신호가 없으면 quota 소진처럼 오래
+     * 걸리는 장애 동안에도 계속 헛되이 재시도하게 된다. 예외 타입을 다시 식별하는
+     * 화이트리스트 대신, 서킷브레이커(ai-model)의 현재 상태를 직접 조회한다 — quota
+     * 소진 같은 원인이 무엇이든 지속되는 장애면 결국 서킷이 열리므로, "지금 시스템이
+     * 실제로 안 좋은 상태인가"를 정확히 반영하는 신호다. quota 자체를 노출하지 않는다.
+     *
+     * PR #182 리뷰(용현님 P3) 대응 — HALF_OPEN(OPEN에서 wait-duration-in-open-state 경과
+     * 후, permitted-number-of-calls-in-half-open-state만큼 프로브 호출을 허용하는 중간
+     * 상태)도 OPEN과 같은 문구로 묶는다. 이 상태는 장애가 아직 끝났는지 확인하는 중이라
+     * OPEN과 마찬가지로 실제로 안 좋은 상태일 수 있는데, 여기서 빠지면 프로브 호출 하나가
+     * 실패할 때마다 이 기능이 막으려던 "지속 장애인데 일반 재시도를 권하는" 상황이 그대로
+     * 재현된다.
+     */
+    private String hintGenerationFailedMessage() {
+        CircuitBreaker.State state = circuitBreakerRegistry.circuitBreaker("ai-model").getState();
+        if (state == CircuitBreaker.State.OPEN || state == CircuitBreaker.State.FORCED_OPEN
+                || state == CircuitBreaker.State.HALF_OPEN) {
+            return "지금 일시적으로 이용이 어렵습니다. 시간을 두고 다시 시도해주세요.";
+        }
+        return "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
     }
 
     /**
@@ -351,6 +407,9 @@ public class HintGenerationFacade {
      * AiModelPort는 단발성 호출이라 대화 이력을 서버에 유지하지 않는다 — 대신 이전 단계
      * 힌트 내용을 매 호출의 프롬프트에 텍스트로 포함시켜, 다음 단계가 앞 단계를 반복하거나
      * 결이 다른 방향으로 튀지 않고 자연스럽게 이어지게 한다.
+     *
+     * TODO(#180): 단계가 올라갈수록 이전 힌트 전문이 계속 누적돼 입력 토큰이 불어난다 —
+     * 전문 대신 요약만 남기는 것도 검토 대상(이슈 #150에서 이관).
      */
     private String formatPreviousHints(List<Hint> previousHints) {
         if (previousHints.isEmpty()) {
