@@ -9,3 +9,4 @@ out/
 .DS_Store
 *.log
 *.pem
+judge0.conf
