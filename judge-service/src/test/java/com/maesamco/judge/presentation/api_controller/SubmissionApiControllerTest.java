@@ -1,5 +1,6 @@
 package com.maesamco.judge.presentation.api_controller;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -30,12 +31,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -361,6 +364,34 @@ class SubmissionApiControllerTest {
                     .andExpect(status().isOk());
 
             verify(submissionQueryService, never()).getSubmission(any(), any());
+        }
+
+        @Test
+        @DisplayName("page/size/sort/direction 쿼리 파라미터가 Pageable에 정확히 반영된다")
+        void passesPageableParametersCorrectly() throws Exception {
+            UUID userId = UUID.randomUUID();
+            PageResponse<SubmissionSummaryResult> emptyResponse =
+                    new PageResponse<>(List.of(), 1, 10, 0, 0, false);
+
+            given(submissionQueryService.getSubmissions(eq(userId), isNull(), any()))
+                    .willReturn(emptyResponse);
+
+            mockMvc.perform(get("/api/v1/submissions/me")
+                            .param("page", "1")
+                            .param("size", "10")
+                            .param("sort", "submittedAt")
+                            .param("direction", "ASC")
+                            .with(authenticatedAs(userId)))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(submissionQueryService).getSubmissions(eq(userId), isNull(), pageableCaptor.capture());
+            Pageable captured = pageableCaptor.getValue();
+
+            assertThat(captured.getPageNumber()).isEqualTo(1);
+            assertThat(captured.getPageSize()).isEqualTo(10);
+            assertThat(captured.getSort().getOrderFor("submittedAt")).isNotNull();
+            assertThat(captured.getSort().getOrderFor("submittedAt").isAscending()).isTrue();
         }
     }
 }

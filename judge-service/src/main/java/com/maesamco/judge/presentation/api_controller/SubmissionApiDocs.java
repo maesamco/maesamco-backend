@@ -55,11 +55,14 @@ public interface SubmissionApiDocs {
     @Operation(
             summary = "내 제출·재도전 이력 목록 조회",
             description = "로그인한 사용자의 제출 이력을 페이지 단위로 조회한다. "
-                    + "problemId로 필터링할 수 있다. size/sort/direction이 유효하지 않으면 "
-                    + "PageableFactory 기본값으로 조용히 대체된다(400 아님)."
+                    + "problemId로 필터링할 수 있다. "
+                    + "size가 유효하지 않으면 기본값(20)으로, direction이 유효하지 않으면 기본값(DESC)으로 조용히 대체된다. "
+                    + "sort는 비어 있으면 기본값(createdAt)으로 대체되지만, 존재하지 않는 필드명을 지정하면 "
+                    + "400(INVALID_SORT_PROPERTY)으로 응답한다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "INVALID_SORT_PROPERTY — 존재하지 않는 정렬 필드"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청")
     })
     ResponseEntity<SuccessResponse<PageResponse<SubmissionSummaryResult>>> getMySubmissions(

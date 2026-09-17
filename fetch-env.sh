@@ -132,8 +132,8 @@ if [ ! -f judge0.conf.template ]; then
     exit 1
 fi
 
-sed -e "s/__JUDGE0_POSTGRES_PASSWORD__/${JUDGE0_POSTGRES_PASSWORD}/" \
-    -e "s/__JUDGE0_REDIS_PASSWORD__/${JUDGE0_REDIS_PASSWORD}/" \
+sed -e "s|__JUDGE0_POSTGRES_PASSWORD__|${JUDGE0_POSTGRES_PASSWORD}|" \
+    -e "s|__JUDGE0_REDIS_PASSWORD__|${JUDGE0_REDIS_PASSWORD}|" \
     judge0.conf.template > judge0.conf
 
 echo "완료 — judge0.conf 생성됨."

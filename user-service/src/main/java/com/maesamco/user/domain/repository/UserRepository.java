@@ -2,6 +2,7 @@ package com.maesamco.user.domain.repository;
 
 import com.maesamco.user.domain.entity.User;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +43,23 @@ public interface UserRepository {
      * @return 조회된 사용자, 존재하지 않으면 빈 Optional
      */
     Optional<User> findByIdForUpdate(UUID userId);
+
+    /**
+     * Daily Quiz 생성 대상 사용자 ID를 cursor 이후부터 조회합니다.
+     *
+     * <p>탈퇴하지 않은 ACTIVE 상태의 일반 사용자만 대상으로 하며,
+     * 사용자 ID 오름차순으로 최대 {@code limit}건을 반환합니다.</p>
+     *
+     * <p>{@code cursor}가 null이면 첫 페이지를 조회합니다.</p>
+     *
+     * @param cursor 직전 페이지의 마지막 사용자 ID, 첫 페이지이면 null
+     * @param limit DB에서 조회할 최대 사용자 수
+     * @return 조건을 만족하는 사용자 ID 목록
+     */
+    List<UUID> findQuizTargetUserIds(
+            UUID cursor,
+            int limit
+    );
 
     /**
      * 이메일 조회용 해시로 사용자를 조회합니다.

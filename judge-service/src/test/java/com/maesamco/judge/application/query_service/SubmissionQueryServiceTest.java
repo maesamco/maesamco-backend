@@ -383,15 +383,13 @@ class SubmissionQueryServiceTest {
         @DisplayName("problemId가 없으면 findByUserId로 조회하고 PageResponse로 매핑한다")
         void returnsPageResponseWithoutProblemIdFilter() {
             UUID submissionId = UUID.randomUUID();
-            Submission submission = pendingSubmission(submissionId);
-            submission.markQueued();
-            submission.markRunning();
-            submission.markCompleted(SubmissionResult.CORRECT, 100, 1024);
+            SubmissionSummaryResult summary = new SubmissionSummaryResult(
+                    submissionId, problemId, 3, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
 
             Pageable pageable = PageRequest.of(0, 20);
-            Page<Submission> page = new PageImpl<>(List.of(submission), pageable, 1);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-            given(submissionRepository.findByUserId(userId, pageable)).willReturn(page);
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
 
             PageResponse<SubmissionSummaryResult> result =
                     submissionQueryService.getSubmissions(userId, null, pageable);
@@ -400,7 +398,7 @@ class SubmissionQueryServiceTest {
             assertThat(result.content().get(0).submissionId()).isEqualTo(submissionId);
             assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.COMPLETED);
             assertThat(result.totalElements()).isEqualTo(1);
-            verify(submissionRepository, never()).findByUserIdAndProblemId(any(), any(), any());
+            verify(submissionRepository, never()).findSummariesByUserIdAndProblemId(any(), any(), any());
         }
 
         @Test
@@ -408,16 +406,57 @@ class SubmissionQueryServiceTest {
         void returnsPageResponseWithProblemIdFilter() {
             UUID filterProblemId = UUID.randomUUID();
             Pageable pageable = PageRequest.of(0, 20);
-            Page<Submission> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+            Page<SubmissionSummaryResult> emptyPage = new PageImpl<>(List.of(), pageable, 0);
 
-            given(submissionRepository.findByUserIdAndProblemId(userId, filterProblemId, pageable))
+            given(submissionRepository.findSummariesByUserIdAndProblemId(userId, filterProblemId, pageable))
                     .willReturn(emptyPage);
 
             PageResponse<SubmissionSummaryResult> result =
                     submissionQueryService.getSubmissions(userId, filterProblemId, pageable);
 
             assertThat(result.content()).isEmpty();
-            verify(submissionRepository, never()).findByUserId(any(), any());
+            verify(submissionRepository, never()).findSummariesByUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("페이지에 여러 건이 있으면 순서와 개수를 그대로 매핑한다")
+        void returnsMultipleItemsInPage() {
+            SubmissionSummaryResult first = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
+            SubmissionSummaryResult second = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 2, SubmissionStatus.COMPLETED, SubmissionResult.WRONG, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(first, second), pageable, 2);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(2);
+            assertThat(result.content().get(0).submissionId()).isEqualTo(first.submissionId());
+            assertThat(result.content().get(1).submissionId()).isEqualTo(second.submissionId());
+            assertThat(result.totalElements()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("COMPLETED가 아닌 상태의 제출은 result가 null로 매핑된다")
+        void returnsNullResultForNonCompletedStatus() {
+            SubmissionSummaryResult running = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.RUNNING, null, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(running), pageable, 1);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(1);
+            assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.content().get(0).result()).isNull();
         }
     }
 }
