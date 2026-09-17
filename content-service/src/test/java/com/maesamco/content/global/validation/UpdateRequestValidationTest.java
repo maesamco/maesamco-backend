@@ -1,9 +1,9 @@
 package com.maesamco.content.global.validation;
 
-import com.maesamco.content.presentation.curriculum.dto.request.CurriculumUpdateRequest;
-import com.maesamco.content.presentation.lesson.dto.request.LessonUpdateRequest;
-import com.maesamco.content.presentation.tag.dto.request.TagUpdateRequest;
-import com.maesamco.content.presentation.unit.dto.request.UnitUpdateRequest;
+import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
+import com.maesamco.content.presentation.request.LessonUpdateRequest;
+import com.maesamco.content.presentation.request.TagUpdateRequest;
+import com.maesamco.content.presentation.request.UnitUpdateRequest;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
