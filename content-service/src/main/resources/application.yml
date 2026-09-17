@@ -48,8 +48,23 @@ spring:
 outbox:
   daily-quiz-completed:
     relay:
+      # 한 번의 polling에서 처리할 최대 PENDING Outbox 개수입니다.
+      batch-size: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BATCH_SIZE:50}
+
       # Kafka ACK를 기다리는 최대 시간입니다.
       publish-timeout-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
+
+      # Kafka 발행 전 허용할 JSON payload의 최대 UTF-8 바이트 크기입니다.
+      max-payload-bytes: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_MAX_PAYLOAD_BYTES:900000}
+
+      # 확정적인 Kafka 발행 실패를 재시도할 최대 횟수입니다.
+      max-retry-count: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_MAX_RETRY_COUNT:10}
+
+      # 실패 후 첫 재시도까지 기다릴 기본 시간입니다.
+      backoff-base-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BACKOFF_BASE_MS:1000}
+
+      # 지수 백오프가 증가할 수 있는 최대 시간입니다.
+      backoff-max-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BACKOFF_MAX_MS:60000}
 
   problem-published:
     relay:
