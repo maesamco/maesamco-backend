@@ -57,9 +57,9 @@ public class SubmissionQueryService {
     }
 
     public PageResponse<SubmissionSummaryResult> getSubmissions(UUID userId, UUID problemId, Pageable pageable) {
-        Page<Submission> submissions = (problemId != null)
-                ? submissionRepository.findByUserIdAndProblemId(userId, problemId, pageable)
-                : submissionRepository.findByUserId(userId, pageable);
-        return PageResponse.from(submissions, SubmissionSummaryResult::from);
+        Page<SubmissionSummaryResult> submissions = (problemId != null)
+                ? submissionRepository.findSummariesByUserIdAndProblemId(userId, problemId, pageable)
+                : submissionRepository.findSummariesByUserId(userId, pageable);
+        return PageResponse.from(submissions);
     }
 }
