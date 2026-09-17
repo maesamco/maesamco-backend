@@ -5,14 +5,18 @@ import com.maesamco.judge.application.command.SubmissionCreateCommand;
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
+import com.maesamco.judge.application.result.SubmissionSummaryResult;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
+import com.maesamco.judge.global.response.PageResponse;
 import com.maesamco.judge.global.response.SuccessResponse;
+import com.maesamco.judge.global.util.PageableFactory;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
 import com.maesamco.judge.presentation.response.SubmissionExternalGetResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -57,6 +61,23 @@ public class SubmissionApiController implements SubmissionApiDocs {
         SubmissionExternalGetResult result = submissionQueryService.getSubmission(submissionId, userId);
         SubmissionExternalGetResponse response = SubmissionExternalGetResponse.from(result);
         return ResponseEntity.status(HttpStatus.OK).body(SuccessResponse.success(response));
+    }
+
+    @Override
+    @GetMapping("/me")
+    public ResponseEntity<SuccessResponse<PageResponse<SubmissionSummaryResult>>> getMySubmissions (
+            @AuthenticationPrincipal UUID userId,
+            @RequestParam(required = false) UUID problemId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction
+    ) {
+        requireAuthenticated(userId);
+        Pageable pageable = PageableFactory.of(page, size, sort, direction);
+        PageResponse<SubmissionSummaryResult> result =
+                submissionQueryService.getSubmissions(userId, problemId, pageable);
+        return ResponseEntity.status(HttpStatus.OK).body(SuccessResponse.success(result));
     }
 
 

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.maesamco.judge.application.query.SubmissionGetQuery;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
 import com.maesamco.judge.application.result.SubmissionInternalGetResult;
+import com.maesamco.judge.application.result.SubmissionSummaryResult;
 import com.maesamco.judge.domain.entity.FailureCode;
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionLanguage;
@@ -22,6 +23,8 @@ import com.maesamco.judge.global.exception.BusinessException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.maesamco.judge.global.response.PageResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -366,5 +373,90 @@ class SubmissionQueryServiceTest {
         assertThat(result.result()).isNull();
         assertThat(result.failureCode()).isNull();
         verify(submissionTestResultRepository, never()).findBySubmissionIdOrderByCreatedAtAscIdAsc(any());
+    }
+
+    @Nested
+    @DisplayName("getSubmissions")
+    class GetSubmissions {
+
+        @Test
+        @DisplayName("problemId가 없으면 findByUserId로 조회하고 PageResponse로 매핑한다")
+        void returnsPageResponseWithoutProblemIdFilter() {
+            UUID submissionId = UUID.randomUUID();
+            SubmissionSummaryResult summary = new SubmissionSummaryResult(
+                    submissionId, problemId, 3, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(1);
+            assertThat(result.content().get(0).submissionId()).isEqualTo(submissionId);
+            assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.COMPLETED);
+            assertThat(result.totalElements()).isEqualTo(1);
+            verify(submissionRepository, never()).findSummariesByUserIdAndProblemId(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("problemId가 있으면 findByUserIdAndProblemId로 필터링해서 조회한다")
+        void returnsPageResponseWithProblemIdFilter() {
+            UUID filterProblemId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+            given(submissionRepository.findSummariesByUserIdAndProblemId(userId, filterProblemId, pageable))
+                    .willReturn(emptyPage);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, filterProblemId, pageable);
+
+            assertThat(result.content()).isEmpty();
+            verify(submissionRepository, never()).findSummariesByUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("페이지에 여러 건이 있으면 순서와 개수를 그대로 매핑한다")
+        void returnsMultipleItemsInPage() {
+            SubmissionSummaryResult first = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
+            SubmissionSummaryResult second = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 2, SubmissionStatus.COMPLETED, SubmissionResult.WRONG, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(first, second), pageable, 2);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(2);
+            assertThat(result.content().get(0).submissionId()).isEqualTo(first.submissionId());
+            assertThat(result.content().get(1).submissionId()).isEqualTo(second.submissionId());
+            assertThat(result.totalElements()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("COMPLETED가 아닌 상태의 제출은 result가 null로 매핑된다")
+        void returnsNullResultForNonCompletedStatus() {
+            SubmissionSummaryResult running = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.RUNNING, null, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(running), pageable, 1);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(1);
+            assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.content().get(0).result()).isNull();
+        }
     }
 }
