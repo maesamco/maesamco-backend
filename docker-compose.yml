@@ -136,10 +136,8 @@ services:
   # ================= Judge0 =================
   # ⚠️ 플레이스홀더: Judge0는 자체적으로 PostgreSQL·Redis·Server·Worker로 구성된
   # 별도의 다중 컨테이너 스택입니다(공식: https://github.com/judge0/judge0).
-  # AWS 배포용(docker-compose.prod.yml)에는 실제 스택을 통합했습니다 — 로컬
-  # 개발에서는 그 배포된 Judge0를 JUDGE0_BASE_URL로 가리켜 쓰는 걸 권장합니다
-  # (Windows+Docker Desktop에서 Judge0 자체를 실행하는 데 알려진 호환성 문제가
-  # 있었기 때문 — 로컬에서 직접 띄우는 대신 배포된 것을 공유해서 씁니다).
+  # 여기서는 자리만 남겨두고, 실제 연동 시 공식 docker-compose를 이 파일에 merge하거나
+  # `docker compose -f docker-compose.yml -f judge0/docker-compose.yml up -d` 형태로 합쳐 씁니다.
   # judge0:
   #   image: judge0/judge0:1.13.1
   #   ports:
@@ -219,22 +217,23 @@ services:
       JWT_REFRESH_PRIVATE_KEY: ${JWT_REFRESH_PRIVATE_KEY}
       EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
       EMAIL_LOOKUP_HMAC_KEY: ${EMAIL_LOOKUP_HMAC_KEY}
-      # ⚠️ 배포 스크립트 리뷰로 발견 — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
+      # 이슈(배포 스크립트 리뷰) — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
       # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
       EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
-      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-false}
-      MAIL_STARTTLS_REQUIRED: ${MAIL_STARTTLS_REQUIRED:-false}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_STARTTLS_REQUIRED: ${MAIL_STARTTLS_REQUIRED:-true}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
       HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
       HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
       HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(user-service가 발신자일 때 서명할 키)
       HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
     depends_on:
       postgres-user:
@@ -264,6 +263,8 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(content-service가 수신자일 때 검증할 키)
+      HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
       HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
     depends_on:
       postgres-content:

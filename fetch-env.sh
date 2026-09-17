@@ -39,7 +39,13 @@ get_param() {
 }
 
 write() {
-    echo "$1=$(get_param "$1")" >> "$TMP_ENV"
+    # ⚠️ 리뷰로 발견 — echo "$1=$(get_param "$1")" 형태는 get_param 내부의
+    # exit 1이 명령어 치환(subshell)만 종료시키고, 바깥 echo 자체의 종료 상태는
+    # 항상 0이라 set -e가 못 잡는다. 값을 먼저 변수에 할당해서(대입문 자체의
+    # 종료 상태로 실패가 정확히 전파됨) set -e가 실제로 작동하게 한다.
+    local value
+    value=$(get_param "$1")
+    echo "$1=$value" >> "$TMP_ENV"
 }
 
 echo "===== .env 생성 ====="
@@ -80,6 +86,9 @@ write HMAC_KEY_CONTENT_TO_COACHING
 write HMAC_KEY_CONTENT_TO_USER
 write HMAC_KEY_JUDGE_TO_USER
 write HMAC_KEY_COACHING_TO_USER
+# ⚠️ 리뷰로 발견 — .env.example/User Service 설정엔 있는데 이 스크립트엔
+# 빠져있었다(User → Content 내부 통신용).
+write HMAC_KEY_USER_TO_CONTENT
 
 # ===== Daily Quiz 배치 (비밀값 아님, 운영 설정값) =====
 echo 'DAILY_QUIZ_BATCH_CRON="0 0 3 * * *"' >> "$TMP_ENV"

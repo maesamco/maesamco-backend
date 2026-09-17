@@ -28,9 +28,12 @@ echo "===== 5. 상태 확인 ====="
 sleep 10
 docker compose -f docker-compose.prod.yml ps -a
 
-# exited 상태인 컨테이너가 하나라도 있으면 배포 실패로 간주
-if docker compose -f docker-compose.prod.yml ps -a --format json | grep -q '"State":"exited"'; then
-    echo "❌ 배포 실패 — exited 상태인 컨테이너가 있습니다. 로그를 확인하세요."
+# exited 상태이거나, running인데 헬스체크가 unhealthy인 컨테이너가 있으면 배포 실패로 간주
+# ⚠️ 리뷰로 발견 — 예전엔 "State":"exited"만 확인해서, running인데 unhealthy인
+# 컨테이너(예: healthcheck는 있지만 계속 실패 중인 상태)는 실패로 안 잡혔다.
+STATUS_JSON=$(docker compose -f docker-compose.prod.yml ps -a --format json)
+if echo "$STATUS_JSON" | grep -q '"State":"exited"' || echo "$STATUS_JSON" | grep -q '"Health":"unhealthy"'; then
+    echo "❌ 배포 실패 — exited 또는 unhealthy 상태인 컨테이너가 있습니다. 로그를 확인하세요."
     exit 1
 fi
 
