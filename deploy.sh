@@ -18,7 +18,14 @@ echo "===== 2. Parameter Store에서 .env 갱신 ====="
 bash ./fetch-env.sh
 
 echo "===== 3. docker-compose.prod.yml 빌드 (기존 서비스는 아직 살아있는 상태) ====="
-docker compose -f docker-compose.prod.yml build
+# ⚠️ 실제 배포로 발견 — 6개 서비스를 한 번에 빌드(build 인자 없이)하면
+# t3.medium/large에서도 메모리 부족으로 인스턴스 자체가 응답 불능 상태에
+# 빠질 수 있었다(재부팅해야 했음). 서비스 하나씩 순차적으로 빌드해서
+# 동시 메모리 사용량을 줄인다 — 시간은 조금 더 걸리지만 훨씬 안정적이다.
+for svc in eureka-server api-gateway user-service content-service judge-service coaching-service; do
+    echo "  --- $svc 빌드 중 ---"
+    docker compose -f docker-compose.prod.yml build "$svc"
+done
 
 echo "===== 4. 재기동 ====="
 docker compose -f docker-compose.prod.yml down
