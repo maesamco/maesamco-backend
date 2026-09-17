@@ -1,6 +1,8 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventData;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventPort;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
@@ -17,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Daily Quiz 문항 제출의 잠금·검증·채점·완료 처리를 조정합니다.
@@ -28,6 +34,7 @@ public class DailyQuizSubmitService {
     private final DailyQuizAttemptRepository attemptRepository;
     private final DailyQuizAttemptItemRepository attemptItemRepository;
     private final DailyQuizQuestionRepository questionRepository;
+    private final DailyQuizCompletedEventPort completedEventPort;
     private final Clock dailyQuizClock;
 
     @Transactional
@@ -78,11 +85,8 @@ public class DailyQuizSubmitService {
         // questionVersionId로 문제 버전을 조회
         DailyQuizQuestion question = questionRepository
                 .findById(command.questionVersionId())
-                .orElseThrow(() -> new BusinessException(
-                        ErrorCode.INTERNAL_SERVER_ERROR,
-                        "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId="
-                                + command.questionVersionId()
-                ));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,
+                        "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId=" + command.questionVersionId()));
 
         // DailyQuizQuestion.isCorrect(command.response())로 즉시 채점
         boolean correct = question.isCorrect(command.response());
@@ -121,7 +125,25 @@ public class DailyQuizSubmitService {
 
         // attempt.complete(correctCount, now)를 호출해 세트를 완료
         attempt.complete(correctCount, now);
-        attemptRepository.save(attempt);
+        DailyQuizAttempt completedAttempt = attemptRepository.save(attempt);
+
+        // 완료된 전체 문항의 문제 버전·개념·정답 여부를 이벤트 의미 데이터로 조립
+        List<DailyQuizCompletedEventData.QuestionResult> questionResults =
+                createQuestionResults(completedAttempt);
+
+        DailyQuizCompletedEventData eventData =
+                new DailyQuizCompletedEventData(
+                        now,
+                        completedAttempt.getId(),
+                        completedAttempt.getUserId(),
+                        completedAttempt.getCorrectCount(),
+                        completedAttempt.getTotalCount(),
+                        completedAttempt.getCompletedAt(),
+                        questionResults
+                );
+
+        // 같은 트랜잭션 안에서 출력 포트를 호출하며, 직렬화와 Outbox 저장은 Adapter가 담당
+        completedEventPort.publish(eventData);
 
         // attemptCompleted=true와 correctCount, totalCount를 담은 Result를 반환
         return new DailyQuizSubmitResult(
@@ -129,7 +151,73 @@ public class DailyQuizSubmitService {
                 correct,
                 true,
                 correctCount,
-                attempt.getTotalCount()
+                completedAttempt.getTotalCount()
+        );
+    }
+
+    /**
+     * 완료된 세트의 문항 결과를 노출 순서대로 이벤트 항목으로 변환
+     */
+    private List<DailyQuizCompletedEventData.QuestionResult> createQuestionResults(
+            DailyQuizAttempt attempt
+    ) {
+        List<DailyQuizAttemptItem> attemptItems =
+                attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attempt.getId());
+
+        if (attemptItems.size() != attempt.getTotalCount()) {
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "완료된 Daily Quiz의 배정 문항 수가 전체 문항 수와 일치하지 않습니다."
+            );
+        }
+
+        List<UUID> questionIds =
+                attemptItems.stream()
+                        .map(DailyQuizAttemptItem::getQuestionId)
+                        .toList();
+
+        Map<UUID, DailyQuizQuestion> questionsById = new HashMap<>();
+        questionRepository.findAllById(questionIds)
+                .forEach(question -> questionsById.put(question.getId(), question));
+
+        if (questionsById.size() != questionIds.size()) {
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "완료된 Daily Quiz의 문제 버전 일부를 찾을 수 없습니다."
+            );
+        }
+
+        return attemptItems.stream()
+                .map(item -> toQuestionResult(item, questionsById))
+                .toList();
+    }
+
+    private DailyQuizCompletedEventData.QuestionResult toQuestionResult(
+            DailyQuizAttemptItem attemptItem,
+            Map<UUID, DailyQuizQuestion> questionsById
+    ) {
+        DailyQuizQuestion question = questionsById.get(attemptItem.getQuestionId());
+        if (question == null) {
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "완료된 Daily Quiz의 문제 버전을 찾을 수 없습니다. questionId="
+                            + attemptItem.getQuestionId()
+            );
+        }
+
+        Boolean correct = attemptItem.getCorrect();
+        if (correct == null) {
+            throw new BusinessException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "완료된 Daily Quiz 문항에 채점 결과가 없습니다. questionId="
+                            + attemptItem.getQuestionId()
+            );
+        }
+
+        return new DailyQuizCompletedEventData.QuestionResult(
+                question.getId(),
+                question.getConceptTags(),
+                correct
         );
     }
 }

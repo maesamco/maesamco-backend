@@ -3,6 +3,7 @@ package com.maesamco.content.application.dailyquiz.query_service;
 import com.maesamco.content.application.dailyquiz.query.DailyQuizGetQuery;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizGetResult;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptStatus;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
@@ -125,6 +126,36 @@ class DailyQuizGetQueryServiceTest {
                                 .isEqualTo(ErrorCode.QUIZ_NOT_FOUND)
                 );
         verifyNoInteractions(attemptItemRepository, questionRepository);
+    }
+
+    @Test
+    void 배정된_문제_버전이_없으면_INTERNAL_SERVER_ERROR를_반환한다() {
+        UUID userId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        UUID questionId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 11);
+        DailyQuizAttempt attempt = mock(DailyQuizAttempt.class);
+        DailyQuizAttemptItem attemptItem = mock(DailyQuizAttemptItem.class);
+
+        when(attempt.getId()).thenReturn(attemptId);
+        when(attemptItem.getQuestionId()).thenReturn(questionId);
+        when(attemptRepository.findByUserIdAndAttemptDate(userId, attemptDate))
+                .thenReturn(Optional.of(attempt));
+        when(attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attemptId))
+                .thenReturn(List.of(attemptItem));
+        when(questionRepository.findAllById(List.of(questionId)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> queryService.get(DailyQuizGetQuery.from(userId)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR)
+                )
+                .hasMessage(
+                        "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId="
+                                + questionId
+                );
     }
 
     private DailyQuizAttempt readableAttempt(
