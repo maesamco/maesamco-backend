@@ -225,8 +225,13 @@ public class HintGenerationFacade {
 
     /**
      * 다른 요청이 이미 이 stage의 힌트를 생성 중일 때, LLM을 또 호출하지 않고 그 요청이
-     * 저장을 마칠 때까지 짧게 폴링한다. 시간 안에 나타나지 않으면(그 요청이 실패했거나
-     * 예상보다 오래 걸리는 경우) 클라이언트에 재시도 가능한 실패로 응답한다.
+     * 저장을 마칠 때까지 짧게 폴링한다.
+     *
+     * 이슈 #207 — 시간 안에 나타나지 않아도 그 요청이 실패했다고 단정하지 않는다.
+     * LOCK_TTL(150초) 안에서는 여전히 정상적으로 진행 중일 가능성이 높고, 이 폴링
+     * 시간(2초)이 LLM 왕복 시간(최악 90~100초)보다 훨씬 짧아서 대부분 못 기다리고
+     * 포기하는 것뿐이다 — HINT_GENERATION_IN_PROGRESS(409)로 응답해 "실패"가 아니라
+     * "아직 진행 중이니 잠시 후 다시 시도"임을 클라이언트에 구분해서 알린다.
      */
     private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int expectedStage, boolean skipAvailable) {
         for (int attempt = 0; attempt < LOCK_WAIT_MAX_ATTEMPTS; attempt++) {
@@ -242,7 +247,7 @@ public class HintGenerationFacade {
             }
         }
         log.warn("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
-        throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
+        throw new BusinessException(ErrorCode.HINT_GENERATION_IN_PROGRESS);
     }
 
     private Hint maxStageHint(List<Hint> existingHints) {
