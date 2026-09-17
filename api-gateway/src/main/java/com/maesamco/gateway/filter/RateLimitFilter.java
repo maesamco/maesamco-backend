@@ -20,9 +20,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 회원가입/로그인/비밀번호 재설정/코드 제출/코칭 힌트·설명 생성/역질문 답변 API에
- * 고정 윈도(fixed window) Rate Limit을 적용한다(게이트웨이 및 인증 보안 설계 8절).
- * 계정 단위 로그인 실패 잠금은 별개로 User Service가 담당한다 — 이 필터는 "요청
+ * 회원가입/이메일 인증/로그인/비밀번호 재설정/코드 제출/코칭 힌트·설명 생성/역질문
+ * 답변 API에 고정 윈도(fixed window) Rate Limit을 적용한다(게이트웨이 및 인증 보안
+ * 설계 8절). 계정 단위 로그인 실패 잠금은 별개로 User Service가 담당한다 — 이 필터는 "요청
  * 빈도" 자체를 제한하는 1차 방어선이다.
  *
  * Redis 자료구조: INCR + 최초 요청 시에만 EXPIRE — Lua로 원자 처리해 레이스 컨디션 방지.
@@ -83,6 +83,24 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 // 스팸 계정 생성(봇 가입) 방어 — 정상 사용자가 10분 안에 5번씩 가입
                 // 시도할 일은 거의 없어 로그인보다 빡빡하게 잡음.
                 new RuleMatch(null, "/api/v1/auth/signup", 5, Duration.ofMinutes(10)),
+                // 이메일 인증 발송/확인 — signup과 정확히 같은 위협 모델(오히려 더 직접적):
+                // 호출자(IP)를 안 가리는 상태에서 대상 이메일만 바꿔가며 호출하면 제3자
+                // 이메일함으로 인증 메일을 사실상 무제한 발송시킬 수 있다(스팸 발송 수단
+                // 악용, 발신 도메인 평판 영향, emailVerificationTaskExecutor 큐 소진).
+                // User Service의 emailLookupHash 기준 제한은 "같은 이메일"만 보고 호출자
+                // IP는 구분 못 해 별개 방어선이 필요하다(이슈 #170, PR #169 리뷰).
+                // prefix가 "/api/v1/auth/email-verifications"라 startsWith로 매칭되는
+                // POST /api/v1/auth/email-verifications/confirm도 이미 이 룰로 함께
+                // 보호된다 — 별도 룰을 새로 추가하지 않는다.
+                //
+                // ⚠️ P5 참고(PR #170 리뷰) — 발송(email-verifications)과 확인(confirm)이
+                // 같은 카운터를 공유해서, 확인 코드를 몇 번 잘못 입력해 재시도하면 그
+                // 시도가 "새 인증 코드 재발송" 예산까지 깎아먹는다(coaching/submissions가
+                // 힌트 생성 + 60초 설명 등록을 같은 카운터로 묶는 것과 동일한 기존 패턴이라
+                // 새로 도입된 문제는 아님). 5회/10분이면 정상 사용자가 실사용에서 부딪힐
+                // 일은 거의 없어 지금은 그대로 둔다 — 나중에 오탐 신고가 들어오면 confirm만
+                // 별도 룰로 분리하는 걸 고려할 것.
+                new RuleMatch(null, "/api/v1/auth/email-verifications", 5, Duration.ofMinutes(10)),
                 new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
                 new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
                 new RuleMatch(null, "/api/v1/submissions", submissionsPerMinute, Duration.ofMinutes(1)),
