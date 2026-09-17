@@ -417,5 +417,46 @@ class SubmissionQueryServiceTest {
             assertThat(result.content()).isEmpty();
             verify(submissionRepository, never()).findSummariesByUserId(any(), any());
         }
+
+        @Test
+        @DisplayName("페이지에 여러 건이 있으면 순서와 개수를 그대로 매핑한다")
+        void returnsMultipleItemsInPage() {
+            SubmissionSummaryResult first = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, java.time.Instant.now());
+            SubmissionSummaryResult second = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 2, SubmissionStatus.COMPLETED, SubmissionResult.WRONG, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(first, second), pageable, 2);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(2);
+            assertThat(result.content().get(0).submissionId()).isEqualTo(first.submissionId());
+            assertThat(result.content().get(1).submissionId()).isEqualTo(second.submissionId());
+            assertThat(result.totalElements()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("COMPLETED가 아닌 상태의 제출은 result가 null로 매핑된다")
+        void returnsNullResultForNonCompletedStatus() {
+            SubmissionSummaryResult running = new SubmissionSummaryResult(
+                    UUID.randomUUID(), problemId, 1, SubmissionStatus.RUNNING, null, java.time.Instant.now());
+
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<SubmissionSummaryResult> page = new PageImpl<>(List.of(running), pageable, 1);
+
+            given(submissionRepository.findSummariesByUserId(userId, pageable)).willReturn(page);
+
+            PageResponse<SubmissionSummaryResult> result =
+                    submissionQueryService.getSubmissions(userId, null, pageable);
+
+            assertThat(result.content()).hasSize(1);
+            assertThat(result.content().get(0).status()).isEqualTo(SubmissionStatus.RUNNING);
+            assertThat(result.content().get(0).result()).isNull();
+        }
     }
 }
