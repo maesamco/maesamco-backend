@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -17,8 +18,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,5 +137,50 @@ class CoachingSessionFinderTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    /**
+     * 이슈 #218(V15) — CoachingSession에 @Version 도입 후, 동시에 서로 다른 제출로
+     * submissionId를 갈아태우려는 두 요청 중 나중에 flush되는 쪽의 save()가
+     * ObjectOptimisticLockingFailureException을 받을 수 있다. 재조회 후
+     * advanceToSubmission()을 다시 적용해서 한 번 재시도하면 성공해야 한다.
+     */
+    @Test
+    void 세션_갱신_중_낙관적_락_충돌이_나면_재조회해서_한_번_재시도한다() {
+        UUID newSubmissionId = UUID.randomUUID();
+        CoachingSession staleSession = persistedSession(submissionId, 1);
+        CoachingSession refetchedSession = persistedSession(submissionId, 1);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId))
+                .thenReturn(Optional.of(staleSession))
+                .thenReturn(Optional.of(refetchedSession));
+        when(coachingSessionRepository.save(any()))
+                .thenThrow(new OptimisticLockingFailureException("충돌"))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        CoachingSession result = finder.findOrCreate(submission(newSubmissionId, 2));
+
+        assertThat(result).isSameAs(refetchedSession);
+        assertThat(result.getSubmissionId()).isEqualTo(newSubmissionId);
+        verify(coachingSessionRepository, times(2)).findByUserIdAndProblemId(callerId, problemId);
+        verify(coachingSessionRepository, times(2)).save(any());
+    }
+
+    @Test
+    void 재시도한_저장까지_낙관적_락_충돌이_나면_COACHING_SESSION_UPDATE_CONFLICT로_변환한다() {
+        UUID newSubmissionId = UUID.randomUUID();
+        CoachingSession staleSession = persistedSession(submissionId, 1);
+        CoachingSession refetchedSession = persistedSession(submissionId, 1);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId))
+                .thenReturn(Optional.of(staleSession))
+                .thenReturn(Optional.of(refetchedSession));
+        when(coachingSessionRepository.save(any()))
+                .thenThrow(new OptimisticLockingFailureException("충돌"));
+
+        assertThatThrownBy(() -> finder.findOrCreate(submission(newSubmissionId, 2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COACHING_SESSION_UPDATE_CONFLICT);
+
+        verify(coachingSessionRepository, times(2)).save(any());
     }
 }
