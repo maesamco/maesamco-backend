@@ -40,11 +40,17 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     topic:
       problem-published: ${KAFKA_TOPIC_PROBLEM_PUBLISHED:problem-published-events}
+      daily-quiz-completed: ${KAFKA_TOPIC_DAILY_QUIZ_COMPLETED:daily-quiz-completed-events}
     consumer:
       group-id: content-service
       auto-offset-reset: earliest
 
 outbox:
+  daily-quiz-completed:
+    relay:
+      # Kafka ACK를 기다리는 최대 시간입니다.
+      publish-timeout-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
+
   problem-published:
     relay:
       # 기본 환경과 테스트에서는 자동 Relay를 실행하지 않습니다.
