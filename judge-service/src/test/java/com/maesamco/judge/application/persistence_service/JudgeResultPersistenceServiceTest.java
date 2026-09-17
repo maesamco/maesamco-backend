@@ -107,7 +107,7 @@ class JudgeResultPersistenceServiceTest {
 
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(wrongAnswer, runtimeError));
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -144,7 +144,7 @@ class JudgeResultPersistenceServiceTest {
 
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(memoryExceeded));
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
 
@@ -305,7 +305,7 @@ class JudgeResultPersistenceServiceTest {
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(fast, slow));
 
             judgeResultPersistenceService.reflectResult(lastPending, lastResult);
@@ -331,7 +331,7 @@ class JudgeResultPersistenceServiceTest {
             given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionId))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
                     .willReturn(List.of(light, heavy));
 
             judgeResultPersistenceService.reflectResult(lastPending, lastResult);
@@ -360,7 +360,7 @@ class JudgeResultPersistenceServiceTest {
             given(submissionRepository.findById(submissionIdA)).willReturn(Optional.of(submissionA));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionIdA))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionIdA))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionIdA))
                     .willReturn(List.of(x1, y1));
 
             judgeResultPersistenceService.reflectResult(triggerByY, resultOfY);
@@ -378,7 +378,7 @@ class JudgeResultPersistenceServiceTest {
             given(submissionRepository.findById(submissionIdB)).willReturn(Optional.of(submissionB));
             given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionIdB))
                     .willReturn(List.of());
-            given(submissionTestResultRepository.findBySubmissionId(submissionIdB))
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionIdB))
                     .willReturn(List.of(x2, y2));
 
             judgeResultPersistenceService.reflectResult(triggerByX, resultOfX);

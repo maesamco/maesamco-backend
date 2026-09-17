@@ -16,6 +16,7 @@ import com.maesamco.user.global.security.TokenExpirationCalculator;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -89,13 +90,15 @@ public class LoginService {
      * 이메일, 비밀번호, userId와 같은 사용자별 식별값은
      * Metric Tag로 사용하지 않습니다.</p>
      *
-     * <p>로그인 과정에서는 PostgreSQL에 변경사항을 저장하지 않습니다.
+     * <p>회원 탈퇴와 신규 로그인 사이의 경쟁 조건을 차단하기 위해
+     * 사용자 조회 시 비관적 쓰기 잠금을 획득합니다.
      * Redis 인증 세션 저장에 실패한 경우 예외를 그대로 전파하여
      * 발급된 토큰이 클라이언트에게 전달되지 않도록 합니다.</p>
      *
      * @param command 로그인 입력값
      * @return 로그인 사용자 정보와 발급된 인증 토큰 정보
      */
+    @Transactional
     public LoginResult login(LoginCommand command) {
         Objects.requireNonNull(
                 command,
@@ -109,7 +112,7 @@ public class LoginService {
                 emailLookupHasher.hash(normalizedEmail);
 
         User user = userRepository
-                .findByEmailLookupHash(emailLookupHash)
+                .findByEmailLookupHashForUpdate(emailLookupHash)
                 .orElse(null);
 
         if (user == null) {
@@ -136,6 +139,9 @@ public class LoginService {
         UUID sessionId = UUID.randomUUID();
         UUID familyId = UUID.randomUUID();
 
+        Instant sessionStartedAt =
+                clock.instant();
+
         IssuedTokens issuedTokens =
                 tokenIssuer.issueTokens(
                         user.getId(),
@@ -143,7 +149,8 @@ public class LoginService {
                         sessionId
                 );
 
-        Instant now = clock.instant();
+        Instant now =
+                clock.instant();
 
         String refreshTokenHash =
                 refreshTokenHasher.hash(
@@ -156,7 +163,7 @@ public class LoginService {
                         familyId,
                         user.getId(),
                         refreshTokenHash,
-                        now,
+                        sessionStartedAt,
                         issuedTokens.refreshTokenExpiresAt()
                 );
 

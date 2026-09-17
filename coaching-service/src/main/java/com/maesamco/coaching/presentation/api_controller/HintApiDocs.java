@@ -1,6 +1,8 @@
 package com.maesamco.coaching.presentation.api_controller;
 
 import com.maesamco.coaching.global.response.SuccessResponse;
+import com.maesamco.coaching.presentation.response.HintListItemResponse;
+import com.maesamco.coaching.presentation.response.HintResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,7 +29,8 @@ public interface HintApiDocs {
             @ApiResponse(responseCode = "200", description = "이미 존재하는 단계의 힌트를 그대로 반환"),
             @ApiResponse(responseCode = "403", description = "HINT_NOT_ALLOWED — 본인 제출이 오답 상태가 아님"),
             @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND — 제출이 없거나 본인 소유가 아님"),
-            @ApiResponse(responseCode = "409", description = "COACHING_SESSION_ALREADY_COMPLETED — 이미 완료된 코칭 세션이라 새 힌트를 생성할 수 없음"),
+            @ApiResponse(responseCode = "409", description = "COACHING_SESSION_ALREADY_COMPLETED(이미 완료된 코칭 세션이라 새 힌트를 생성할 수 없음), "
+                    + "HINT_GENERATION_IN_PROGRESS(다른 요청이 이미 이 힌트를 생성 중 — 잠시 후 재시도)"),
             @ApiResponse(responseCode = "503", description = "AI_GENERATION_FAILED — 힌트 생성 실패, 잠시 후 재시도")
     })
     ResponseEntity<SuccessResponse<HintResponse>> requestHint(

@@ -54,7 +54,23 @@ public abstract class BaseEntity {
     private UUID deletedBy;
 
     public void softDelete(UUID deletedBy) {
-        this.deletedAt = Instant.now();
+        softDelete(
+                deletedBy,
+                Instant.now()
+        );
+    }
+
+    /**
+     * 지정한 시각을 기준으로 논리 삭제합니다.
+     *
+     * @param deletedBy 삭제 행위자
+     * @param deletedAt 삭제 시각
+     */
+    public void softDelete(
+            UUID deletedBy,
+            Instant deletedAt
+    ) {
+        this.deletedAt = deletedAt;
         this.deletedBy = deletedBy;
     }
 
