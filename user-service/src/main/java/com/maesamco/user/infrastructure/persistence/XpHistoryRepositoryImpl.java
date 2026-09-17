@@ -7,34 +7,31 @@ import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * 도메인의 XpHistoryRepository를 Spring Data JPA로 구현하는 영속성 어댑터입니다.
- *
- * <p>도메인 계층의 Repository 요청을 SpringDataXpHistoryRepository에 위임하여
- * 도메인 계층과 JPA 기술 사이의 의존성을 분리합니다.</p>
  */
 @Repository
 @RequiredArgsConstructor
 public class XpHistoryRepositoryImpl implements XpHistoryRepository {
 
-    /**
-     * 실제 JPA 저장과 조회를 담당하는 내부 Repository입니다.
-     */
-    private final SpringDataXpHistoryRepository springDataXpHistoryRepository;
+    private final SpringDataXpHistoryRepository
+            springDataXpHistoryRepository;
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public XpHistory save(XpHistory xpHistory) {
         try {
-            return springDataXpHistoryRepository.saveAndFlush(xpHistory);
+            return springDataXpHistoryRepository
+                    .saveAndFlush(
+                            xpHistory
+                    );
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(
                     ErrorCode.XP_HISTORY_ALREADY_EXISTS
@@ -42,27 +39,50 @@ public class XpHistoryRepositoryImpl implements XpHistoryRepository {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public List<XpHistory> findAllByUserIdOrderByEarnedAtDesc(UUID userId) {
+    public List<XpHistory> findFirstPageByUserId(
+            UUID userId,
+            int limit
+    ) {
         return springDataXpHistoryRepository
-                .findAllByUserIdOrderByEarnedAtDesc(userId);
+                .findByUserIdOrderByEarnedAtDescIdDesc(
+                        userId,
+                        PageRequest.of(
+                                0,
+                                limit
+                        )
+                );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean existsBySourceEventId(UUID sourceEventId) {
+    public List<XpHistory> findNextPageByUserId(
+            UUID userId,
+            Instant cursorEarnedAt,
+            UUID cursorId,
+            int limit
+    ) {
         return springDataXpHistoryRepository
-                .existsBySourceEventId(sourceEventId);
+                .findNextPageByUserId(
+                        userId,
+                        cursorEarnedAt,
+                        cursorId,
+                        PageRequest.of(
+                                0,
+                                limit
+                        )
+                );
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Override
+    public boolean existsBySourceEventId(
+            UUID sourceEventId
+    ) {
+        return springDataXpHistoryRepository
+                .existsBySourceEventId(
+                        sourceEventId
+                );
+    }
+
     @Override
     public boolean existsByUserIdAndProblemIdAndRewardType(
             UUID userId,
@@ -77,9 +97,6 @@ public class XpHistoryRepositoryImpl implements XpHistoryRepository {
                 );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean existsByUserIdAndRewardDateAndRewardType(
             UUID userId,

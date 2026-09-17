@@ -6,11 +6,13 @@ import com.maesamco.user.application.service.UpdateMyProfileCommand;
 import com.maesamco.user.application.service.WithdrawUserCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -527,6 +529,155 @@ class UserApiDocsContractTest {
         assertErrorResponseSchema(
                 method,
                 "500"
+        );
+    }
+
+    @Test
+    @DisplayName("내 XP 이력 조회 API 문서 계약을 유지한다")
+    void getMyXpHistoriesContract() throws NoSuchMethodException {
+        Method method =
+                UserApiDocs.class.getMethod(
+                        "getMyXpHistories",
+                        Authentication.class,
+                        Integer.class,
+                        String.class
+                );
+
+        assertOperation(method);
+
+        assertResponseCodes(
+                method,
+                "200",
+                "400",
+                "401",
+                "403",
+                "404",
+                "500"
+        );
+
+        ApiResponse successResponse =
+                findResponse(
+                        method,
+                        "200"
+                );
+
+        assertThat(
+                successResponse.useReturnTypeSchema()
+        ).isTrue();
+
+        assertThat(
+                findResponse(
+                        method,
+                        "400"
+                ).description()
+        ).contains(
+                "INVALID_INPUT_VALUE"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "401"
+                ).description()
+        ).contains(
+                "AUTH_UNAUTHORIZED",
+                "AUTH_INVALID_TOKEN"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "403"
+                ).description()
+        ).contains(
+                "USER_NOT_ACTIVE"
+        );
+
+        assertThat(
+                findResponse(
+                        method,
+                        "404"
+                ).description()
+        ).contains(
+                "USER_NOT_FOUND"
+        );
+
+        assertErrorResponseSchema(
+                method,
+                "400"
+        );
+        assertErrorResponseSchema(
+                method,
+                "401"
+        );
+        assertErrorResponseSchema(
+                method,
+                "403"
+        );
+        assertErrorResponseSchema(
+                method,
+                "404"
+        );
+        assertErrorResponseSchema(
+                method,
+                "500"
+        );
+
+        java.lang.reflect.Parameter[] parameters =
+                method.getParameters();
+
+        assertThat(parameters).hasSize(3);
+
+        Parameter sizeDocumentation =
+                parameters[1].getAnnotation(
+                        Parameter.class
+                );
+
+        RequestParam sizeRequestParam =
+                parameters[1].getAnnotation(
+                        RequestParam.class
+                );
+
+        assertThat(sizeDocumentation).isNotNull();
+        assertThat(sizeRequestParam).isNotNull();
+        assertThat(sizeRequestParam.required()).isFalse();
+
+        assertThat(
+                sizeDocumentation.schema().minimum()
+        ).isEqualTo(
+                "1"
+        );
+
+        assertThat(
+                sizeDocumentation.schema().maximum()
+        ).isEqualTo(
+                "100"
+        );
+
+        assertThat(
+                sizeDocumentation.schema().defaultValue()
+        ).isEqualTo(
+                "20"
+        );
+
+        Parameter cursorDocumentation =
+                parameters[2].getAnnotation(
+                        Parameter.class
+                );
+
+        RequestParam cursorRequestParam =
+                parameters[2].getAnnotation(
+                        RequestParam.class
+                );
+
+        assertThat(cursorDocumentation).isNotNull();
+        assertThat(cursorRequestParam).isNotNull();
+        assertThat(cursorRequestParam.required()).isFalse();
+
+        assertThat(
+                cursorDocumentation.description()
+        ).contains(
+                "nextCursor"
         );
     }
 }

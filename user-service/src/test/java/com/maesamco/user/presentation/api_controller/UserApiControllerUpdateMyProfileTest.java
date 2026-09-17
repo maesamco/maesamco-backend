@@ -68,6 +68,9 @@ class UserApiControllerUpdateMyProfileTest {
     private GetMyGamificationService getMyGamificationService;
 
     @MockitoBean
+    private GetMyXpHistoriesService getMyXpHistoriesService;
+
+    @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
 
     @MockitoBean
