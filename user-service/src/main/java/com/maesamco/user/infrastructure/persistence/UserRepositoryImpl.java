@@ -1,14 +1,19 @@
 package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.User;
+import com.maesamco.user.domain.entity.UserRole;
+import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.util.DataIntegrityViolations;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -128,5 +133,63 @@ public class UserRepositoryImpl implements UserRepository {
     public boolean existsByNicknameIgnoreCase(String nickname) {
         return springDataUserRepository
                 .existsByNicknameIgnoreCase(nickname);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<UUID> findQuizTargetUserIds(
+            UUID cursor,
+            int limit
+    ) {
+        validatePositiveLimit(
+                limit
+        );
+
+        Pageable pageable =
+                PageRequest.of(
+                        0,
+                        limit
+                );
+
+        List<UUID> userIds;
+
+        if (cursor == null) {
+            userIds =
+                    springDataUserRepository
+                            .findQuizTargetUserIds(
+                                    UserStatus.ACTIVE,
+                                    UserRole.USER,
+                                    pageable
+                            );
+        } else {
+            userIds =
+                    springDataUserRepository
+                            .findQuizTargetUserIdsAfter(
+                                    UserStatus.ACTIVE,
+                                    UserRole.USER,
+                                    cursor,
+                                    pageable
+                            );
+        }
+
+        return List.copyOf(
+                userIds
+        );
+    }
+
+    /**
+     * DB 조회 제한이 유효한지 방어적으로 검증합니다.
+     */
+    private void validatePositiveLimit(
+            int limit
+    ) {
+        if (limit <= 0) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Daily Quiz 대상 사용자 조회 제한은 1 이상이어야 합니다."
+            );
+        }
     }
 }
