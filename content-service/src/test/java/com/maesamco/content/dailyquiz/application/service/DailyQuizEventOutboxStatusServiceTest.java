@@ -112,6 +112,29 @@ class DailyQuizEventOutboxStatusServiceTest {
     }
 
     @Test
+    @DisplayName("발행 결과를 확인할 수 없으면 Outbox를 재시도 대상으로 유지한다")
+    void recordPublishOutcomeUnknown_updatesRetryStateWithoutFailure() {
+        UUID outboxId = UUID.randomUUID();
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        when(outboxRepository.findById(outboxId))
+                .thenReturn(Optional.of(outbox));
+
+        statusService.recordPublishOutcomeUnknown(
+                outboxId,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                NEXT_ATTEMPT_AT
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.PENDING);
+        assertThat(outbox.getRetryCount()).isEqualTo(1);
+        assertThat(outbox.getNextAttemptAt()).isEqualTo(NEXT_ATTEMPT_AT);
+        assertThat(outbox.getLastError())
+                .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        verify(outboxRepository, never()).save(outbox);
+    }
+
+    @Test
     @DisplayName("재시도할 수 없는 발행 실패를 즉시 FAILED로 변경한다")
     void recordUnrecoverablePublishFailure_marksFailed() {
         UUID outboxId = UUID.randomUUID();
@@ -143,6 +166,29 @@ class DailyQuizEventOutboxStatusServiceTest {
                 outboxId,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
+                NEXT_ATTEMPT_AT
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.PUBLISHED);
+        assertThat(outbox.getRetryCount()).isZero();
+        assertThat(outbox.getPublishedAt()).isEqualTo(PUBLISHED_AT);
+        assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getLastError()).isNull();
+    }
+
+    @Test
+    @DisplayName("이미 PUBLISHED인 Outbox의 불확실한 발행 결과는 멱등하게 무시한다")
+    void recordPublishOutcomeUnknown_ignoresPublishedOutbox() {
+        UUID outboxId = UUID.randomUUID();
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        outbox.recordPublishSuccess(PUBLISHED_AT);
+        when(outboxRepository.findById(outboxId))
+                .thenReturn(Optional.of(outbox));
+
+        statusService.recordPublishOutcomeUnknown(
+                outboxId,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         );
 

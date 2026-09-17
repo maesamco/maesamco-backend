@@ -239,6 +239,30 @@ class DailyQuizEventOutboxTest {
     }
 
     @Test
+    @DisplayName("발행 결과를 확인할 수 없으면 재시도 횟수와 다음 시도 시각을 기록하고 PENDING을 유지한다")
+    void recordPublishOutcomeUnknown_keepsPendingWithoutRetryLimit() {
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+
+        outbox.recordPublishOutcomeUnknown(
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                NEXT_ATTEMPT_AT
+        );
+        outbox.recordPublishOutcomeUnknown(
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                NEXT_ATTEMPT_AT.plusSeconds(60)
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.PENDING);
+        assertThat(outbox.getRetryCount()).isEqualTo(2);
+        assertThat(outbox.getNextAttemptAt())
+                .isEqualTo(NEXT_ATTEMPT_AT.plusSeconds(60));
+        assertThat(outbox.getPublishedAt()).isNull();
+        assertThat(outbox.getLastError())
+                .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+    }
+
+    @Test
     @DisplayName("재시도 후 발행에 성공하면 실패 정보를 제거하고 실패 횟수는 유지한다")
     void recordPublishSuccess_clearsRetryScheduleAndError() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
@@ -342,6 +366,37 @@ class DailyQuizEventOutboxTest {
                                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE)
                 )
                 .hasMessage("다음 발행 시도 시각은 필수입니다.");
+    }
+
+    @Test
+    @DisplayName("다음 발행 시도 시각이 없으면 불확실한 발행 결과를 기록할 수 없다")
+    void recordPublishOutcomeUnknown_rejectsNullNextAttemptAt() {
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+
+        assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                null
+        ))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE)
+                )
+                .hasMessage("다음 발행 시도 시각은 필수입니다.");
+    }
+
+    @Test
+    @DisplayName("PUBLISHED 상태에는 불확실한 발행 결과를 기록할 수 없다")
+    void recordPublishOutcomeUnknown_rejectsPublishedOutbox() {
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        outbox.recordPublishSuccess(PUBLISHED_AT);
+
+        assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                NEXT_ATTEMPT_AT
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("PENDING 상태의 Outbox만 변경할 수 있습니다.");
     }
 
     @Test

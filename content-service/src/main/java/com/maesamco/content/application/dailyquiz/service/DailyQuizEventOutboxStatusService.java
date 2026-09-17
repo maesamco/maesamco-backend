@@ -60,6 +60,20 @@ public class DailyQuizEventOutboxStatusService {
     }
 
     /**
+     * 실제 Kafka 전달 여부를 확인하지 못한 결과와 다음 재시도 시각을 기록
+     */
+    @Transactional
+    public void recordPublishOutcomeUnknown(UUID outboxId, String error, Instant nextAttemptAt) {
+        DailyQuizEventOutbox outbox = getOutbox(outboxId);
+
+        if (outbox.getStatus() != DailyQuizEventOutboxStatus.PENDING) {
+            return;
+        }
+
+        outbox.recordPublishOutcomeUnknown(error, nextAttemptAt);
+    }
+
+    /**
      * 재시도로 복구할 수 없는 Kafka 발행 실패를 Outbox에 기록
      */
     @Transactional

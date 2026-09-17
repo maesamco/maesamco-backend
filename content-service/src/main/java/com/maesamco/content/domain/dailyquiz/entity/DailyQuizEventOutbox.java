@@ -202,6 +202,27 @@ public class DailyQuizEventOutbox {
     }
 
     /**
+     * Kafka 발행 결과를 확인하지 못한 시도를 기록
+     *
+     * ACK 대기 시간 초과처럼 이벤트가 이미 전달되었을 가능성이 있는 경우에는
+     * 재시도 횟수와 다음 시도 시각만 기록하고 FAILED 상태로 종료하지 않습니다.
+     */
+    public void recordPublishOutcomeUnknown(
+            String error,
+            Instant nextAttemptAt
+    ) {
+        String validatedError = requireError(error);
+        Instant validatedNextAttemptAt = requireNextAttemptAt(nextAttemptAt);
+
+        validatePendingStatus();
+
+        this.retryCount++;
+        this.lastError = validatedError;
+        this.nextAttemptAt = validatedNextAttemptAt;
+        this.publishedAt = null;
+    }
+
+    /**
      * 재시도로 복구할 수 없는 Kafka 발행 실패를 기록
      */
     public void recordUnrecoverablePublishFailure(

@@ -119,6 +119,28 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("불확실한 발행 결과를 PENDING 상태와 함께 별도 트랜잭션으로 저장한다")
+    void recordPublishOutcomeUnknown_persistsRetryStateWithoutFailure() {
+        DailyQuizEventOutbox saved = savePendingOutbox();
+
+        statusService.recordPublishOutcomeUnknown(
+                saved.getId(),
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                NEXT_ATTEMPT_AT
+        );
+
+        DailyQuizEventOutbox found = find(saved.getId());
+
+        assertThat(found.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.PENDING);
+        assertThat(found.getRetryCount()).isEqualTo(1);
+        assertThat(found.getNextAttemptAt()).isEqualTo(NEXT_ATTEMPT_AT);
+        assertThat(found.getLastError())
+                .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        assertThat(found.getVersion()).isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("이미 종료된 Outbox를 다시 변경하면 DB 상태와 version을 유지한다")
     void terminalOutboxUpdate_isIgnoredWithoutVersionChange() {
         DailyQuizEventOutbox saved = savePendingOutbox();
