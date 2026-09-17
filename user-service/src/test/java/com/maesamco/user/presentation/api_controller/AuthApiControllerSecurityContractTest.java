@@ -50,6 +50,9 @@ class AuthApiControllerSecurityContractTest {
     private LogoutService logoutService;
 
     @MockitoBean
+    private LogoutAllService logoutAllService;
+
+    @MockitoBean
     private EmailVerificationService emailVerificationService;
 
     @MockitoBean

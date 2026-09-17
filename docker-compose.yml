@@ -235,6 +235,7 @@ services:
       HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
       HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
       HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
+      HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
     depends_on:
       postgres-user:
         condition: service_healthy

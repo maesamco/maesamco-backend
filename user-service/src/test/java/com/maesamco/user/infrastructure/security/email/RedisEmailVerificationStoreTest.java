@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.util.List;
@@ -69,6 +70,9 @@ class RedisEmailVerificationStoreTest {
 
     @Mock
     private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
 
     private EmailVerificationStore emailVerificationStore;
 
@@ -277,6 +281,78 @@ class RedisEmailVerificationStoreTest {
 
         // then
         assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("회원가입 인증 토큰이 이메일에 정상 귀속되어 있으면 true를 반환한다")
+    void isSignupTokenValid_returnsTrueWhenTokenMatchesEmail() {
+        // given
+        when(redisTemplate.opsForValue())
+                .thenReturn(valueOperations);
+
+        when(
+                valueOperations.get(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).thenReturn(EMAIL_LOOKUP_HASH);
+
+        // when
+        boolean result =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("회원가입 인증 토큰이 존재하지 않으면 false를 반환한다")
+    void isSignupTokenValid_returnsFalseWhenTokenDoesNotExist() {
+        // given
+        when(redisTemplate.opsForValue())
+                .thenReturn(valueOperations);
+
+        when(
+                valueOperations.get(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).thenReturn(null);
+
+        // when
+        boolean result =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("회원가입 인증 토큰의 이메일 귀속 정보가 다르면 false를 반환한다")
+    void isSignupTokenValid_returnsFalseWhenEmailDoesNotMatch() {
+        // given
+        when(redisTemplate.opsForValue())
+                .thenReturn(valueOperations);
+
+        when(
+                valueOperations.get(
+                        SIGNUP_TOKEN_KEY
+                )
+        ).thenReturn("different-email-lookup-hash");
+
+        // when
+        boolean result =
+                emailVerificationStore.isSignupTokenValid(
+                        SIGNUP_TOKEN_HASH,
+                        EMAIL_LOOKUP_HASH
+                );
+
+        // then
+        assertThat(result).isFalse();
     }
 
     @Test

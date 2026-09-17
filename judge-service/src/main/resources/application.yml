@@ -95,3 +95,6 @@ judge0:
 judge:
   polling:
     batch-size: 100
+  retry:
+    fixed-delay-ms: 10000
+    batch-size: 100

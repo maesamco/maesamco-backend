@@ -78,12 +78,37 @@ public class UserRepositoryImpl implements UserRepository {
      * {@inheritDoc}
      */
     @Override
+    public Optional<User> findByIdForUpdate(
+            UUID userId
+    ) {
+        return springDataUserRepository.findByIdForUpdate(
+                userId
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public Optional<User> findByEmailLookupHash(
             String emailLookupHash
     ) {
         return springDataUserRepository.findByEmailLookupHash(
                 emailLookupHash
         );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<User> findByEmailLookupHashForUpdate(
+            String emailLookupHash
+    ) {
+        return springDataUserRepository
+                .findByEmailLookupHashForUpdate(
+                        emailLookupHash
+                );
     }
 
     /**
