@@ -61,6 +61,9 @@ class UserApiControllerChangePasswordTest {
     private MockMvc mockMvc;
 
     @MockitoBean
+    private GetMyGamificationService getMyGamificationService;
+
+    @MockitoBean
     private ChangePasswordRetryService changePasswordRetryService;
 
     @MockitoBean
