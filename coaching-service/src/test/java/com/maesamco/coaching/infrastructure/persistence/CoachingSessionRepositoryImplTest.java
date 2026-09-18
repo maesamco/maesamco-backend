@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -272,5 +273,51 @@ class CoachingSessionRepositoryImplTest extends AbstractCoachingRepositoryTest {
                 .isInstanceOfSatisfying(BusinessException.class, e ->
                         assertThat(e.getErrorCode()).isEqualTo(ErrorCode.COACHING_SESSION_ALREADY_EXISTS)
                 );
+    }
+
+    /**
+     * PR #228 리뷰(용현님 P2) — CoachingSessionFinderTest의 재시도 테스트는 Mockito로
+     * OptimisticLockingFailureException을 강제로 던지게 만들어 "예외가 오면 재시도한다"만
+     * 검증한다. 이 테스트는 그 전제 자체 — 실제 PostgreSQL에서 @Version + saveAndFlush()가
+     * 정말 낙관적 락 충돌을 일으키는지 — 를 검증한다.
+     * CoachingEventOutboxRepositoryImplTest.save_withStaleVersion_throwsOptimisticLockingFailure()
+     * 와 동일한 기법(같은 행을 각각 detach한 두 인스턴스로 재현)을 그대로 적용했다.
+     */
+    @Test
+    @DisplayName("오래된 version을 가진 인스턴스를 저장하면 실제 PostgreSQL에서 낙관적 락 충돌이 발생한다 "
+            + "— 힌트 요청과 역질문 답변이 거의 동시에 같은 세션을 갱신하는 상황과 동등하다")
+    void save_withStaleVersion_throwsOptimisticLockingFailure() {
+        // given
+        UUID sessionId = coachingSessionRepository.save(
+                CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1)
+        ).getId();
+        entityManager.flush();
+        entityManager.clear();
+
+        // 같은 행을 각각 version 0 상태로 조회하고 영속성 컨텍스트에서 분리한다 — 힌트 요청과
+        // 역질문 답변 요청이 거의 동시에 findById()로 같은 세션을 읽은 상황을 재현한다.
+        CoachingSession firstRead = springDataCoachingSessionRepository.findById(sessionId).orElseThrow();
+        entityManager.detach(firstRead);
+
+        CoachingSession secondRead = springDataCoachingSessionRepository.findById(sessionId).orElseThrow();
+        entityManager.detach(secondRead);
+
+        assertThat(firstRead.getVersion()).isZero();
+        assertThat(secondRead.getVersion()).isZero();
+
+        // 첫 번째 요청이 먼저 attempt=2로 갈아태운다.
+        firstRead.advanceToSubmission(UUID.randomUUID(), 2);
+        CoachingSession firstSaved = coachingSessionRepository.save(firstRead);
+
+        assertThat(firstSaved.getVersion()).isEqualTo(1L);
+        entityManager.clear();
+
+        // 두 번째 요청은 아직 version 0을 들고 있다 — 이미 attempt=2로 갈아탄 세션을
+        // attempt=3으로 다시 갈아태우려는 시도.
+        secondRead.advanceToSubmission(UUID.randomUUID(), 3);
+
+        // when & then
+        assertThatThrownBy(() -> coachingSessionRepository.save(secondRead))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 }

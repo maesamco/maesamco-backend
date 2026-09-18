@@ -109,8 +109,8 @@ class XpHistoryRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("사용자의 XP 이력을 획득 시각 기준 최신순으로 조회한다")
-    void findAllByUserIdOrderByEarnedAtDesc_returnsLatestFirst() {
+    @DisplayName("사용자의 XP 이력 첫 페이지를 최신순으로 조회한다")
+    void findFirstPageByUserId_returnsLatestFirst() {
         // given
         UUID userId =
                 persistUser(
@@ -145,7 +145,10 @@ class XpHistoryRepositoryImplTest {
         // when
         List<XpHistory> histories =
                 xpHistoryRepository
-                        .findAllByUserIdOrderByEarnedAtDesc(userId);
+                        .findFirstPageByUserId(
+                                userId,
+                                10
+                        );
 
         // then
         assertThat(histories)

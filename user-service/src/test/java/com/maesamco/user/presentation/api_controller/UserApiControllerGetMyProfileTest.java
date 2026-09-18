@@ -59,6 +59,12 @@ class UserApiControllerGetMyProfileTest {
     private MockMvc mockMvc;
 
     @MockitoBean
+    private GetMyGamificationService getMyGamificationService;
+
+    @MockitoBean
+    private GetMyXpHistoriesService getMyXpHistoriesService;
+
+    @MockitoBean
     private GetMyProfileService getMyProfileService;
 
     @MockitoBean

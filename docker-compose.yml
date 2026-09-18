@@ -217,13 +217,23 @@ services:
       JWT_REFRESH_PRIVATE_KEY: ${JWT_REFRESH_PRIVATE_KEY}
       EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
       EMAIL_LOOKUP_HMAC_KEY: ${EMAIL_LOOKUP_HMAC_KEY}
+      # 이슈(배포 스크립트 리뷰) — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
+      # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
       EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_STARTTLS_REQUIRED: ${MAIL_STARTTLS_REQUIRED:-true}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_URL: http://eureka-server:8761/eureka/
       HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
       HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
       HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(user-service가 발신자일 때 서명할 키)
       HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
     depends_on:
       postgres-user:
@@ -254,6 +264,8 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(content-service가 수신자일 때 검증할 키)
+      HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
       HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
     depends_on:
       postgres-content:

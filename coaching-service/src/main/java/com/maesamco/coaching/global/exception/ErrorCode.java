@@ -43,6 +43,11 @@ public enum ErrorCode {
     // 따라 세션을 ID로 다시 조회할 때의 방어용. Facade가 이미 한 번 조회해 존재를
     // 확인한 뒤라 실제로는 거의 발생하지 않는다(세션 삭제 기능 자체가 없음).
     COACHING_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "코칭 세션을 찾을 수 없습니다."),
+    // 이슈 #218(V15) — CoachingSession에 @Version 도입 후, advanceToSubmission()/
+    // complete() 갱신이 낙관적 락 충돌로 재시도(CoachingSessionFinder/
+    // FollowUpAnswerFacade)까지 실패했을 때 던진다. user-service
+    // USER_PASSWORD_CHANGE_CONFLICT와 동일한 패턴.
+    COACHING_SESSION_UPDATE_CONFLICT(HttpStatus.CONFLICT, "코칭 세션 갱신 중 동시 수정이 감지되었습니다. 잠시 후 다시 시도해주세요."),
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     // 이슈 #62 — Content Service GET /internal/v1/problems/{problemId} 조회 실패 시.
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
@@ -86,6 +91,13 @@ public enum ErrorCode {
     // (Redis 락 획득 실패) 응답. 락 없이 진행하면 동시 요청이 전부 재시도 예산을 소모할
     // 수 있어 추가했다.
     AI_FEEDBACK_RETRY_IN_PROGRESS(HttpStatus.CONFLICT, "이미 AI 피드백 재시도가 진행 중입니다. 잠시 후 다시 시도해주세요."),
+    // 이슈 #207 — waitForConcurrentHint()가 폴링 시간(2초) 안에 다른 요청이 만든 힌트를
+    // 못 찾았을 때 쓴다. 이건 AI_GENERATION_FAILED(진짜 LLM 호출 실패)와 다르다 — 다른
+    // 요청이 여전히 정상적으로 생성 중일 가능성이 높고(LOCK_TTL 150초 안에서는 계속
+    // 진행 중), 그저 대기창이 짧아서 못 기다린 것뿐이다. 같은 503으로 뭉개면 클라이언트가
+    // "완전히 실패했다"고 오인해 재시도 타이밍을 그르칠 수 있어 AiFeedbackRetryFacade의
+    // AI_FEEDBACK_RETRY_IN_PROGRESS와 동일한 취지로 분리한다.
+    HINT_GENERATION_IN_PROGRESS(HttpStatus.CONFLICT, "다른 요청이 이미 이 힌트를 생성하고 있습니다. 잠시 후 다시 시도해주세요."),
     AI_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "힌트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
     WEAK_CONCEPT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 해당 사용자·개념에 대한 취약 개념 집계 행이 존재합니다."),
     // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가

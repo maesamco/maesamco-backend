@@ -33,11 +33,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -234,6 +241,81 @@ class FollowUpAnswerPersistenceServiceTest {
                 .setParameter("sessionId", fixture.session().getId())
                 .getResultList();
         assertThat(outboxRows).hasSize(1);
+    }
+
+    /**
+     * PR #228 리뷰(용현님 P2) — 클래스 Javadoc의 전제("낙관적 락 충돌이면 방금 저장한
+     * FollowUpAnswer까지 같이 rollback되므로 전체 재시도가 안전하다")를 실제 동시 실행으로
+     * 검증한다. 서로 다른 역질문 두 개에 대한 답변이 거의 동시에 들어와 둘 다 세션을
+     * IN_PROGRESS로 읽고 완료 처리를 시도하면, 하나는 성공하고 하나는 실제
+     * ObjectOptimisticLockingFailureException으로 실패해야 한다 — 실패한 쪽의
+     * FollowUpAnswer/Outbox가 정말 커밋되지 않는지가 핵심이다(CoachingSessionRepositoryImplTest
+     * 의 detach 기법과 달리, 여기서는 completeWithAnswer() 자체의 트랜잭션 경계를 검증해야
+     * 해서 진짜 두 스레드로 재현한다).
+     */
+    @Test
+    @DisplayName("서로 다른 역질문 답변이 거의 동시에 들어와 낙관적 락이 충돌하면, 실패한 쪽의 답변·Outbox는 커밋되지 않는다")
+    void completeWithAnswer_rollsBackLosingAnswerAndOutbox_whenConcurrentRequestsConflict() throws InterruptedException {
+        // given
+        Fixture fixture = createFixture();
+        FollowUpQuestion secondQuestion = createSecondFollowUpQuestion(fixture.session());
+        List<FollowUpQuestion> questions = List.of(fixture.followUpQuestion(), secondQuestion);
+
+        ExecutorService pool = Executors.newFixedThreadPool(questions.size());
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(questions.size());
+        Map<UUID, Throwable> failures = new ConcurrentHashMap<>();
+        Map<UUID, Boolean> succeeded = new ConcurrentHashMap<>();
+
+        for (int i = 0; i < questions.size(); i++) {
+            FollowUpQuestion question = questions.get(i);
+            String answerText = "답변 " + i;
+            pool.submit(() -> {
+                try {
+                    startLatch.await();
+                    followUpAnswerPersistenceService.completeWithAnswer(
+                            fixture.session().getId(), question.getId(), answerText
+                    );
+                    succeeded.put(question.getId(), true);
+                } catch (Throwable t) {
+                    failures.put(question.getId(), t);
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        // when
+        startLatch.countDown();
+        boolean finishedInTime = doneLatch.await(10, TimeUnit.SECONDS);
+        pool.shutdown();
+
+        // then
+        assertThat(finishedInTime).as("10초 안에 두 요청 모두 끝나야 한다").isTrue();
+        assertThat(succeeded).as("정확히 하나는 성공해야 한다").hasSize(1);
+        assertThat(failures).as("정확히 하나는 낙관적 락 충돌로 실패해야 한다").hasSize(1);
+        assertThat(failures.values()).allSatisfy(t ->
+                assertThat(t).isInstanceOf(ObjectOptimisticLockingFailureException.class)
+        );
+
+        entityManager.clear();
+
+        UUID losingQuestionId = failures.keySet().iterator().next();
+        UUID winningQuestionId = succeeded.keySet().iterator().next();
+
+        assertThat(followUpAnswerRepository.findByFollowUpQuestionId(losingQuestionId))
+                .as("낙관적 락 충돌로 실패한 요청의 답변은 세션 갱신과 함께 롤백되어 커밋되지 않아야 한다")
+                .isEmpty();
+        assertThat(followUpAnswerRepository.findByFollowUpQuestionId(winningQuestionId)).isPresent();
+
+        CoachingSession persistedSession = coachingSessionRepository.findById(fixture.session().getId()).orElseThrow();
+        assertThat(persistedSession.getStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+
+        List<CoachingEventOutbox> outboxRows = entityManager
+                .createQuery("select o from CoachingEventOutbox o where o.aggregateId = :sessionId", CoachingEventOutbox.class)
+                .setParameter("sessionId", fixture.session().getId())
+                .getResultList();
+        assertThat(outboxRows).as("성공한 요청의 Outbox 1건만 남아야 한다").hasSize(1);
     }
 
     @Test

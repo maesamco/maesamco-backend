@@ -4,6 +4,7 @@ import com.maesamco.judge.global.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -136,5 +137,12 @@ public class GlobalExceptionHandler {
         log.warn("IllegalArgumentException: {}", e.getMessage());
         return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
                 .body(ErrorResponse.from(ErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handlePropertyReferenceException(PropertyReferenceException e) {
+        log.warn("PropertyReferenceException: {}", e.getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_SORT_PROPERTY.getStatus())
+                .body(ErrorResponse.from(ErrorCode.INVALID_SORT_PROPERTY));
     }
 }

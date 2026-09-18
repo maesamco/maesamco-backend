@@ -41,6 +41,11 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
             "/api/v1/auth/refresh",
             "/api/v1/auth/password-reset/request",
             "/api/v1/auth/password-reset/confirm",
+            // ⚠️ 실제 통합테스트 중 발견 — 이메일 인증 기능(PR #169) 추가 당시
+            // 이 화이트리스트 갱신이 누락되어, 회원가입 전인데도 JWT를 요구하며
+            // 401이 나던 문제. 이 두 경로도 회원가입 전 단계라 인증 없이 허용해야 한다.
+            "/api/v1/auth/email-verifications",
+            "/api/v1/auth/email-verifications/confirm",
             "/actuator/"
     );
 
