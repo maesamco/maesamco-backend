@@ -99,10 +99,23 @@ public class DailyQuizEventOutboxRelayService {
      * 남은 배치를 계속 처리할 수 있으면 true 현재 스레드가 interrupt되었으면 false
      */
     private boolean relayOne(DailyQuizEventOutbox outbox) {
-        if (isPayloadTooLarge(outbox.getPayload())) {
+        int payloadBytes = payloadBytes(outbox.getPayload());
+
+        if (payloadBytes > maxPayloadBytes) {
             recordUnrecoverableFailureSafely(
                     outbox,
                     PAYLOAD_TOO_LARGE_ERROR
+            );
+
+            log.error(
+                    "DailyQuizCompleted Outbox payload 크기 초과. "
+                            + "outboxId={}, eventId={}, quizAttemptId={}, "
+                            + "payloadBytes={}, maxPayloadBytes={}",
+                    outbox.getId(),
+                    outbox.getEventId(),
+                    outbox.getAggregateId(),
+                    payloadBytes,
+                    maxPayloadBytes
             );
             return true;
         }
@@ -118,22 +131,59 @@ public class DailyQuizEventOutboxRelayService {
                     PUBLISH_OUTCOME_UNKNOWN_ERROR
             );
 
-            return !Thread.currentThread().isInterrupted();
+            log.error(
+                    "DailyQuizCompleted Outbox 발행 결과 불확실. "
+                            + "outboxId={}, eventId={}, quizAttemptId={}",
+                    outbox.getId(),
+                    outbox.getEventId(),
+                    outbox.getAggregateId(),
+                    exception
+            );
+
+            if (Thread.currentThread().isInterrupted()) {
+                log.warn(
+                        "DailyQuizCompleted Outbox Relay 인터럽트 감지 - "
+                                + "남은 배치 처리를 중단합니다. outboxId={}",
+                        outbox.getId()
+                );
+                return false;
+            }
+
+            return true;
         } catch (RuntimeException exception) {
+            String safeError = safePublishError(exception);
+
             recordPublishFailureSafely(
                     outbox,
-                    safePublishError(exception)
+                    safeError
+            );
+
+            log.error(
+                    "DailyQuizCompleted Outbox 발행 실패. "
+                            + "outboxId={}, eventId={}, quizAttemptId={}, errorType={}",
+                    outbox.getId(),
+                    outbox.getEventId(),
+                    outbox.getAggregateId(),
+                    safeError,
+                    exception
             );
             return true;
         }
 
-        recordPublishSuccessSafely(outbox);
+        if (recordPublishSuccessSafely(outbox)) {
+            log.info(
+                    "DailyQuizCompleted Outbox 발행 성공. "
+                            + "outboxId={}, eventId={}, quizAttemptId={}",
+                    outbox.getId(),
+                    outbox.getEventId(),
+                    outbox.getAggregateId()
+            );
+        }
         return true;
     }
 
-    private boolean isPayloadTooLarge(String payload) {
-        return payload.getBytes(StandardCharsets.UTF_8).length
-                > maxPayloadBytes;
+    private int payloadBytes(String payload) {
+        return payload.getBytes(StandardCharsets.UTF_8).length;
     }
 
     /**
@@ -143,12 +193,13 @@ public class DailyQuizEventOutboxRelayService {
      * 가능한 경우 PENDING 상태에 다음 시도 시각을 기록하고,
      * 이 기록도 실패하면 다음 polling에서 다시 조회되도록 둡니다.
      */
-    private void recordPublishSuccessSafely(DailyQuizEventOutbox outbox) {
+    private boolean recordPublishSuccessSafely(DailyQuizEventOutbox outbox) {
         try {
             statusService.recordPublishSuccess(
                     outbox.getId(),
                     dailyQuizClock.instant()
             );
+            return true;
         } catch (RuntimeException exception) {
             log.error(
                     "DailyQuizCompleted Kafka 발행 후 Outbox 상태 갱신 실패. "
@@ -164,6 +215,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox,
                     PUBLISH_STATUS_UPDATE_FAILED_ERROR
             );
+            return false;
         }
     }
 
