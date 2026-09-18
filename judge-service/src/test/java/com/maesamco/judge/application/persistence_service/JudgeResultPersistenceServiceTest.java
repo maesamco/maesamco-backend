@@ -154,6 +154,42 @@ class JudgeResultPersistenceServiceTest {
             // then
             assertThat(submission.getResult()).isEqualTo(SubmissionResult.MEMORY_LIMIT_EXCEEDED);
         }
+
+        @Test
+        @DisplayName("완료 시 발행되는 SubmissionJudged payload에 problemVersionId/attemptNo/executionTimeMs/memoryUsedKb/judgedAt이 모두 포함된다")
+        void publishesPayloadWithAllFields() {
+            // given
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+
+            PendingJudge0Execution lastPending =
+                    PendingJudge0Execution.create(submissionId, UUID.randomUUID(), "token-last", true);
+            JudgeExecutionResult lastResult = new JudgeExecutionResult(
+                    "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
+
+            SubmissionTestResult passed = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 150, 2048);
+
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
+                    .willReturn(List.of(passed));
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            // when
+            judgeResultPersistenceService.reflectResult(lastPending, lastResult);
+
+            // then
+            ArgumentCaptor<SubmissionEventOutbox> outboxCaptor = ArgumentCaptor.forClass(SubmissionEventOutbox.class);
+            verify(submissionEventOutboxRepository).save(outboxCaptor.capture());
+            String payload = outboxCaptor.getValue().getPayload();
+
+            assertThat(payload).contains("\"problemVersionId\":\"" + submission.getProblemVersionId() + "\"");
+            assertThat(payload).contains("\"attemptNo\":" + submission.getAttemptNo());
+            assertThat(payload).contains("\"executionTimeMs\":" + submission.getExecutionTimeMs());
+            assertThat(payload).contains("\"memoryUsedKb\":" + submission.getMemoryUsedKb());
+            assertThat(payload).contains("\"judgedAt\":\"" + submission.getJudgedAt() + "\"");
+        }
     }
 
     @Nested
