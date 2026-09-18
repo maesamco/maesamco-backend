@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -37,6 +38,7 @@ class DailyQuizEventOutboxRelayServiceTest {
 
     private static final int BATCH_SIZE = 10;
     private static final long LEASE_DURATION_MILLIS = 300_000L;
+    private static final long PUBLISH_TIMEOUT_MILLIS = 5_000L;
     private static final int MAX_PAYLOAD_BYTES = 100;
     private static final int MAX_RETRY_COUNT = 3;
     private static final long BACKOFF_BASE_MILLIS = 1_000L;
@@ -65,6 +67,7 @@ class DailyQuizEventOutboxRelayServiceTest {
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 BATCH_SIZE,
                 LEASE_DURATION_MILLIS,
+                PUBLISH_TIMEOUT_MILLIS,
                 MAX_PAYLOAD_BYTES,
                 MAX_RETRY_COUNT,
                 BACKOFF_BASE_MILLIS,
@@ -77,8 +80,9 @@ class DailyQuizEventOutboxRelayServiceTest {
     void relayPendingOutboxes_publishesAndRecordsSuccess() {
         DailyQuizEventOutbox outbox = createPendingOutbox("payload");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
 
         relayService.relayPendingOutboxes();
 
@@ -95,6 +99,67 @@ class DailyQuizEventOutboxRelayServiceTest {
     }
 
     @Test
+    @DisplayName("배치의 각 Outbox를 이전 발행 완료 후 한 건씩 선점한다")
+    void relayPendingOutboxes_claimsEachOutboxImmediatelyBeforePublish() {
+        DailyQuizEventOutbox first = createPendingOutbox("first");
+        DailyQuizEventOutbox second = createPendingOutbox("second");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of(second))
+                .thenReturn(List.of());
+
+        relayService.relayPendingOutboxes();
+
+        var ordered = inOrder(
+                outboxRepository,
+                eventPublisherPort,
+                statusService
+        );
+        ordered.verify(outboxRepository).claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)
+        );
+        ordered.verify(eventPublisherPort).publish(
+                first.getAggregateId(),
+                first.getPayload()
+        );
+        ordered.verify(statusService).recordPublishSuccess(
+                first.getId(),
+                CLAIM_ID,
+                NOW
+        );
+        ordered.verify(outboxRepository).claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)
+        );
+        ordered.verify(eventPublisherPort).publish(
+                second.getAggregateId(),
+                second.getPayload()
+        );
+    }
+
+    @Test
+    @DisplayName("lease가 Kafka ACK 대기 시간과 안전 여유보다 짧으면 Relay를 생성할 수 없다")
+    void constructor_rejectsLeaseWithoutSafetyMargin() {
+        assertThatThrownBy(() -> new DailyQuizEventOutboxRelayService(
+                outboxRepository,
+                eventPublisherPort,
+                statusService,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                BATCH_SIZE,
+                PUBLISH_TIMEOUT_MILLIS + 999L,
+                PUBLISH_TIMEOUT_MILLIS,
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox 선점 시간은 Kafka ACK 대기 시간보다 최소 1000ms 길어야 합니다."
+                );
+    }
+
+    @Test
     @DisplayName("UTF-8 payload 크기가 제한을 넘으면 Kafka에 보내지 않고 즉시 실패 처리한다")
     void relayPendingOutboxes_rejectsOversizedPayload() {
         DailyQuizEventOutboxRelayService smallPayloadRelayService =
@@ -105,6 +170,7 @@ class DailyQuizEventOutboxRelayServiceTest {
                         Clock.fixed(NOW, ZoneOffset.UTC),
                         BATCH_SIZE,
                         LEASE_DURATION_MILLIS,
+                        PUBLISH_TIMEOUT_MILLIS,
                         5,
                         MAX_RETRY_COUNT,
                         BACKOFF_BASE_MILLIS,
@@ -112,8 +178,9 @@ class DailyQuizEventOutboxRelayServiceTest {
                 );
         DailyQuizEventOutbox outbox = createPendingOutbox("가가");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
 
         smallPayloadRelayService.relayPendingOutboxes();
 
@@ -130,8 +197,9 @@ class DailyQuizEventOutboxRelayServiceTest {
     void relayPendingOutboxes_recordsConfirmedPublishFailure() {
         DailyQuizEventOutbox outbox = createPendingOutbox("payload");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
         doThrow(new IllegalStateException(
                 "publish failed",
                 new IllegalArgumentException("broker rejected record")
@@ -153,12 +221,13 @@ class DailyQuizEventOutboxRelayServiceTest {
     }
 
     @Test
-    @DisplayName("Kafka 발행 결과를 확인할 수 없으면 FAILED 상한 없이 다음 시도를 예약한다")
+    @DisplayName("Kafka 발행 결과를 확인할 수 없으면 재시도 한도와 다음 시도를 기록한다")
     void relayPendingOutboxes_recordsUnknownPublishOutcome() {
         DailyQuizEventOutbox outbox = createPendingOutbox("payload");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
         doThrow(new DailyQuizCompletedEventPublishOutcomeUnknownException(
                 "outcome unknown",
                 new java.util.concurrent.TimeoutException()
@@ -191,8 +260,9 @@ class DailyQuizEventOutboxRelayServiceTest {
         DailyQuizEventOutbox first = createPendingOutbox("first");
         DailyQuizEventOutbox second = createPendingOutbox("second");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(first, second));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of());
         doThrow(new DailyQuizCompletedEventPublishOutcomeUnknownException(
                 "interrupted",
                 new InterruptedException()
@@ -219,8 +289,9 @@ class DailyQuizEventOutboxRelayServiceTest {
     void relayPendingOutboxes_whenSuccessStateUpdateFails_keepsRetryable() {
         DailyQuizEventOutbox outbox = createPendingOutbox("payload");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
         doThrow(new IllegalStateException("database unavailable"))
                 .when(statusService)
                 .recordPublishSuccess(outbox.getId(), CLAIM_ID, NOW);
@@ -249,8 +320,10 @@ class DailyQuizEventOutboxRelayServiceTest {
         DailyQuizEventOutbox first = createPendingOutbox("first");
         DailyQuizEventOutbox second = createPendingOutbox("second");
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(first, second));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of(second))
+                .thenReturn(List.of());
         doThrow(new IllegalStateException("publish failed"))
                 .when(eventPublisherPort)
                 .publish(first.getAggregateId(), first.getPayload());
@@ -298,8 +371,9 @@ class DailyQuizEventOutboxRelayServiceTest {
         }
         outbox.claimForPublish(CLAIM_ID, NOW.plusSeconds(10), LEASE_UNTIL);
         when(outboxRepository.claimPublishable(
-                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(BATCH_SIZE)))
-                .thenReturn(List.of(outbox));
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
         doThrow(new IllegalStateException("publish failed"))
                 .when(eventPublisherPort)
                 .publish(outbox.getAggregateId(), outbox.getPayload());

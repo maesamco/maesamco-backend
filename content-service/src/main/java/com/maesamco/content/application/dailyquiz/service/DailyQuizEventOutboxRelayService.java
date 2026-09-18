@@ -28,6 +28,8 @@ import java.util.UUID;
 @Service
 public class DailyQuizEventOutboxRelayService {
 
+    private static final long MIN_LEASE_SAFETY_MARGIN_MILLIS = 1_000L;
+
     private static final String PAYLOAD_TOO_LARGE_ERROR = "EVENT_PAYLOAD_TOO_LARGE";
 
     private static final String PUBLISH_OUTCOME_UNKNOWN_ERROR = "KAFKA_PUBLISH_OUTCOME_UNKNOWN";
@@ -56,6 +58,9 @@ public class DailyQuizEventOutboxRelayService {
             @Value("${outbox.daily-quiz-completed.relay.lease-duration-ms:300000}")
             long leaseDurationMillis,
 
+            @Value("${outbox.daily-quiz-completed.relay.publish-timeout-ms:5000}")
+            long publishTimeoutMillis,
+
             @Value("${outbox.daily-quiz-completed.relay.max-payload-bytes:900000}")
             int maxPayloadBytes,
 
@@ -72,6 +77,11 @@ public class DailyQuizEventOutboxRelayService {
         this.eventPublisherPort = eventPublisherPort;
         this.statusService = statusService;
         this.dailyQuizClock = dailyQuizClock;
+        validateRelaySettings(
+                batchSize,
+                leaseDurationMillis,
+                publishTimeoutMillis
+        );
         this.batchSize = batchSize;
         this.leaseDurationMillis = leaseDurationMillis;
         this.maxPayloadBytes = maxPayloadBytes;
@@ -81,22 +91,26 @@ public class DailyQuizEventOutboxRelayService {
     }
 
     /**
-     * 현재 발행할 수 있는 Outbox를 오래된 순서대로 선점한 뒤 처리
+     * Outbox를 발행 직전에 한 건씩 선점하여 최대 batchSize만큼 처리
      */
     public void relayPendingOutboxes() {
-        Instant claimedAt = dailyQuizClock.instant();
-        List<DailyQuizEventOutbox> outboxes =
-                outboxRepository.claimPublishable(
-                        claimedAt,
-                        claimedAt.plusMillis(leaseDurationMillis),
-                        UUID.randomUUID(),
-                        batchSize
-                );
+        for (int processedCount = 0;
+             processedCount < batchSize;
+             processedCount++) {
+            Instant claimedAt = dailyQuizClock.instant();
+            List<DailyQuizEventOutbox> claimed =
+                    outboxRepository.claimPublishable(
+                            claimedAt,
+                            claimedAt.plusMillis(leaseDurationMillis),
+                            UUID.randomUUID(),
+                            1
+                    );
 
-        for (DailyQuizEventOutbox outbox : outboxes) {
-            boolean continueRelay = relayOne(outbox);
+            if (claimed.isEmpty()) {
+                return;
+            }
 
-            if (!continueRelay) {
+            if (!relayOne(claimed.get(0))) {
                 return;
             }
         }
@@ -193,6 +207,27 @@ public class DailyQuizEventOutboxRelayService {
 
     private int payloadBytes(String payload) {
         return payload.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private void validateRelaySettings(
+            int batchSize,
+            long leaseDurationMillis,
+            long publishTimeoutMillis
+    ) {
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("Outbox Relay 배치 크기는 1 이상이어야 합니다.");
+        }
+        if (publishTimeoutMillis < 1) {
+            throw new IllegalArgumentException("Kafka ACK 대기 시간은 1ms 이상이어야 합니다.");
+        }
+        if (leaseDurationMillis <= publishTimeoutMillis
+                || leaseDurationMillis - publishTimeoutMillis
+                < MIN_LEASE_SAFETY_MARGIN_MILLIS) {
+            throw new IllegalArgumentException(
+                    "Outbox 선점 시간은 Kafka ACK 대기 시간보다 "
+                            + "최소 1000ms 길어야 합니다."
+            );
+        }
     }
 
     /**
