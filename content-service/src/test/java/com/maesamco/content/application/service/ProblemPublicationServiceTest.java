@@ -341,7 +341,7 @@ class ProblemPublicationServiceTest {
         assertThat(
                 event.language()
         ).isEqualTo(
-                ProgrammingLanguage.JAVA.name()
+                ProgrammingLanguage.JAVA.name() + "17"
         );
 
         assertThat(
