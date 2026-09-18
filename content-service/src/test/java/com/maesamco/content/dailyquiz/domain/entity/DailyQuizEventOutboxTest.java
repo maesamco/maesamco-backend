@@ -30,6 +30,14 @@ class DailyQuizEventOutboxTest {
     private static final Instant PUBLISHED_AT =
             Instant.parse("2026-09-16T00:02:00Z");
 
+    private static final Instant LEASE_UNTIL =
+            Instant.parse("2026-09-16T00:05:00Z");
+
+    private static final Instant CLAIMED_AT =
+            Instant.parse("2026-09-16T00:04:00Z");
+
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
     @Test
     @DisplayName("DailyQuizCompleted Outbox를 생성하면 PENDING 상태로 초기화된다")
     void createPending_initializesPendingOutbox() {
@@ -56,6 +64,8 @@ class DailyQuizEventOutboxTest {
         assertThat(outbox.getStatus()).isEqualTo(DailyQuizEventOutboxStatus.PENDING);
         assertThat(outbox.getRetryCount()).isZero();
         assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getLeaseUntil()).isNull();
+        assertThat(outbox.getClaimId()).isNull();
         assertThat(outbox.getVersion()).isZero();
         assertThat(outbox.getOccurredAt()).isEqualTo(OCCURRED_AT);
         assertThat(outbox.getPublishedAt()).isNull();
@@ -185,13 +195,16 @@ class DailyQuizEventOutboxTest {
     @DisplayName("Kafka 발행에 성공하면 PUBLISHED 상태와 발행 시각을 기록한다")
     void recordPublishSuccess_recordsPublicationResult() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
 
         assertThat(outbox.getStatus())
                 .isEqualTo(DailyQuizEventOutboxStatus.PUBLISHED);
         assertThat(outbox.getPublishedAt()).isEqualTo(PUBLISHED_AT);
         assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getLeaseUntil()).isNull();
+        assertThat(outbox.getClaimId()).isNull();
         assertThat(outbox.getLastError()).isNull();
     }
 
@@ -199,8 +212,10 @@ class DailyQuizEventOutboxTest {
     @DisplayName("재시도 한도 미만의 발행 실패는 PENDING 상태와 다음 시도 시각을 유지한다")
     void recordPublishFailure_schedulesNextAttemptBeforeRetryLimit() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -218,13 +233,17 @@ class DailyQuizEventOutboxTest {
     @DisplayName("발행 실패 횟수가 재시도 한도에 도달하면 FAILED 상태가 된다")
     void recordPublishFailure_marksFailedAtRetryLimit() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 2,
                 NEXT_ATTEMPT_AT
         );
+        claim(outbox);
         outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 2,
                 NEXT_ATTEMPT_AT.plusSeconds(60)
@@ -242,12 +261,16 @@ class DailyQuizEventOutboxTest {
     @DisplayName("발행 결과를 확인할 수 없으면 재시도 횟수와 다음 시도 시각을 기록하고 PENDING을 유지한다")
     void recordPublishOutcomeUnknown_keepsPendingWithoutRetryLimit() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         outbox.recordPublishOutcomeUnknown(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         );
+        claim(outbox);
         outbox.recordPublishOutcomeUnknown(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT.plusSeconds(60)
         );
@@ -266,13 +289,16 @@ class DailyQuizEventOutboxTest {
     @DisplayName("재시도 후 발행에 성공하면 실패 정보를 제거하고 실패 횟수는 유지한다")
     void recordPublishSuccess_clearsRetryScheduleAndError() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
         );
+        claim(outbox);
 
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
 
         assertThat(outbox.getStatus())
                 .isEqualTo(DailyQuizEventOutboxStatus.PUBLISHED);
@@ -286,8 +312,9 @@ class DailyQuizEventOutboxTest {
     @DisplayName("복구할 수 없는 발행 실패는 즉시 FAILED 상태로 변경한다")
     void recordUnrecoverablePublishFailure_recordsTerminalFailure() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
-        outbox.recordUnrecoverablePublishFailure("EVENT_PAYLOAD_TOO_LARGE");
+        outbox.recordUnrecoverablePublishFailure(CLAIM_ID, "EVENT_PAYLOAD_TOO_LARGE");
 
         assertThat(outbox.getStatus())
                 .isEqualTo(DailyQuizEventOutboxStatus.FAILED);
@@ -301,8 +328,9 @@ class DailyQuizEventOutboxTest {
     @DisplayName("발행 완료 시각이 없으면 발행 성공을 기록할 수 없다")
     void recordPublishSuccess_rejectsNullPublishedAt() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
-        assertThatThrownBy(() -> outbox.recordPublishSuccess(null))
+        assertThatThrownBy(() -> outbox.recordPublishSuccess(CLAIM_ID, null))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
                         exception -> assertThat(exception.getErrorCode())
@@ -316,8 +344,10 @@ class DailyQuizEventOutboxTest {
     @DisplayName("최대 재시도 횟수가 1 미만이면 실패를 기록할 수 없다")
     void recordPublishFailure_rejectsInvalidMaxRetryCount(int maxRetryCount) {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         assertThatThrownBy(() -> outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 maxRetryCount,
                 NEXT_ATTEMPT_AT
@@ -336,8 +366,10 @@ class DailyQuizEventOutboxTest {
     @DisplayName("실패 사유가 비어 있으면 발행 실패를 기록할 수 없다")
     void recordPublishFailure_rejectsBlankError(String error) {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         assertThatThrownBy(() -> outbox.recordPublishFailure(
+                CLAIM_ID,
                 error,
                 3,
                 NEXT_ATTEMPT_AT
@@ -354,8 +386,10 @@ class DailyQuizEventOutboxTest {
     @DisplayName("다음 발행 시도 시각이 없으면 실패를 기록할 수 없다")
     void recordPublishFailure_rejectsNullNextAttemptAt() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         assertThatThrownBy(() -> outbox.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 null
@@ -372,8 +406,10 @@ class DailyQuizEventOutboxTest {
     @DisplayName("다음 발행 시도 시각이 없으면 불확실한 발행 결과를 기록할 수 없다")
     void recordPublishOutcomeUnknown_rejectsNullNextAttemptAt() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
 
         assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 null
         ))
@@ -389,38 +425,43 @@ class DailyQuizEventOutboxTest {
     @DisplayName("PUBLISHED 상태에는 불확실한 발행 결과를 기록할 수 없다")
     void recordPublishOutcomeUnknown_rejectsPublishedOutbox() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        claim(outbox);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
 
         assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         ))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("PENDING 상태의 Outbox만 변경할 수 있습니다.");
+                .hasMessage("현재 발행 선점을 보유한 Worker만 Outbox를 변경할 수 있습니다.");
     }
 
     @Test
     @DisplayName("PUBLISHED 상태의 Outbox는 다시 변경할 수 없다")
     void publishedOutbox_rejectsAdditionalTransition() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        claim(outbox);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
 
         assertThatThrownBy(() -> outbox.recordUnrecoverablePublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_FAILED"
         ))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("PENDING 상태의 Outbox만 변경할 수 있습니다.");
+                .hasMessage("현재 발행 선점을 보유한 Worker만 Outbox를 변경할 수 있습니다.");
     }
 
     @Test
     @DisplayName("FAILED 상태의 Outbox는 다시 변경할 수 없다")
     void failedOutbox_rejectsAdditionalTransition() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
-        outbox.recordUnrecoverablePublishFailure("EVENT_PAYLOAD_TOO_LARGE");
+        claim(outbox);
+        outbox.recordUnrecoverablePublishFailure(CLAIM_ID, "EVENT_PAYLOAD_TOO_LARGE");
 
-        assertThatThrownBy(() -> outbox.recordPublishSuccess(PUBLISHED_AT))
+        assertThatThrownBy(() -> outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("PENDING 상태의 Outbox만 변경할 수 있습니다.");
+                .hasMessage("현재 발행 선점을 보유한 Worker만 Outbox를 변경할 수 있습니다.");
     }
 
     private DailyQuizEventOutbox createPendingOutbox() {
@@ -431,6 +472,14 @@ class DailyQuizEventOutboxTest {
                 1,
                 "{\"eventType\":\"DAILY_QUIZ_COMPLETED\"}",
                 OCCURRED_AT
+        );
+    }
+
+    private void claim(DailyQuizEventOutbox outbox) {
+        outbox.claimForPublish(
+                CLAIM_ID,
+                CLAIMED_AT,
+                LEASE_UNTIL
         );
     }
 }

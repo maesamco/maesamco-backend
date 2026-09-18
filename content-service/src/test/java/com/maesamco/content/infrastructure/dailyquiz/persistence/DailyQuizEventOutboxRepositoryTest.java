@@ -1,6 +1,7 @@
 package com.maesamco.content.infrastructure.dailyquiz.persistence;
 
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutbox;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutboxStatus;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
@@ -14,6 +15,9 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import tools.jackson.databind.json.JsonMapper;
@@ -21,6 +25,10 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +63,11 @@ class DailyQuizEventOutboxRepositoryTest {
     private static final Instant AVAILABLE_AT =
             Instant.parse("2026-09-17T01:00:00Z");
 
+    private static final Instant LEASE_UNTIL =
+            Instant.parse("2026-09-17T01:05:00Z");
+
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
     @ServiceConnection
     static final PostgreSQLContainer postgres =
             new PostgreSQLContainer(
@@ -70,6 +83,9 @@ class DailyQuizEventOutboxRepositoryTest {
 
     @Autowired
     private DailyQuizEventOutboxRepository outboxRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("Daily Quiz Outbox를 ID로 다시 조회할 수 있다")
@@ -106,7 +122,9 @@ class DailyQuizEventOutboxRepositoryTest {
 
         DailyQuizEventOutbox retryReady =
                 createPendingOutbox(BASE_TIME.plusSeconds(1));
+        claimForSetup(retryReady);
         retryReady.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 AVAILABLE_AT.minusSeconds(1)
@@ -114,7 +132,9 @@ class DailyQuizEventOutboxRepositoryTest {
 
         DailyQuizEventOutbox retryReadyAtBoundary =
                 createPendingOutbox(BASE_TIME.plusSeconds(2));
+        claimForSetup(retryReadyAtBoundary);
         retryReadyAtBoundary.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 AVAILABLE_AT
@@ -122,7 +142,9 @@ class DailyQuizEventOutboxRepositoryTest {
 
         DailyQuizEventOutbox backingOff =
                 createPendingOutbox(BASE_TIME.minusSeconds(3));
+        claimForSetup(backingOff);
         backingOff.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 AVAILABLE_AT.plusSeconds(1)
@@ -130,11 +152,14 @@ class DailyQuizEventOutboxRepositoryTest {
 
         DailyQuizEventOutbox published =
                 createPendingOutbox(BASE_TIME.minusSeconds(2));
-        published.recordPublishSuccess(AVAILABLE_AT);
+        claimForSetup(published);
+        published.recordPublishSuccess(CLAIM_ID, AVAILABLE_AT);
 
         DailyQuizEventOutbox failed =
                 createPendingOutbox(BASE_TIME.minusSeconds(1));
+        claimForSetup(failed);
         failed.recordUnrecoverablePublishFailure(
+                CLAIM_ID,
                 "EVENT_PAYLOAD_TOO_LARGE"
         );
 
@@ -155,8 +180,10 @@ class DailyQuizEventOutboxRepositoryTest {
         entityManager.clear();
 
         List<DailyQuizEventOutbox> found =
-                outboxRepository.findPublishablePending(
+                outboxRepository.claimPublishable(
                         AVAILABLE_AT,
+                        LEASE_UNTIL,
+                        CLAIM_ID,
                         10
                 );
 
@@ -167,6 +194,13 @@ class DailyQuizEventOutboxRepositoryTest {
                         retryReadyId,
                         retryReadyAtBoundaryId
                 );
+        assertThat(found)
+                .allSatisfy(outbox -> {
+                    assertThat(outbox.getStatus())
+                            .isEqualTo(DailyQuizEventOutboxStatus.IN_PROGRESS);
+                    assertThat(outbox.getClaimId()).isEqualTo(CLAIM_ID);
+                    assertThat(outbox.getLeaseUntil()).isEqualTo(LEASE_UNTIL);
+                });
     }
 
     @Test
@@ -188,14 +222,123 @@ class DailyQuizEventOutboxRepositoryTest {
         entityManager.clear();
 
         List<DailyQuizEventOutbox> found =
-                outboxRepository.findPublishablePending(
+                outboxRepository.claimPublishable(
                         AVAILABLE_AT,
+                        LEASE_UNTIL,
+                        CLAIM_ID,
                         2
                 );
 
         assertThat(found)
                 .extracting(DailyQuizEventOutbox::getId)
                 .containsExactly(oldestId, secondId);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("두 Relay Worker가 동시에 선점해도 동일 Outbox는 한 Worker만 가져간다")
+    void claimPublishable_allowsOnlyOneWorkerToClaimSameOutbox() throws Exception {
+        jdbcTemplate.update(
+                "DELETE FROM content_schema.p_daily_quiz_event_outboxes"
+        );
+        DailyQuizEventOutbox saved =
+                outboxRepository.save(createPendingOutbox(BASE_TIME));
+        UUID firstClaimId = UUID.randomUUID();
+        UUID secondClaimId = UUID.randomUUID();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<List<DailyQuizEventOutbox>> first = executor.submit(() -> {
+                start.await();
+                return outboxRepository.claimPublishable(
+                        AVAILABLE_AT,
+                        LEASE_UNTIL,
+                        firstClaimId,
+                        1
+                );
+            });
+            Future<List<DailyQuizEventOutbox>> second = executor.submit(() -> {
+                start.await();
+                return outboxRepository.claimPublishable(
+                        AVAILABLE_AT,
+                        LEASE_UNTIL,
+                        secondClaimId,
+                        1
+                );
+            });
+
+            start.countDown();
+
+            List<DailyQuizEventOutbox> firstResult = first.get();
+            List<DailyQuizEventOutbox> secondResult = second.get();
+
+            assertThat(firstResult.size() + secondResult.size()).isEqualTo(1);
+            assertThat(firstResult.isEmpty() ? secondResult : firstResult)
+                    .singleElement()
+                    .extracting(DailyQuizEventOutbox::getId)
+                    .isEqualTo(saved.getId());
+
+            DailyQuizEventOutbox found =
+                    outboxRepository.findById(saved.getId()).orElseThrow();
+            assertThat(found.getStatus())
+                    .isEqualTo(DailyQuizEventOutboxStatus.IN_PROGRESS);
+            assertThat(found.getClaimId())
+                    .isIn(firstClaimId, secondClaimId);
+        } finally {
+            executor.shutdownNow();
+            jdbcTemplate.update(
+                    "DELETE FROM content_schema.p_daily_quiz_event_outboxes"
+            );
+        }
+    }
+
+    @Test
+    @DisplayName("lease가 만료된 IN_PROGRESS Outbox는 새로운 Worker가 재선점한다")
+    void claimPublishable_reclaimsExpiredLease() {
+        DailyQuizEventOutbox saved =
+                outboxRepository.save(createPendingOutbox(BASE_TIME));
+        UUID firstClaimId = UUID.randomUUID();
+        UUID secondClaimId = UUID.randomUUID();
+
+        outboxRepository.claimPublishable(
+                AVAILABLE_AT,
+                LEASE_UNTIL,
+                firstClaimId,
+                1
+        );
+        entityManager.clear();
+
+        List<DailyQuizEventOutbox> beforeExpiration =
+                outboxRepository.claimPublishable(
+                        LEASE_UNTIL.minusMillis(1),
+                        LEASE_UNTIL.plusSeconds(60),
+                        secondClaimId,
+                        1
+                );
+        List<DailyQuizEventOutbox> afterExpiration =
+                outboxRepository.claimPublishable(
+                        LEASE_UNTIL,
+                        LEASE_UNTIL.plusSeconds(60),
+                        secondClaimId,
+                        1
+                );
+
+        assertThat(beforeExpiration).isEmpty();
+        assertThat(afterExpiration)
+                .singleElement()
+                .satisfies(outbox -> {
+                    assertThat(outbox.getId()).isEqualTo(saved.getId());
+                    assertThat(outbox.getClaimId()).isEqualTo(secondClaimId);
+                });
+    }
+
+    private void claimForSetup(DailyQuizEventOutbox outbox) {
+        outbox.claimForPublish(
+                CLAIM_ID,
+                BASE_TIME.minusSeconds(1),
+                BASE_TIME.plusSeconds(30)
+        );
     }
 
     private void saveAll(DailyQuizEventOutbox... outboxes) {

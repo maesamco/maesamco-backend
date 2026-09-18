@@ -62,6 +62,11 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
     private static final Instant PUBLISHED_AT =
             Instant.parse("2026-09-17T00:02:00Z");
 
+    private static final Instant LEASE_UNTIL =
+            Instant.parse("2026-09-17T00:05:00Z");
+
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
     @ServiceConnection
     static final PostgreSQLContainer postgres =
             new PostgreSQLContainer(
@@ -85,6 +90,7 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
 
         statusService.recordPublishSuccess(
                 saved.getId(),
+                CLAIM_ID,
                 PUBLISHED_AT
         );
 
@@ -103,6 +109,7 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
 
         statusService.recordPublishFailure(
                 saved.getId(),
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -125,6 +132,7 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
 
         statusService.recordPublishOutcomeUnknown(
                 saved.getId(),
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         );
@@ -148,11 +156,13 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
 
         statusService.recordPublishSuccess(
                 outboxId,
+                CLAIM_ID,
                 PUBLISHED_AT
         );
 
         statusService.recordPublishFailure(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -176,10 +186,11 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
         DailyQuizEventOutbox first = find(outboxId);
         DailyQuizEventOutbox stale = find(outboxId);
 
-        first.recordPublishSuccess(PUBLISHED_AT);
+        first.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
         outboxRepository.save(first);
 
         stale.recordPublishFailure(
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -196,7 +207,7 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
     }
 
     private DailyQuizEventOutbox savePendingOutbox() {
-        return outboxRepository.save(
+        DailyQuizEventOutbox outbox =
                 DailyQuizEventOutbox.createPending(
                         UUID.randomUUID(),
                         UUID.randomUUID(),
@@ -204,8 +215,13 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
                         1,
                         "{\"eventType\":\"DAILY_QUIZ_COMPLETED\"}",
                         OCCURRED_AT
-                )
+                );
+        outbox.claimForPublish(
+                CLAIM_ID,
+                NEXT_ATTEMPT_AT,
+                LEASE_UNTIL
         );
+        return outboxRepository.save(outbox);
     }
 
     private DailyQuizEventOutbox find(UUID outboxId) {

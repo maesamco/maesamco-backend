@@ -35,6 +35,11 @@ class DailyQuizEventOutboxStatusServiceTest {
     private static final Instant PUBLISHED_AT =
             Instant.parse("2026-09-17T00:02:00Z");
 
+    private static final Instant LEASE_UNTIL =
+            Instant.parse("2026-09-17T00:05:00Z");
+
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
     @Mock
     private DailyQuizEventOutboxRepository outboxRepository;
 
@@ -53,11 +58,13 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishSuccess_updatesOutbox() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishSuccess(
                 outboxId,
+                CLAIM_ID,
                 PUBLISHED_AT
         );
 
@@ -72,11 +79,13 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishFailure_updatesRetryState() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishFailure(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -95,11 +104,13 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishFailure_marksFailedAtRetryLimit() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishFailure(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 1,
                 NEXT_ATTEMPT_AT
@@ -116,11 +127,13 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishOutcomeUnknown_updatesRetryStateWithoutFailure() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishOutcomeUnknown(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         );
@@ -139,11 +152,13 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordUnrecoverablePublishFailure_marksFailed() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordUnrecoverablePublishFailure(
                 outboxId,
+                CLAIM_ID,
                 "EVENT_PAYLOAD_TOO_LARGE"
         );
 
@@ -158,12 +173,14 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishFailure_ignoresPublishedOutbox() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        claim(outbox);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishFailure(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_TIMEOUT",
                 3,
                 NEXT_ATTEMPT_AT
@@ -182,12 +199,14 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishOutcomeUnknown_ignoresPublishedOutbox() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
-        outbox.recordPublishSuccess(PUBLISHED_AT);
+        claim(outbox);
+        outbox.recordPublishSuccess(CLAIM_ID, PUBLISHED_AT);
         when(outboxRepository.findById(outboxId))
                 .thenReturn(Optional.of(outbox));
 
         statusService.recordPublishOutcomeUnknown(
                 outboxId,
+                CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
                 NEXT_ATTEMPT_AT
         );
@@ -205,7 +224,9 @@ class DailyQuizEventOutboxStatusServiceTest {
     void recordPublishSuccess_ignoresFailedOutbox() {
         UUID outboxId = UUID.randomUUID();
         DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
         outbox.recordUnrecoverablePublishFailure(
+                CLAIM_ID,
                 "EVENT_PAYLOAD_TOO_LARGE"
         );
         when(outboxRepository.findById(outboxId))
@@ -213,6 +234,7 @@ class DailyQuizEventOutboxStatusServiceTest {
 
         statusService.recordPublishSuccess(
                 outboxId,
+                CLAIM_ID,
                 PUBLISHED_AT
         );
 
@@ -225,6 +247,27 @@ class DailyQuizEventOutboxStatusServiceTest {
     }
 
     @Test
+    @DisplayName("이전 Worker의 claim ID로 전달된 늦은 결과는 무시한다")
+    void recordPublishSuccess_ignoresStaleClaim() {
+        UUID outboxId = UUID.randomUUID();
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
+        when(outboxRepository.findById(outboxId))
+                .thenReturn(Optional.of(outbox));
+
+        boolean updated = statusService.recordPublishSuccess(
+                outboxId,
+                UUID.randomUUID(),
+                PUBLISHED_AT
+        );
+
+        assertThat(updated).isFalse();
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.IN_PROGRESS);
+        assertThat(outbox.getClaimId()).isEqualTo(CLAIM_ID);
+    }
+
+    @Test
     @DisplayName("상태를 변경할 Outbox가 없으면 예외가 발생한다")
     void recordPublishSuccess_rejectsMissingOutbox() {
         UUID outboxId = UUID.randomUUID();
@@ -233,6 +276,7 @@ class DailyQuizEventOutboxStatusServiceTest {
 
         assertThatThrownBy(() -> statusService.recordPublishSuccess(
                 outboxId,
+                CLAIM_ID,
                 PUBLISHED_AT
         ))
                 .isInstanceOfSatisfying(
@@ -251,6 +295,14 @@ class DailyQuizEventOutboxStatusServiceTest {
                 1,
                 "{\"eventType\":\"DAILY_QUIZ_COMPLETED\"}",
                 OCCURRED_AT
+        );
+    }
+
+    private void claim(DailyQuizEventOutbox outbox) {
+        outbox.claimForPublish(
+                CLAIM_ID,
+                NEXT_ATTEMPT_AT,
+                LEASE_UNTIL
         );
     }
 }

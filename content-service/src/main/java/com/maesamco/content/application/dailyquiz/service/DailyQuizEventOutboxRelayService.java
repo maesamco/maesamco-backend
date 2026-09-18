@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 발행 가능한 DailyQuizCompleted Outbox를 조회해 Kafka로 전달
@@ -38,6 +39,7 @@ public class DailyQuizEventOutboxRelayService {
     private final DailyQuizEventOutboxStatusService statusService;
     private final Clock dailyQuizClock;
     private final int batchSize;
+    private final long leaseDurationMillis;
     private final int maxPayloadBytes;
     private final int maxRetryCount;
     private final long backoffBaseMillis;
@@ -50,6 +52,9 @@ public class DailyQuizEventOutboxRelayService {
             Clock dailyQuizClock,
             @Value("${outbox.daily-quiz-completed.relay.batch-size:50}")
             int batchSize,
+
+            @Value("${outbox.daily-quiz-completed.relay.lease-duration-ms:300000}")
+            long leaseDurationMillis,
 
             @Value("${outbox.daily-quiz-completed.relay.max-payload-bytes:900000}")
             int maxPayloadBytes,
@@ -68,6 +73,7 @@ public class DailyQuizEventOutboxRelayService {
         this.statusService = statusService;
         this.dailyQuizClock = dailyQuizClock;
         this.batchSize = batchSize;
+        this.leaseDurationMillis = leaseDurationMillis;
         this.maxPayloadBytes = maxPayloadBytes;
         this.maxRetryCount = maxRetryCount;
         this.backoffBaseMillis = backoffBaseMillis;
@@ -75,12 +81,15 @@ public class DailyQuizEventOutboxRelayService {
     }
 
     /**
-     * 현재 발행할 수 있는 PENDING Outbox를 오래된 순서대로 처리
+     * 현재 발행할 수 있는 Outbox를 오래된 순서대로 선점한 뒤 처리
      */
     public void relayPendingOutboxes() {
+        Instant claimedAt = dailyQuizClock.instant();
         List<DailyQuizEventOutbox> outboxes =
-                outboxRepository.findPublishablePending(
-                        dailyQuizClock.instant(),
+                outboxRepository.claimPublishable(
+                        claimedAt,
+                        claimedAt.plusMillis(leaseDurationMillis),
+                        UUID.randomUUID(),
                         batchSize
                 );
 
@@ -195,11 +204,11 @@ public class DailyQuizEventOutboxRelayService {
      */
     private boolean recordPublishSuccessSafely(DailyQuizEventOutbox outbox) {
         try {
-            statusService.recordPublishSuccess(
+            return statusService.recordPublishSuccess(
                     outbox.getId(),
+                    outbox.getClaimId(),
                     dailyQuizClock.instant()
             );
-            return true;
         } catch (RuntimeException exception) {
             log.error(
                     "DailyQuizCompleted Kafka 발행 후 Outbox 상태 갱신 실패. "
@@ -226,6 +235,7 @@ public class DailyQuizEventOutboxRelayService {
         try {
             statusService.recordPublishFailure(
                     outbox.getId(),
+                    outbox.getClaimId(),
                     safeError,
                     maxRetryCount,
                     nextAttemptAt(outbox.getRetryCount())
@@ -250,6 +260,7 @@ public class DailyQuizEventOutboxRelayService {
         try {
             statusService.recordPublishOutcomeUnknown(
                     outbox.getId(),
+                    outbox.getClaimId(),
                     safeError,
                     nextAttemptAt(outbox.getRetryCount())
             );
@@ -273,6 +284,7 @@ public class DailyQuizEventOutboxRelayService {
         try {
             statusService.recordUnrecoverablePublishFailure(
                     outbox.getId(),
+                    outbox.getClaimId(),
                     safeError
             );
         } catch (RuntimeException exception) {

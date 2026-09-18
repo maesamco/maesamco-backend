@@ -29,62 +29,89 @@ public class DailyQuizEventOutboxStatusService {
      * Kafka 발행 성공 결과를 Outbox에 기록
      */
     @Transactional
-    public void recordPublishSuccess(UUID outboxId, Instant publishedAt) {
+    public boolean recordPublishSuccess(
+            UUID outboxId,
+            UUID claimId,
+            Instant publishedAt
+    ) {
         DailyQuizEventOutbox outbox = getOutbox(outboxId);
 
-        if (outbox.getStatus() != DailyQuizEventOutboxStatus.PENDING) {
-            return;
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
         }
 
-        outbox.recordPublishSuccess(publishedAt);
+        outbox.recordPublishSuccess(claimId, publishedAt);
+        return true;
     }
 
     /**
      * Kafka 발행 실패와 다음 재시도 시각을 Outbox에 기록
      */
     @Transactional
-    public void recordPublishFailure(
+    public boolean recordPublishFailure(
             UUID outboxId,
+            UUID claimId,
             String error,
             int maxRetryCount,
             Instant nextAttemptAt
     ) {
         DailyQuizEventOutbox outbox = getOutbox(outboxId);
 
-        if (outbox.getStatus() != DailyQuizEventOutboxStatus.PENDING) {
-            return;
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
         }
 
-        outbox.recordPublishFailure(error, maxRetryCount, nextAttemptAt
+        outbox.recordPublishFailure(claimId, error, maxRetryCount, nextAttemptAt
         );
+        return true;
     }
 
     /**
      * 실제 Kafka 전달 여부를 확인하지 못한 결과와 다음 재시도 시각을 기록
      */
     @Transactional
-    public void recordPublishOutcomeUnknown(UUID outboxId, String error, Instant nextAttemptAt) {
+    public boolean recordPublishOutcomeUnknown(
+            UUID outboxId,
+            UUID claimId,
+            String error,
+            Instant nextAttemptAt
+    ) {
         DailyQuizEventOutbox outbox = getOutbox(outboxId);
 
-        if (outbox.getStatus() != DailyQuizEventOutboxStatus.PENDING) {
-            return;
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
         }
 
-        outbox.recordPublishOutcomeUnknown(error, nextAttemptAt);
+        outbox.recordPublishOutcomeUnknown(claimId, error, nextAttemptAt);
+        return true;
     }
 
     /**
      * 재시도로 복구할 수 없는 Kafka 발행 실패를 Outbox에 기록
      */
     @Transactional
-    public void recordUnrecoverablePublishFailure(UUID outboxId, String error) {
+    public boolean recordUnrecoverablePublishFailure(
+            UUID outboxId,
+            UUID claimId,
+            String error
+    ) {
         DailyQuizEventOutbox outbox = getOutbox(outboxId);
 
-        if (outbox.getStatus() != DailyQuizEventOutboxStatus.PENDING) {
-            return;
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
         }
 
-        outbox.recordUnrecoverablePublishFailure(error);
+        outbox.recordUnrecoverablePublishFailure(claimId, error);
+        return true;
+    }
+
+    private boolean hasActiveClaim(
+            DailyQuizEventOutbox outbox,
+            UUID claimId
+    ) {
+        return outbox.getStatus() == DailyQuizEventOutboxStatus.IN_PROGRESS
+                && claimId != null
+                && claimId.equals(outbox.getClaimId());
     }
 
     private DailyQuizEventOutbox getOutbox(UUID outboxId) {

@@ -6,6 +6,7 @@ import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepo
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,11 +30,25 @@ public class DailyQuizEventOutboxRepositoryImpl implements DailyQuizEventOutboxR
     }
 
     @Override
-    public List<DailyQuizEventOutbox> findPublishablePending(Instant availableAt, int limit) {
-        return springDataRepository.findPublishableByStatus(
+    @Transactional
+    public List<DailyQuizEventOutbox> claimPublishable(
+            Instant availableAt,
+            Instant leaseUntil,
+            UUID claimId,
+            int limit
+    ) {
+        List<DailyQuizEventOutbox> claimed = springDataRepository.findClaimableForUpdate(
                 DailyQuizEventOutboxStatus.PENDING,
+                DailyQuizEventOutboxStatus.IN_PROGRESS,
                 availableAt,
                 PageRequest.of(0, limit)
         );
+
+        claimed.forEach(outbox ->
+                outbox.claimForPublish(claimId, availableAt, leaseUntil)
+        );
+        springDataRepository.flush();
+
+        return claimed;
     }
 }

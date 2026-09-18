@@ -58,6 +58,10 @@ outbox:
       # 한 번의 polling에서 처리할 최대 PENDING Outbox 개수입니다.
       batch-size: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BATCH_SIZE:50}
 
+      # Worker 장애 시 다른 Worker가 선점을 복구할 수 있는 만료 시간입니다.
+      # 배치 전체의 Kafka ACK 대기 시간을 포함할 수 있도록 설정합니다.
+      lease-duration-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_LEASE_DURATION_MS:300000}
+
       # Kafka ACK를 기다리는 최대 시간입니다.
       publish-timeout-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
 

@@ -11,6 +11,11 @@ public enum DailyQuizEventOutboxStatus {
     PENDING,
 
     /**
+     * Relay Worker가 Kafka 발행을 위해 선점한 상태입니다.
+     */
+    IN_PROGRESS,
+
+    /**
      * Kafka 발행이 완료된 상태입니다.
      */
     PUBLISHED,
