@@ -5,6 +5,7 @@ import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxR
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -56,6 +57,11 @@ class SchedulingConfigTest {
                             .hasSingleBean(
                                     ProblemEventOutboxRelayScheduler.class
                             );
+
+                    ThreadPoolTaskScheduler taskScheduler =
+                            context.getBean(ThreadPoolTaskScheduler.class);
+
+                    assertThat(taskScheduler.getPoolSize()).isEqualTo(2);
                 });
     }
 }
