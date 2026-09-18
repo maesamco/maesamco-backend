@@ -32,8 +32,14 @@ public class CoachingSessionFinder {
      * 새로 만든다. 동시 요청으로 두 트랜잭션이 동시에 "없다"고 판단해 둘 다 생성을
      * 시도하면, 나중에 flush되는 쪽이 UNIQUE(user_id, problem_id) 위반으로
      * COACHING_SESSION_ALREADY_EXISTS를 받는다 — 이 경우 방금 다른 트랜잭션이 만든 세션을
-     * 그대로 재조회해서 쓴다(힌트 요청·설명 등록 자체를 실패시킬 이유가 없다, PR #70 리뷰와
+     * 재조회해서 쓴다(힌트 요청·설명 등록 자체를 실패시킬 이유가 없다, PR #70 리뷰와
      * 동일한 판단).
+     *
+     * PR #228 리뷰(용현님 P1) — 재조회한 세션을 그대로 반환하면, 이 생성 경합에서 진 쪽의
+     * attemptNo가 유실될 수 있다(예: attemptNo=1이 먼저 INSERT에 성공하고 attemptNo=2는
+     * UNIQUE 충돌 후 재조회만 하면, 최종 DB엔 attemptNo=1 상태가 남는다). "이미 있는
+     * 세션" 분기와 동일하게 advanceAndSave()에 태워서, advanceToSubmission()의 역행 방지가
+     * 최신 attempt만 실제로 반영되도록 한다.
      *
      * PR #88 리뷰(용현님 P1) — submission_id를 갈아탈지는 더 이상 여기서 "값이 다른가"로
      * 판단하지 않는다. CoachingSession.advanceToSubmission()이 attemptNo 기준으로
@@ -62,8 +68,10 @@ public class CoachingSessionFinder {
                         );
                     } catch (BusinessException e) {
                         if (e.getErrorCode() == ErrorCode.COACHING_SESSION_ALREADY_EXISTS) {
-                            return coachingSessionRepository.findByUserIdAndProblemId(submission.userId(), submission.problemId())
+                            CoachingSession existingSession = coachingSessionRepository
+                                    .findByUserIdAndProblemId(submission.userId(), submission.problemId())
                                     .orElseThrow(() -> e);
+                            return advanceAndSave(existingSession, submission);
                         }
                         throw e;
                     }
