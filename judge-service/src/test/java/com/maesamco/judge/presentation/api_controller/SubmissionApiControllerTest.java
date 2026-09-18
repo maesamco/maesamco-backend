@@ -1,7 +1,10 @@
 package com.maesamco.judge.presentation.api_controller;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,10 +16,12 @@ import com.maesamco.judge.application.command_service.SubmissionCommandService;
 import com.maesamco.judge.application.query_service.SubmissionQueryService;
 import com.maesamco.judge.application.result.SubmissionCreateResult;
 import com.maesamco.judge.application.result.SubmissionExternalGetResult;
+import com.maesamco.judge.application.result.SubmissionSummaryResult;
 import com.maesamco.judge.domain.entity.SubmissionResult;
 import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
+import com.maesamco.judge.global.response.PageResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import java.time.Instant;
 import java.util.List;
@@ -26,12 +31,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -289,6 +296,102 @@ class SubmissionApiControllerTest {
             mockMvc.perform(get("/api/v1/submissions/{submissionId}", submissionId)
                             .with(authenticatedWithNullPrincipal()))
                     .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/submissions/me")
+    class GetMySubmissions {
+
+        @Test
+        @DisplayName("본인 제출 이력을 페이지 형태로 반환한다")
+        void returns200WithPageResponse() throws Exception {
+            UUID userId = UUID.randomUUID();
+            SubmissionSummaryResult summary = new SubmissionSummaryResult(
+                    UUID.randomUUID(), UUID.randomUUID(), 1,
+                    SubmissionStatus.COMPLETED, SubmissionResult.CORRECT, Instant.now());
+            PageResponse<SubmissionSummaryResult> pageResponse =
+                    new PageResponse<>(List.of(summary), 0, 20, 1, 1, false);
+
+            given(submissionQueryService.getSubmissions(eq(userId), isNull(), any()))
+                    .willReturn(pageResponse);
+
+            mockMvc.perform(get("/api/v1/submissions/me")
+                            .with(authenticatedAs(userId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.content[0].status").value("COMPLETED"))
+                    .andExpect(jsonPath("$.data.totalElements").value(1));
+        }
+
+        @Test
+        @DisplayName("problemId 쿼리 파라미터를 서비스에 그대로 전달한다")
+        void passesProblemIdFilter() throws Exception {
+            UUID userId = UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
+            PageResponse<SubmissionSummaryResult> emptyResponse =
+                    new PageResponse<>(List.of(), 0, 20, 0, 0, false);
+
+            given(submissionQueryService.getSubmissions(eq(userId), eq(problemId), any()))
+                    .willReturn(emptyResponse);
+
+            mockMvc.perform(get("/api/v1/submissions/me")
+                            .param("problemId", problemId.toString())
+                            .with(authenticatedAs(userId)))
+                    .andExpect(status().isOk());
+
+            verify(submissionQueryService).getSubmissions(eq(userId), eq(problemId), any());
+        }
+
+        @Test
+        @DisplayName("인증 정보가 없으면 401을 반환한다")
+        void returns401WhenUnauthenticated() throws Exception {
+            mockMvc.perform(get("/api/v1/submissions/me"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("/me가 {submissionId} 단건 조회로 잘못 라우팅되지 않는다")
+        void routesToListNotSingleGet() throws Exception {
+            UUID userId = UUID.randomUUID();
+            PageResponse<SubmissionSummaryResult> emptyResponse =
+                    new PageResponse<>(List.of(), 0, 20, 0, 0, false);
+            given(submissionQueryService.getSubmissions(any(), any(), any())).willReturn(emptyResponse);
+
+            // getSubmission()으로 잘못 갔다면 "me"를 UUID로 파싱하려다 400이 났을 것 — 200이면 제대로 라우팅된 것
+            mockMvc.perform(get("/api/v1/submissions/me")
+                            .with(authenticatedAs(userId)))
+                    .andExpect(status().isOk());
+
+            verify(submissionQueryService, never()).getSubmission(any(), any());
+        }
+
+        @Test
+        @DisplayName("page/size/sort/direction 쿼리 파라미터가 Pageable에 정확히 반영된다")
+        void passesPageableParametersCorrectly() throws Exception {
+            UUID userId = UUID.randomUUID();
+            PageResponse<SubmissionSummaryResult> emptyResponse =
+                    new PageResponse<>(List.of(), 1, 10, 0, 0, false);
+
+            given(submissionQueryService.getSubmissions(eq(userId), isNull(), any()))
+                    .willReturn(emptyResponse);
+
+            mockMvc.perform(get("/api/v1/submissions/me")
+                            .param("page", "1")
+                            .param("size", "10")
+                            .param("sort", "submittedAt")
+                            .param("direction", "ASC")
+                            .with(authenticatedAs(userId)))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(submissionQueryService).getSubmissions(eq(userId), isNull(), pageableCaptor.capture());
+            Pageable captured = pageableCaptor.getValue();
+
+            assertThat(captured.getPageNumber()).isEqualTo(1);
+            assertThat(captured.getPageSize()).isEqualTo(10);
+            assertThat(captured.getSort().getOrderFor("submittedAt")).isNotNull();
+            assertThat(captured.getSort().getOrderFor("submittedAt").isAscending()).isTrue();
         }
     }
 }

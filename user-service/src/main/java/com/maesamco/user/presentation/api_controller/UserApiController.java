@@ -2,8 +2,13 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordRetryService;
+import com.maesamco.user.application.service.GetMyGamificationResult;
+import com.maesamco.user.application.service.GetMyGamificationService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.GetMyXpHistoriesQuery;
+import com.maesamco.user.application.service.GetMyXpHistoriesResult;
+import com.maesamco.user.application.service.GetMyXpHistoriesService;
 import com.maesamco.user.application.service.UpdateMyInterestsCommand;
 import com.maesamco.user.application.service.UpdateMyInterestsResult;
 import com.maesamco.user.application.service.UpdateMyInterestsService;
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -46,6 +52,8 @@ public class UserApiController implements UserApiDocs {
 
     private final GetMyProfileService getMyProfileService;
 
+    private final GetMyGamificationService getMyGamificationService;
+
     private final ChangePasswordRetryService changePasswordRetryService;
 
     private final UpdateMyProfileService updateMyProfileService;
@@ -53,6 +61,8 @@ public class UserApiController implements UserApiDocs {
     private final UpdateMyInterestsService updateMyInterestsService;
 
     private final WithdrawUserService withdrawUserService;
+
+    private final GetMyXpHistoriesService getMyXpHistoriesService;
 
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
@@ -75,6 +85,79 @@ public class UserApiController implements UserApiDocs {
                 getMyProfileService.getMyProfile(
                         userId
                 );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 현재 게이미피케이션 상태를 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 누적 XP, 레벨과 연속 학습 상태
+     */
+    @Override
+    @GetMapping("/gamification")
+    public ResponseEntity<SuccessResponse<GetMyGamificationResult>>
+    getMyGamification(
+            Authentication authentication
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyGamificationResult result =
+                getMyGamificationService
+                        .getMyGamification(
+                                userId
+                        );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 XP 지급·차감 이력을 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param size 페이지당 조회 개수
+     * @param cursor 다음 페이지 조회 cursor
+     * @return cursor 기반 XP 이력 페이지
+     */
+    @Override
+    @GetMapping("/xp-histories")
+    public ResponseEntity<SuccessResponse<GetMyXpHistoriesResult>>
+    getMyXpHistories(
+            Authentication authentication,
+            @RequestParam(required = false)
+            Integer size,
+            @RequestParam(required = false)
+            String cursor
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyXpHistoriesQuery query =
+                GetMyXpHistoriesQuery.of(
+                        size,
+                        cursor
+                );
+
+        GetMyXpHistoriesResult result =
+                getMyXpHistoriesService
+                        .getMyXpHistories(
+                                userId,
+                                query
+                        );
 
         return ResponseEntity.ok(
                 SuccessResponse.success(
