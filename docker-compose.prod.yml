@@ -1,0 +1,312 @@
+version: "3.8"
+
+# AWS 배포용(EC2 + RDS) 인프라 + 서비스 기동 파일.
+# 로컬 개발용 docker-compose.yml에서 postgres 4개 컨테이너를 제거하고,
+# 각 서비스가 RDS(PostgreSQL) 엔드포인트를 바라보도록 바꾼 버전입니다.
+# 10/1 시연 전 통합테스트 목적의 임시 배포 구성 — ALB 없이 EC2 IP로 api-gateway(8080)만
+# 직접 노출합니다. 나머지 포트(redis/kafka-ui/prometheus/grafana)는 보안그룹에서
+# 특정 IP(관리자 SSH 대역)로만 열어뒀습니다 — 인프라설계도.md 원칙(운영에선 api-gateway
+# 외 포트를 host에 노출하지 않음)과 달리 지금은 관측/디버깅 편의를 위해 좁게 열어둔
+# 임시 예외입니다. 정식 운영 배포 시엔 재검토 필요.
+#
+# 사용법(EC2 안에서):
+#   1) fetch-env.sh로 SSM Parameter Store에서 .env 생성 (RDS_ENDPOINT는 직접 채울 것)
+#   2) docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ================= 데이터베이스 (서비스별 물리 분리) =================
+  # ================= Redis =================
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6500:6379"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
+        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 6379)
+
+  # ================= Kafka (KRaft 모드, Apache 공식 이미지) + Kafka-UI =================
+  # ⚠️ bitnami/kafka가 Docker Hub에서 태그 접근이 안 돼서(Broadcom 인수 이후
+  # 무료 이미지 정리 추정) Apache 공식 이미지로 교체함. 환경변수 접두어가
+  # KAFKA_CFG_*(Bitnami) → KAFKA_*(Apache 공식, 접두어 없음)로 바뀝니다.
+  # ⚠️ 이 설정은 아직 실제로 띄워서 완전히 검증되지 않았습니다 —
+  # 부팅 로그를 꼭 확인해주세요. 특히 데이터 디렉토리 경로(KAFKA_LOG_DIRS)와
+  # healthcheck의 kafka-topics.sh 경로는 이미지 안 실제 위치와 다를 수 있습니다.
+  kafka:
+    image: apache/kafka:3.9.2
+    container_name: kafka
+    ports:
+      - "29092:29092"   # 호스트(로컬 IntelliJ 등)에서 접속할 땐 이 포트 사용
+    environment:
+      KAFKA_NODE_ID: "0"
+      KAFKA_PROCESS_ROLES: "controller,broker"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+      # PLAINTEXT: 컨테이너 간 통신용(도커 내부망), PLAINTEXT_HOST: 호스트 머신 접속용
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,PLAINTEXT_HOST://:29092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      # 단일 브로커 구성이라 기본값(replication.factor: 3)이면 내부 토픽
+      # (__consumer_offsets 등) 생성이 실패함 — 리뷰 반영, 공식 단일 노드 예시값
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    ports:
+      - "8085:8080"   # 포트 확정 — 게이트웨이_인프라_API명세서.md 9절/10-1절 참고
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "maesamco"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ================= Judge0 =================
+  # 실제 코드 채점 스택. Windows+Docker Desktop에서만 알려진 실행 호환성 문제가
+  # 있었고, 여기(AWS EC2, 리눅스)는 Docker를 네이티브로 돌리니 그 문제 자체가
+  # 없다 — 배포 후엔 어느 OS에서 개발하는 팀원이든 HTTP로 이 엔드포인트만
+  # 호출하면 되므로 다들 이 배포본 하나만 쓰면 된다.
+  #
+  # 공식 docker-compose(judge0/judge0 GitHub)의 4개 서비스(server/worker/db/redis)를
+  # 그대로 가져왔다 — server만 우리 쪽 명명 규칙(judge0)에 맞춰 이름을 바꿨고,
+  # 나머지는 공식 이미지/설정 그대로다. judge0-db/judge0-redis는 우리 앱의
+  # RDS/Redis와 완전히 분리된, Judge0 전용 별도 인스턴스다(공식 스택이 원래
+  # 그렇게 설계됨 — 공유하지 않는 것이 의도된 격리).
+  judge0:
+    image: judge0/judge0:1.13.1
+    container_name: judge0
+    env_file: judge0.conf
+    ports:
+      - "2358:2358"
+    privileged: true
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  judge0-worker:
+    image: judge0/judge0:1.13.1
+    container_name: judge0-worker
+    command: ["./scripts/workers"]
+    env_file: judge0.conf
+    privileged: true
+    depends_on:
+      - judge0-db
+      - judge0-redis
+    restart: always
+
+  judge0-db:
+    image: postgres:16.2
+    container_name: judge0-db
+    env_file: judge0.conf
+    volumes:
+      - judge0-data:/var/lib/postgresql/data/
+    restart: always
+
+  judge0-redis:
+    image: redis:7.2.4
+    container_name: judge0-redis
+    command: [
+      "bash", "-c",
+      'docker-entrypoint.sh --appendonly no --requirepass "$$REDIS_PASSWORD"'
+    ]
+    env_file: judge0.conf
+    restart: always
+
+  # ================= 모니터링 =================
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:13.0.8
+    container_name: grafana
+    ports:
+      - "4000:3000"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
+        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 3000)
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+  # ================= 애플리케이션 =================
+  eureka-server:
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      # JMeter 부하 테스트용 — 테스트 직전에만 .env에서 넉넉한 값으로 올렸다가 끝나면 지우면 됨.
+      # 안 채우면 기본값(분당 30회) 그대로 적용되어 평소엔 안전함(리뷰 반영 — 실제 컨테이너에
+      # 값이 전달 안 되고 있던 걸 발견해 수정).
+      RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
+      # 배포 시 Gateway 앞에 신뢰 가능한 리버스 프록시를 두게 되면 그 IP를 콤마로 구분해 채운다.
+      # 비워두면(기본값) Forwarded 헤더를 아무도 신뢰하지 않아 항상 안전하다.
+      RATE_LIMIT_TRUSTED_PROXY_IPS: ${RATE_LIMIT_TRUSTED_PROXY_IPS:-}
+    depends_on:
+      - eureka-server
+      - redis
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    container_name: user-service
+    ports:
+      - "9000:9000"
+    environment:
+      DB_USERNAME: ${DB_USERNAME:-maesamco}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: ${RDS_ENDPOINT}
+      DB_PORT: "5432"
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_REFRESH_PUBLIC_KEY: ${JWT_REFRESH_PUBLIC_KEY}
+      JWT_REFRESH_PRIVATE_KEY: ${JWT_REFRESH_PRIVATE_KEY}
+      EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
+      EMAIL_LOOKUP_HMAC_KEY: ${EMAIL_LOOKUP_HMAC_KEY}
+      # 이슈(배포 스크립트 리뷰) — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
+      # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
+      EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_STARTTLS_REQUIRED: ${MAIL_STARTTLS_REQUIRED:-true}
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(user-service가 발신자일 때 서명할 키)
+      HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
+    depends_on:
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  content-service:
+    build:
+      context: .
+      dockerfile: content-service/Dockerfile
+    container_name: content-service
+    ports:
+      - "9001:9001"
+    environment:
+      DB_USERNAME: ${DB_USERNAME:-maesamco}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: ${RDS_ENDPOINT}
+      DB_PORT: "5432"
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PROBLEM_PUBLISHED_OUTBOX_RELAY_ENABLED: "true"
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+      # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(content-service가 수신자일 때 검증할 키)
+      HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
+      HMAC_KEY_CONTENT_TO_USER: ${HMAC_KEY_CONTENT_TO_USER}
+    depends_on:
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  judge-service:
+    build:
+      context: .
+      dockerfile: judge-service/Dockerfile
+    container_name: judge-service
+    ports:
+      - "9002:9002"
+    environment:
+      DB_USERNAME: ${DB_USERNAME:-maesamco}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: ${RDS_ENDPOINT}
+      DB_PORT: "5432"
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      JUDGE0_BASE_URL: ${JUDGE0_BASE_URL:-http://judge0:2358}
+      HMAC_KEY_CONTENT_TO_JUDGE: ${HMAC_KEY_CONTENT_TO_JUDGE}
+      HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_JUDGE_TO_USER: ${HMAC_KEY_JUDGE_TO_USER}
+    depends_on:
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  coaching-service:
+    build:
+      context: .
+      dockerfile: coaching-service/Dockerfile
+    container_name: coaching-service
+    ports:
+      - "9003:9003"
+    environment:
+      DB_USERNAME: ${DB_USERNAME:-maesamco}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: ${RDS_ENDPOINT}
+      DB_PORT: "5432"
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_CHAT: ${AI_MODEL_CHAT:-anthropic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      HMAC_KEY_CONTENT_TO_COACHING: ${HMAC_KEY_CONTENT_TO_COACHING}
+      HMAC_KEY_COACHING_TO_JUDGE: ${HMAC_KEY_COACHING_TO_JUDGE}
+      HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
+      HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
+    depends_on:
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+volumes:
+  kafka-data:
+  judge0-data:

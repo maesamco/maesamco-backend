@@ -1,5 +1,7 @@
 package com.maesamco.judge.presentation.api_controller;
 
+import com.maesamco.judge.application.result.SubmissionSummaryResult;
+import com.maesamco.judge.global.response.PageResponse;
 import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.presentation.request.SubmissionCreateRequest;
 import com.maesamco.judge.presentation.response.SubmissionCreateResponse;
@@ -48,5 +50,27 @@ public interface SubmissionApiDocs {
     ResponseEntity<SuccessResponse<SubmissionExternalGetResponse>> getSubmission(
             @Parameter(name = "submissionId", required = true) UUID submissionId,
             @Parameter(hidden = true) UUID userId
+    );
+
+    @Operation(
+            summary = "내 제출·재도전 이력 목록 조회",
+            description = "로그인한 사용자의 제출 이력을 페이지 단위로 조회한다. "
+                    + "problemId로 필터링할 수 있다. "
+                    + "size가 유효하지 않으면 기본값(20)으로, direction이 유효하지 않으면 기본값(DESC)으로 조용히 대체된다. "
+                    + "sort는 비어 있으면 기본값(createdAt)으로 대체되지만, 존재하지 않는 필드명을 지정하면 "
+                    + "400(INVALID_SORT_PROPERTY)으로 응답한다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "INVALID_SORT_PROPERTY — 존재하지 않는 정렬 필드"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청")
+    })
+    ResponseEntity<SuccessResponse<PageResponse<SubmissionSummaryResult>>> getMySubmissions(
+            @Parameter(hidden = true) UUID userId,
+            @Parameter(name = "problemId", description = "특정 문제로 필터링 (선택)") UUID problemId,
+            @Parameter(name = "page", description = "페이지 번호, 0-indexed (기본값 0)") Integer page,
+            @Parameter(name = "size", description = "페이지 크기 (기본값 20, 최대 100)") Integer size,
+            @Parameter(name = "sort", description = "정렬 기준 프로퍼티 (기본값 createdAt)") String sort,
+            @Parameter(name = "direction", description = "정렬 방향 ASC/DESC (기본값 DESC)") String direction
     );
 }
