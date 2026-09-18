@@ -80,7 +80,11 @@ public class DailyQuizEventOutboxRelayService {
         validateRelaySettings(
                 batchSize,
                 leaseDurationMillis,
-                publishTimeoutMillis
+                publishTimeoutMillis,
+                maxPayloadBytes,
+                maxRetryCount,
+                backoffBaseMillis,
+                backoffMaxMillis
         );
         this.batchSize = batchSize;
         this.leaseDurationMillis = leaseDurationMillis;
@@ -212,7 +216,11 @@ public class DailyQuizEventOutboxRelayService {
     private void validateRelaySettings(
             int batchSize,
             long leaseDurationMillis,
-            long publishTimeoutMillis
+            long publishTimeoutMillis,
+            int maxPayloadBytes,
+            int maxRetryCount,
+            long backoffBaseMillis,
+            long backoffMaxMillis
     ) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("Outbox Relay 배치 크기는 1 이상이어야 합니다.");
@@ -226,6 +234,26 @@ public class DailyQuizEventOutboxRelayService {
             throw new IllegalArgumentException(
                     "Outbox 선점 시간은 Kafka ACK 대기 시간보다 "
                             + "최소 1000ms 길어야 합니다."
+            );
+        }
+        if (maxPayloadBytes < 1) {
+            throw new IllegalArgumentException(
+                    "Outbox payload 최대 크기는 1바이트 이상이어야 합니다."
+            );
+        }
+        if (maxRetryCount < 1) {
+            throw new IllegalArgumentException(
+                    "Outbox Relay 최대 재시도 횟수는 1 이상이어야 합니다."
+            );
+        }
+        if (backoffBaseMillis < 1) {
+            throw new IllegalArgumentException(
+                    "Outbox Relay 백오프 기준 시간은 1ms 이상이어야 합니다."
+            );
+        }
+        if (backoffMaxMillis < backoffBaseMillis) {
+            throw new IllegalArgumentException(
+                    "Outbox Relay 백오프 최대 시간은 기준 시간 이상이어야 합니다."
             );
         }
     }

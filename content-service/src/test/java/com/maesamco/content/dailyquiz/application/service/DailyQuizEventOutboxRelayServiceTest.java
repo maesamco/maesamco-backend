@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -157,6 +158,73 @@ class DailyQuizEventOutboxRelayServiceTest {
                 .hasMessage(
                         "Outbox 선점 시간은 Kafka ACK 대기 시간보다 최소 1000ms 길어야 합니다."
                 );
+    }
+
+    @Test
+    @DisplayName("payload 최대 크기가 1바이트보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveMaxPayloadBytes() {
+        assertThatThrownBy(() -> createRelay(
+                0,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox payload 최대 크기는 1바이트 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("최대 재시도 횟수가 1보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveMaxRetryCount() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                0,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 최대 재시도 횟수는 1 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("백오프 기준 시간이 1ms보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveBackoffBase() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                0L,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 백오프 기준 시간은 1ms 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("백오프 최대 시간이 기준 시간보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsBackoffMaxBelowBase() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_BASE_MILLIS - 1L
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 백오프 최대 시간은 기준 시간 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("Relay 설정의 최솟값과 동일한 값은 허용한다")
+    void constructor_acceptsMinimumRelaySettings() {
+        assertThatCode(() -> createRelay(1, 1, 1L, 1L))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -408,5 +476,26 @@ class DailyQuizEventOutboxRelayServiceTest {
         outbox.claimForPublish(CLAIM_ID, NOW, LEASE_UNTIL);
 
         return outbox;
+    }
+
+    private DailyQuizEventOutboxRelayService createRelay(
+            int maxPayloadBytes,
+            int maxRetryCount,
+            long backoffBaseMillis,
+            long backoffMaxMillis
+    ) {
+        return new DailyQuizEventOutboxRelayService(
+                outboxRepository,
+                eventPublisherPort,
+                statusService,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                BATCH_SIZE,
+                LEASE_DURATION_MILLIS,
+                PUBLISH_TIMEOUT_MILLIS,
+                maxPayloadBytes,
+                maxRetryCount,
+                backoffBaseMillis,
+                backoffMaxMillis
+        );
     }
 }
