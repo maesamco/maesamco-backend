@@ -6,6 +6,7 @@ import com.maesamco.judge.global.response.SuccessResponse;
 import com.maesamco.judge.global.security.hmac.AllowedInternalCallers;
 import com.maesamco.judge.presentation.request.ExecutionValidateRequest;
 import com.maesamco.judge.presentation.response.ExecutionValidateResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,7 +25,7 @@ public class ExecutionInternalController {
     @AllowedInternalCallers({"content-service"})
     @PostMapping
     public SuccessResponse<ExecutionValidateResponse> validate(
-            @RequestBody ExecutionValidateRequest request
+            @RequestBody @Valid ExecutionValidateRequest request
     ) {
         List<ExecutionValidationResult> results =
                 executionValidationFacade.validate(request.code(), request.toCommands());

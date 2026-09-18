@@ -93,5 +93,71 @@ class ExecutionInternalControllerTest {
                             .header(InternalCallHeaders.SERVICE, "some-other-service"))
                     .andExpect(status().isForbidden());
         }
+
+        @Test
+        @DisplayName("code가 blank면 400과 INVALID_INPUT_VALUE를 반환한다")
+        void returns400WhenCodeBlank() throws Exception {
+            String requestBody = """
+            { "code": "", "testCases": [] }
+            """;
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("testCases가 null이면 400과 INVALID_INPUT_VALUE를 반환한다")
+        void returns400WhenTestCasesNull() throws Exception {
+            String requestBody = """
+            { "code": "public class Main {}" }
+            """;
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("testCases 원소의 input이 null이면 400과 INVALID_INPUT_VALUE를 반환한다")
+        void returns400WhenTestCaseInputNull() throws Exception {
+            String requestBody = """
+            {
+              "code": "public class Main {}",
+              "testCases": [
+                { "expectedOutput": "8", "cpuTimeLimitSeconds": 2, "memoryLimitKb": 262144 }
+              ]
+            }
+            """;
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("cpuTimeLimitSeconds가 0 이하면 400과 INVALID_INPUT_VALUE를 반환한다")
+        void returns400WhenCpuTimeLimitNotPositive() throws Exception {
+            String requestBody = """
+            {
+              "code": "public class Main {}",
+              "testCases": [
+                { "input": "3 5", "expectedOutput": "8", "cpuTimeLimitSeconds": 0, "memoryLimitKb": 262144 }
+              ]
+            }
+            """;
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isBadRequest());
+        }
     }
 }
