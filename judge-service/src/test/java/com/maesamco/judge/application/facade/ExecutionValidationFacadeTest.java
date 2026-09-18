@@ -171,4 +171,44 @@ class ExecutionValidationFacadeTest {
             assertThat(results.get(0).timedOut()).isFalse();
         }
     }
+
+    @Test
+    @DisplayName("이전 polling에서 완료된 토큰이 이후 응답에 없어도 결과가 유실되지 않는다")
+    void preservesPreviouslyCompletedTokenWhenOmittedFromLaterResponse() {
+        given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-A", "token-B"));
+        given(judgeExecutionPort.fetchResults(anyList()))
+                .willReturn(List.of(
+                        result("token-A", JudgeExecutionStatus.ACCEPTED, "8"),
+                        result("token-B", JudgeExecutionStatus.PROCESSING, null)))
+                .willReturn(List.of(
+                        result("token-B", JudgeExecutionStatus.ACCEPTED, "2")));
+        // token-A는 두 번째 응답에서 빠짐 — 이전에 확보한 ACCEPTED 결과가 유지돼야 함
+
+        List<ExecutionValidationResult> results =
+                executionValidationFacade.validate("code", List.of(testCase(), testCase()));
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).passed()).isTrue();
+        assertThat(results.get(0).timedOut()).isFalse();
+        assertThat(results.get(1).passed()).isTrue();
+        assertThat(results.get(1).timedOut()).isFalse();
+    }
+
+    @Test
+    @DisplayName("polling 예산이 거의 소진된 시점에 fetch가 한 번 실패해도, 실패는 attempt 예산을 소진하지 않고 재시도된다")
+    void fetchFailureNearBoundaryDoesNotConsumeAttemptBudget() {
+        given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
+        given(judgeExecutionPort.fetchResults(anyList()))
+                .willReturn(List.of(result("token-1", JudgeExecutionStatus.PROCESSING, null))) // 1차: 성공(진행중), attempt=1
+                .willReturn(List.of(result("token-1", JudgeExecutionStatus.PROCESSING, null))) // 2차: 성공(진행중), attempt=2
+                .willThrow(new RuntimeException("일시적 조회 실패")) // 3차: 실패 — attempt는 2로 유지돼야 함(예전 버그였다면 여기서 timedOut 확정)
+                .willReturn(List.of(result("token-1", JudgeExecutionStatus.ACCEPTED, "8"))); // 재시도 성공, attempt=3
+
+        List<ExecutionValidationResult> results =
+                executionValidationFacade.validate("code", List.of(testCase()));
+
+        assertThat(results.get(0).passed()).isTrue();
+        assertThat(results.get(0).timedOut()).isFalse();
+        verify(judgeExecutionPort, times(4)).fetchResults(any());
+    }
 }

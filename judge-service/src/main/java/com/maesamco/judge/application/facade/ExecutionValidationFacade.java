@@ -6,6 +6,8 @@ import com.maesamco.judge.application.port.JudgeExecutionRequest;
 import com.maesamco.judge.application.port.JudgeExecutionResult;
 import com.maesamco.judge.application.port.JudgeExecutionStatus;
 import com.maesamco.judge.application.result.ExecutionValidationResult;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,17 +84,20 @@ public class ExecutionValidationFacade {
     }
 
     private Map<String, JudgeExecutionResult> pollUntilDone(List<String> tokens) {
-        Map<String, JudgeExecutionResult> latest = Map.of();
+        Map<String, JudgeExecutionResult> latest = new HashMap<>();
         int attempt = 0;
         int consecutiveFailures = 0;
+        boolean firstCall = true;
 
         while (attempt < maxPollAttempts && hasPending(tokens, latest)) {
-            if (attempt >0) {
+            if (!firstCall) {
                 sleep(pollIntervalMs);
             }
+            firstCall = false;
             try {
-                latest = fetchAsMap(tokens);
+                latest.putAll(fetchAsMap(tokens));
                 consecutiveFailures = 0;
+                attempt++;
             } catch (Exception e) {
                 consecutiveFailures++;
                 log.warn("[Judge] 검증용 실행 결과 조회 실패({}/{}회 연속) — 재시도. 토큰 개수={}",
@@ -102,7 +107,6 @@ public class ExecutionValidationFacade {
                             "Judge0 결과 조회가 %d회 연속 실패함".formatted(consecutiveFailures), e);
                 }
             }
-            attempt++;
         }
         if (hasPending(tokens, latest)) {
             log.warn("[Judge] 검증용 실행이 제한 시간({}ms) 내에 끝나지 않음, 토큰 개수={}",
