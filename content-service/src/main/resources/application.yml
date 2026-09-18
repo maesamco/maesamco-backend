@@ -48,6 +48,13 @@ spring:
 outbox:
   daily-quiz-completed:
     relay:
+      # 기본 환경과 테스트에서는 자동 Relay를 실행하지 않습니다.
+      # 실제 통합 실행 환경에서 명시적으로 활성화합니다.
+      enabled: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_ENABLED:false}
+
+      # 이전 Relay 실행이 끝난 뒤 다음 실행까지 기다리는 시간입니다.
+      fixed-delay-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_FIXED_DELAY_MS:1000}
+
       # 한 번의 polling에서 처리할 최대 PENDING Outbox 개수입니다.
       batch-size: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BATCH_SIZE:50}
 
