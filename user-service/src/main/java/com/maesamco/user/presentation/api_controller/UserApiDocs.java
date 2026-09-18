@@ -1,5 +1,14 @@
 package com.maesamco.user.presentation.api_controller;
 
+import com.maesamco.user.application.service.ChangePasswordCommand;
+import com.maesamco.user.application.service.GetMyGamificationResult;
+import com.maesamco.user.application.service.GetMyProfileResult;
+import com.maesamco.user.application.service.GetMyXpHistoriesResult;
+import com.maesamco.user.application.service.UpdateMyInterestsCommand;
+import com.maesamco.user.application.service.UpdateMyInterestsResult;
+import com.maesamco.user.application.service.UpdateMyProfileCommand;
+import com.maesamco.user.application.service.UpdateMyProfileResult;
+import com.maesamco.user.application.service.WithdrawUserCommand;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,13 +22,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestBody;
-import com.maesamco.user.application.service.ChangePasswordCommand;
-import com.maesamco.user.application.service.GetMyProfileResult;
-import com.maesamco.user.application.service.UpdateMyInterestsCommand;
-import com.maesamco.user.application.service.UpdateMyInterestsResult;
-import com.maesamco.user.application.service.UpdateMyProfileCommand;
-import com.maesamco.user.application.service.UpdateMyProfileResult;
-import com.maesamco.user.application.service.WithdrawUserCommand;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * User API의 Swagger/OpenAPI 계약을 정의합니다.
@@ -75,6 +78,164 @@ public interface UserApiDocs {
     ResponseEntity<SuccessResponse<GetMyProfileResult>> getMyProfile(
             @Parameter(hidden = true)
             Authentication authentication
+    );
+
+    /**
+     * 로그인 사용자의 현재 게이미피케이션 상태를 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 누적 XP, 레벨과 연속 학습 상태
+     */
+    @Operation(
+            summary = "내 게이미피케이션 상태 조회",
+            description = "Access Token으로 인증된 활성 사용자의 "
+                    + "현재 누적 XP, 레벨과 연속 학습 상태를 조회합니다. "
+                    + "사용자 식별자, 낙관적 락 버전과 영속성 감사 필드는 "
+                    + "응답에 포함하지 않습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "게이미피케이션 상태 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND 또는 GAMIFICATION_STATE_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<GetMyGamificationResult>>
+    getMyGamification(
+            @Parameter(hidden = true)
+            Authentication authentication
+    );
+
+    /**
+     * 로그인 사용자의 XP 지급·차감 이력을 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @param size 페이지당 조회 개수
+     * @param cursor 다음 페이지 조회 cursor
+     * @return cursor 기반 XP 이력 페이지
+     */
+    @Operation(
+            summary = "내 XP 이력 조회",
+            description = "Access Token으로 인증된 활성 사용자의 "
+                    + "XP 지급·차감 이력을 최신순으로 조회합니다. "
+                    + "earnedAt과 내부 XP 이력 식별자를 기준으로 "
+                    + "cursor 기반 keyset pagination을 적용합니다. "
+                    + "cursor는 내부 구조에 의존하지 않는 "
+                    + "opaque 문자열로 취급해야 합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "XP 이력 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "INVALID_INPUT_VALUE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<GetMyXpHistoriesResult>>
+    getMyXpHistories(
+            @Parameter(hidden = true)
+            Authentication authentication,
+
+            @Parameter(
+                    description = "페이지당 조회 개수. 생략하면 20",
+                    example = "20",
+                    schema = @Schema(
+                            minimum = "1",
+                            maximum = "100",
+                            defaultValue = "20"
+                    )
+            )
+            @RequestParam(required = false)
+            Integer size,
+
+            @Parameter(
+                    description = "이전 응답의 nextCursor. 최초 조회에서는 생략",
+                    example = "djF8MjAyNi0wOS0xN1QwMToyMDozMFp8"
+                            + "MTExMTExMTEtMTExMS0xMTExLTExMTEt"
+                            + "MTExMTExMTExMTEx"
+            )
+            @RequestParam(required = false)
+            String cursor
     );
 
     /**

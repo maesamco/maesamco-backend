@@ -1,12 +1,16 @@
 package com.maesamco.user.infrastructure.persistence;
 
 import com.maesamco.user.domain.entity.User;
+import com.maesamco.user.domain.entity.UserRole;
+import com.maesamco.user.domain.entity.UserStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -78,5 +82,53 @@ public interface SpringDataUserRepository
         """)
     Optional<User> findByIdForUpdate(
             @Param("userId") UUID userId
+    );
+
+    /**
+     * Daily Quiz 생성 대상 사용자의 첫 cursor 페이지를 조회합니다.
+     *
+     * <p>{@link com.maesamco.user.global.common.BaseEntity}의
+     * SQLRestriction에 의해 논리 삭제된 사용자는 제외됩니다.</p>
+     *
+     * @param status 조회할 사용자 상태
+     * @param role 조회할 사용자 권한
+     * @param pageable 최대 조회 개수를 포함한 페이지 조건
+     * @return 사용자 ID 오름차순 조회 결과
+     */
+    @Query("""
+        SELECT user.id
+        FROM User user
+        WHERE user.status = :status
+          AND user.role = :role
+        ORDER BY user.id ASC
+        """)
+    List<UUID> findQuizTargetUserIds(
+            @Param("status") UserStatus status,
+            @Param("role") UserRole role,
+            Pageable pageable
+    );
+
+    /**
+     * 지정한 cursor 이후의 Daily Quiz 생성 대상 사용자 ID를 조회합니다.
+     *
+     * @param status 조회할 사용자 상태
+     * @param role 조회할 사용자 권한
+     * @param cursor 직전 페이지의 마지막 사용자 ID
+     * @param pageable 최대 조회 개수를 포함한 페이지 조건
+     * @return cursor 이후 사용자 ID 오름차순 조회 결과
+     */
+    @Query("""
+        SELECT user.id
+        FROM User user
+        WHERE user.status = :status
+          AND user.role = :role
+          AND user.id > :cursor
+        ORDER BY user.id ASC
+        """)
+    List<UUID> findQuizTargetUserIdsAfter(
+            @Param("status") UserStatus status,
+            @Param("role") UserRole role,
+            @Param("cursor") UUID cursor,
+            Pageable pageable
     );
 }
