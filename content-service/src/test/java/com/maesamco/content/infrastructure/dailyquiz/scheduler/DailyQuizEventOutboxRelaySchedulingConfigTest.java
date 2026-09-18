@@ -1,9 +1,8 @@
-package com.maesamco.content.dailyquiz.application.scheduler;
+package com.maesamco.content.infrastructure.dailyquiz.scheduler;
 
 import com.maesamco.content.application.dailyquiz.scheduler.DailyQuizEventOutboxRelayScheduler;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizEventOutboxRelayService;
 import com.maesamco.content.global.config.SchedulingConfig;
-import com.maesamco.content.infrastructure.dailyquiz.scheduler.DailyQuizEventOutboxRelaySchedulingConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
