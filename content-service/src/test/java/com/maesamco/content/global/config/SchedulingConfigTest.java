@@ -61,7 +61,11 @@ class SchedulingConfigTest {
                     ThreadPoolTaskScheduler taskScheduler =
                             context.getBean(ThreadPoolTaskScheduler.class);
 
-                    assertThat(taskScheduler.getPoolSize()).isEqualTo(2);
+                    assertThat(
+                            taskScheduler
+                                    .getScheduledThreadPoolExecutor()
+                                    .getCorePoolSize()
+                    ).isEqualTo(2);
                 });
     }
 }
