@@ -160,11 +160,11 @@ public class DailyQuizEventOutboxRelayService {
 
             log.error(
                     "DailyQuizCompleted Outbox 발행 결과 불확실. "
-                            + "outboxId={}, eventId={}, quizAttemptId={}",
+                            + "outboxId={}, eventId={}, quizAttemptId={}, errorType={}",
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    exception
+                    exception.getClass().getSimpleName()
             );
 
             if (Thread.currentThread().isInterrupted()) {
@@ -191,8 +191,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    safeError,
-                    exception
+                    safeError
             );
             return true;
         }
@@ -279,8 +278,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    exception.getClass().getSimpleName(),
-                    exception
+                    exception.getClass().getSimpleName()
             );
 
             recordPublishOutcomeUnknownSafely(
@@ -310,8 +308,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    exception.getClass().getSimpleName(),
-                    exception
+                    exception.getClass().getSimpleName()
             );
         }
     }
@@ -335,8 +332,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    exception.getClass().getSimpleName(),
-                    exception
+                    exception.getClass().getSimpleName()
             );
         }
     }
@@ -358,8 +354,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getEventId(),
                     outbox.getAggregateId(),
-                    exception.getClass().getSimpleName(),
-                    exception
+                    exception.getClass().getSimpleName()
             );
         }
     }
