@@ -88,6 +88,27 @@ class DailyQuizEventOutboxRepositoryTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    @DisplayName("Flyway는 중복 status 단일 인덱스를 제거하고 Relay 복합 인덱스를 유지한다")
+    void migrations_removeRedundantStatusIndex() {
+        List<String> indexNames = jdbcTemplate.queryForList(
+                """
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'content_schema'
+                  AND tablename = 'p_daily_quiz_event_outboxes'
+                """,
+                String.class
+        );
+
+        assertThat(indexNames)
+                .doesNotContain("idx_daily_quiz_event_outboxes_status")
+                .contains(
+                        "idx_daily_quiz_event_outboxes_status_occurred_at",
+                        "idx_daily_quiz_event_outboxes_claimable"
+                );
+    }
+
+    @Test
     @DisplayName("Daily Quiz Outbox를 ID로 다시 조회할 수 있다")
     void findById_returnsSavedOutbox() throws Exception {
         DailyQuizEventOutbox saved =

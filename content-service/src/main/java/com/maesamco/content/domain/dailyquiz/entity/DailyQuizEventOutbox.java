@@ -43,10 +43,6 @@ import java.util.UUID;
         },
         indexes = {
                 @Index(
-                        name = "idx_daily_quiz_event_outboxes_status",
-                        columnList = "status"
-                ),
-                @Index(
                         name = "idx_daily_quiz_event_outboxes_status_occurred_at",
                         columnList = "status, occurred_at"
                 )
