@@ -258,20 +258,22 @@ class DailyQuizEventOutboxTest {
     }
 
     @Test
-    @DisplayName("발행 결과를 확인할 수 없으면 재시도 횟수와 다음 시도 시각을 기록하고 PENDING을 유지한다")
-    void recordPublishOutcomeUnknown_keepsPendingWithoutRetryLimit() {
+    @DisplayName("발행 결과를 확인할 수 없어도 재시도 한도 전에는 PENDING을 유지한다")
+    void recordPublishOutcomeUnknown_keepsPendingBeforeRetryLimit() {
         DailyQuizEventOutbox outbox = createPendingOutbox();
         claim(outbox);
 
         outbox.recordPublishOutcomeUnknown(
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT
         );
         claim(outbox);
         outbox.recordPublishOutcomeUnknown(
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT.plusSeconds(60)
         );
 
@@ -280,6 +282,30 @@ class DailyQuizEventOutboxTest {
         assertThat(outbox.getRetryCount()).isEqualTo(2);
         assertThat(outbox.getNextAttemptAt())
                 .isEqualTo(NEXT_ATTEMPT_AT.plusSeconds(60));
+        assertThat(outbox.getPublishedAt()).isNull();
+        assertThat(outbox.getLastError())
+                .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("불확실한 발행 결과가 재시도 한도에 도달하면 UNKNOWN으로 격리한다")
+    void recordPublishOutcomeUnknown_marksUnknownAtRetryLimit() {
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
+
+        outbox.recordPublishOutcomeUnknown(
+                CLAIM_ID,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                1,
+                NEXT_ATTEMPT_AT
+        );
+
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.UNKNOWN);
+        assertThat(outbox.getRetryCount()).isEqualTo(1);
+        assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getClaimId()).isNull();
+        assertThat(outbox.getLeaseUntil()).isNull();
         assertThat(outbox.getPublishedAt()).isNull();
         assertThat(outbox.getLastError())
                 .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
@@ -411,6 +437,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 null
         ))
                 .isInstanceOfSatisfying(
@@ -431,6 +458,7 @@ class DailyQuizEventOutboxTest {
         assertThatThrownBy(() -> outbox.recordPublishOutcomeUnknown(
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT
         ))
                 .isInstanceOf(IllegalStateException.class)

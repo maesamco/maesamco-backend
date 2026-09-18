@@ -74,6 +74,7 @@ public class DailyQuizEventOutboxStatusService {
             UUID outboxId,
             UUID claimId,
             String error,
+            int maxRetryCount,
             Instant nextAttemptAt
     ) {
         DailyQuizEventOutbox outbox = getOutbox(outboxId);
@@ -82,7 +83,12 @@ public class DailyQuizEventOutboxStatusService {
             return false;
         }
 
-        outbox.recordPublishOutcomeUnknown(claimId, error, nextAttemptAt);
+        outbox.recordPublishOutcomeUnknown(
+                claimId,
+                error,
+                maxRetryCount,
+                nextAttemptAt
+        );
         return true;
     }
 

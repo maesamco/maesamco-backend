@@ -135,6 +135,7 @@ class DailyQuizEventOutboxStatusServiceTest {
                 outboxId,
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT
         );
 
@@ -145,6 +146,32 @@ class DailyQuizEventOutboxStatusServiceTest {
         assertThat(outbox.getLastError())
                 .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
         verify(outboxRepository, never()).save(outbox);
+    }
+
+    @Test
+    @DisplayName("불확실한 발행 결과가 재시도 한도에 도달하면 UNKNOWN으로 변경한다")
+    void recordPublishOutcomeUnknown_marksUnknownAtRetryLimit() {
+        UUID outboxId = UUID.randomUUID();
+        DailyQuizEventOutbox outbox = createPendingOutbox();
+        claim(outbox);
+        when(outboxRepository.findById(outboxId))
+                .thenReturn(Optional.of(outbox));
+
+        boolean updated = statusService.recordPublishOutcomeUnknown(
+                outboxId,
+                CLAIM_ID,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                1,
+                NEXT_ATTEMPT_AT
+        );
+
+        assertThat(updated).isTrue();
+        assertThat(outbox.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.UNKNOWN);
+        assertThat(outbox.getRetryCount()).isEqualTo(1);
+        assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getClaimId()).isNull();
+        assertThat(outbox.getLeaseUntil()).isNull();
     }
 
     @Test
@@ -208,6 +235,7 @@ class DailyQuizEventOutboxStatusServiceTest {
                 outboxId,
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT
         );
 

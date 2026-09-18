@@ -173,6 +173,7 @@ class DailyQuizEventOutboxRelayServiceTest {
                 outbox.getId(),
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                MAX_RETRY_COUNT,
                 NOW.plusMillis(BACKOFF_BASE_MILLIS)
         );
         verify(statusService, never()).recordPublishFailure(
@@ -230,6 +231,7 @@ class DailyQuizEventOutboxRelayServiceTest {
                 outbox.getId(),
                 CLAIM_ID,
                 "KAFKA_PUBLISHED_STATUS_UPDATE_FAILED",
+                MAX_RETRY_COUNT,
                 NOW.plusMillis(BACKOFF_BASE_MILLIS)
         );
         verify(statusService, never()).recordPublishFailure(
@@ -283,6 +285,7 @@ class DailyQuizEventOutboxRelayServiceTest {
             outbox.recordPublishOutcomeUnknown(
                     CLAIM_ID,
                     "PREVIOUS_OUTCOME_UNKNOWN",
+                    100,
                     NOW.plusSeconds(count + 1L)
             );
             if (count < 9) {

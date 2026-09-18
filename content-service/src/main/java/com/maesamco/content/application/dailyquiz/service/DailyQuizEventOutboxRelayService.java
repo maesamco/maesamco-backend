@@ -262,6 +262,7 @@ public class DailyQuizEventOutboxRelayService {
                     outbox.getId(),
                     outbox.getClaimId(),
                     safeError,
+                    maxRetryCount,
                     nextAttemptAt(outbox.getRetryCount())
             );
         } catch (RuntimeException exception) {

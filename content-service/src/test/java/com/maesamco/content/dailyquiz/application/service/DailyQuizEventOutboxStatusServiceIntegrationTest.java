@@ -134,6 +134,7 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
                 saved.getId(),
                 CLAIM_ID,
                 "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                3,
                 NEXT_ATTEMPT_AT
         );
 
@@ -143,6 +144,33 @@ class DailyQuizEventOutboxStatusServiceIntegrationTest {
                 .isEqualTo(DailyQuizEventOutboxStatus.PENDING);
         assertThat(found.getRetryCount()).isEqualTo(1);
         assertThat(found.getNextAttemptAt()).isEqualTo(NEXT_ATTEMPT_AT);
+        assertThat(found.getLastError())
+                .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        assertThat(found.getVersion()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("불확실한 발행 결과가 한도에 도달하면 UNKNOWN을 별도 트랜잭션으로 저장한다")
+    void recordPublishOutcomeUnknown_persistsUnknownAtRetryLimit() {
+        DailyQuizEventOutbox saved = savePendingOutbox();
+
+        statusService.recordPublishOutcomeUnknown(
+                saved.getId(),
+                CLAIM_ID,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                1,
+                NEXT_ATTEMPT_AT
+        );
+
+        DailyQuizEventOutbox found = find(saved.getId());
+
+        assertThat(found.getStatus())
+                .isEqualTo(DailyQuizEventOutboxStatus.UNKNOWN);
+        assertThat(found.getRetryCount()).isEqualTo(1);
+        assertThat(found.getNextAttemptAt()).isNull();
+        assertThat(found.getClaimId()).isNull();
+        assertThat(found.getLeaseUntil()).isNull();
+        assertThat(found.getPublishedAt()).isNull();
         assertThat(found.getLastError())
                 .isEqualTo("KAFKA_PUBLISH_OUTCOME_UNKNOWN");
         assertThat(found.getVersion()).isEqualTo(1L);

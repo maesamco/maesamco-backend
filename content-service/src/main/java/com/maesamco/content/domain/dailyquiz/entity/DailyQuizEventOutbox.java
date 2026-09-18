@@ -250,24 +250,34 @@ public class DailyQuizEventOutbox {
      * Kafka 발행 결과를 확인하지 못한 시도를 기록
      *
      * ACK 대기 시간 초과처럼 이벤트가 이미 전달되었을 가능성이 있는 경우에는
-     * 재시도 횟수와 다음 시도 시각만 기록하고 FAILED 상태로 종료하지 않습니다.
+     * 최대 횟수 전까지 재시도하고, 한도에 도달하면 UNKNOWN으로 격리합니다.
      */
     public void recordPublishOutcomeUnknown(
             UUID claimId,
             String error,
+            int maxRetryCount,
             Instant nextAttemptAt
     ) {
         UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
         String validatedError = requireError(error);
+        int validatedMaxRetryCount = requireMaxRetryCount(maxRetryCount);
         Instant validatedNextAttemptAt = requireNextAttemptAt(nextAttemptAt);
 
         validateActiveClaim(validatedClaimId);
 
         this.retryCount++;
-        this.status = DailyQuizEventOutboxStatus.PENDING;
         this.lastError = validatedError;
-        this.nextAttemptAt = validatedNextAttemptAt;
         this.publishedAt = null;
+
+        if (this.retryCount >= validatedMaxRetryCount) {
+            this.status = DailyQuizEventOutboxStatus.UNKNOWN;
+            this.nextAttemptAt = null;
+            clearClaim();
+            return;
+        }
+
+        this.status = DailyQuizEventOutboxStatus.PENDING;
+        this.nextAttemptAt = validatedNextAttemptAt;
         clearClaim();
     }
 

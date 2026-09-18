@@ -163,10 +163,21 @@ class DailyQuizEventOutboxRepositoryTest {
                 "EVENT_PAYLOAD_TOO_LARGE"
         );
 
+        DailyQuizEventOutbox unknown =
+                createPendingOutbox(BASE_TIME.minusSeconds(4));
+        claimForSetup(unknown);
+        unknown.recordPublishOutcomeUnknown(
+                CLAIM_ID,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                1,
+                AVAILABLE_AT
+        );
+
         saveAll(
                 backingOff,
                 published,
                 failed,
+                unknown,
                 retryReadyAtBoundary,
                 retryReady,
                 immediate

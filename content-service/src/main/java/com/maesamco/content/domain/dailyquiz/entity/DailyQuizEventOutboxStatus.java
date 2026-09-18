@@ -23,5 +23,10 @@ public enum DailyQuizEventOutboxStatus {
     /**
      * 최대 재시도 횟수 도달 등으로 발행을 중단한 상태입니다.
      */
-    FAILED
+    FAILED,
+
+    /**
+     * Kafka 전달 여부를 확정할 수 없어 자동 재발행을 중단한 상태입니다.
+     */
+    UNKNOWN
 }
