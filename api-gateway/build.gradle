@@ -5,6 +5,11 @@ plugins {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // ⚠️ 실제 배포 중 발견 — management.endpoints.web.exposure.include에
+    // prometheus를 넣어도, 이 의존성이 없으면 /actuator/prometheus 엔드포인트
+    // 자체가 생성되지 않아 404가 난다(Prometheus 스크래핑 실패, Grafana
+    // DatasourceNoData 알림 반복 발생하던 원인).
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
