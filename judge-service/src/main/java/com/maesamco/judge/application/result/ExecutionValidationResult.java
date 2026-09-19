@@ -4,6 +4,7 @@ public record ExecutionValidationResult(
         int testCaseIndex,
         boolean passed,
         boolean timedOut,
+        boolean systemError,
         String stdout
 ) {
 }

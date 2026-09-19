@@ -49,7 +49,7 @@ class ExecutionInternalControllerTest {
                     }
                     """;
             given(executionValidationFacade.validate(any(), anyList()))
-                    .willReturn(List.of(new ExecutionValidationResult(0, true, false, "8")));
+                    .willReturn(List.of(new ExecutionValidationResult(0, true, false, false, "8")));
 
             mockMvc.perform(post("/internal/v1/executions")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -60,6 +60,7 @@ class ExecutionInternalControllerTest {
                     .andExpect(jsonPath("$.data.results[0].testCaseIndex").value(0))
                     .andExpect(jsonPath("$.data.results[0].passed").value(true))
                     .andExpect(jsonPath("$.data.results[0].timedOut").value(false))
+                    .andExpect(jsonPath("$.data.results[0].systemError").value(false))
                     .andExpect(jsonPath("$.data.results[0].stdout").value("8"));
         }
 
