@@ -67,22 +67,22 @@ public class ExecutionValidationFacade {
     private ExecutionValidationResult toValidationResult(int index, String token, Map<String, JudgeExecutionResult> resultsByToken) {
         if (token == null) {
             // 제출 자체가 실패한 케이스 — 결과를 알 수 없으니 timedOut으로 표시
-            return new ExecutionValidationResult(index, false, true, false, null);
+            return new ExecutionValidationResult(index, false, true, false, null, null, null);
         }
         JudgeExecutionResult result = resultsByToken.get(token);
         if (result == null) {
             // 폴링을 다 돌았는데도 이 토큰의 응답이 끝내 안 온 케이스 - 결과를 알 수 없으니 이것도 timeOut으로 표시
-            return new ExecutionValidationResult(index, false, true, false, null);
+            return new ExecutionValidationResult(index, false, true, false, null, null, null);
         }
         if (isPending(result.status())) {
-            return new ExecutionValidationResult(index, false, true, false, result.stdout());
+            return new ExecutionValidationResult(index, false, true, false, result.stdout(), result.stderr(), result.compileOutput());
         }
         if (isSystemFailure(result.status())) {
             // Judge0 자체 실패나 매핑 불가능한 상태 — 코드가 틀린 게 아니라 채점 시스템이 판정을 못한 것
-            return new ExecutionValidationResult(index, false, false, true, result.stdout());
+            return new ExecutionValidationResult(index, false, false, true, result.stdout(), result.stderr(), result.compileOutput());
         }
         boolean passed = result.status() == JudgeExecutionStatus.ACCEPTED;
-        return new ExecutionValidationResult(index, passed, false, false, result.stdout());
+        return new ExecutionValidationResult(index, passed, false, false, result.stdout(), result.stderr(), result.compileOutput());
     }
 
     private Map<String, JudgeExecutionResult> pollUntilDone(List<String> tokens) {

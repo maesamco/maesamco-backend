@@ -49,7 +49,7 @@ class ExecutionInternalControllerTest {
                     }
                     """;
             given(executionValidationFacade.validate(any(), anyList()))
-                    .willReturn(List.of(new ExecutionValidationResult(0, true, false, false, "8")));
+                    .willReturn(List.of(new ExecutionValidationResult(0, true, false, false, "8", null, null)));
 
             mockMvc.perform(post("/internal/v1/executions")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -193,6 +193,32 @@ class ExecutionInternalControllerTest {
             return """
             { "code": "public class Main {}", "testCases": [%s] }
             """.formatted(testCases);
+        }
+
+        @Test
+        @DisplayName("컴파일 에러로 실패하면 stderr/compileOutput이 응답에 그대로 노출된다")
+        void returns200WithCompileOutputWhenCompileError() throws Exception {
+            String requestBody = """
+            {
+              "code": "public class Main { invalid syntax }",
+              "testCases": [
+                { "input": "3 5", "expectedOutput": "8", "cpuTimeLimitSeconds": 2, "memoryLimitKb": 262144 }
+              ]
+            }
+            """;
+            given(executionValidationFacade.validate(any(), anyList()))
+                    .willReturn(List.of(new ExecutionValidationResult(
+                            0, false, false, false, null,
+                            "error: illegal start of expression", "Main.java:1: error: ...")));
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.results[0].passed").value(false))
+                    .andExpect(jsonPath("$.data.results[0].stderr").value("error: illegal start of expression"))
+                    .andExpect(jsonPath("$.data.results[0].compileOutput").value("Main.java:1: error: ..."));
         }
     }
 }

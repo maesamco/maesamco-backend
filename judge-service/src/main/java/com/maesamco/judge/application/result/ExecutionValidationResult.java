@@ -5,6 +5,8 @@ public record ExecutionValidationResult(
         boolean passed,
         boolean timedOut,
         boolean systemError,
-        String stdout
+        String stdout,
+        String stderr,
+        String compileOutput
 ) {
 }

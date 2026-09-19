@@ -11,13 +11,17 @@ public record ExecutionValidateResponse(
             boolean passed,
             boolean timedOut,
             boolean systemError,
-            String stdout
+            String stdout,
+            String stderr,
+            String compileOutput
     ) {}
 
     public static ExecutionValidateResponse from(List<ExecutionValidationResult> results) {
         return new ExecutionValidateResponse(
                 results.stream()
-                        .map(r -> new ResultItem(r.testCaseIndex(), r.passed(), r.timedOut(), r.systemError(), r.stdout()))
+                        .map(r -> new ResultItem(
+                                r.testCaseIndex(), r.passed(), r.timedOut(), r.systemError(),
+                                r.stdout(), r.stderr(), r.compileOutput()))
                         .toList()
         );
     }
