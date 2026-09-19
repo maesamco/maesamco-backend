@@ -1,5 +1,7 @@
 package com.maesamco.content.domain.dailyquiz.entity;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,10 +42,6 @@ import java.util.UUID;
                 )
         },
         indexes = {
-                @Index(
-                        name = "idx_daily_quiz_event_outboxes_status",
-                        columnList = "status"
-                ),
                 @Index(
                         name = "idx_daily_quiz_event_outboxes_status_occurred_at",
                         columnList = "status, occurred_at"
@@ -91,6 +89,12 @@ public class DailyQuizEventOutbox {
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
+    @Column(name = "claim_id")
+    private UUID claimId;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -121,10 +125,41 @@ public class DailyQuizEventOutbox {
         this.status = DailyQuizEventOutboxStatus.PENDING;
         this.retryCount = 0;
         this.nextAttemptAt = null;
+        this.leaseUntil = null;
+        this.claimId = null;
         this.version = 0L;
         this.occurredAt = occurredAt;
         this.publishedAt = null;
         this.lastError = null;
+    }
+
+    /**
+     * Kafka 발행을 시작할 Relay Worker가 Outbox를 선점합니다.
+     *
+     * PENDING 행 또는 lease가 만료된 IN_PROGRESS 행만 선점할 수 있습니다.
+     */
+    public void claimForPublish(
+            UUID claimId,
+            Instant claimedAt,
+            Instant leaseUntil
+    ) {
+        UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
+        Instant validatedClaimedAt = requireClaimedAt(claimedAt);
+        Instant validatedLeaseUntil = requireLeaseUntil(leaseUntil);
+
+        if (!validatedLeaseUntil.isAfter(validatedClaimedAt)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "발행 선점 만료 시각은 선점 시각 이후여야 합니다."
+            );
+        }
+
+        validateClaimableStatus(validatedClaimedAt);
+
+        this.status = DailyQuizEventOutboxStatus.IN_PROGRESS;
+        this.claimId = validatedClaimId;
+        this.leaseUntil = validatedLeaseUntil;
+        this.nextAttemptAt = null;
     }
 
     /**
@@ -148,38 +183,221 @@ public class DailyQuizEventOutbox {
         );
     }
 
+    /**
+     * Kafka 발행 성공 결과를 기록
+     */
+    public void recordPublishSuccess(
+            UUID claimId,
+            Instant publishedAt
+    ) {
+        UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
+        Instant validatedPublishedAt =
+                requirePublishedAt(publishedAt);
+
+        validateActiveClaim(validatedClaimId);
+
+        this.status = DailyQuizEventOutboxStatus.PUBLISHED;
+        this.publishedAt = validatedPublishedAt;
+        this.nextAttemptAt = null;
+        clearClaim();
+        this.lastError = null;
+    }
+
+    /**
+     * 재시도 가능한 Kafka 발행 실패를 기록
+     *
+     * 실패 횟수가 최대 재시도 횟수에 도달하기 전까지는
+     * PENDING 상태를 유지하고 다음 시도 시각을 기록합니다.
+     * 최대 횟수에 도달하면 FAILED 상태로 전환합니다.
+     *
+     */
+    public void recordPublishFailure(
+            UUID claimId,
+            String error,
+            // 최대 재시도 횟수
+            int maxRetryCount,
+            // 다음 발행 시도 가능 시각
+            Instant nextAttemptAt
+    ) {
+        UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
+        String validatedError = requireError(error);
+        int validatedMaxRetryCount = requireMaxRetryCount(maxRetryCount);
+        Instant validatedNextAttemptAt = requireNextAttemptAt(nextAttemptAt);
+
+        validateActiveClaim(validatedClaimId);
+
+        this.retryCount++;
+        this.lastError = validatedError;
+        this.publishedAt = null;
+
+        if (this.retryCount >= validatedMaxRetryCount) {
+            this.status = DailyQuizEventOutboxStatus.FAILED;
+            this.nextAttemptAt = null;
+            clearClaim();
+            return;
+        }
+
+        this.status = DailyQuizEventOutboxStatus.PENDING;
+        this.nextAttemptAt = validatedNextAttemptAt;
+        clearClaim();
+    }
+
+    /**
+     * Kafka 발행 결과를 확인하지 못한 시도를 기록
+     *
+     * ACK 대기 시간 초과처럼 이벤트가 이미 전달되었을 가능성이 있는 경우에는
+     * 최대 횟수 전까지 재시도하고, 한도에 도달하면 UNKNOWN으로 격리합니다.
+     */
+    public void recordPublishOutcomeUnknown(
+            UUID claimId,
+            String error,
+            int maxRetryCount,
+            Instant nextAttemptAt
+    ) {
+        UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
+        String validatedError = requireError(error);
+        int validatedMaxRetryCount = requireMaxRetryCount(maxRetryCount);
+        Instant validatedNextAttemptAt = requireNextAttemptAt(nextAttemptAt);
+
+        validateActiveClaim(validatedClaimId);
+
+        this.retryCount++;
+        this.lastError = validatedError;
+        this.publishedAt = null;
+
+        if (this.retryCount >= validatedMaxRetryCount) {
+            this.status = DailyQuizEventOutboxStatus.UNKNOWN;
+            this.nextAttemptAt = null;
+            clearClaim();
+            return;
+        }
+
+        this.status = DailyQuizEventOutboxStatus.PENDING;
+        this.nextAttemptAt = validatedNextAttemptAt;
+        clearClaim();
+    }
+
+    /**
+     * 재시도로 복구할 수 없는 Kafka 발행 실패를 기록
+     */
+    public void recordUnrecoverablePublishFailure(
+            UUID claimId,
+            String error
+    ) {
+        UUID validatedClaimId = requireId(claimId, "발행 선점 ID");
+        String validatedError = requireError(error);
+
+        validateActiveClaim(validatedClaimId);
+
+        this.status = DailyQuizEventOutboxStatus.FAILED;
+        this.retryCount++;
+        this.nextAttemptAt = null;
+        this.publishedAt = null;
+        this.lastError = validatedError;
+        clearClaim();
+    }
+
     private static String requireEventType(String eventType) {
         if (eventType == null || eventType.isBlank()) {
-            throw new IllegalArgumentException("이벤트 타입은 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "이벤트 타입은 필수입니다.");
         }
         return eventType;
     }
 
     private static UUID requireId(UUID id, String fieldName) {
         if (id == null) {
-            throw new IllegalArgumentException(fieldName + "는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + "는 필수입니다.");
         }
         return id;
     }
 
     private static int requireEventVersion(int eventVersion) {
         if (eventVersion < 1) {
-            throw new IllegalArgumentException("이벤트 버전은 1 이상이어야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "이벤트 버전은 1 이상이어야 합니다.");
         }
         return eventVersion;
     }
 
     private static String requirePayload(String payload) {
         if (payload == null || payload.isBlank()) {
-            throw new IllegalArgumentException("이벤트 본문은 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "이벤트 본문은 필수입니다.");
         }
         return payload;
     }
 
     private static Instant requireOccurredAt(Instant occurredAt) {
         if (occurredAt == null) {
-            throw new IllegalArgumentException("이벤트 발생 시각은 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "이벤트 발생 시각은 필수입니다.");
         }
         return occurredAt;
+    }
+
+    private static Instant requirePublishedAt(Instant publishedAt) {
+        if (publishedAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "발행 완료 시각은 필수입니다.");
+        }
+        return publishedAt;
+    }
+
+    private static Instant requireClaimedAt(Instant claimedAt) {
+        if (claimedAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "발행 선점 시각은 필수입니다.");
+        }
+        return claimedAt;
+    }
+
+    private static Instant requireLeaseUntil(Instant leaseUntil) {
+        if (leaseUntil == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "발행 선점 만료 시각은 필수입니다.");
+        }
+        return leaseUntil;
+    }
+
+    private static Instant requireNextAttemptAt(Instant nextAttemptAt) {
+        if (nextAttemptAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "다음 발행 시도 시각은 필수입니다.");
+        }
+        return nextAttemptAt;
+    }
+
+    private static String requireError(String error) {
+        if (error == null || error.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "발행 실패 사유는 필수입니다.");
+        }
+        return error;
+    }
+
+    private static int requireMaxRetryCount(int maxRetryCount) {
+        if (maxRetryCount < 1) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "최대 재시도 횟수는 1 이상이어야 합니다.");
+        }
+        return maxRetryCount;
+    }
+
+    private void validateClaimableStatus(Instant claimedAt) {
+        boolean pendingAndReady =
+                this.status == DailyQuizEventOutboxStatus.PENDING
+                        && (this.nextAttemptAt == null
+                        || !this.nextAttemptAt.isAfter(claimedAt));
+        boolean expiredClaim =
+                this.status == DailyQuizEventOutboxStatus.IN_PROGRESS
+                        && this.leaseUntil != null
+                        && !this.leaseUntil.isAfter(claimedAt);
+
+        if (!pendingAndReady && !expiredClaim) {
+            throw new IllegalStateException("현재 발행할 수 있는 Outbox만 선점할 수 있습니다.");
+        }
+    }
+
+    private void validateActiveClaim(UUID claimId) {
+        if (this.status != DailyQuizEventOutboxStatus.IN_PROGRESS
+                || !claimId.equals(this.claimId)) {
+            throw new IllegalStateException("현재 발행 선점을 보유한 Worker만 Outbox를 변경할 수 있습니다.");
+        }
+    }
+
+    private void clearClaim() {
+        this.claimId = null;
+        this.leaseUntil = null;
     }
 }
