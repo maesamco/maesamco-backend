@@ -161,7 +161,9 @@ class ExecutionValidationFacadeTest {
         void resetsConsecutiveFailureCountOnSuccess() {
             given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
             given(judgeExecutionPort.fetchResults(anyList()))
-                    .willThrow(new RuntimeException("일시적 오류"))
+                    .willThrow(new RuntimeException("일시적 오류 1"))
+                    .willReturn(List.of(result("token-1", JudgeExecutionStatus.PROCESSING, null)))
+                    .willThrow(new RuntimeException("일시적 오류 2"))
                     .willReturn(List.of(result("token-1", JudgeExecutionStatus.ACCEPTED, "8")));
 
             List<ExecutionValidationResult> results =
@@ -169,6 +171,7 @@ class ExecutionValidationFacadeTest {
 
             assertThat(results.get(0).passed()).isTrue();
             assertThat(results.get(0).timedOut()).isFalse();
+            verify(judgeExecutionPort, times(4)).fetchResults(any());
         }
     }
 
