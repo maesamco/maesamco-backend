@@ -1,0 +1,129 @@
+package com.maesamco.content.application.dailyquiz.service;
+
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutbox;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutboxStatus;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * DailyQuizCompleted Outbox의 Kafka 발행 결과를 DB 상태에 반영
+ *
+ * Kafka ACK 대기 중에는 DB 트랜잭션을 유지하지 않고,
+ * 발행 결과가 확정된 뒤 이 서비스의 짧은 트랜잭션으로
+ * Outbox 상태만 변경합니다.
+ */
+@Service
+@RequiredArgsConstructor
+public class DailyQuizEventOutboxStatusService {
+
+    private final DailyQuizEventOutboxRepository outboxRepository;
+
+    /**
+     * Kafka 발행 성공 결과를 Outbox에 기록
+     */
+    @Transactional
+    public boolean recordPublishSuccess(
+            UUID outboxId,
+            UUID claimId,
+            Instant publishedAt
+    ) {
+        DailyQuizEventOutbox outbox = getOutbox(outboxId);
+
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
+        }
+
+        outbox.recordPublishSuccess(claimId, publishedAt);
+        return true;
+    }
+
+    /**
+     * Kafka 발행 실패와 다음 재시도 시각을 Outbox에 기록
+     */
+    @Transactional
+    public boolean recordPublishFailure(
+            UUID outboxId,
+            UUID claimId,
+            String error,
+            int maxRetryCount,
+            Instant nextAttemptAt
+    ) {
+        DailyQuizEventOutbox outbox = getOutbox(outboxId);
+
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
+        }
+
+        outbox.recordPublishFailure(claimId, error, maxRetryCount, nextAttemptAt
+        );
+        return true;
+    }
+
+    /**
+     * 실제 Kafka 전달 여부를 확인하지 못한 결과와 다음 재시도 시각을 기록
+     */
+    @Transactional
+    public boolean recordPublishOutcomeUnknown(
+            UUID outboxId,
+            UUID claimId,
+            String error,
+            int maxRetryCount,
+            Instant nextAttemptAt
+    ) {
+        DailyQuizEventOutbox outbox = getOutbox(outboxId);
+
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
+        }
+
+        outbox.recordPublishOutcomeUnknown(
+                claimId,
+                error,
+                maxRetryCount,
+                nextAttemptAt
+        );
+        return true;
+    }
+
+    /**
+     * 재시도로 복구할 수 없는 Kafka 발행 실패를 Outbox에 기록
+     */
+    @Transactional
+    public boolean recordUnrecoverablePublishFailure(
+            UUID outboxId,
+            UUID claimId,
+            String error
+    ) {
+        DailyQuizEventOutbox outbox = getOutbox(outboxId);
+
+        if (!hasActiveClaim(outbox, claimId)) {
+            return false;
+        }
+
+        outbox.recordUnrecoverablePublishFailure(claimId, error);
+        return true;
+    }
+
+    private boolean hasActiveClaim(
+            DailyQuizEventOutbox outbox,
+            UUID claimId
+    ) {
+        return outbox.getStatus() == DailyQuizEventOutboxStatus.IN_PROGRESS
+                && claimId != null
+                && claimId.equals(outbox.getClaimId());
+    }
+
+    private DailyQuizEventOutbox getOutbox(UUID outboxId) {
+        return outboxRepository.findById(outboxId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.ENTITY_NOT_FOUND, "Daily Quiz Event Outbox를 찾을 수 없습니다.")
+                );
+    }
+}
