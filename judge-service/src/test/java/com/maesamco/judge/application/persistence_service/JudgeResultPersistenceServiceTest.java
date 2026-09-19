@@ -18,6 +18,8 @@ import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -153,6 +156,41 @@ class JudgeResultPersistenceServiceTest {
 
             // then
             assertThat(submission.getResult()).isEqualTo(SubmissionResult.MEMORY_LIMIT_EXCEEDED);
+        }
+
+        @Test
+        @DisplayName("완료 시 발행되는 SubmissionJudged payload에 problemVersionId/attemptNo/judgedAt이 모두 포함된다")
+        void publishesPayloadWithAllFields() {
+            // given
+            UUID submissionId = UUID.randomUUID();
+            Submission submission = runningSubmission(submissionId);
+
+            PendingJudge0Execution lastPending =
+                    PendingJudge0Execution.create(submissionId, UUID.randomUUID(), "token-last", true);
+            JudgeExecutionResult lastResult = new JudgeExecutionResult(
+                    "token-last", JudgeExecutionStatus.ACCEPTED, "3", null, null, 50L, 1024);
+
+            SubmissionTestResult passed = SubmissionTestResult.create(
+                    submissionId, UUID.randomUUID(), true, true, "3", null, 150, 2048);
+
+            given(pendingJudge0ExecutionRepository.findAllBySubmissionId(submissionId))
+                    .willReturn(List.of());
+            given(submissionTestResultRepository.findBySubmissionIdOrderByCreatedAtAscIdAsc(submissionId))
+                    .willReturn(List.of(passed));
+            given(submissionRepository.findById(submissionId)).willReturn(Optional.of(submission));
+
+            // when
+            judgeResultPersistenceService.reflectResult(lastPending, lastResult);
+
+            // then
+            ArgumentCaptor<SubmissionEventOutbox> outboxCaptor = ArgumentCaptor.forClass(SubmissionEventOutbox.class);
+            verify(submissionEventOutboxRepository).save(outboxCaptor.capture());
+            String payload = outboxCaptor.getValue().getPayload();
+
+            JsonNode json = JsonMapper.builder().build().readTree(payload);
+            assertThat(json.get("problemVersionId").asText()).isEqualTo(submission.getProblemVersionId().toString());
+            assertThat(json.get("attemptNo").asInt()).isEqualTo(submission.getAttemptNo());
+            assertThat(Instant.parse(json.get("judgedAt").asText())).isEqualTo(submission.getJudgedAt());
         }
     }
 
