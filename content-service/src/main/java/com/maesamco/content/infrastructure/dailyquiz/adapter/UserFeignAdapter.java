@@ -27,7 +27,7 @@ public class UserFeignAdapter implements UserInterestConceptPort {
     public List<UUID> getInterestConceptIds(UUID userId) {
         SuccessResponse<UserInterestConceptResponse> response = feignClient.getUser(userId);
 
-        if (response == null || response.data() == null) {
+        if (response == null || !response.success() || response.data() == null) {
             return List.of();
         }
 
