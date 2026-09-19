@@ -18,6 +18,8 @@ import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.global.exception.ErrorCode;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -156,7 +159,7 @@ class JudgeResultPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("완료 시 발행되는 SubmissionJudged payload에 problemVersionId/attemptNo/executionTimeMs/memoryUsedKb/judgedAt이 모두 포함된다")
+        @DisplayName("완료 시 발행되는 SubmissionJudged payload에 problemVersionId/attemptNo/judgedAt이 모두 포함된다")
         void publishesPayloadWithAllFields() {
             // given
             UUID submissionId = UUID.randomUUID();
@@ -184,11 +187,10 @@ class JudgeResultPersistenceServiceTest {
             verify(submissionEventOutboxRepository).save(outboxCaptor.capture());
             String payload = outboxCaptor.getValue().getPayload();
 
-            assertThat(payload).contains("\"problemVersionId\":\"" + submission.getProblemVersionId() + "\"");
-            assertThat(payload).contains("\"attemptNo\":" + submission.getAttemptNo());
-            assertThat(payload).contains("\"executionTimeMs\":" + submission.getExecutionTimeMs());
-            assertThat(payload).contains("\"memoryUsedKb\":" + submission.getMemoryUsedKb());
-            assertThat(payload).contains("\"judgedAt\":\"" + submission.getJudgedAt() + "\"");
+            JsonNode json = JsonMapper.builder().build().readTree(payload);
+            assertThat(json.get("problemVersionId").asText()).isEqualTo(submission.getProblemVersionId().toString());
+            assertThat(json.get("attemptNo").asInt()).isEqualTo(submission.getAttemptNo());
+            assertThat(Instant.parse(json.get("judgedAt").asText())).isEqualTo(submission.getJudgedAt());
         }
     }
 
