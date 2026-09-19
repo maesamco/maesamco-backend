@@ -109,8 +109,9 @@ public class ExecutionValidationFacade {
             }
         }
         if (hasPending(tokens, latest)) {
-            log.warn("[Judge] 검증용 실행이 제한 시간({}ms) 내에 끝나지 않음, 토큰 개수={}",
-                    maxPollAttempts * pollIntervalMs, tokens.size());
+            log.warn("[Judge] 검증용 실행이 polling 예산(최대 {}회, 정상 응답 기준 약 {}ms 소요 추정) 내에 끝나지 않음 — "
+                            + "fetchResults() 자체의 응답 지연이나 조회 실패 재시도로 실제 소요시간은 더 길 수 있음. 토큰 개수={}",
+                    maxPollAttempts, (maxPollAttempts - 1) * pollIntervalMs, tokens.size());
         }
         return latest;
     }
