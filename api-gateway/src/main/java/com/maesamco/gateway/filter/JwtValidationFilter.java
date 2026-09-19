@@ -36,17 +36,13 @@ import java.util.List;
 public class JwtValidationFilter implements GlobalFilter, Ordered {
 
     private static final List<String> WHITELIST = List.of(
+            "/api/v1/auth/email-verifications",
+            "/api/v1/auth/email-verifications/confirm",
             "/api/v1/auth/signup",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
             "/api/v1/auth/password-reset/request",
-            "/api/v1/auth/password-reset/confirm",
-            // ⚠️ 실제 통합테스트 중 발견 — 이메일 인증 기능(PR #169) 추가 당시
-            // 이 화이트리스트 갱신이 누락되어, 회원가입 전인데도 JWT를 요구하며
-            // 401이 나던 문제. 이 두 경로도 회원가입 전 단계라 인증 없이 허용해야 한다.
-            "/api/v1/auth/email-verifications",
-            "/api/v1/auth/email-verifications/confirm",
-            "/actuator/"
+            "/api/v1/auth/password-reset/confirm"
     );
 
     /**
@@ -144,14 +140,18 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isWhitelisted(String path) {
-        // ⚠️ P1 리뷰 반영: 트레일링 슬래시 없이 startsWith만 쓰면 "/swagger-uiXXX"처럼
-        // 우연히 이 문자열로 시작하는 업무 경로가 생겼을 때 JWT 검증을 우회할 수 있다
-        // (이번 PR이 /v3/api-docs에서 고친 것과 정확히 같은 유형의 문제).
-        // 정확히 "/swagger-ui" 자신이거나 그 하위 경로("/swagger-ui/...")일 때만 허용한다.
-        if (path.equals("/swagger-ui") || path.startsWith("/swagger-ui/") || DOCS_WHITELIST.contains(path)) {
-            return true;
-        }
-        return WHITELIST.stream().anyMatch(path::startsWith);
+        boolean swaggerPath =
+                path.equals("/swagger-ui")
+                        || path.startsWith("/swagger-ui/");
+
+        boolean actuatorPath =
+                path.equals("/actuator")
+                        || path.startsWith("/actuator/");
+
+        return swaggerPath
+                || actuatorPath
+                || DOCS_WHITELIST.contains(path)
+                || WHITELIST.contains(path);
     }
 
     private String resolveToken(ServerHttpRequest request) {
