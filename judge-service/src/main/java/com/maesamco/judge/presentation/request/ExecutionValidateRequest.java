@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -14,6 +15,7 @@ public record ExecutionValidateRequest(
         String code,
 
         @NotNull(message = "testCases는 비어 있을 수 없습니다.")
+        @Size(max = 50, message = "testCases는 최대 50개까지 가능합니다.")
         @Valid
         List<TestCaseItem> testCases
 ) {

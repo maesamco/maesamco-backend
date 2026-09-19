@@ -160,5 +160,39 @@ class ExecutionInternalControllerTest {
                             .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
                     .andExpect(status().isBadRequest());
         }
+
+        @Test
+        @DisplayName("testCases가 51개면 400과 INVALID_INPUT_VALUE를 반환한다")
+        void returns400WhenTestCasesExceedMaxSize() throws Exception {
+            String requestBody = requestBodyWithTestCaseCount(51);
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("testCases가 정확히 50개면 400 없이 통과한다")
+        void returns200WhenTestCasesAtMaxSize() throws Exception {
+            String requestBody = requestBodyWithTestCaseCount(50);
+            given(executionValidationFacade.validate(any(), anyList())).willReturn(List.of());
+
+            mockMvc.perform(post("/internal/v1/executions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody)
+                            .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER))
+                    .andExpect(status().isOk());
+        }
+
+        private String requestBodyWithTestCaseCount(int count) {
+            String testCase = """
+            { "input": "3 5", "expectedOutput": "8", "cpuTimeLimitSeconds": 2, "memoryLimitKb": 262144 }""";
+            String testCases = String.join(",", java.util.Collections.nCopies(count, testCase));
+            return """
+            { "code": "public class Main {}", "testCases": [%s] }
+            """.formatted(testCases);
+        }
     }
 }
