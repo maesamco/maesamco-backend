@@ -12,6 +12,7 @@ import com.maesamco.coaching.domain.repository.FollowUpQuestionRepository;
 import com.maesamco.coaching.global.exception.BusinessException;
 import com.maesamco.coaching.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -65,7 +66,7 @@ public class FollowUpAnswerFacade {
         }
 
         FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult completion =
-                followUpAnswerPersistenceService.completeWithAnswer(session.getId(), followUpQuestionId, answerText);
+                completeWithAnswer(session.getId(), followUpQuestionId, answerText);
 
         try {
             feedbackGenerationFacade.generateFeedback(
@@ -78,6 +79,41 @@ public class FollowUpAnswerFacade {
         return new FollowUpAnswerRegisterResult(
                 completion.followUpAnswer(), completion.coachingSession().getStatus()
         );
+    }
+
+    /**
+     * 이슈 #218(V15) — CoachingSession에 @Version이 도입된 뒤로,
+     * completeWithAnswer()가 트랜잭션 안에서 하는 CoachingSession.complete()+save()가
+     * 서로 다른 역질문을 거의 동시에 완료 처리하려는 경합에서
+     * ObjectOptimisticLockingFailureException으로 실패할 수 있다. saveAndFlush()로
+     * 즉시 flush되므로 이 예외는 completeWithAnswer() 트랜잭션이 커밋되기 전에 나서,
+     * Spring이 그 트랜잭션 전체(방금 저장한 FollowUpAnswer 포함)를 롤백한다 — 부분
+     * 성공 없이 처음부터 다시 시도해도 안전하다.
+     *
+     * user-service의 ChangePasswordRetryService와 동일한 패턴으로 completeWithAnswer()
+     * 전체를 한 번만 재시도한다. 재시도로 세션을 다시 조회하면 대개 경합 상대가 이미
+     * COMPLETED로 완료해둔 뒤라, CoachingSession.complete()는
+     * completeSessionIfNeeded()의 isCompleted() 가드에 걸려 재호출 자체가 생략되고
+     * 성공으로 끝난다. 재시도까지 충돌하면 COACHING_SESSION_UPDATE_CONFLICT로 변환한다.
+     */
+    private FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult completeWithAnswer(
+            UUID coachingSessionId, UUID followUpQuestionId, String answerText
+    ) {
+        try {
+            return followUpAnswerPersistenceService.completeWithAnswer(coachingSessionId, followUpQuestionId, answerText);
+        } catch (OptimisticLockingFailureException firstException) {
+            return retryCompleteWithAnswer(coachingSessionId, followUpQuestionId, answerText);
+        }
+    }
+
+    private FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult retryCompleteWithAnswer(
+            UUID coachingSessionId, UUID followUpQuestionId, String answerText
+    ) {
+        try {
+            return followUpAnswerPersistenceService.completeWithAnswer(coachingSessionId, followUpQuestionId, answerText);
+        } catch (OptimisticLockingFailureException secondException) {
+            throw new BusinessException(ErrorCode.COACHING_SESSION_UPDATE_CONFLICT);
+        }
     }
 
     public record FollowUpAnswerRegisterResult(FollowUpAnswer followUpAnswer, CoachingSessionStatus coachingSessionStatus) {

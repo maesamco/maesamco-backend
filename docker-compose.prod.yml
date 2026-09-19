@@ -21,7 +21,7 @@ services:
     container_name: redis
     ports:
       - "6500:6379"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
-        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
       # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 6379)
 
   # ================= Kafka (KRaft 모드, Apache 공식 이미지) + Kafka-UI =================
@@ -140,10 +140,15 @@ services:
     container_name: grafana
     ports:
       - "4000:3000"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
-        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
       # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 3000)
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      # ⚠️ 실제 배포로 발견 — 이 설정이 없으면 Grafana가 기본값(http://localhost:3000)을
+      # 알림 링크 생성에 그대로 써서, Slack 등으로 온 알림의 링크를 클릭해도
+      # 받는 사람 컴퓨터의 localhost로 가버려 아무것도 안 열림. 외부에서 실제로
+      # 접속 가능한 주소(EC2 IP:4000)로 명시해야 한다.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning

@@ -43,6 +43,11 @@ public enum ErrorCode {
     // 따라 세션을 ID로 다시 조회할 때의 방어용. Facade가 이미 한 번 조회해 존재를
     // 확인한 뒤라 실제로는 거의 발생하지 않는다(세션 삭제 기능 자체가 없음).
     COACHING_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "코칭 세션을 찾을 수 없습니다."),
+    // 이슈 #218(V15) — CoachingSession에 @Version 도입 후, advanceToSubmission()/
+    // complete() 갱신이 낙관적 락 충돌로 재시도(CoachingSessionFinder/
+    // FollowUpAnswerFacade)까지 실패했을 때 던진다. user-service
+    // USER_PASSWORD_CHANGE_CONFLICT와 동일한 패턴.
+    COACHING_SESSION_UPDATE_CONFLICT(HttpStatus.CONFLICT, "코칭 세션 갱신 중 동시 수정이 감지되었습니다. 잠시 후 다시 시도해주세요."),
     SUBMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "제출을 찾을 수 없습니다."),
     // 이슈 #62 — Content Service GET /internal/v1/problems/{problemId} 조회 실패 시.
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),

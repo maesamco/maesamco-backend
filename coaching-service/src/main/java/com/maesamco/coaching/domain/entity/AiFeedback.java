@@ -104,11 +104,10 @@ public class AiFeedback {
     private String nextDirection;
 
     /*
-     * TODO: created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지 검증하는 회귀 테스트가
-     * 없다(BaseEntity처럼 information_schema.columns.data_type을 직접 확인하는 테스트,
-     * PR #11에서 BaseEntity 쪽에 이미 지적된 것과 같은 성격 — 이 엔티티는 BaseEntity를
-     * 상속하지 않아 별도로 필요). 누군가 실수로 Instant를 LocalDateTime으로 되돌려도
-     * 지금은 CI가 못 잡아낸다. Repository 통합 테스트에 추가할 것.
+     * created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지는
+     * AiFeedbackRepositoryImplTest.schema_usesJsonbAndTimestamptzColumnTypes()가 이미
+     * 검증하고 있다(이슈 #218 조사 결과 — 다른 엔티티와 달리 별도 회귀 테스트가 필요
+     * 없었다).
      */
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
