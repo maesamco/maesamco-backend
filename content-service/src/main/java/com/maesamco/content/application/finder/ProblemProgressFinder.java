@@ -9,6 +9,9 @@ import java.util.UUID;
 
 public interface ProblemProgressFinder {
 
+    /** 사용자와 문제 기준으로 문제 풀이 진행 상태를 조회합니다. */
+    ProblemProgress getByUserIdAndProblemIdOrigin(UUID userId, UUID problemId);
+
     /** 사용자와 문제 기준으로 기존 문제 풀이 진행 상태를 조회합니다. */
     Optional<ProblemProgress> getByUserIdAndProblemId(UUID userId, UUID problemId);
 
