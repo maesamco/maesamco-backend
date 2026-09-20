@@ -1,5 +1,6 @@
 package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.finder_service.ProblemTagFinderService;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;

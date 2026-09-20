@@ -1,4 +1,4 @@
-package com.maesamco.content.application.service.finder;
+package com.maesamco.content.application.finder_service;
 
 import com.maesamco.content.application.input_port.UnitFinder;
 import com.maesamco.content.domain.repository.CurriculumRepository;

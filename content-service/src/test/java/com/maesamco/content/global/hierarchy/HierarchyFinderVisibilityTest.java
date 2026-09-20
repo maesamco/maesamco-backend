@@ -1,7 +1,7 @@
 package com.maesamco.content.global.hierarchy;
 
-import com.maesamco.content.application.service.finder.LessonFinderService;
-import com.maesamco.content.application.service.finder.UnitFinderService;
+import com.maesamco.content.application.finder_service.LessonFinderService;
+import com.maesamco.content.application.finder_service.UnitFinderService;
 import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.repository.LessonRepository;

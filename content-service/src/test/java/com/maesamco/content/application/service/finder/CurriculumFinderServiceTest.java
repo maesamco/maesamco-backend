@@ -1,5 +1,6 @@
 package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.finder_service.CurriculumFinderService;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.global.exception.BusinessException;

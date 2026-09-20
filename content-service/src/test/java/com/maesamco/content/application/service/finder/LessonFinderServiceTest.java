@@ -1,5 +1,6 @@
 package com.maesamco.content.application.service.finder;
 
+import com.maesamco.content.application.finder_service.LessonFinderService;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.Unit;
