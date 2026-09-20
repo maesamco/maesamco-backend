@@ -16,9 +16,4 @@ public interface ProblemTagFinder {
 
     /** 특정 문제에 연결된 태그 목록을 조회한다. */
     List<Tag> getTagsByProblemId(UUID problemId);
-
-    /** 여러 문제에 연결된 태그 목록을 조회한다. */
-    // TODO: 마지막에 작성, problemProgress 구현하고 이 함수와 함께 사용해
-    //  (이미 원하는 조건으로 완성된 문제 list에 대하여 tag 집합을 반환하도록 한다.)
-    // List<Tag> getTagsByProblemIds(List<UUID> problemIds);
 }

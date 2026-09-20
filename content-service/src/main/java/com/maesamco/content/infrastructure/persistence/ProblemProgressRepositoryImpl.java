@@ -30,14 +30,14 @@ public class ProblemProgressRepositoryImpl
     }
 
     @Override
-    public List<ProblemProgress> findByUserIdOrderByCreatedDesc(UUID userId) {
+    public List<ProblemProgress> findByUserIdOrderByCreatedAtDesc(UUID userId) {
         return springDataProblemProgressRepository
-                .findByUserIdOrderByCreatedDesc(userId);
+                .findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     @Override
-    public List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedDesc(UUID userId, ProblemProgressStatus progressStatus) {
+    public List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDesc(UUID userId, ProblemProgressStatus progressStatus) {
         return springDataProblemProgressRepository
-                .findByUserIdAndProgressStatusOrderByCreatedDesc(userId, progressStatus);
+                .findByUserIdAndProgressStatusOrderByCreatedAtDesc(userId, progressStatus);
     }
 }
