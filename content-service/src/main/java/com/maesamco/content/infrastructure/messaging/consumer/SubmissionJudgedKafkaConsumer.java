@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
 @Component
@@ -15,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 public class SubmissionJudgedKafkaConsumer {
 
     private final ProblemProgressService problemProgressService;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     @KafkaListener(
             topics = "${spring.kafka.topic.submission-judged}",
@@ -45,7 +45,7 @@ public class SubmissionJudgedKafkaConsumer {
 
     private SubmissionJudgedEvent readEvent(String payload) {
         try {
-            return objectMapper.readValue(
+            return jsonMapper.readValue(
                     payload,
                     SubmissionJudgedEvent.class
             );
