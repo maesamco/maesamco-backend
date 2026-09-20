@@ -3,6 +3,8 @@ package com.maesamco.user.infrastructure.persistence;
 import com.maesamco.user.domain.entity.*;
 import com.maesamco.user.domain.repository.XpHistoryRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * XpHistoryRepository 구현체의 PostgreSQL 통합 테스트입니다.
@@ -198,6 +201,47 @@ class XpHistoryRepositoryImplTest {
         // then
         assertThat(existing).isTrue();
         assertThat(missing).isFalse();
+    }
+
+    @Test
+    @DisplayName("동일한 원천 이벤트 ID의 XP 이력을 중복 저장할 수 없다")
+    void save_rejectsDuplicatedSourceEventId() {
+        UUID sourceEventId = UUID.randomUUID();
+        UUID userId =
+                persistUser(
+                        "f".repeat(64),
+                        "XpHistoryDuplicateEvent"
+                );
+
+        xpHistoryRepository.save(
+                createFirstCorrectHistory(
+                        userId,
+                        sourceEventId,
+                        UUID.randomUUID(),
+                        10,
+                        10L,
+                        Instant.parse("2026-09-01T01:00:00Z")
+                )
+        );
+
+        assertThatThrownBy(
+                () -> xpHistoryRepository.save(
+                        createFirstCorrectHistory(
+                                userId,
+                                sourceEventId,
+                                UUID.randomUUID(),
+                                10,
+                                20L,
+                                Instant.parse("2026-09-01T02:00:00Z")
+                        )
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception -> ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.XP_HISTORY_ALREADY_EXISTS);
     }
 
     @Test

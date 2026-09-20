@@ -31,9 +31,11 @@ import java.util.UUID;
  * {@code problemId}와 {@code rewardDate}는 각각 최초 정답 보상과 일일 목표 보상의
  * 중복 지급 여부를 확인할 때 사용합니다.</p>
  *
+ * <p>Kafka 원천 이벤트 중복 방지는 V7의
+ * {@code source_event_id IS NOT NULL} 부분 UNIQUE 인덱스로 보장합니다.</p>
+ *
  * <p>TODO(#10): Flyway 후속 마이그레이션에 다음 제약을 추가해야 합니다.</p>
  * <ul>
- *     <li>{@code source_event_id IS NOT NULL}인 행의 부분 UNIQUE</li>
  *     <li>최초 정답의 {@code (user_id, problem_id, reward_type)} 부분 UNIQUE</li>
  *     <li>일일 목표의 {@code (user_id, reward_date, reward_type)} 부분 UNIQUE</li>
  * </ul>
