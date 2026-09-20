@@ -1,5 +1,6 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.application.command_service.ProblemPublicationService;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;

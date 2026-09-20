@@ -1,4 +1,4 @@
-package com.maesamco.content.application.persistence_service;
+package com.maesamco.content.application.command_service;
 
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.port.ProblemPublishedEventData;

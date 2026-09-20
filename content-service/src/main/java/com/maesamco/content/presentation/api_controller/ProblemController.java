@@ -2,7 +2,7 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
-import com.maesamco.content.application.persistence_service.ProblemPublicationService;
+import com.maesamco.content.application.command_service.ProblemPublicationService;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
