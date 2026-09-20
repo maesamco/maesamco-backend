@@ -210,7 +210,7 @@ class XpHistoryRepositoryImplTest {
         UUID userId =
                 persistUser(
                         "f".repeat(64),
-                        "XpHistoryDuplicateEvent"
+                        "XpDuplicateEvent"
                 );
 
         xpHistoryRepository.save(
