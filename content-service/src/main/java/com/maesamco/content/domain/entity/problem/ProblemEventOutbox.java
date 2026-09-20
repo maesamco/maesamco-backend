@@ -44,8 +44,8 @@ import java.util.UUID;
                         columnList = "status"
                 ),
                 @Index(
-                        name = "idx_problem_event_outboxes_status_occurred_at",
-                        columnList = "status, occurred_at"
+                        name = "idx_problem_event_outboxes_status_occurred_at_id",
+                        columnList = "status, occurred_at, id"
                 )
         }
 )
@@ -53,97 +53,48 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProblemEventOutbox {
 
-    private static final String AGGREGATE_TYPE_PROBLEM =
-            "PROBLEM";
+    private static final String AGGREGATE_TYPE_PROBLEM = "PROBLEM";
 
-    private static final String EVENT_TYPE_PROBLEM_PUBLISHED =
-            "PROBLEM_PUBLISHED";
+    private static final String EVENT_TYPE_PROBLEM_PUBLISHED = "PROBLEM_PUBLISHED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(
-            name = "id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(
-            name = "event_id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
 
-    @Column(
-            name = "aggregate_type",
-            nullable = false,
-            updatable = false,
-            length = 50
-    )
+    @Column(name = "aggregate_type", nullable = false, updatable = false, length = 50)
     private String aggregateType;
 
-    @Column(
-            name = "aggregate_id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "aggregate_id", nullable = false, updatable = false)
     private UUID aggregateId;
 
-    @Column(
-            name = "event_type",
-            nullable = false,
-            updatable = false,
-            length = 50
-    )
+    @Column(name = "event_type", nullable = false, updatable = false, length = 50)
     private String eventType;
 
-    @Column(
-            name = "event_version",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "event_version", nullable = false, updatable = false)
     private int eventVersion;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(
-            name = "payload",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "jsonb"
-    )
+    @Column(name = "payload", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(
-            name = "status",
-            nullable = false,
-            length = 20
-    )
+    @Column(name = "status", nullable = false, length = 20)
     private ProblemEventOutboxStatus status;
 
-    @Column(
-            name = "retry_count",
-            nullable = false
-    )
+    @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
-    @Column(
-            name = "occurred_at",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    @Column(
-            name = "published_at"
-    )
+    @Column(name = "published_at")
     private Instant publishedAt;
 
-    @Column(
-            name = "last_error",
-            columnDefinition = "text"
-    )
+    @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
 
     private ProblemEventOutbox(
@@ -183,25 +134,13 @@ public class ProblemEventOutbox {
             String payload,
             Instant occurredAt
     ) {
-        Objects.requireNonNull(
-                eventId,
-                "eventId must not be null"
-        );
+        Objects.requireNonNull(eventId, "eventId must not be null");
 
-        Objects.requireNonNull(
-                problemId,
-                "problemId must not be null"
-        );
+        Objects.requireNonNull(problemId, "problemId must not be null");
 
-        Objects.requireNonNull(
-                payload,
-                "payload must not be null"
-        );
+        Objects.requireNonNull(payload, "payload must not be null");
 
-        Objects.requireNonNull(
-                occurredAt,
-                "occurredAt must not be null"
-        );
+        Objects.requireNonNull(occurredAt, "occurredAt must not be null");
 
         return new ProblemEventOutbox(
                 eventId,
@@ -224,10 +163,7 @@ public class ProblemEventOutbox {
      * @param error 외부 노출이 없는 안전한 오류 요약
      * @param maxRetryCount 최대 재시도 횟수
      */
-    public void recordFailure(
-            String error,
-            int maxRetryCount
-    ) {
+    public void recordFailure(String error, int maxRetryCount) {
         if (maxRetryCount < 1) {
             throw new IllegalArgumentException(
                     "maxRetryCount must be greater than 0"
@@ -238,8 +174,7 @@ public class ProblemEventOutbox {
         this.lastError = error;
 
         if (this.retryCount >= maxRetryCount) {
-            this.status =
-                    ProblemEventOutboxStatus.FAILED;
+            this.status = ProblemEventOutboxStatus.FAILED;
             this.publishedAt = null;
         }
     }
@@ -264,14 +199,20 @@ public class ProblemEventOutbox {
      *
      * @param publishedAt 실제 Kafka 발행 완료 시각
      */
-    public void markPublished(
-            Instant publishedAt
-    ) {
+    public void markPublished(Instant publishedAt) {
         this.status = ProblemEventOutboxStatus.PUBLISHED;
         this.publishedAt = Objects.requireNonNull(
                 publishedAt,
                 "publishedAt must not be null"
         );
         this.lastError = null;
+    }
+
+    /**
+     * Kafka 발행 결과를 확정할 수 없는 실패를 기록합니다.
+     * 일반 재시도 횟수는 소진하지 않고 PENDING 상태를 유지합니다.
+     */
+    public void recordPostPublishFailure(String error) {
+        this.lastError = error;
     }
 }
