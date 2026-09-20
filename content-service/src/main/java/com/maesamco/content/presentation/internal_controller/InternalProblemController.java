@@ -1,7 +1,7 @@
 package com.maesamco.content.presentation.internal_controller;
 
 import com.maesamco.content.application.result.ProblemInternalResult;
-import com.maesamco.content.application.service.ProblemInternalService;
+import com.maesamco.content.application.persistence_service.ProblemInternalService;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.presentation.response.InternalProblemResponse;
 import com.maesamco.content.global.security.hmac.AllowedInternalCallers;

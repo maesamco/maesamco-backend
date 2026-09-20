@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.UnitService;
+import com.maesamco.content.application.persistence_service.UnitService;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.global.response.PageResponse;

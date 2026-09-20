@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.TagService;
+import com.maesamco.content.application.persistence_service.TagService;
 import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;

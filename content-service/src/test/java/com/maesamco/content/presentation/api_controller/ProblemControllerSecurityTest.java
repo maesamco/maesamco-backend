@@ -1,7 +1,7 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.ProblemPublicationService;
-import com.maesamco.content.application.service.ProblemService;
+import com.maesamco.content.application.persistence_service.ProblemPublicationService;
+import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.global.config.SecurityConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;

@@ -1,6 +1,6 @@
 package com.maesamco.content.infrastructure.messaging.consumer;
 
-import com.maesamco.content.application.service.ProblemProgressService;
+import com.maesamco.content.application.persistence_service.ProblemProgressService;
 import com.maesamco.content.infrastructure.messaging.event.SubmissionJudgedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

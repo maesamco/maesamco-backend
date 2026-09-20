@@ -1,7 +1,6 @@
 package com.maesamco.content.application.scheduler;
 
-import com.maesamco.content.application.scheduler.ProblemEventOutboxRelayScheduler;
-import com.maesamco.content.application.service.event_outbox.ProblemEventOutboxRelayService;
+import com.maesamco.content.application.persistence_service.event_outbox.ProblemEventOutboxRelayService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
