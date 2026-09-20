@@ -38,11 +38,18 @@ spring:
       port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      properties:
+        delivery.timeout.ms: 5000
+        request.timeout.ms: 3000
     topic:
       problem-published: ${KAFKA_TOPIC_PROBLEM_PUBLISHED:problem-published-events}
+      submission-judged: ${KAFKA_TOPIC_SUBMISSION_JUDGED:submission-judged-events}
     consumer:
       group-id: content-service
       auto-offset-reset: earliest
+      group:
+        submission-judged: content-service-submission-judged-group
 
 outbox:
   problem-published:
