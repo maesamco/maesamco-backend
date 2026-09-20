@@ -29,13 +29,13 @@ public class ProblemProgressFinderService implements ProblemProgressFinder {
     @Transactional(readOnly = true)
     public List<ProblemProgress> getByUserId(UUID userId) {
         return problemProgressRepository
-                .findByUserIdOrderByCreatedAtDesc(userId);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProblemProgress> getByUserIdAndProgressStatus(UUID userId, ProblemProgressStatus progressStatus) {
         return problemProgressRepository
-                .findByUserIdAndProgressStatusOrderByCreatedAtDesc(userId, progressStatus);
+                .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus);
     }
 }

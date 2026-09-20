@@ -13,7 +13,7 @@ public interface ProblemProgressRepository {
 
     Optional<ProblemProgress> findByUserIdAndProblemId(UUID userId, UUID problemId);
 
-    List<ProblemProgress> findByUserIdOrderByCreatedAtDesc(UUID userId);
+    List<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId);
 
-    List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDesc(UUID userId, ProblemProgressStatus progressStatus);
+    List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus);
 }

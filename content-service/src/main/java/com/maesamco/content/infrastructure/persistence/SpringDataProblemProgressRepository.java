@@ -13,9 +13,9 @@ public interface SpringDataProblemProgressRepository extends JpaRepository<Probl
     /** 사용자와 문제를 기준으로 문제 풀이 진행 상태를 조회합니다. */
     Optional<ProblemProgress> findByUserIdAndProblemId(UUID userId, UUID problemId);
 
-    /** 사용자의 전체 문제 풀이 진행 이력을 최근 생성 순으로 조회합니다. */
-    List<ProblemProgress> findByUserIdOrderByCreatedAtDesc(UUID userId);
+    /** 사용자의 전체 문제 풀이 진행 이력을 최근 생성 순, 동일 시각에서는 id 역순으로 조회합니다. */
+    List<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId);
 
-    /** 사용자와 문제 풀이 상태를 기준으로 진행 이력을 최근 생성 순으로 조회합니다. */
-    List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDesc(UUID userId, ProblemProgressStatus progressStatus);
+    /** 사용자와 문제 풀이 상태를 기준으로 진행 이력을 최근 생성 순, 동일 시각에서는 id 역순으로 조회합니다. */
+    List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus);
 }

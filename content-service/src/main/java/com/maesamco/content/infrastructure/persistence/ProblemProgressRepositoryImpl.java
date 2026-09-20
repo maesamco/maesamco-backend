@@ -12,8 +12,7 @@ import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class ProblemProgressRepositoryImpl
-        implements ProblemProgressRepository {
+public class ProblemProgressRepositoryImpl implements ProblemProgressRepository {
 
     private final SpringDataProblemProgressRepository springDataProblemProgressRepository;
 
@@ -30,14 +29,14 @@ public class ProblemProgressRepositoryImpl
     }
 
     @Override
-    public List<ProblemProgress> findByUserIdOrderByCreatedAtDesc(UUID userId) {
+    public List<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId) {
         return springDataProblemProgressRepository
-                .findByUserIdOrderByCreatedAtDesc(userId);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId);
     }
 
     @Override
-    public List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDesc(UUID userId, ProblemProgressStatus progressStatus) {
+    public List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus) {
         return springDataProblemProgressRepository
-                .findByUserIdAndProgressStatusOrderByCreatedAtDesc(userId, progressStatus);
+                .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus);
     }
 }
