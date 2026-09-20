@@ -58,11 +58,13 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     topic:
       coaching-completed: ${KAFKA_TOPIC_COACHING_COMPLETED:coaching-completed-events}
+      submission-judged: ${KAFKA_TOPIC_SUBMISSION_JUDGED:submission-judged-events}
     consumer:
       group-id: user-service
       auto-offset-reset: earliest
       group:
         coaching-completed: ${KAFKA_GROUP_COACHING_COMPLETED:user-service-coaching-completed}
+        submission-judged: ${KAFKA_GROUP_SUBMISSION_JUDGED:user-service-submission-judged}
 
   jackson:
     deserialization:
