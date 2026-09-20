@@ -30,8 +30,12 @@ import java.util.UUID;
                         columnList = "problem_id"
                 ),
                 @Index(
-                        name = "idx_p_problem_progress_user_status",
-                        columnList = "user_id, progress_status"
+                        name = "idx_p_problem_progress_user_created",
+                        columnList = "user_id, created_at"
+                ),
+                @Index(
+                        name = "idx_p_problem_progress_user_status_created",
+                        columnList = "user_id, progress_status, created_at"
                 )
         }
 )
@@ -71,6 +75,11 @@ public class ProblemProgress {
     /** (problem_id, user_id) 기준 최초 채점 결과의 judgedAt */
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    /** 동시 수정 충돌 감지를 위한 낙관적 락 버전 */
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
 
     private ProblemProgress(
             UUID id,

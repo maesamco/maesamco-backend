@@ -77,6 +77,7 @@ public class ProblemProgressService {
                         command.attemptNo(), progressStatus, command.judgedAt()
                 );
 
+        // save 필요
         problemProgressRepository.save(problemProgress);
     }
 
@@ -108,6 +109,6 @@ public class ProblemProgressService {
             problemProgress.changeStatusWrong();
         }
 
-        problemProgressRepository.save(problemProgress);
+        // 직접 save 하지 않고 JPA dirty checking 사용
     }
 }
