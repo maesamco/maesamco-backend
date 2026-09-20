@@ -214,22 +214,4 @@ public class ProblemController {
                 SuccessResponse.empty()
         );
     }
-
-    /**
-     * REVIEW_PENDING 상태의 문제 발행을 승인합니다.
-     *
-     * @param problemId 발행을 승인할 문제의 고유 ID
-     * @return 응답 데이터가 없는 성공 응답
-     */
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{problemId}/publication")
-    public ResponseEntity<SuccessResponse<Void>> approvePublication(
-            @PathVariable UUID problemId
-    ) {
-        problemPublicationService.approvePublication(problemId);
-
-        return ResponseEntity.ok(
-                SuccessResponse.empty()
-        );
-    }
 }
