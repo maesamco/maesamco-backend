@@ -28,16 +28,12 @@ public class SubmissionJudgedKafkaConsumer {
                 "[Content] SubmissionJudged 이벤트 수신. "
                         + "submissionId={}, userId={}, problemId={}, "
                         + "problemVersionId={}, attemptNo={}, status={}, result={}, judgedAt={}",
-                event.submissionId(),
-                event.userId(),
-                event.problemId(),
-                event.problemVersionId(),
-                event.attemptNo(),
-                event.status(),
-                event.result(),
-                event.judgedAt()
+                event.submissionId(), event.userId(), event.problemId(),
+                event.problemVersionId(), event.attemptNo(), event.status(),
+                event.result(), event.judgedAt()
         );
 
+        /* 복구하거나 보상하지 않고 예외를 그대로 위로 올려서, Kafka가 같은 메시지를 다시 처리하게 한다. */
         problemProgressService.sync(
                 event.toCommand()
         );
@@ -50,6 +46,7 @@ public class SubmissionJudgedKafkaConsumer {
                     SubmissionJudgedEvent.class
             );
         } catch (JacksonException e) {
+            // 원인을 유지하면서 Consumer 실패
             throw new IllegalArgumentException(
                     "SubmissionJudged 이벤트 역직렬화에 실패했습니다.",
                     e
