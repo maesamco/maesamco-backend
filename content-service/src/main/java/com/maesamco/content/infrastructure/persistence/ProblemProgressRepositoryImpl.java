@@ -4,6 +4,8 @@ import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -38,5 +40,17 @@ public class ProblemProgressRepositoryImpl implements ProblemProgressRepository 
     public List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus) {
         return springDataProblemProgressRepository
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus);
+    }
+
+    @Override
+    public Page<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, Pageable pageable) {
+        return springDataProblemProgressRepository
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+    }
+
+    @Override
+    public Page<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, Pageable pageable) {
+        return springDataProblemProgressRepository
+                .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus, pageable);
     }
 }

@@ -2,6 +2,8 @@ package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -18,4 +20,10 @@ public interface SpringDataProblemProgressRepository extends JpaRepository<Probl
 
     /** 사용자와 문제 풀이 상태를 기준으로 진행 이력을 최근 생성 순, 동일 시각에서는 id 역순으로 조회합니다. */
     List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus);
+
+    /** 사용자의 전체 문제 풀이 진행 이력을 최근 생성 순, 동일 시각에서는 id 역순으로 페이징 조회합니다. */
+    Page<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, Pageable pageable);
+
+    /** 사용자와 문제 풀이 상태를 기준으로 진행 이력을 최근 생성 순, 동일 시각에서는 id 역순으로 페이징 조회합니다. */
+    Page<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, Pageable pageable);
 }
