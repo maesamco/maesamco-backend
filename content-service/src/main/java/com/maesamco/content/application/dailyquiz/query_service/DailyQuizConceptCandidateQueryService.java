@@ -18,8 +18,8 @@ import java.util.UUID;
 /**
  * 사용자 풀이 이력 또는 관심 개념을 이용해 Daily Quiz 출제 개념 후보를 조회합니다.
  *
- * TODO: ProblemProgressQueryRepository와 ConceptRepository가 병합되면
- * 임시 Port 주입을 실제 Repository 주입으로 교체하고 @Service로 등록합니다.
+ * TODO: ProblemProgressConceptPort의 실제 구현이 병합되면
+ * Service로 등록합니다.
  */
 // @Service
 @RequiredArgsConstructor
@@ -27,10 +27,8 @@ public class DailyQuizConceptCandidateQueryService {
 
     private final ProblemProgressConceptPort problemProgressConceptPort;
 
-    // TODO: ProblemProgressQueryRepository가 병합되면 실제 Repository 주입으로 교체합니다.
     private final UserInterestConceptPort userInterestConceptPort;
 
-    // TODO: ConceptRepository가 병합되면 실제 Repository 주입으로 교체합니다.
     private final ConceptLookupPort conceptLookupPort;
 
     // 배치 실행 날짜와 동일한 timezone으로 CORRECT 조회 cutoff를 계산합니다.
