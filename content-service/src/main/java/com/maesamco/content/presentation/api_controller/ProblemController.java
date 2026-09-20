@@ -42,7 +42,6 @@ public class ProblemController {
 
     /** 문제 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final ProblemService problemService;
-    private final ProblemPublicationService problemPublicationService;
 
     /**
      * 새로운 문제를 생성합니다.
@@ -77,9 +76,6 @@ public class ProblemController {
      * @param problemId 조회할 문제의 고유 ID
      * @return 조회된 문제 정보를 포함한 성공 응답
      */
-    // TODO: @AuthenticationPrincipal UserPrincipal principal 추가하고
-    //  여기서 principal.getRole()를 받아올 수 있다면 하나의 API에서 사용자/관리자마다 반환되는 객체를 달리할 수 있음.
-    //  현재는 두 개의 API로 검증은 @PreAuthorize 로 진행함.
     // 정확한 정보는 관리자만이 조회할 수 있다.
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin/{problemId}")

@@ -46,9 +46,7 @@ public class TagController {
      */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/contents/tags")
-    public ResponseEntity<
-            SuccessResponse<TagCreateResponse>
-            > createTag(
+    public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
             @Valid @RequestBody TagCreateRequest request
     ) {
         TagCreateResponse response =
@@ -65,9 +63,7 @@ public class TagController {
      * 태그 목록을 조회합니다.
      */
     @GetMapping("/contents/tags")
-    public ResponseEntity<
-            SuccessResponse<PageResponse<TagResponse>>
-            > getTags(
+    public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getTags(
             @RequestParam(required = false)
             TagAttribute attribute,
 

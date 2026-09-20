@@ -164,6 +164,7 @@ public class TestCaseController {
     }
 
 
+    // TODO: 하나의 API 주소에서 이걸 쓰면 안되고, PreAuthorize를 적용시켜야 하기 때문에 2개의 주소로 작성해야 한다.
     /** 현재 인증 사용자가 ADMIN 권한을 가지고 있는지 확인합니다. */
     private boolean isAdmin(Authentication authentication) {
         return authentication != null &&

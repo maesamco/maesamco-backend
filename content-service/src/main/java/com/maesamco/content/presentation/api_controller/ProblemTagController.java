@@ -42,9 +42,7 @@ public class ProblemTagController {
      * @return 문제에 등록된 태그 목록
      */
     @GetMapping
-    public ResponseEntity<
-            SuccessResponse<PageResponse<TagResponse>>
-            > getProblemTags(
+    public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getProblemTags(
             @PathVariable UUID problemId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
