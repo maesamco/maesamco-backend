@@ -1,6 +1,6 @@
 package com.maesamco.content.application.service;
 
-import com.maesamco.content.application.input_port.CurriculumFinder;
+import com.maesamco.content.application.finder.CurriculumFinder;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.repository.CurriculumRepository;

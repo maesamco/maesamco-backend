@@ -2,7 +2,7 @@ package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
-import com.maesamco.content.application.input_port.ProblemFinder;
+import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;

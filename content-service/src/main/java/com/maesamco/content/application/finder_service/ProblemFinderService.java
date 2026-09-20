@@ -1,6 +1,6 @@
 package com.maesamco.content.application.finder_service;
 
-import com.maesamco.content.application.input_port.ProblemFinder;
+import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.repository.problem.ProblemCommandRepository;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;

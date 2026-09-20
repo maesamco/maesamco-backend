@@ -1,7 +1,7 @@
 package com.maesamco.content.application.service;
 
-import com.maesamco.content.application.input_port.ProblemFinder;
-import com.maesamco.content.application.input_port.TestCaseFinder;
+import com.maesamco.content.application.finder.ProblemFinder;
+import com.maesamco.content.application.finder.TestCaseFinder;
 import com.maesamco.content.domain.entity.TestCase;
 import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.exception.BusinessException;

@@ -1,6 +1,6 @@
 package com.maesamco.content.application.finder_service;
 
-import com.maesamco.content.application.input_port.ProblemVersionFinder;
+import com.maesamco.content.application.finder.ProblemVersionFinder;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;

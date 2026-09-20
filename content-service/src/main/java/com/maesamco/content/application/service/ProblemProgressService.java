@@ -1,8 +1,8 @@
 package com.maesamco.content.application.service;
 
 import com.maesamco.content.application.command.ProblemProgressSyncCommand;
-import com.maesamco.content.application.input_port.ProblemProgressFinder;
-import com.maesamco.content.application.input_port.ProblemVersionFinder;
+import com.maesamco.content.application.finder.ProblemProgressFinder;
+import com.maesamco.content.application.finder.ProblemVersionFinder;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;

@@ -1,7 +1,7 @@
 package com.maesamco.content.application.service;
 
-import com.maesamco.content.application.input_port.CurriculumFinder;
-import com.maesamco.content.application.input_port.UnitFinder;
+import com.maesamco.content.application.finder.CurriculumFinder;
+import com.maesamco.content.application.finder.UnitFinder;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.repository.UnitRepository;
 import com.maesamco.content.global.response.PageResponse;

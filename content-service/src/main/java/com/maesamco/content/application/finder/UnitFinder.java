@@ -1,4 +1,4 @@
-package com.maesamco.content.application.input_port;
+package com.maesamco.content.application.finder;
 
 import com.maesamco.content.domain.entity.Unit;
 
