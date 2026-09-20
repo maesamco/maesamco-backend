@@ -72,10 +72,12 @@ public enum ErrorCode {
     TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "테스트케이스를 찾을 수 없습니다."),
     TEST_CASE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "비공개 테스트케이스에 접근할 권한이 없습니다."),
 
+    /* Problem Version */
+    PROBLEM_VERSION_INVALID_VERSION_NO(HttpStatus.BAD_REQUEST, "문제 버전 번호는 1 이상이어야 합니다."),
+
     /* Problem Progress */
     PROBLEM_PROGRESS_INVALID_USER_ID(HttpStatus.BAD_REQUEST, "사용자 식별자는 null일 수 없습니다."),
     PROBLEM_PROGRESS_INVALID_PROBLEM_ID(HttpStatus.BAD_REQUEST, "문제 식별자는 null일 수 없습니다."),
-    PROBLEM_PROGRESS_INVALID_VERSION_NO(HttpStatus.BAD_REQUEST, "문제 버전 번호는 1 이상이어야 합니다."),
     PROBLEM_PROGRESS_INVALID_SUBMISSION_RESULT(HttpStatus.BAD_REQUEST, "지원하지 않는 채점 결과입니다."),
     PROBLEM_PROGRESS_INVALID_ATTEMPT_NO(HttpStatus.BAD_REQUEST, "제출 시도 번호는 1 이상이어야 합니다."),
     PROBLEM_PROGRESS_INVALID_STATUS(HttpStatus.BAD_REQUEST, "문제 풀이 상태가 올바르지 않습니다."),

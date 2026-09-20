@@ -135,12 +135,15 @@ public class ProblemEventOutbox {
             Instant occurredAt
     ) {
         Objects.requireNonNull(eventId, "eventId must not be null");
-
         Objects.requireNonNull(problemId, "problemId must not be null");
-
         Objects.requireNonNull(payload, "payload must not be null");
-
         Objects.requireNonNull(occurredAt, "occurredAt must not be null");
+
+        if (eventVersion < 1) {
+            throw new IllegalArgumentException(
+                    "eventVersion must be greater than 0"
+            );
+        }
 
         return new ProblemEventOutbox(
                 eventId,
@@ -170,6 +173,8 @@ public class ProblemEventOutbox {
             );
         }
 
+        validatePendingStatus();
+
         this.retryCount++;
         this.lastError = error;
 
@@ -188,6 +193,8 @@ public class ProblemEventOutbox {
      * @param error 외부 노출이 없는 안전한 오류 요약
      */
     public void markFailed(String error) {
+        validatePendingStatus();
+
         this.status = ProblemEventOutboxStatus.FAILED;
         this.retryCount++;
         this.publishedAt = null;
@@ -200,6 +207,8 @@ public class ProblemEventOutbox {
      * @param publishedAt 실제 Kafka 발행 완료 시각
      */
     public void markPublished(Instant publishedAt) {
+        validatePendingStatus();
+
         this.status = ProblemEventOutboxStatus.PUBLISHED;
         this.publishedAt = Objects.requireNonNull(
                 publishedAt,
@@ -211,8 +220,23 @@ public class ProblemEventOutbox {
     /**
      * Kafka 발행 결과를 확정할 수 없는 실패를 기록합니다.
      * 일반 재시도 횟수는 소진하지 않고 PENDING 상태를 유지합니다.
+     *
+     * @param error 외부 노출이 없는 안전한 오류 요약
      */
     public void recordPostPublishFailure(String error) {
+        validatePendingStatus();
+
         this.lastError = error;
+    }
+
+    /**
+     * 발행 상태 변경은 PENDING 상태의 Outbox에서만 허용합니다.
+     */
+    private void validatePendingStatus() {
+        if (this.status != ProblemEventOutboxStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Only PENDING outbox can change publish state"
+            );
+        }
     }
 }

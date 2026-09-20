@@ -79,7 +79,7 @@ public record ProblemPublishedEvent(
             ProblemVersion problemVersion
     ) {
         ProblemVersion.ProblemVersionSnapshot snapshot =
-                problemVersion.getContentSnapshot();
+                problemVersion.toVersionSnapshot();
 
         List<TestCaseItem> eventTestCases =
                 snapshot.testCases()

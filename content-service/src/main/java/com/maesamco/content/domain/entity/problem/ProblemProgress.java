@@ -185,7 +185,7 @@ public class ProblemProgress {
     /** 버전 번호가 1이상 이어야 한다. */
     private static void validateVersionNo(Integer versionNo) {
         if (versionNo == null || versionNo < 1) {
-            throw new BusinessException(ErrorCode.PROBLEM_PROGRESS_INVALID_VERSION_NO);
+            throw new BusinessException(ErrorCode.PROBLEM_VERSION_INVALID_VERSION_NO);
         }
     }
 
