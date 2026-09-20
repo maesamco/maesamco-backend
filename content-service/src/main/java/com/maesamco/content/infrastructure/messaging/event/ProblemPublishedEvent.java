@@ -82,13 +82,7 @@ public record ProblemPublishedEvent(
 
         List<ProblemPublishedTestCaseItem> eventTestCases = snapshot.testCases()
                 .stream()
-                .map(testCase -> new ProblemPublishedTestCaseItem(
-                        testCase.testCaseId(),
-                        testCase.isPublic(),
-                        testCase.input(),
-                        testCase.expectedOutput(),
-                        testCase.displayOrder()
-                ))
+                .map(ProblemPublishedTestCaseItem::from)
                 .toList();
 
         int timeLimitMs = Math.multiplyExact(

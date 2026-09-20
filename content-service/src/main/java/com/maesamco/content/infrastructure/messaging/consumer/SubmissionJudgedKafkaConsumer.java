@@ -1,6 +1,6 @@
 package com.maesamco.content.infrastructure.messaging.consumer;
 
-import com.maesamco.content.application.persistence_service.ProblemProgressService;
+import com.maesamco.content.application.command_service.ProblemProgressCommandService;
 import com.maesamco.content.infrastructure.messaging.event.SubmissionJudgedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 public class SubmissionJudgedKafkaConsumer {
 
-    private final ProblemProgressService problemProgressService;
+    private final ProblemProgressCommandService problemProgressCommandService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(
@@ -34,7 +34,7 @@ public class SubmissionJudgedKafkaConsumer {
         );
 
         /* 복구하거나 보상하지 않고 예외를 그대로 위로 올려서, Kafka가 같은 메시지를 다시 처리하게 한다. */
-        problemProgressService.sync(
+        problemProgressCommandService.sync(
                 event.toCommand()
         );
     }

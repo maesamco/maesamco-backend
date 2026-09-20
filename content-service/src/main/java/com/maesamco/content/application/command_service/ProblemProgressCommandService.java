@@ -1,4 +1,4 @@
-package com.maesamco.content.application.persistence_service;
+package com.maesamco.content.application.command_service;
 
 import com.maesamco.content.application.command.ProblemProgressSyncCommand;
 import com.maesamco.content.application.finder.ProblemProgressFinder;
@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class ProblemProgressService {
+public class ProblemProgressCommandService {
 
     private static final String COMPLETED_STATUS = "COMPLETED";
 
