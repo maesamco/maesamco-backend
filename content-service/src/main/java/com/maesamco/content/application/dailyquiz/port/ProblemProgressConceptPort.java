@@ -14,6 +14,6 @@ public interface ProblemProgressConceptPort {
 
     List<String> getWrongConceptTags(UUID userId);
 
-    // 기준 시각 이전에 SOLVED된 문제들의 개념 태그를 조회합니다.
-    List<String> getSolvedConceptTagsBefore(UUID userId, Instant quizDateStart);
+    // 기준 시각 이전에 CORRECT 처리된 문제들의 개념 태그를 조회합니다.
+    List<String> getCorrectConceptTagsBefore(UUID userId, Instant quizDateStart);
 }

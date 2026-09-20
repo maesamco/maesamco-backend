@@ -30,25 +30,25 @@ public class DailyQuizConceptSlotSelector {
         }
 
         if (candidates.hasProblemProgress()) {
-            return selectFromProblemProgress(candidates.wrongConcepts(), candidates.solvedConcepts());
+            return selectFromProblemProgress(candidates.wrongConcepts(), candidates.correctConcepts());
         }
         return selectFromInterests(candidates.interestConcepts());
     }
 
-    private Optional<ConceptSlots> selectFromProblemProgress(List<String> wrongConcepts, List<String> solvedConcepts) {
+    private Optional<ConceptSlots> selectFromProblemProgress(List<String> wrongConcepts, List<String> correctConcepts) {
         List<String> normalizedWrongConcepts = normalizeDistinct(wrongConcepts);
-        List<String> normalizedSolvedConcepts = normalizeDistinct(solvedConcepts);
+        List<String> normalizedCorrectConcepts = normalizeDistinct(correctConcepts);
 
         List<String> slots = new ArrayList<>(TARGET_QUESTION_COUNT);
         Set<String> selectedConcepts = new LinkedHashSet<>();
 
         // 서로 다른 오답 개념을 먼저 배치한 뒤 정답 개념을 배치합니다.
         appendDistinct(slots, selectedConcepts, normalizedWrongConcepts);
-        appendDistinct(slots, selectedConcepts, normalizedSolvedConcepts);
+        appendDistinct(slots, selectedConcepts, normalizedCorrectConcepts);
 
         // 부족한 슬롯은 오답 개념을 반복하고, 오답 개념이 없으면 정답 개념을 반복합니다.
         List<String> repeatCandidates = normalizedWrongConcepts.isEmpty()
-                ? normalizedSolvedConcepts
+                ? normalizedCorrectConcepts
                 : normalizedWrongConcepts;
 
         return fillRemainingSlots(slots, repeatCandidates);
