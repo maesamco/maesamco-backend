@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.command_service.ProblemPublicationService;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.global.response.SuccessResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/admin/problems")
 public class AdminProblemController {
 
-    private final ProblemPublicationService problemPublicationService;
+    private final ProblemPublicationFacade problemPublicationFacade;
 
 
     // TODO: GET  /api/v1/admin/problems ( problemStatus 필터 )
@@ -34,7 +34,7 @@ public class AdminProblemController {
             @PathVariable UUID problemId
     ) {
         // TODO: Facade 방식으로 (관리자가 문제 상태를 PUBLISHED로 변경 -> ProblemVersion 생성/저장 -> 발행 이벤트 기록)
-        problemPublicationService.approvePublication(problemId);
+        problemPublicationFacade.approvePublication(problemId);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

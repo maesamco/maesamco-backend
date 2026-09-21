@@ -23,4 +23,13 @@ public record ProblemPublishedEventData(
         Objects.requireNonNull(problemVersionId, "problemVersionId must not be null");
         Objects.requireNonNull(problemVersion, "problemVersion must not be null");
     }
+
+    public static ProblemPublishedEventData create(Instant occurredAt, ProblemVersion problemVersion) {
+        return new ProblemPublishedEventData(
+                UUID.randomUUID(),
+                occurredAt,
+                problemVersion.getId(),
+                problemVersion
+        );
+    }
 }

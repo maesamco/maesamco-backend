@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.command_service.ProblemPublicationService;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.global.config.SecurityConfig;
 import io.jsonwebtoken.Jwts;
@@ -40,7 +40,7 @@ class ProblemControllerSecurityTest {
     private ProblemService problemService;
 
     @MockitoBean
-    private ProblemPublicationService problemPublicationService;
+    private ProblemPublicationFacade problemPublicationService;
 
     private static final KeyPair KEY_PAIR = generateKeyPair();
 

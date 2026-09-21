@@ -170,6 +170,7 @@ public class ProblemService {
 
         if (isModified) {
             problem.increaseVersion();
+            // TODO: problem publish 재발행 ( increaseVersion 이거 중복 처리되지 않도록 주의 )
 
             /*
              * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는

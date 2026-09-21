@@ -146,6 +146,7 @@ public class Problem extends BaseEntity {
         }
 
         this.problemStatus = ProblemStatus.PUBLISHED;
+        this.currentVersionNo++;
     }
 
     private static void validateSupportedType(ProblemType type) {
