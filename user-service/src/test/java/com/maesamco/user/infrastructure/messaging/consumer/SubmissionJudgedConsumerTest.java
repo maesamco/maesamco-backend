@@ -25,6 +25,9 @@ class SubmissionJudgedConsumerTest {
 
     private static final long RECEIVED_TIMESTAMP = 1789918200000L;
 
+    private static final Instant JUDGED_AT =
+            Instant.parse("2026-09-21T04:30:00Z");
+
     @Mock
     private ApplyFirstCorrectRewardService rewardService;
 
@@ -51,6 +54,28 @@ class SubmissionJudgedConsumerTest {
         assertThat(command.userId()).isEqualTo(event.userId());
         assertThat(command.problemId()).isEqualTo(event.problemId());
         assertThat(command.judgedAt())
+                .isEqualTo(JUDGED_AT);
+    }
+
+    @Test
+    @DisplayName("레거시 이벤트에 judgedAt이 없으면 Kafka timestamp를 사용한다")
+    void consume_usesKafkaTimestampForLegacyEvent() {
+        SubmissionJudgedEvent event = event(
+                "COMPLETED",
+                "CORRECT",
+                null
+        );
+        when(rewardService.apply(any(ApplyFirstCorrectRewardCommand.class)))
+                .thenReturn(true);
+
+        consumer.consume(event, RECEIVED_TIMESTAMP);
+
+        ArgumentCaptor<ApplyFirstCorrectRewardCommand> captor =
+                ArgumentCaptor.forClass(
+                        ApplyFirstCorrectRewardCommand.class
+                );
+        verify(rewardService).apply(captor.capture());
+        assertThat(captor.getValue().judgedAt())
                 .isEqualTo(Instant.ofEpochMilli(RECEIVED_TIMESTAMP));
     }
 
@@ -67,12 +92,21 @@ class SubmissionJudgedConsumerTest {
     }
 
     private SubmissionJudgedEvent event(String status, String result) {
+        return event(status, result, JUDGED_AT);
+    }
+
+    private SubmissionJudgedEvent event(
+            String status,
+            String result,
+            Instant judgedAt
+    ) {
         return new SubmissionJudgedEvent(
                 UUID.fromString("11111111-1111-1111-1111-111111111111"),
                 UUID.fromString("22222222-2222-2222-2222-222222222222"),
                 UUID.fromString("33333333-3333-3333-3333-333333333333"),
                 status,
-                result
+                result,
+                judgedAt
         );
     }
 }

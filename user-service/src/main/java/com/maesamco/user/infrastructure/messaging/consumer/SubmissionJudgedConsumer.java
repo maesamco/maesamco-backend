@@ -41,12 +41,21 @@ public class SubmissionJudgedConsumer {
             return;
         }
 
+        Instant judgedAt = event.judgedAt();
+        if (judgedAt == null) {
+            judgedAt = Instant.ofEpochMilli(receivedTimestamp);
+            log.warn(
+                    "[User] judgedAt이 없는 레거시 SubmissionJudged 이벤트 — Kafka timestamp 사용. submissionId={}",
+                    event.submissionId()
+            );
+        }
+
         boolean applied = rewardService.apply(
                 new ApplyFirstCorrectRewardCommand(
                         event.submissionId(),
                         event.userId(),
                         event.problemId(),
-                        Instant.ofEpochMilli(receivedTimestamp)
+                        judgedAt
                 )
         );
 

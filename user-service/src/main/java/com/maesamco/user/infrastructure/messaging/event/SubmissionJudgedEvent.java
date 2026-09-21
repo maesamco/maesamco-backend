@@ -1,5 +1,6 @@
 package com.maesamco.user.infrastructure.messaging.event;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -11,7 +12,8 @@ public record SubmissionJudgedEvent(
         UUID userId,
         UUID problemId,
         String status,
-        String result
+        String result,
+        Instant judgedAt
 ) {
 
     private static final String COMPLETED_STATUS = "COMPLETED";
@@ -23,6 +25,7 @@ public record SubmissionJudgedEvent(
         Objects.requireNonNull(problemId, "problemId는 필수입니다.");
         Objects.requireNonNull(status, "status는 필수입니다.");
         Objects.requireNonNull(result, "result는 필수입니다.");
+        // judgedAt 추가 이전에 발행된 Kafka 메시지와의 하위 호환을 위해 null을 허용합니다.
     }
 
     public boolean isCorrect() {
