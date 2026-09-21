@@ -12,6 +12,7 @@ import com.maesamco.judge.global.exception.BusinessException;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0Execution;
 import com.maesamco.judge.infrastructure.persistence.PendingJudge0ExecutionRepository;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -219,12 +220,15 @@ public class JudgeResultPersistenceService {
     );
 
     private record SubmissionJudgedPayload(
-            UUID submissionId, UUID userId, UUID problemId, String status, String result
+            UUID submissionId, UUID userId, UUID problemId, UUID problemVersionId,
+            int attemptNo, String status, String result, Instant judgedAt
     ) {
         static SubmissionJudgedPayload of(Submission submission, SubmissionResult overallResult) {
             return new SubmissionJudgedPayload(
                     submission.getId(), submission.getUserId(), submission.getProblemId(),
-                    SubmissionStatus.COMPLETED.name(), overallResult.name());
+                    submission.getProblemVersionId(), submission.getAttemptNo(),
+                    SubmissionStatus.COMPLETED.name(), overallResult.name(),
+                    submission.getJudgedAt());
         }
     }
 
