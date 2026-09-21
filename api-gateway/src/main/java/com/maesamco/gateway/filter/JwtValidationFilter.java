@@ -139,14 +139,14 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
                 .build();
     }
 
-    private boolean isWhitelisted(String path) {
+    static boolean isWhitelisted(String path) {
         boolean swaggerPath =
                 path.equals("/swagger-ui")
                         || path.startsWith("/swagger-ui/");
 
-        boolean actuatorPath =
-                path.equals("/actuator")
-                        || path.startsWith("/actuator/");
+        // 기존 정책과 동일하게 하위 Actuator 경로만 공개한다.
+        // bare /actuator 디스커버리 문서는 인증 없이 노출하지 않는다.
+        boolean actuatorPath = path.startsWith("/actuator/");
 
         return swaggerPath
                 || actuatorPath
