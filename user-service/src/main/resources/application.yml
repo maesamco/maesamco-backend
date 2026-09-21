@@ -69,6 +69,7 @@ spring:
 
     topic:
       coaching-completed: ${KAFKA_TOPIC_COACHING_COMPLETED:coaching-completed-events}
+      submission-judged: ${KAFKA_TOPIC_SUBMISSION_JUDGED:submission-judged-events}
 
     consumer:
       group-id: user-service
@@ -76,6 +77,7 @@ spring:
 
       group:
         coaching-completed: ${KAFKA_GROUP_COACHING_COMPLETED:user-service-coaching-completed}
+        submission-judged: ${KAFKA_GROUP_SUBMISSION_JUDGED:user-service-submission-judged}
 
   jackson:
     deserialization:

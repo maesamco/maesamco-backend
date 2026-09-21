@@ -245,6 +245,47 @@ class XpHistoryRepositoryImplTest {
     }
 
     @Test
+    @DisplayName("동일 사용자와 문제의 최초 정답 XP를 중복 저장할 수 없다")
+    void save_rejectsDuplicatedFirstCorrectReward() {
+        UUID userId =
+                persistUser(
+                        "g".repeat(64),
+                        "XpFirstCorrect"
+                );
+        UUID problemId = UUID.randomUUID();
+
+        xpHistoryRepository.save(
+                createFirstCorrectHistory(
+                        userId,
+                        UUID.randomUUID(),
+                        problemId,
+                        10,
+                        10L,
+                        Instant.parse("2026-09-01T01:00:00Z")
+                )
+        );
+
+        assertThatThrownBy(
+                () -> xpHistoryRepository.save(
+                        createFirstCorrectHistory(
+                                userId,
+                                UUID.randomUUID(),
+                                problemId,
+                                10,
+                                20L,
+                                Instant.parse("2026-09-01T02:00:00Z")
+                        )
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception -> ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.XP_HISTORY_ALREADY_EXISTS);
+    }
+
+    @Test
     @DisplayName("동일 사용자와 문제의 최초 정답 보상 존재 여부를 확인한다")
     void existsFirstCorrectReward_returnsCorrectResult() {
         // given

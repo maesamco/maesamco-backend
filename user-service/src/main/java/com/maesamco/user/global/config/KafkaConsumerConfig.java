@@ -1,6 +1,7 @@
 package com.maesamco.user.global.config;
 
 import com.maesamco.user.infrastructure.messaging.event.CoachingCompletedEvent;
+import com.maesamco.user.infrastructure.messaging.event.SubmissionJudgedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
@@ -37,6 +38,18 @@ public class KafkaConsumerConfig {
     @Bean
     public ConsumerFactory<String, CoachingCompletedEvent>
     coachingCompletedConsumerFactory() {
+        return eventConsumerFactory(CoachingCompletedEvent.class);
+    }
+
+    @Bean
+    public ConsumerFactory<String, SubmissionJudgedEvent>
+    submissionJudgedConsumerFactory() {
+        return eventConsumerFactory(SubmissionJudgedEvent.class);
+    }
+
+    private <T> ConsumerFactory<String, T> eventConsumerFactory(
+            Class<T> eventType
+    ) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
@@ -64,7 +77,7 @@ public class KafkaConsumerConfig {
         );
         properties.put(
                 JacksonJsonDeserializer.VALUE_DEFAULT_TYPE,
-                CoachingCompletedEvent.class.getName()
+                eventType.getName()
         );
         properties.put(
                 JacksonJsonDeserializer.USE_TYPE_INFO_HEADERS,
@@ -84,12 +97,14 @@ public class KafkaConsumerConfig {
 
     @Bean
     public KafkaTemplate<Object, Object>
-    coachingCompletedDltKafkaTemplate() {
+    userEventDltKafkaTemplate() {
         Map<Class<?>, org.apache.kafka.common.serialization.Serializer<?>>
                 delegates = Map.of(
                         byte[].class,
                         new ByteArraySerializer(),
                         CoachingCompletedEvent.class,
+                        new JacksonJsonSerializer<>(),
+                        SubmissionJudgedEvent.class,
                         new JacksonJsonSerializer<>()
                 );
 
@@ -118,7 +133,7 @@ public class KafkaConsumerConfig {
             ConsumerFactory<String, CoachingCompletedEvent>
                     coachingCompletedConsumerFactory,
             KafkaTemplate<Object, Object>
-                    coachingCompletedDltKafkaTemplate
+                    userEventDltKafkaTemplate
     ) {
         ConcurrentKafkaListenerContainerFactory<String, CoachingCompletedEvent>
                 factory = new ConcurrentKafkaListenerContainerFactory<>();
@@ -126,7 +141,34 @@ public class KafkaConsumerConfig {
 
         DeadLetterPublishingRecoverer recoverer =
                 new DeadLetterPublishingRecoverer(
-                        coachingCompletedDltKafkaTemplate
+                        userEventDltKafkaTemplate
+                );
+
+        factory.setCommonErrorHandler(
+                new DefaultErrorHandler(
+                        recoverer,
+                        new FixedBackOff(1000L, 3L)
+                )
+        );
+
+        return factory;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, SubmissionJudgedEvent>
+    submissionJudgedKafkaListenerContainerFactory(
+            ConsumerFactory<String, SubmissionJudgedEvent>
+                    submissionJudgedConsumerFactory,
+            KafkaTemplate<Object, Object>
+                    userEventDltKafkaTemplate
+    ) {
+        ConcurrentKafkaListenerContainerFactory<String, SubmissionJudgedEvent>
+                factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(submissionJudgedConsumerFactory);
+
+        DeadLetterPublishingRecoverer recoverer =
+                new DeadLetterPublishingRecoverer(
+                        userEventDltKafkaTemplate
                 );
 
         factory.setCommonErrorHandler(
