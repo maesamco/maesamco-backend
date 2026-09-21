@@ -35,8 +35,6 @@ import java.util.UUID;
 @RequestMapping("/api/v1/contents/problem-progress")
 public class ProblemProgressController {
 
-    private final ProblemProgressFinder problemProgressFinder;
-
     private final ProblemProgressService problemProgressService;
 
     /**
@@ -97,7 +95,7 @@ public class ProblemProgressController {
             @PathVariable UUID problemId,
             @AuthenticationPrincipal UUID userId
     ) {
-        ProblemProgress problemProgress = problemProgressFinder.getByUserIdAndProblemIdOrigin(userId, problemId);
+        ProblemProgress problemProgress = problemProgressService.getProblemProgress(userId, problemId);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(

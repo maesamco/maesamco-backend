@@ -1,4 +1,4 @@
-package com.maesamco.content.application.persistence_service.finder;
+package com.maesamco.content.application.finder_service;
 
 import com.maesamco.content.application.finder_service.ProblemFinderService;
 import com.maesamco.content.domain.entity.problem.Problem;
