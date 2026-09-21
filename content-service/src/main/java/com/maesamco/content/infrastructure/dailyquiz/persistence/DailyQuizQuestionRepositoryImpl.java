@@ -29,7 +29,10 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
     }
 
     @Override
-    public List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags) {
+    public List<DailyQuizQuestion> findActiveByAnyConcepts(
+            List<String> conceptTags,
+            int limitPerConcept
+    ) {
         if (conceptTags == null) {
             throw invalidInput("개념 태그 목록은 필수입니다.");
         }
@@ -39,12 +42,11 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
         if (conceptTags.isEmpty()) {
             return List.of();
         }
+        if (limitPerConcept <= 0) {
+            throw invalidInput("개념별 조회할 문항 수는 1개 이상이어야 합니다.");
+        }
 
         String[] conceptTagArray = conceptTags.toArray(String[]::new);
-
-        // 각 개념에서 전체 슬롯 수 이상의 후보를 유지하면 현재 이분 매칭의
-        // 최대 매칭 크기를 보존하면서 문제은행 전체 조회를 피할 수 있습니다.
-        int limitPerConcept = conceptTags.size();
 
         return springDataRepository.findActiveByAnyConceptTags(
                 conceptTagArray,

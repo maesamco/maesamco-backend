@@ -22,7 +22,10 @@ public class DailyQuizQuestionReuseService {
                 .map(QuestionSlot::conceptTag)
                 .distinct()
                 .toList();
-        List<DailyQuizQuestion> candidates = questionRepository.findActiveByAnyConcepts(requiredConcepts);
+        List<DailyQuizQuestion> candidates = questionRepository.findActiveByAnyConcepts(
+                requiredConcepts,
+                requiredSlots.size()
+        );
         return questionSelector.select(requiredSlots, candidates);
     }
 }

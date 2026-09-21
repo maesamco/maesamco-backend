@@ -16,7 +16,10 @@ public interface DailyQuizQuestionRepository {
      */
     Optional<DailyQuizQuestion> findById(UUID questionId);
 
-    List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags);
+    List<DailyQuizQuestion> findActiveByAnyConcepts(
+            List<String> conceptTags,
+            int limitPerConcept
+    );
 
     /**
      * 사용자 세트에 배정된 특정 문제 버전들을 ID로 일괄 조회합니다.
