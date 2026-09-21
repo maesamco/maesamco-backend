@@ -137,7 +137,7 @@ class ProblemPublishedEventAdapterTest {
         assertThat(event.problemId()).isEqualTo(problemId);
         assertThat(event.problemVersionId()).isEqualTo(problemVersionId);
         assertThat(event.versionNo()).isEqualTo(3);
-        assertThat(event.language()).isEqualTo(ProgrammingLanguage.JAVA.name());
+        assertThat(event.language()).isEqualTo(ProgrammingLanguage.JAVA.name() + "17");
         assertThat(event.starterCode()).contains("public class Solution");
         assertThat(event.timeLimit()).isEqualTo(2000);
         assertThat(event.memoryLimit()).isEqualTo(256);

@@ -34,7 +34,7 @@ class SchedulingConfigTest {
                     );
 
     @Test
-    @DisplayName("Outbox Relay가 비활성화되면 Relay Facade Bean을 생성하지 않는다")
+    @DisplayName("Outbox Relay가 비활성화되면 스케줄링 설정과 Relay Facade Bean을 생성하지 않는다")
     void relayIsDisabled_whenRelayEnabledIsFalse() {
         contextRunner
                 .withPropertyValues(
@@ -42,7 +42,9 @@ class SchedulingConfigTest {
                 )
                 .run(context -> {
                     assertThat(context)
-                            .hasSingleBean(SchedulingConfig.class);
+                            .doesNotHaveBean(
+                                    SchedulingConfig.class
+                            );
 
                     assertThat(context)
                             .doesNotHaveBean(
@@ -52,16 +54,19 @@ class SchedulingConfigTest {
     }
 
     @Test
-    @DisplayName("Outbox Relay가 활성화되면 Relay Facade Bean과 전용 TaskScheduler를 생성한다")
+    @DisplayName("Outbox Relay가 활성화되면 스케줄링 설정과 Relay Facade Bean을 생성한다")
     void relayIsEnabled_whenRelayEnabledIsTrue() {
         contextRunner
                 .withPropertyValues(
                         "outbox.problem-published.relay.enabled=true",
-                        "outbox.problem-published.relay.fixed-delay-ms=60000"
+                        "outbox.problem-published.relay.fixed-delay-ms=60000",
+                        "spring.kafka.topic.problem-published=problem-published"
                 )
                 .run(context -> {
                     assertThat(context)
-                            .hasSingleBean(SchedulingConfig.class);
+                            .hasSingleBean(
+                                    SchedulingConfig.class
+                            );
 
                     assertThat(context)
                             .hasSingleBean(

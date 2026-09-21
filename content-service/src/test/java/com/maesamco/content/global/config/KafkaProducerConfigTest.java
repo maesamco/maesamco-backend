@@ -22,13 +22,10 @@ class KafkaProducerConfigTest {
 
     @BeforeEach
     void setUp() {
-        kafkaProducerConfig = new KafkaProducerConfig();
-
-        ReflectionTestUtils.setField(
-                kafkaProducerConfig,
-                "bootstrapServers",
-                BOOTSTRAP_SERVERS
-        );
+        kafkaProducerConfig =
+                new KafkaProducerConfig(
+                        BOOTSTRAP_SERVERS
+                );
     }
 
     @Test
