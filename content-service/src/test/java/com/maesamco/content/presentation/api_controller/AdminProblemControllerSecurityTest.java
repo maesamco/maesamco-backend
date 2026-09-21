@@ -1,15 +1,14 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
-import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.global.config.SecurityConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,29 +24,21 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(ProblemController.class)
+@WebMvcTest(AdminProblemController.class)
 @Import(SecurityConfig.class)
-class ProblemControllerSecurityTest {
+class AdminProblemControllerSecurityTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ProblemService problemService;
-
-    @MockitoBean
-    private ProblemPublicationFacade problemPublicationService;
+    private ProblemPublicationFacade problemPublicationFacade;
 
     private static final KeyPair KEY_PAIR = generateKeyPair();
 
-    /**
-     * 실제 SecurityConfig가 사용할 JWT 공개키를
-     * 테스트에서 생성한 RSA 공개키로 주입한다.
-     */
     @DynamicPropertySource
     static void jwtProperties(
             DynamicPropertyRegistry registry
@@ -59,41 +50,6 @@ class ProblemControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("유효한 ADMIN Access Token이면 JWT 필터를 거쳐 문제 삭제에 성공한다")
-    void deleteProblem_validAdminAccessToken_returns200()
-            throws Exception {
-
-        // given
-        UUID problemId = UUID.randomUUID();
-        UUID adminId = UUID.randomUUID();
-
-        String accessToken =
-                createAccessToken(
-                        adminId,
-                        "ADMIN"
-                );
-
-        // when & then
-        mockMvc.perform(
-                        delete(
-                                "/api/v1/contents/problems/{problemId}",
-                                problemId
-                        )
-                                .header(
-                                        HttpHeaders.AUTHORIZATION,
-                                        "Bearer " + accessToken
-                                )
-                )
-                .andExpect(status().isOk());
-
-        verify(problemService)
-                .deleteProblem(
-                        problemId,
-                        adminId
-                );
-    }
-
-    @Test
     @DisplayName("유효한 ADMIN Access Token이면 문제 발행 승인에 성공한다")
     void approvePublication_validAdminAccessToken_returns200()
             throws Exception {
@@ -102,16 +58,15 @@ class ProblemControllerSecurityTest {
         UUID problemId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
 
-        String accessToken =
-                createAccessToken(
-                        adminId,
-                        "ADMIN"
-                );
+        String accessToken = createAccessToken(
+                adminId,
+                "ADMIN"
+        );
 
         // when & then
         mockMvc.perform(
                         post(
-                                "/api/v1/contents/problems/{problemId}/publication",
+                                "/api/v1/admin/problems/{problemId}/approve",
                                 problemId
                         )
                                 .header(
@@ -121,7 +76,7 @@ class ProblemControllerSecurityTest {
                 )
                 .andExpect(status().isOk());
 
-        verify(problemPublicationService)
+        verify(problemPublicationFacade)
                 .approvePublication(problemId);
     }
 
@@ -133,16 +88,15 @@ class ProblemControllerSecurityTest {
         // given
         UUID problemId = UUID.randomUUID();
 
-        String accessToken =
-                createAccessToken(
-                        UUID.randomUUID(),
-                        "USER"
-                );
+        String accessToken = createAccessToken(
+                UUID.randomUUID(),
+                "USER"
+        );
 
         // when & then
         mockMvc.perform(
                         post(
-                                "/api/v1/contents/problems/{problemId}/publication",
+                                "/api/v1/admin/problems/{problemId}/approve",
                                 problemId
                         )
                                 .header(
@@ -152,17 +106,9 @@ class ProblemControllerSecurityTest {
                 )
                 .andExpect(status().isForbidden());
 
-        verifyNoInteractions(problemPublicationService);
+        verifyNoInteractions(problemPublicationFacade);
     }
 
-    /**
-     * 테스트 전용 Access Token 생성.
-     *
-     * 실제 JwtAuthenticationFilter가 기대하는 Claim:
-     * - sub       : 사용자 UUID
-     * - role      : ADMIN
-     * - tokenType : ACCESS
-     */
     private static String createAccessToken(
             UUID userId,
             String role
@@ -203,7 +149,6 @@ class ProblemControllerSecurityTest {
     private static String toPem(
             PublicKey publicKey
     ) {
-
         String encoded =
                 Base64.getMimeEncoder(
                                 64,
