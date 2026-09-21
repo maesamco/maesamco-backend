@@ -1,61 +1,46 @@
-//package com.maesamco.content.global.config;
-//
-//import com.maesamco.content.application.scheduler.ProblemEventOutboxRelayScheduler;
-//import com.maesamco.content.application.persistence_service.event_outbox.ProblemEventOutboxRelayService;
-//import org.junit.jupiter.api.DisplayName;
-//import org.junit.jupiter.api.Test;
-//import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-//
-//import static org.assertj.core.api.Assertions.assertThat;
-//import static org.mockito.Mockito.mock;
-//
-//class SchedulingConfigTest {
-//
-//    private final ApplicationContextRunner contextRunner =
-//            new ApplicationContextRunner()
-//                    .withUserConfiguration(
-//                            SchedulingConfig.class,
-//                            ProblemEventOutboxRelayScheduler.class
-//                    )
-//                    .withBean(
-//                            ProblemEventOutboxRelayService.class,
-//                            () -> mock(ProblemEventOutboxRelayService.class)
-//                    );
-//
-//    @Test
-//    @DisplayName("Outbox Relay가 비활성화되면 스케줄링 설정과 Scheduler Bean을 생성하지 않는다")
-//    void schedulingIsDisabled_whenRelayEnabledIsFalse() {
-//        contextRunner
-//                .withPropertyValues(
-//                        "outbox.problem-published.relay.enabled=false"
-//                )
-//                .run(context -> {
-//                    assertThat(context)
-//                            .doesNotHaveBean(SchedulingConfig.class);
-//
-//                    assertThat(context)
-//                            .doesNotHaveBean(
-//                                    ProblemEventOutboxRelayScheduler.class
-//                            );
-//                });
-//    }
-//
-//    @Test
-//    @DisplayName("Outbox Relay가 활성화되면 스케줄링 설정과 Scheduler Bean을 생성한다")
-//    void schedulingIsEnabled_whenRelayEnabledIsTrue() {
-//        contextRunner
-//                .withPropertyValues(
-//                        "outbox.problem-published.relay.enabled=true",
-//                        "outbox.problem-published.relay.fixed-delay-ms=60000"
-//                )
-//                .run(context -> {
-//                    assertThat(context)
-//                            .hasSingleBean(SchedulingConfig.class);
-//
-//                    assertThat(context)
-//                            .hasSingleBean(
-//                                    ProblemEventOutboxRelayScheduler.class
-//                            );
-//                });
-//    }
-//}
+package com.maesamco.content.global.config;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+class SchedulingConfigTest {
+
+    @Test
+    @DisplayName("Scheduled 작업용 ThreadPoolTaskScheduler를 생성한다")
+    void outboxRelayTaskScheduler_createsScheduler() {
+        // given
+        SchedulingConfig schedulingConfig = new SchedulingConfig();
+
+        // when
+        ThreadPoolTaskScheduler scheduler =
+                schedulingConfig.outboxRelayTaskScheduler();
+
+        // then
+        assertThat(scheduler).isNotNull();
+    }
+
+    @Test
+    @DisplayName("ScheduledTaskRegistrar에 전용 TaskScheduler를 설정한다")
+    void configureTasks_setsTaskScheduler() {
+        // given
+        SchedulingConfig schedulingConfig = new SchedulingConfig();
+        ScheduledTaskRegistrar registrar =
+                mock(ScheduledTaskRegistrar.class);
+
+        // when
+        schedulingConfig.configureTasks(registrar);
+
+        // then
+        verify(registrar)
+                .setTaskScheduler(
+                        any(ThreadPoolTaskScheduler.class)
+                );
+    }
+}

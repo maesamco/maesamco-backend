@@ -208,12 +208,10 @@ public class ProblemEventOutbox {
      */
     public void markPublished(Instant publishedAt) {
         validatePendingStatus();
+        Objects.requireNonNull(publishedAt, "publishedAt must not be null");
 
         this.status = ProblemEventOutboxStatus.PUBLISHED;
-        this.publishedAt = Objects.requireNonNull(
-                publishedAt,
-                "publishedAt must not be null"
-        );
+        this.publishedAt = publishedAt;
         this.lastError = null;
     }
 

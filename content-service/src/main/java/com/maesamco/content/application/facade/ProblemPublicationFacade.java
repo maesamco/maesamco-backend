@@ -59,6 +59,10 @@ public class ProblemPublicationFacade {
         // 생성한 발행 버전을 저장합니다.
         ProblemVersion savedProblemVersion = problemVersionRepository.save(problemVersion);
 
+        if (savedProblemVersion.getId() == null) {
+            throw new IllegalStateException("ProblemVersion id was not generated");
+        }
+
         // 저장된 발행 버전을 기반으로 ProblemPublished 이벤트 데이터를 생성합니다.
         ProblemPublishedEventData eventData = ProblemPublishedEventData.create(publicationTime, savedProblemVersion);
 
