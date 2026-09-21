@@ -1,0 +1,501 @@
+package com.maesamco.content.dailyquiz.application.service;
+
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventPublishOutcomeUnknownException;
+import com.maesamco.content.application.dailyquiz.port.DailyQuizCompletedEventPublisherPort;
+import com.maesamco.content.application.dailyquiz.service.DailyQuizEventOutboxRelayService;
+import com.maesamco.content.application.dailyquiz.service.DailyQuizEventOutboxStatusService;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizEventOutbox;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizEventOutboxRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class DailyQuizEventOutboxRelayServiceTest {
+
+    private static final Instant NOW =
+            Instant.parse("2026-09-17T00:00:00Z");
+
+    private static final int BATCH_SIZE = 10;
+    private static final long LEASE_DURATION_MILLIS = 300_000L;
+    private static final long PUBLISH_TIMEOUT_MILLIS = 5_000L;
+    private static final int MAX_PAYLOAD_BYTES = 100;
+    private static final int MAX_RETRY_COUNT = 3;
+    private static final long BACKOFF_BASE_MILLIS = 1_000L;
+    private static final long BACKOFF_MAX_MILLIS = 8_000L;
+    private static final Instant LEASE_UNTIL =
+            NOW.plusMillis(LEASE_DURATION_MILLIS);
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
+    @Mock
+    private DailyQuizEventOutboxRepository outboxRepository;
+
+    @Mock
+    private DailyQuizCompletedEventPublisherPort eventPublisherPort;
+
+    @Mock
+    private DailyQuizEventOutboxStatusService statusService;
+
+    private DailyQuizEventOutboxRelayService relayService;
+
+    @BeforeEach
+    void setUp() {
+        relayService = new DailyQuizEventOutboxRelayService(
+                outboxRepository,
+                eventPublisherPort,
+                statusService,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                BATCH_SIZE,
+                LEASE_DURATION_MILLIS,
+                PUBLISH_TIMEOUT_MILLIS,
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        );
+    }
+
+    @Test
+    @DisplayName("발행 가능한 Outbox를 조회해 Kafka ACK 확인 후 PUBLISHED로 변경한다")
+    void relayPendingOutboxes_publishesAndRecordsSuccess() {
+        DailyQuizEventOutbox outbox = createPendingOutbox("payload");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+
+        relayService.relayPendingOutboxes();
+
+        var ordered = inOrder(eventPublisherPort, statusService);
+        ordered.verify(eventPublisherPort).publish(
+                outbox.getAggregateId(),
+                outbox.getPayload()
+        );
+        ordered.verify(statusService).recordPublishSuccess(
+                outbox.getId(),
+                CLAIM_ID,
+                NOW
+        );
+    }
+
+    @Test
+    @DisplayName("배치의 각 Outbox를 이전 발행 완료 후 한 건씩 선점한다")
+    void relayPendingOutboxes_claimsEachOutboxImmediatelyBeforePublish() {
+        DailyQuizEventOutbox first = createPendingOutbox("first");
+        DailyQuizEventOutbox second = createPendingOutbox("second");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of(second))
+                .thenReturn(List.of());
+
+        relayService.relayPendingOutboxes();
+
+        var ordered = inOrder(
+                outboxRepository,
+                eventPublisherPort,
+                statusService
+        );
+        ordered.verify(outboxRepository).claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)
+        );
+        ordered.verify(eventPublisherPort).publish(
+                first.getAggregateId(),
+                first.getPayload()
+        );
+        ordered.verify(statusService).recordPublishSuccess(
+                first.getId(),
+                CLAIM_ID,
+                NOW
+        );
+        ordered.verify(outboxRepository).claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)
+        );
+        ordered.verify(eventPublisherPort).publish(
+                second.getAggregateId(),
+                second.getPayload()
+        );
+    }
+
+    @Test
+    @DisplayName("lease가 Kafka ACK 대기 시간과 안전 여유보다 짧으면 Relay를 생성할 수 없다")
+    void constructor_rejectsLeaseWithoutSafetyMargin() {
+        assertThatThrownBy(() -> new DailyQuizEventOutboxRelayService(
+                outboxRepository,
+                eventPublisherPort,
+                statusService,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                BATCH_SIZE,
+                PUBLISH_TIMEOUT_MILLIS + 999L,
+                PUBLISH_TIMEOUT_MILLIS,
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox 선점 시간은 Kafka ACK 대기 시간보다 최소 1000ms 길어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("payload 최대 크기가 1바이트보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveMaxPayloadBytes() {
+        assertThatThrownBy(() -> createRelay(
+                0,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox payload 최대 크기는 1바이트 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("최대 재시도 횟수가 1보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveMaxRetryCount() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                0,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 최대 재시도 횟수는 1 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("백오프 기준 시간이 1ms보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsNonPositiveBackoffBase() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                0L,
+                BACKOFF_MAX_MILLIS
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 백오프 기준 시간은 1ms 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("백오프 최대 시간이 기준 시간보다 작으면 Relay를 생성할 수 없다")
+    void constructor_rejectsBackoffMaxBelowBase() {
+        assertThatThrownBy(() -> createRelay(
+                MAX_PAYLOAD_BYTES,
+                MAX_RETRY_COUNT,
+                BACKOFF_BASE_MILLIS,
+                BACKOFF_BASE_MILLIS - 1L
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Outbox Relay 백오프 최대 시간은 기준 시간 이상이어야 합니다."
+                );
+    }
+
+    @Test
+    @DisplayName("Relay 설정의 최솟값과 동일한 값은 허용한다")
+    void constructor_acceptsMinimumRelaySettings() {
+        assertThatCode(() -> createRelay(1, 1, 1L, 1L))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("UTF-8 payload 크기가 제한을 넘으면 Kafka에 보내지 않고 즉시 실패 처리한다")
+    void relayPendingOutboxes_rejectsOversizedPayload() {
+        DailyQuizEventOutboxRelayService smallPayloadRelayService =
+                new DailyQuizEventOutboxRelayService(
+                        outboxRepository,
+                        eventPublisherPort,
+                        statusService,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        BATCH_SIZE,
+                        LEASE_DURATION_MILLIS,
+                        PUBLISH_TIMEOUT_MILLIS,
+                        5,
+                        MAX_RETRY_COUNT,
+                        BACKOFF_BASE_MILLIS,
+                        BACKOFF_MAX_MILLIS
+                );
+        DailyQuizEventOutbox outbox = createPendingOutbox("가가");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+
+        smallPayloadRelayService.relayPendingOutboxes();
+
+        verify(eventPublisherPort, never()).publish(any(), anyString());
+        verify(statusService).recordUnrecoverablePublishFailure(
+                outbox.getId(),
+                CLAIM_ID,
+                "EVENT_PAYLOAD_TOO_LARGE"
+        );
+    }
+
+    @Test
+    @DisplayName("확정적인 Kafka 발행 실패는 재시도 횟수와 지수 백오프 시각을 기록한다")
+    void relayPendingOutboxes_recordsConfirmedPublishFailure() {
+        DailyQuizEventOutbox outbox = createPendingOutbox("payload");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+        doThrow(new IllegalStateException(
+                "publish failed",
+                new IllegalArgumentException("broker rejected record")
+        )).when(eventPublisherPort).publish(
+                outbox.getAggregateId(),
+                outbox.getPayload()
+        );
+
+        relayService.relayPendingOutboxes();
+
+        verify(statusService).recordPublishFailure(
+                outbox.getId(),
+                CLAIM_ID,
+                "KAFKA_PUBLISH_FAILED:IllegalArgumentException",
+                MAX_RETRY_COUNT,
+                NOW.plusMillis(BACKOFF_BASE_MILLIS)
+        );
+        verify(statusService, never()).recordPublishSuccess(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Kafka 발행 결과를 확인할 수 없으면 재시도 한도와 다음 시도를 기록한다")
+    void relayPendingOutboxes_recordsUnknownPublishOutcome() {
+        DailyQuizEventOutbox outbox = createPendingOutbox("payload");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+        doThrow(new DailyQuizCompletedEventPublishOutcomeUnknownException(
+                "outcome unknown",
+                new java.util.concurrent.TimeoutException()
+        )).when(eventPublisherPort).publish(
+                outbox.getAggregateId(),
+                outbox.getPayload()
+        );
+
+        relayService.relayPendingOutboxes();
+
+        verify(statusService).recordPublishOutcomeUnknown(
+                outbox.getId(),
+                CLAIM_ID,
+                "KAFKA_PUBLISH_OUTCOME_UNKNOWN",
+                MAX_RETRY_COUNT,
+                NOW.plusMillis(BACKOFF_BASE_MILLIS)
+        );
+        verify(statusService, never()).recordPublishFailure(
+                any(),
+                any(),
+                anyString(),
+                any(Integer.class),
+                any()
+        );
+    }
+
+    @Test
+    @DisplayName("인터럽트된 발행 결과를 기록한 뒤 남은 Outbox 처리를 중단한다")
+    void relayPendingOutboxes_stopsBatchWhenInterrupted() {
+        DailyQuizEventOutbox first = createPendingOutbox("first");
+        DailyQuizEventOutbox second = createPendingOutbox("second");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of());
+        doThrow(new DailyQuizCompletedEventPublishOutcomeUnknownException(
+                "interrupted",
+                new InterruptedException()
+        )).when(eventPublisherPort).publish(
+                first.getAggregateId(),
+                first.getPayload()
+        );
+
+        Thread.currentThread().interrupt();
+        try {
+            relayService.relayPendingOutboxes();
+
+            verify(eventPublisherPort, never()).publish(
+                    second.getAggregateId(),
+                    second.getPayload()
+            );
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    @DisplayName("Kafka ACK 후 성공 상태 저장에 실패하면 발행 실패로 바꾸지 않고 재시도를 예약한다")
+    void relayPendingOutboxes_whenSuccessStateUpdateFails_keepsRetryable() {
+        DailyQuizEventOutbox outbox = createPendingOutbox("payload");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+        doThrow(new IllegalStateException("database unavailable"))
+                .when(statusService)
+                .recordPublishSuccess(outbox.getId(), CLAIM_ID, NOW);
+
+        relayService.relayPendingOutboxes();
+
+        verify(statusService).recordPublishOutcomeUnknown(
+                outbox.getId(),
+                CLAIM_ID,
+                "KAFKA_PUBLISHED_STATUS_UPDATE_FAILED",
+                MAX_RETRY_COUNT,
+                NOW.plusMillis(BACKOFF_BASE_MILLIS)
+        );
+        verify(statusService, never()).recordPublishFailure(
+                any(),
+                any(),
+                anyString(),
+                any(Integer.class),
+                any()
+        );
+    }
+
+    @Test
+    @DisplayName("한 Outbox의 실패 상태 저장이 실패해도 다음 Outbox는 계속 처리한다")
+    void relayPendingOutboxes_isolatesEachOutboxFailure() {
+        DailyQuizEventOutbox first = createPendingOutbox("first");
+        DailyQuizEventOutbox second = createPendingOutbox("second");
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(first))
+                .thenReturn(List.of(second))
+                .thenReturn(List.of());
+        doThrow(new IllegalStateException("publish failed"))
+                .when(eventPublisherPort)
+                .publish(first.getAggregateId(), first.getPayload());
+        doThrow(new IllegalStateException("database unavailable"))
+                .when(statusService)
+                .recordPublishFailure(
+                        first.getId(),
+                        CLAIM_ID,
+                        "KAFKA_PUBLISH_FAILED:IllegalStateException",
+                        MAX_RETRY_COUNT,
+                        NOW.plusMillis(BACKOFF_BASE_MILLIS)
+                );
+
+        relayService.relayPendingOutboxes();
+
+        verify(eventPublisherPort).publish(
+                second.getAggregateId(),
+                second.getPayload()
+        );
+        verify(statusService).recordPublishSuccess(
+                second.getId(),
+                CLAIM_ID,
+                NOW
+        );
+    }
+
+    @Test
+    @DisplayName("지수 백오프는 설정된 최대 시간을 넘지 않는다")
+    void relayPendingOutboxes_capsExponentialBackoff() {
+        DailyQuizEventOutbox outbox = createPendingOutbox("payload");
+        for (int count = 0; count < 10; count++) {
+            outbox.recordPublishOutcomeUnknown(
+                    CLAIM_ID,
+                    "PREVIOUS_OUTCOME_UNKNOWN",
+                    100,
+                    NOW.plusSeconds(count + 1L)
+            );
+            if (count < 9) {
+                outbox.claimForPublish(
+                        CLAIM_ID,
+                        NOW.plusSeconds(count + 1L),
+                        LEASE_UNTIL
+                );
+            }
+        }
+        outbox.claimForPublish(CLAIM_ID, NOW.plusSeconds(10), LEASE_UNTIL);
+        when(outboxRepository.claimPublishable(
+                eq(NOW), eq(LEASE_UNTIL), any(UUID.class), eq(1)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of());
+        doThrow(new IllegalStateException("publish failed"))
+                .when(eventPublisherPort)
+                .publish(outbox.getAggregateId(), outbox.getPayload());
+
+        relayService.relayPendingOutboxes();
+
+        verify(statusService).recordPublishFailure(
+                outbox.getId(),
+                CLAIM_ID,
+                "KAFKA_PUBLISH_FAILED:IllegalStateException",
+                MAX_RETRY_COUNT,
+                NOW.plusMillis(BACKOFF_MAX_MILLIS)
+        );
+    }
+
+    private DailyQuizEventOutbox createPendingOutbox(String payload) {
+        DailyQuizEventOutbox outbox =
+                DailyQuizEventOutbox.createPending(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "DAILY_QUIZ_COMPLETED",
+                        1,
+                        payload,
+                        NOW.minusSeconds(60)
+                );
+
+        ReflectionTestUtils.setField(
+                outbox,
+                "id",
+                UUID.randomUUID()
+        );
+        outbox.claimForPublish(CLAIM_ID, NOW, LEASE_UNTIL);
+
+        return outbox;
+    }
+
+    private DailyQuizEventOutboxRelayService createRelay(
+            int maxPayloadBytes,
+            int maxRetryCount,
+            long backoffBaseMillis,
+            long backoffMaxMillis
+    ) {
+        return new DailyQuizEventOutboxRelayService(
+                outboxRepository,
+                eventPublisherPort,
+                statusService,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                BATCH_SIZE,
+                LEASE_DURATION_MILLIS,
+                PUBLISH_TIMEOUT_MILLIS,
+                maxPayloadBytes,
+                maxRetryCount,
+                backoffBaseMillis,
+                backoffMaxMillis
+        );
+    }
+}

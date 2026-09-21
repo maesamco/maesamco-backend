@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -153,5 +155,59 @@ class FollowUpAnswerFacadeTest {
 
         assertThat(result.followUpAnswer()).isSameAs(answer);
         assertThat(result.coachingSessionStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+    }
+
+    /**
+     * 이슈 #218(V15) — CoachingSession에 @Version 도입 후, 서로 다른 역질문을 거의
+     * 동시에 완료 처리하려는 경합에서 completeWithAnswer() 트랜잭션이
+     * ObjectOptimisticLockingFailureException으로 롤백될 수 있다(방금 저장한
+     * FollowUpAnswer도 함께 롤백되므로 전체를 다시 시도해도 안전하다). 한 번
+     * 재시도하면 성공해야 한다.
+     */
+    @Test
+    void 완료_처리_중_낙관적_락_충돌이_나면_전체를_한_번_재시도한다() {
+        CoachingSession ownedSession = session(callerId);
+        Explanation explanation = explanation(ownedSession.getId());
+        FollowUpQuestion question = followUpQuestion(explanation.getId());
+        when(followUpQuestionRepository.findById(followUpQuestionId)).thenReturn(Optional.of(question));
+        when(explanationRepository.findById(explanation.getId())).thenReturn(Optional.of(explanation));
+        when(coachingSessionRepository.findById(ownedSession.getId())).thenReturn(Optional.of(ownedSession));
+
+        FollowUpAnswer answer = FollowUpAnswer.create(followUpQuestionId, "답변");
+        ReflectionTestUtils.setField(answer, "id", UUID.randomUUID());
+        ownedSession.complete();
+        when(followUpAnswerPersistenceService.completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변"))
+                .thenThrow(new OptimisticLockingFailureException("충돌"))
+                .thenReturn(new FollowUpAnswerPersistenceService.FollowUpAnswerCompletionResult(answer, ownedSession));
+
+        FollowUpAnswerFacade.FollowUpAnswerRegisterResult result =
+                facade.registerAnswer(followUpQuestionId, "답변", callerId);
+
+        assertThat(result.followUpAnswer()).isSameAs(answer);
+        assertThat(result.coachingSessionStatus()).isEqualTo(CoachingSessionStatus.COMPLETED);
+        verify(followUpAnswerPersistenceService, times(2))
+                .completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변");
+    }
+
+    @Test
+    void 재시도한_완료_처리까지_낙관적_락_충돌이_나면_COACHING_SESSION_UPDATE_CONFLICT로_변환한다() {
+        CoachingSession ownedSession = session(callerId);
+        Explanation explanation = explanation(ownedSession.getId());
+        FollowUpQuestion question = followUpQuestion(explanation.getId());
+        when(followUpQuestionRepository.findById(followUpQuestionId)).thenReturn(Optional.of(question));
+        when(explanationRepository.findById(explanation.getId())).thenReturn(Optional.of(explanation));
+        when(coachingSessionRepository.findById(ownedSession.getId())).thenReturn(Optional.of(ownedSession));
+
+        when(followUpAnswerPersistenceService.completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변"))
+                .thenThrow(new OptimisticLockingFailureException("충돌"));
+
+        assertThatThrownBy(() -> facade.registerAnswer(followUpQuestionId, "답변", callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COACHING_SESSION_UPDATE_CONFLICT);
+
+        verify(followUpAnswerPersistenceService, times(2))
+                .completeWithAnswer(ownedSession.getId(), followUpQuestionId, "답변");
+        verify(feedbackGenerationFacade, never()).generateFeedback(any(), any(), any(), any());
     }
 }

@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.messaging.event;
 
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.problem.ProblemVersionSnapshot;
 
@@ -98,12 +99,28 @@ public record ProblemPublishedEvent(
                 problemVersion.getProblemId(),
                 problemVersionId,
                 problemVersion.getVersionNo(),
-                snapshot.language().name(),
+                toJudgeLanguage(snapshot.language()), // 컴파일 하려면 JAVA 버전이 필요함.
                 snapshot.starterCode(),
                 eventTestCases,
                 timeLimitMs,
                 snapshot.runningMemoryLimit(),
                 problemVersion.getPublishedAt()
         );
+    }
+
+    /** judge 서비스에게 전달될 프로그래밍언어 버전 삽입 */
+    private static String toJudgeLanguage(ProgrammingLanguage language) {
+        String programmingLanguage;
+
+        switch (language) {
+            case JAVA:
+                programmingLanguage = "JAVA17";
+                break;
+            default:
+                programmingLanguage = language.name();
+                break;
+        }
+
+        return programmingLanguage;
     }
 }

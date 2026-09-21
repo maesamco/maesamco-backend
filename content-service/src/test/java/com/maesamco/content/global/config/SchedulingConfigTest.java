@@ -1,46 +1,83 @@
 package com.maesamco.content.global.config;
 
+import com.maesamco.content.application.facade.ProblemEventRelayFacade;
+import com.maesamco.content.application.port.EventPublisherPort;
+import com.maesamco.content.application.persistence_service.ProblemEventOutboxPersistenceService;
+import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 class SchedulingConfigTest {
 
+    private final ApplicationContextRunner contextRunner =
+            new ApplicationContextRunner()
+                    .withUserConfiguration(
+                            SchedulingConfig.class,
+                            ProblemEventRelayFacade.class
+                    )
+                    .withBean(
+                            ProblemEventOutboxRepository.class,
+                            () -> mock(ProblemEventOutboxRepository.class)
+                    )
+                    .withBean(
+                            ProblemEventOutboxPersistenceService.class,
+                            () -> mock(ProblemEventOutboxPersistenceService.class)
+                    )
+                    .withBean(
+                            EventPublisherPort.class,
+                            () -> mock(EventPublisherPort.class)
+                    );
+
     @Test
-    @DisplayName("Scheduled 작업용 ThreadPoolTaskScheduler를 생성한다")
-    void outboxRelayTaskScheduler_createsScheduler() {
-        // given
-        SchedulingConfig schedulingConfig = new SchedulingConfig();
+    @DisplayName("Outbox Relay가 비활성화되면 Relay Facade Bean을 생성하지 않는다")
+    void relayIsDisabled_whenRelayEnabledIsFalse() {
+        contextRunner
+                .withPropertyValues(
+                        "outbox.problem-published.relay.enabled=false"
+                )
+                .run(context -> {
+                    assertThat(context)
+                            .hasSingleBean(SchedulingConfig.class);
 
-        // when
-        ThreadPoolTaskScheduler scheduler =
-                schedulingConfig.outboxRelayTaskScheduler();
-
-        // then
-        assertThat(scheduler).isNotNull();
+                    assertThat(context)
+                            .doesNotHaveBean(
+                                    ProblemEventRelayFacade.class
+                            );
+                });
     }
 
     @Test
-    @DisplayName("ScheduledTaskRegistrar에 전용 TaskScheduler를 설정한다")
-    void configureTasks_setsTaskScheduler() {
-        // given
-        SchedulingConfig schedulingConfig = new SchedulingConfig();
-        ScheduledTaskRegistrar registrar =
-                mock(ScheduledTaskRegistrar.class);
+    @DisplayName("Outbox Relay가 활성화되면 Relay Facade Bean과 전용 TaskScheduler를 생성한다")
+    void relayIsEnabled_whenRelayEnabledIsTrue() {
+        contextRunner
+                .withPropertyValues(
+                        "outbox.problem-published.relay.enabled=true",
+                        "outbox.problem-published.relay.fixed-delay-ms=60000"
+                )
+                .run(context -> {
+                    assertThat(context)
+                            .hasSingleBean(SchedulingConfig.class);
 
-        // when
-        schedulingConfig.configureTasks(registrar);
+                    assertThat(context)
+                            .hasSingleBean(
+                                    ProblemEventRelayFacade.class
+                            );
 
-        // then
-        verify(registrar)
-                .setTaskScheduler(
-                        any(ThreadPoolTaskScheduler.class)
-                );
+                    ThreadPoolTaskScheduler taskScheduler =
+                            context.getBean(
+                                    ThreadPoolTaskScheduler.class
+                            );
+
+                    assertThat(
+                            taskScheduler
+                                    .getScheduledThreadPoolExecutor()
+                                    .getCorePoolSize()
+                    ).isEqualTo(2);
+                });
     }
 }

@@ -5,7 +5,6 @@ import com.maesamco.coaching.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,37 +27,6 @@ class WeakConceptTest {
         assertThat(weakConcept.getOccurrenceCount()).isEqualTo(1);
         assertThat(weakConcept.getLastDetectedAt()).isNotNull();
         assertThat(weakConcept.isImproved()).isFalse();
-    }
-
-    @Test
-    @DisplayName("recordOccurrence()를 호출하면 발견 횟수가 늘고 lastDetectedAt이 갱신된다")
-    void recordOccurrence_incrementsCountAndUpdatesTimestamp() {
-        // given
-        WeakConcept weakConcept = WeakConcept.create(UUID.randomUUID(), "재귀");
-        var firstDetectedAt = weakConcept.getLastDetectedAt();
-
-        // when
-        weakConcept.recordOccurrence();
-
-        // then
-        assertThat(weakConcept.getOccurrenceCount()).isEqualTo(2);
-        assertThat(weakConcept.getLastDetectedAt()).isAfterOrEqualTo(firstDetectedAt);
-    }
-
-    @Test
-    @DisplayName("recordOccurrence(Instant)를 호출하면 발견 횟수가 늘고 lastDetectedAt이 정확히 그 시각으로 갱신된다")
-    void recordOccurrence_withExplicitInstant_setsExactTimestamp() {
-        // given — isAfterOrEqualTo만으로는 lastDetectedAt 갱신 로직이 실수로 제거돼도 잡아내지
-        // 못한다(PR #34 리뷰). 시각을 직접 주입해서 정확한 값으로 결정적으로 검증한다.
-        WeakConcept weakConcept = WeakConcept.create(UUID.randomUUID(), "재귀");
-        Instant detectedAt = Instant.parse("2026-01-01T00:00:00Z");
-
-        // when
-        weakConcept.recordOccurrence(detectedAt);
-
-        // then
-        assertThat(weakConcept.getOccurrenceCount()).isEqualTo(2);
-        assertThat(weakConcept.getLastDetectedAt()).isEqualTo(detectedAt);
     }
 
     @Test

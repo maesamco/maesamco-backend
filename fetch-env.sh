@@ -110,6 +110,7 @@ echo "EUREKA_URL=http://eureka-server:8761/eureka/" >> "$TMP_ENV"
 
 # ===== Grafana Alerting =====
 write SLACK_WEBHOOK_URL
+write GRAFANA_ROOT_URL
 
 # ===== Rate Limit =====
 echo "RATE_LIMIT_SUBMISSIONS_PER_MIN=" >> "$TMP_ENV"
