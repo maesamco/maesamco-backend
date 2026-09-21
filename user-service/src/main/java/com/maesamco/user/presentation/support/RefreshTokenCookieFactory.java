@@ -15,13 +15,12 @@ public final class RefreshTokenCookieFactory {
     public static final String COOKIE_NAME =
             "refreshToken";
 
-    private static final String COOKIE_PATH =
-            "/api/v1/auth";
+    private final AuthCookieProperties properties;
 
-    private static final String SAME_SITE =
-            "Lax";
-
-    private RefreshTokenCookieFactory() {
+    public RefreshTokenCookieFactory(
+            AuthCookieProperties properties
+    ) {
+        this.properties = properties;
     }
 
     /**
@@ -31,7 +30,7 @@ public final class RefreshTokenCookieFactory {
      * @param clock 현재 시각 계산용 Clock
      * @return Refresh Token Cookie
      */
-    public static ResponseCookie create(
+    public ResponseCookie create(
             IssuedTokens issuedTokens,
             Clock clock
     ) {
@@ -56,13 +55,13 @@ public final class RefreshTokenCookieFactory {
      *
      * @return 만료된 Refresh Token Cookie
      */
-    public static ResponseCookie createExpired() {
+    public ResponseCookie createExpired() {
         return baseBuilder("")
                 .maxAge(Duration.ZERO)
                 .build();
     }
 
-    private static ResponseCookie.ResponseCookieBuilder baseBuilder(
+    private ResponseCookie.ResponseCookieBuilder baseBuilder(
             String value
     ) {
         return ResponseCookie
@@ -71,8 +70,8 @@ public final class RefreshTokenCookieFactory {
                         value
                 )
                 .httpOnly(true)
-                .secure(true)
-                .sameSite(SAME_SITE)
-                .path(COOKIE_PATH);
+                .secure(properties.secure())
+                .sameSite(properties.sameSite())
+                .path(properties.path());
     }
 }

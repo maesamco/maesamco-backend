@@ -2,6 +2,9 @@ server:
   port: 9000
 
 spring:
+  application:
+    name: user-service
+
   cloud:
     openfeign:
       client:
@@ -9,9 +12,6 @@ spring:
           content-service:
             connectTimeout: 2000
             readTimeout: 3000
-
-  application:
-    name: user-service
 
   mail:
     host: ${MAIL_HOST:localhost}
@@ -23,9 +23,14 @@ spring:
       mail:
         smtp:
           auth: ${MAIL_SMTP_AUTH:true}
+
           starttls:
             enable: ${MAIL_STARTTLS_ENABLE:true}
             required: ${MAIL_STARTTLS_REQUIRED:true}
+
+          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT_MS:5000}
+          timeout: ${MAIL_READ_TIMEOUT_MS:5000}
+          writetimeout: ${MAIL_WRITE_TIMEOUT_MS:5000}
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/maesamco
@@ -33,17 +38,22 @@ spring:
     password: ${DB_PASSWORD}
 
   flyway:
-    enabled: true # 이슈 #10 — V1~V3 PostgreSQL 마이그레이션 및 Hibernate validate 검증 완료, 활성화
+    enabled: true
     schemas: user_schema
 
   jpa:
+    # REST API 응답 직렬화 단계에서 의도하지 않은 추가 쿼리가
+    # 실행되지 않도록 영속성 컨텍스트를 Service 계층까지만 유지합니다.
+    open-in-view: false
+
     hibernate:
       ddl-auto: validate
 
     properties:
       hibernate:
         default_schema: user_schema
-        format_sql: true
+        format_sql: ${JPA_FORMAT_SQL:false}
+
         jdbc:
           time_zone: UTC
 
@@ -56,18 +66,22 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
     topic:
       coaching-completed: ${KAFKA_TOPIC_COACHING_COMPLETED:coaching-completed-events}
       submission-judged: ${KAFKA_TOPIC_SUBMISSION_JUDGED:submission-judged-events}
+
     consumer:
       group-id: user-service
       auto-offset-reset: earliest
+
       group:
         coaching-completed: ${KAFKA_GROUP_COACHING_COMPLETED:user-service-coaching-completed}
         submission-judged: ${KAFKA_GROUP_SUBMISSION_JUDGED:user-service-submission-judged}
 
   jackson:
     deserialization:
+      # DTO에 정의되지 않은 필드가 포함된 요청을 거부합니다.
       fail-on-unknown-properties: true
 
 security:
@@ -86,6 +100,14 @@ security:
 
   auth-session:
     refresh-token-rotation-grace-period: ${AUTH_SESSION_REFRESH_TOKEN_ROTATION_GRACE_PERIOD:5s}
+
+  # Refresh Token Cookie 정책입니다.
+  # 이 설정은 RefreshTokenCookieFactory를 ConfigurationProperties 기반으로
+  # 변경한 이후부터 실제 Cookie 생성에 적용됩니다.
+  auth-cookie:
+    secure: ${AUTH_COOKIE_SECURE:true}
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    path: ${AUTH_COOKIE_PATH:/api/v1/auth}
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -121,18 +143,24 @@ management:
       probes:
         enabled: true
 
+      # 인증 없이 내부 구성 요소의 상세 상태가 노출되지 않도록 합니다.
+      show-details: never
+
   tracing:
     sampling:
-      probability: 1.0
+      # 현재 운영 구성에 Tempo가 없다면 0.0을 사용합니다.
+      # Tempo 연결 후 운영 환경에서 0.1 정도로 조정할 수 있습니다.
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.0}
 
   otlp:
     tracing:
       endpoint: ${TEMPO_OTLP_URL:http://localhost:4318/v1/traces}
 
-# profile 없이 기본 실행할 때는 API 문서를 비활성화한다.
-# 로컬 통합 테스트에서는 application-dev.yml에서 다시 활성화한다.
+# 기본 실행 및 운영 환경에서는 API 문서를 비활성화합니다.
+# 로컬 통합 테스트에서는 application-dev.yml로 다시 활성화합니다.
 springdoc:
   api-docs:
     enabled: false
+
   swagger-ui:
     enabled: false
