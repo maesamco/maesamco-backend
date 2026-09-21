@@ -49,7 +49,7 @@ spring:
       group-id: content-service
       auto-offset-reset: earliest
       group:
-        submission-judged: content-service-submission-judged-group
+        submission-judged: ${KAFKA_CONSUMER_GROUP_SUBMISSION_JUDGED:content-service-submission-judged-group}
 
 outbox:
   problem-published:
