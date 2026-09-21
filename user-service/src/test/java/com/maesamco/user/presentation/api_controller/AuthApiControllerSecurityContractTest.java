@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
+import com.maesamco.user.presentation.support.AuthCookieConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(AuthApiController.class)
 @Import({
+        AuthCookieConfig.class,
         GlobalExceptionHandler.class,
         AuthApiControllerSecurityContractTest
                 .MethodSecurityTestConfiguration.class
