@@ -5,9 +5,13 @@ import com.maesamco.judge.infrastructure.messaging.consumer.JudgeRequestedConsum
 import com.maesamco.judge.infrastructure.messaging.consumer.ProblemPublishedConsumer;
 import com.maesamco.judge.infrastructure.messaging.event.JudgeRequestedEvent;
 import com.maesamco.judge.infrastructure.messaging.event.ProblemPublishedEvent;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.HashMap;
 import java.util.Map;
+
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -22,6 +26,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.RetryListener;
 import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
@@ -29,10 +34,15 @@ import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
+@RequiredArgsConstructor
 public class KafkaConsumerConfig {
+
+    private static final String DLT_METRIC_NAME = "judge.kafka.dlt.count";
 
     @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
+
+    private final MeterRegistry meterRegistry;
 
     // ===== ProblemPublished =====
 
@@ -128,11 +138,34 @@ public class KafkaConsumerConfig {
 
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(dltKafkaTemplate);
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+        errorHandler.setRetryListeners(new DltMetricRetryListener(meterRegistry));
+
         if (notRetryableExceptions.length > 0) {
             errorHandler.addNotRetryableExceptions(notRetryableExceptions);
         }
         factory.setCommonErrorHandler(errorHandler);
 
         return factory;
+    }
+
+    static class DltMetricRetryListener implements RetryListener {
+        private final MeterRegistry meterRegistry;
+
+        DltMetricRetryListener(MeterRegistry meterRegistry) {
+            this.meterRegistry = meterRegistry;
+        }
+
+        @Override
+        public void failedDelivery(ConsumerRecord<?, ?> record, Exception ex, int deliveryAttempt) {
+            // 재시도 도중 호출 — 여기선 계측할 필요 없음, 최종 DLT 적재 시점(recovered)만 카운트
+        }
+
+        @Override
+        public void recovered(ConsumerRecord<?,?> record, Exception e) {
+            String exceptionType = e != null ? e.getClass().getSimpleName() : "unknown";
+            meterRegistry.counter(DLT_METRIC_NAME,
+                    "topic", record.topic(),
+                    "exceptionType", exceptionType).increment();
+        }
     }
 }
