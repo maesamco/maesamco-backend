@@ -40,11 +40,43 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     topic:
       problem-published: ${KAFKA_TOPIC_PROBLEM_PUBLISHED:problem-published-events}
+      daily-quiz-completed: ${KAFKA_TOPIC_DAILY_QUIZ_COMPLETED:daily-quiz-completed-events}
     consumer:
       group-id: content-service
       auto-offset-reset: earliest
 
 outbox:
+  daily-quiz-completed:
+    relay:
+      # 기본 환경과 테스트에서는 자동 Relay를 실행하지 않습니다.
+      # 실제 통합 실행 환경에서 명시적으로 활성화합니다.
+      enabled: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_ENABLED:false}
+
+      # 이전 Relay 실행이 끝난 뒤 다음 실행까지 기다리는 시간입니다.
+      fixed-delay-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_FIXED_DELAY_MS:1000}
+
+      # 한 번의 polling에서 처리할 최대 PENDING Outbox 개수입니다.
+      batch-size: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BATCH_SIZE:50}
+
+      # Worker 장애 시 다른 Worker가 선점을 복구할 수 있는 만료 시간입니다.
+      # 한 건의 Kafka ACK 대기 시간과 상태 저장 시간을 포함할 수 있도록 설정합니다.
+      lease-duration-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_LEASE_DURATION_MS:300000}
+
+      # Kafka ACK를 기다리는 최대 시간입니다.
+      publish-timeout-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
+
+      # Kafka 발행 전 허용할 JSON payload의 최대 UTF-8 바이트 크기입니다.
+      max-payload-bytes: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_MAX_PAYLOAD_BYTES:900000}
+
+      # 확정적인 Kafka 발행 실패를 재시도할 최대 횟수입니다.
+      max-retry-count: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_MAX_RETRY_COUNT:10}
+
+      # 실패 후 첫 재시도까지 기다릴 기본 시간입니다.
+      backoff-base-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BACKOFF_BASE_MS:1000}
+
+      # 지수 백오프가 증가할 수 있는 최대 시간입니다.
+      backoff-max-ms: ${DAILY_QUIZ_COMPLETED_OUTBOX_RELAY_BACKOFF_MAX_MS:60000}
+
   problem-published:
     relay:
       # 기본 환경과 테스트에서는 자동 Relay를 실행하지 않습니다.

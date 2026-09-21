@@ -97,7 +97,7 @@ class ProblemPublishedEventTest {
                 .isEqualTo(1);
 
         assertThat(event.language())
-                .isEqualTo("JAVA");
+                .isEqualTo("JAVA17");
 
         assertThat(event.starterCode())
                 .isEqualTo("class Solution {}");

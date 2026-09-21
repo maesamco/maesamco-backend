@@ -19,9 +19,10 @@ services:
   redis:
     image: redis:7
     container_name: redis
+    restart: unless-stopped
     ports:
       - "6500:6379"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
-        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
       # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 6379)
 
   # ================= Kafka (KRaft 모드, Apache 공식 이미지) + Kafka-UI =================
@@ -34,6 +35,7 @@ services:
   kafka:
     image: apache/kafka:3.9.2
     container_name: kafka
+    restart: unless-stopped
     ports:
       - "29092:29092"   # 호스트(로컬 IntelliJ 등)에서 접속할 땐 이 포트 사용
     environment:
@@ -65,6 +67,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.2
     container_name: kafka-ui
+    restart: unless-stopped
     ports:
       - "8085:8080"   # 포트 확정 — 게이트웨이_인프라_API명세서.md 9절/10-1절 참고
     environment:
@@ -130,6 +133,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.14.0
     container_name: prometheus
+    restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
@@ -138,12 +142,18 @@ services:
   grafana:
     image: grafana/grafana:13.0.8
     container_name: grafana
+    restart: unless-stopped
     ports:
       - "4000:3000"   # 로컬용 docker-compose.yml에서 그대로 가져온 매핑(Windows 예약 포트
-        # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
+      # 회피용) — AWS EC2(Linux)엔 해당 없는 이유지만, 로컬과 포트 번호를
       # 맞춰두면 헷갈릴 일이 없어 그대로 유지(컨테이너 내부는 3000)
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      # ⚠️ 실제 배포로 발견 — 이 설정이 없으면 Grafana가 기본값(http://localhost:3000)을
+      # 알림 링크 생성에 그대로 써서, Slack 등으로 온 알림의 링크를 클릭해도
+      # 받는 사람 컴퓨터의 localhost로 가버려 아무것도 안 열림. 외부에서 실제로
+      # 접속 가능한 주소(EC2 IP:4000)로 명시해야 한다.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning
@@ -156,6 +166,7 @@ services:
       context: .
       dockerfile: eureka-server/Dockerfile
     container_name: eureka-server
+    restart: unless-stopped
     ports:
       - "8761:8761"
 
@@ -164,6 +175,7 @@ services:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
@@ -187,6 +199,7 @@ services:
       context: .
       dockerfile: user-service/Dockerfile
     container_name: user-service
+    restart: unless-stopped
     ports:
       - "9000:9000"
     environment:
@@ -239,6 +252,7 @@ services:
       context: .
       dockerfile: content-service/Dockerfile
     container_name: content-service
+    restart: unless-stopped
     ports:
       - "9001:9001"
     environment:
@@ -267,6 +281,7 @@ services:
       context: .
       dockerfile: judge-service/Dockerfile
     container_name: judge-service
+    restart: unless-stopped
     ports:
       - "9002:9002"
     environment:
@@ -293,6 +308,7 @@ services:
       context: .
       dockerfile: coaching-service/Dockerfile
     container_name: coaching-service
+    restart: unless-stopped
     ports:
       - "9003:9003"
     environment:

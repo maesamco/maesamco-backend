@@ -40,8 +40,12 @@ public class KafkaProducerConfig {
      * value에는 Outbox에 저장된 JSON payload를 그대로 전달합니다.</p>
      *
      * @return ProblemPublished 이벤트용 KafkaTemplate
+     *
+     *  기존 ProblemPublished Producer의 Bean 이름은 호환성을 위해 유지하고,
+     *  * Daily Quiz를 포함한 Content Service Outbox가 동일한 Producer 설정을
+     *  * 재사용할 수 있도록 outboxKafkaTemplate 별칭을 제공합니다.
      */
-    @Bean("problemPublishedKafkaTemplate")
+    @Bean({"problemPublishedKafkaTemplate", "outboxKafkaTemplate"})
     public KafkaTemplate<String, String>
     problemPublishedKafkaTemplate() {
 
