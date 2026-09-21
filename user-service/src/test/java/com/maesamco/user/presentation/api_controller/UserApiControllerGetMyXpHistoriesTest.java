@@ -14,6 +14,7 @@ import com.maesamco.user.domain.entity.RewardType;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
+import com.maesamco.user.presentation.support.AuthCookieConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(UserApiController.class)
 @Import({
+        AuthCookieConfig.class,
         GlobalExceptionHandler.class,
         UserApiControllerGetMyXpHistoriesTest
                 .TestSecurityConfiguration.class

@@ -18,6 +18,7 @@ import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.application.service.WithdrawUserCommand;
 import com.maesamco.user.application.service.WithdrawUserService;
 import com.maesamco.user.global.response.SuccessResponse;
+import com.maesamco.user.presentation.support.RefreshTokenCookieFactory;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 import static com.maesamco.user.presentation.support.AuthenticationPrincipalResolver.requireUserId;
-import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.createExpired;
 
 /**
  * 로그인 사용자의 계정 정보를 관리하는 User API를 제공합니다.
@@ -63,6 +63,8 @@ public class UserApiController implements UserApiDocs {
     private final WithdrawUserService withdrawUserService;
 
     private final GetMyXpHistoriesService getMyXpHistoriesService;
+
+    private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     /**
      * 로그인 사용자의 기본 정보를 조회합니다.
@@ -257,7 +259,7 @@ public class UserApiController implements UserApiDocs {
         );
 
         var expiredRefreshTokenCookie =
-                createExpired();
+                refreshTokenCookieFactory.createExpired();
 
         return ResponseEntity
                 .noContent()
@@ -296,7 +298,7 @@ public class UserApiController implements UserApiDocs {
         );
 
         var expiredRefreshTokenCookie =
-                createExpired();
+                refreshTokenCookieFactory.createExpired();
 
         return ResponseEntity
                 .noContent()
