@@ -4,6 +4,7 @@ import com.maesamco.content.application.aigeneration.AiGenerationMetadata;
 import com.maesamco.content.application.dailyquiz.generation.DailyQuizQuestionGenerationException;
 import com.maesamco.content.application.dailyquiz.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.application.dailyquiz.generation.GeneratedDailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.metadata.Usage;
@@ -31,7 +32,8 @@ public class SpringAiDailyQuizQuestionGenerator implements DailyQuizQuestionGene
     }
 
     @Override
-    public GeneratedDailyQuizQuestion generate(String conceptTag) {
+    public GeneratedDailyQuizQuestion generate(QuestionSlot questionSlot) {
+        String conceptTag = questionSlot.conceptTag();
         Instant calledAt = Instant.now();
         long startedAtNanos = System.nanoTime();
         String modelName = configuredModelName;
@@ -41,7 +43,7 @@ public class SpringAiDailyQuizQuestionGenerator implements DailyQuizQuestionGene
             ResponseEntity<ChatResponse, AiGeneratedDailyQuizQuestionResponse> responseEntity =
                     chatClient.prompt()
                             .system(DailyQuizQuestionPrompt.SYSTEM_PROMPT)
-                            .user(DailyQuizQuestionPrompt.userPrompt(conceptTag))
+                            .user(DailyQuizQuestionPrompt.userPrompt(questionSlot))
                             .call()
                             .responseEntity(AiGeneratedDailyQuizQuestionResponse.class);
 
@@ -54,7 +56,7 @@ public class SpringAiDailyQuizQuestionGenerator implements DailyQuizQuestionGene
                 throw new IllegalStateException("AI 문항 생성 응답이 비어 있습니다.");
             }
 
-            AiGeneratedDailyQuizQuestionValidator.validate(response);
+            AiGeneratedDailyQuizQuestionValidator.validate(response, questionSlot.problemType());
 
             AiGenerationMetadata generationMetadata = metadata(
                     modelName,

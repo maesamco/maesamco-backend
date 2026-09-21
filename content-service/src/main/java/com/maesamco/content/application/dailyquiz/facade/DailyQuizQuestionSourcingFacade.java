@@ -72,7 +72,7 @@ public class DailyQuizQuestionSourcingFacade {
                 // 도메인 규칙을 통과하지 못한 AI 문항을 실패로 기록하고 다음 슬롯을 처리합니다.
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredSlot.conceptTag()),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -95,14 +95,14 @@ public class DailyQuizQuestionSourcingFacade {
                 historyRecorder.recordSuccess(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
                         savedQuestion.getId(),
-                        Map.of("conceptTag", requiredSlot.conceptTag()),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata()
                 );
             } catch (DataIntegrityViolationException exception) {
                 // UNIQUE를 포함한 DB 무결성 오류를 실패로 기록합니다.
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredSlot.conceptTag()),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -130,7 +130,7 @@ public class DailyQuizQuestionSourcingFacade {
             } catch (RuntimeException exception) {
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredSlot.conceptTag()),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -155,6 +155,13 @@ public class DailyQuizQuestionSourcingFacade {
                 .mapToObj(valuesBySlot::get)
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private static Map<String, Object> requestContext(QuestionSlot questionSlot) {
+        return Map.of(
+                "conceptTag", questionSlot.conceptTag(),
+                "problemType", questionSlot.problemType().name()
+        );
     }
 
     private static DailyQuizQuestion toDailyQuizQuestion(GeneratedDailyQuizQuestion generatedQuestion) {
