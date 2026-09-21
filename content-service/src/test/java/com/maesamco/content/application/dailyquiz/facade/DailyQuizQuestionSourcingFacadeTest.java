@@ -9,8 +9,10 @@ import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSourci
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizQuestionGenerationService;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizQuestionReuseService;
-import com.maesamco.content.domain.dailyquiz.ConceptSlots;
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
+import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,13 +76,13 @@ class DailyQuizQuestionSourcingFacadeTest {
 
     @Test
     void 기존_문항으로_모든_슬롯을_채우면_AI를_호출하지_않는다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
         DailyQuizQuestion stringQuestion = question(4, STRING);
         DailyQuizQuestion methodQuestion = question(5, METHOD);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(
                                 0, loopQuestion,
@@ -92,7 +94,7 @@ class DailyQuizQuestionSourcingFacadeTest {
                         Map.of()
                 ));
 
-        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(questionSlots);
 
         assertThat(result.questions()).containsExactly(
                 loopQuestion,
@@ -110,20 +112,25 @@ class DailyQuizQuestionSourcingFacadeTest {
 
     @Test
     void AI가_일부_문항만_생성해_총_3개를_확보하면_fallback으로_처리한다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion),
-                        Map.of(2, ARRAY, 3, STRING, 4, METHOD)
+                        Map.of(
+                                2, questionSlots.at(2),
+                                3, questionSlots.at(3),
+                                4, questionSlots.at(4)
+                        )
                 ));
-        when(questionGenerator.generate(ARRAY)).thenReturn(generatedQuestion(ARRAY));
-        when(questionGenerator.generate(STRING)).thenThrow(generationFailure(STRING));
-        when(questionGenerator.generate(METHOD)).thenThrow(generationFailure(METHOD));
+        when(questionGenerator.generate(questionSlots.at(2)))
+                .thenReturn(generatedQuestion(questionSlots.at(2)));
+        when(questionGenerator.generate(questionSlots.at(3))).thenThrow(generationFailure(STRING));
+        when(questionGenerator.generate(questionSlots.at(4))).thenThrow(generationFailure(METHOD));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(questionSlots);
 
         assertThat(result.questions()).hasSize(3);
         assertThat(result.failedConcepts()).containsExactly(STRING, METHOD);
@@ -134,20 +141,26 @@ class DailyQuizQuestionSourcingFacadeTest {
 
     @Test
     void 최종_문항이_3개_미만이면_퀴즈를_생성할_수_없다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion),
-                        Map.of(1, CONDITION, 2, ARRAY, 3, STRING, 4, METHOD)
+                        Map.of(
+                                1, questionSlots.at(1),
+                                2, questionSlots.at(2),
+                                3, questionSlots.at(3),
+                                4, questionSlots.at(4)
+                        )
                 ));
-        when(questionGenerator.generate(CONDITION)).thenReturn(generatedQuestion(CONDITION));
-        when(questionGenerator.generate(ARRAY)).thenThrow(generationFailure(ARRAY));
-        when(questionGenerator.generate(STRING)).thenThrow(generationFailure(STRING));
-        when(questionGenerator.generate(METHOD)).thenThrow(generationFailure(METHOD));
+        when(questionGenerator.generate(questionSlots.at(1)))
+                .thenReturn(generatedQuestion(questionSlots.at(1)));
+        when(questionGenerator.generate(questionSlots.at(2))).thenThrow(generationFailure(ARRAY));
+        when(questionGenerator.generate(questionSlots.at(3))).thenThrow(generationFailure(STRING));
+        when(questionGenerator.generate(questionSlots.at(4))).thenThrow(generationFailure(METHOD));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(questionSlots);
 
         assertThat(result.questions()).hasSize(2);
         assertThat(result.failedConcepts()).containsExactly(ARRAY, STRING, METHOD);
@@ -157,81 +170,93 @@ class DailyQuizQuestionSourcingFacadeTest {
 
     @Test
     void 한_문항의_도메인_검증이_실패해도_다음_슬롯을_계속_처리한다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
-                        Map.of(3, STRING, 4, METHOD)
+                        Map.of(3, questionSlots.at(3), 4, questionSlots.at(4))
                 ));
-        when(questionGenerator.generate(STRING)).thenReturn(invalidGeneratedQuestion(STRING));
-        when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
+        when(questionGenerator.generate(questionSlots.at(3)))
+                .thenReturn(invalidGeneratedQuestion(questionSlots.at(3)));
+        when(questionGenerator.generate(questionSlots.at(4)))
+                .thenReturn(generatedQuestion(questionSlots.at(4)));
         when(questionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(questionSlots);
 
         assertThat(result.questions()).hasSize(4);
         assertThat(result.failedConcepts()).containsExactly(STRING);
         assertThat(result.canCreateQuiz()).isTrue();
         assertThat(result.isFallback()).isTrue();
-        verify(questionGenerator).generate(METHOD);
+        verify(questionGenerator).generate(questionSlots.at(4));
         verify(questionRepository, times(1)).save(any());
     }
 
     @Test
     void 한_문항의_UNIQUE_저장_충돌이_발생해도_다음_슬롯을_계속_처리한다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
-                        Map.of(3, STRING, 4, METHOD)
+                        Map.of(3, questionSlots.at(3), 4, questionSlots.at(4))
                 ));
-        when(questionGenerator.generate(STRING)).thenReturn(generatedQuestion(STRING));
-        when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
+        when(questionGenerator.generate(questionSlots.at(3)))
+                .thenReturn(generatedQuestion(questionSlots.at(3)));
+        when(questionGenerator.generate(questionSlots.at(4)))
+                .thenReturn(generatedQuestion(questionSlots.at(4)));
         DataIntegrityViolationException uniqueViolation = uniqueViolation();
         when(questionRepository.save(any()))
                 .thenThrow(uniqueViolation)
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(conceptSlots);
+        DailyQuizQuestionSourcingResult result = sourcingFacade.sourceQuestions(questionSlots);
 
         assertThat(result.questions()).hasSize(4);
         assertThat(result.failedConcepts()).containsExactly(STRING);
         assertThat(result.canCreateQuiz()).isTrue();
         assertThat(result.isFallback()).isTrue();
-        verify(questionGenerator).generate(METHOD);
+        verify(questionGenerator).generate(questionSlots.at(4));
         verify(questionRepository, times(2)).save(any());
     }
 
     @Test
     void UNIQUE가_아닌_DB_무결성_오류는_상위로_전파한다() {
-        ConceptSlots conceptSlots = conceptSlots();
+        QuestionSlots questionSlots = questionSlots();
         DailyQuizQuestion loopQuestion = question(1, LOOP);
         DailyQuizQuestion conditionQuestion = question(2, CONDITION);
         DailyQuizQuestion arrayQuestion = question(3, ARRAY);
-        when(reuseService.selectReusableQuestions(conceptSlots.values()))
+        when(reuseService.selectReusableQuestions(questionSlots))
                 .thenReturn(new DailyQuizQuestionSelectionResult(
                         Map.of(0, loopQuestion, 1, conditionQuestion, 2, arrayQuestion),
-                        Map.of(3, STRING, 4, METHOD)
+                        Map.of(3, questionSlots.at(3), 4, questionSlots.at(4))
                 ));
-        when(questionGenerator.generate(STRING)).thenReturn(generatedQuestion(STRING));
-        when(questionGenerator.generate(METHOD)).thenReturn(generatedQuestion(METHOD));
+        when(questionGenerator.generate(questionSlots.at(3)))
+                .thenReturn(generatedQuestion(questionSlots.at(3)));
+        when(questionGenerator.generate(questionSlots.at(4)))
+                .thenReturn(generatedQuestion(questionSlots.at(4)));
         DataIntegrityViolationException unexpectedException =
                 new DataIntegrityViolationException("예상하지 못한 테스트 무결성 오류");
         when(questionRepository.save(any())).thenThrow(unexpectedException);
 
-        assertThatThrownBy(() -> sourcingFacade.sourceQuestions(conceptSlots))
+        assertThatThrownBy(() -> sourcingFacade.sourceQuestions(questionSlots))
                 .isSameAs(unexpectedException);
         verify(questionRepository, times(1)).save(any());
     }
 
-    private ConceptSlots conceptSlots() {
-        return new ConceptSlots(List.of(LOOP, CONDITION, ARRAY, STRING, METHOD));
+    private QuestionSlots questionSlots() {
+        return new QuestionSlots(List.of(
+                new QuestionSlot(LOOP, DailyQuizProblemType.MULTIPLE_CHOICE),
+                new QuestionSlot(CONDITION, SHORT_ANSWER),
+                new QuestionSlot(ARRAY, DailyQuizProblemType.MULTIPLE_CHOICE),
+                new QuestionSlot(STRING, SHORT_ANSWER),
+                new QuestionSlot(METHOD, DailyQuizProblemType.FILL_IN_BLANK)
+        ));
     }
 
     private DailyQuizQuestion question(long id, String conceptTag) {
@@ -247,28 +272,48 @@ class DailyQuizQuestionSourcingFacadeTest {
         return question;
     }
 
-    private GeneratedDailyQuizQuestion generatedQuestion(String conceptTag) {
+    private GeneratedDailyQuizQuestion generatedQuestion(QuestionSlot questionSlot) {
         return new GeneratedDailyQuizQuestion(
-                SHORT_ANSWER,
-                conceptTag + " 생성 질문",
-                null,
-                "정답",
-                null,
-                List.of(conceptTag),
+                questionSlot.problemType(),
+                generatedQuestionText(questionSlot),
+                generatedChoices(questionSlot),
+                generatedAnswer(questionSlot),
+                generatedAllowedAnswerVariants(questionSlot),
+                List.of(questionSlot.conceptTag()),
                 generationMetadata()
         );
     }
 
-    private GeneratedDailyQuizQuestion invalidGeneratedQuestion(String conceptTag) {
+    private GeneratedDailyQuizQuestion invalidGeneratedQuestion(QuestionSlot questionSlot) {
         return new GeneratedDailyQuizQuestion(
-                SHORT_ANSWER,
-                conceptTag + " 생성 질문",
+                questionSlot.problemType(),
+                questionSlot.conceptTag() + " 생성 질문",
                 null,
                 " ",
                 null,
-                List.of(conceptTag),
+                List.of(questionSlot.conceptTag()),
                 generationMetadata()
         );
+    }
+
+    private String generatedQuestionText(QuestionSlot questionSlot) {
+        return questionSlot.problemType() == DailyQuizProblemType.FILL_IN_BLANK
+                ? questionSlot.conceptTag() + " ___ 생성 질문"
+                : questionSlot.conceptTag() + " 생성 질문";
+    }
+
+    private List<String> generatedChoices(QuestionSlot questionSlot) {
+        return questionSlot.problemType() == DailyQuizProblemType.MULTIPLE_CHOICE
+                ? List.of("정답", "오답1", "오답2", "오답3")
+                : null;
+    }
+
+    private String generatedAnswer(QuestionSlot questionSlot) {
+        return "정답";
+    }
+
+    private List<String> generatedAllowedAnswerVariants(QuestionSlot questionSlot) {
+        return null;
     }
 
     private DailyQuizQuestionGenerationException generationFailure(String conceptTag) {
