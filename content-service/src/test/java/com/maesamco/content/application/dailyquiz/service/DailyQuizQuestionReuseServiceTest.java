@@ -51,14 +51,13 @@ class DailyQuizQuestionReuseServiceTest {
                         4, questionSlots.at(4)
                 )
         );
-        when(questionRepository.findActiveByAnyConcepts(List.of("반복문"), 5))
-                .thenReturn(List.of());
+        when(questionRepository.findActiveByQuestionSlots(questionSlots)).thenReturn(List.of());
         when(questionSelector.select(questionSlots, List.of())).thenReturn(expected);
 
         DailyQuizQuestionSelectionResult result = reuseService.selectReusableQuestions(questionSlots);
 
         assertThat(result).isSameAs(expected);
-        verify(questionRepository).findActiveByAnyConcepts(List.of("반복문"), 5);
+        verify(questionRepository).findActiveByQuestionSlots(questionSlots);
         verify(questionSelector).select(questionSlots, List.of());
     }
 }
