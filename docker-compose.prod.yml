@@ -247,6 +247,9 @@ services:
       PROBLEM_PUBLISHED_OUTBOX_RELAY_ENABLED: "true"
       EUREKA_URL: http://eureka-server:8761/eureka/
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_CHAT: ${AI_MODEL_CHAT:-anthropic}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
       HMAC_KEY_COACHING_TO_CONTENT: ${HMAC_KEY_COACHING_TO_CONTENT}
       # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(content-service가 수신자일 때 검증할 키)
       HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
