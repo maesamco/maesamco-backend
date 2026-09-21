@@ -6,6 +6,7 @@ import com.maesamco.content.application.dailyquiz.generation.DailyQuizQuestionGe
 import com.maesamco.content.application.dailyquiz.generation.DailyQuizQuestionGenerationResult;
 import com.maesamco.content.application.dailyquiz.generation.DailyQuizQuestionGenerator;
 import com.maesamco.content.application.dailyquiz.generation.GeneratedDailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,16 +24,17 @@ public class DailyQuizQuestionGenerationService {
     private final AiGenerationHistoryRecorder historyRecorder;
 
     public DailyQuizQuestionGenerationResult generateMissingQuestions(
-            Map<Integer, String> missingConceptsBySlot
+            Map<Integer, QuestionSlot> missingQuestionSlotsByIndex
     ) {
         Map<Integer, GeneratedDailyQuizQuestion> generatedQuestionsBySlot = new LinkedHashMap<>();
         Map<Integer, String> failedConceptsBySlot = new LinkedHashMap<>();
 
-        for (Map.Entry<Integer, String> missingSlot : missingConceptsBySlot.entrySet().stream()
+        for (Map.Entry<Integer, QuestionSlot> missingSlot : missingQuestionSlotsByIndex.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .toList()) {
             int slotIndex = missingSlot.getKey();
-            String concept = missingSlot.getValue();
+            QuestionSlot questionSlot = missingSlot.getValue();
+            String concept = questionSlot.conceptTag();
             long startedAtNanos = System.nanoTime();
 
             // 슬롯 하나에 대해 AI를 호출하고 구조화 응답 검증까지 성공한 문항만 결과에 담습니다.

@@ -6,7 +6,9 @@ import com.maesamco.content.application.dailyquiz.persistence_service.DailyQuizS
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSourcingResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizConceptSlotSelector;
+import com.maesamco.content.application.dailyquiz.service.DailyQuizQuestionSlotAllocator;
 import com.maesamco.content.domain.dailyquiz.ConceptSlots;
+import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -22,7 +24,7 @@ import java.util.UUID;
 import static com.maesamco.content.global.util.DataIntegrityViolations.isUniqueViolation;
 
 /**
- * Daily Quiz 세트 생성에 필요한 조회, 문항 확보, 저장 흐름을 조율합니다.
+ * Daily Quiz 세트 생성에 필요한 조회, 문항 확보, 저장 흐름을 조율
  */
 @Component
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class DailyQuizSetGenerationFacade {
 
     private final DailyQuizAttemptRepository attemptRepository;
     private final DailyQuizConceptSlotSelector conceptSlotSelector;
+    private final DailyQuizQuestionSlotAllocator questionSlotAllocator;
     private final DailyQuizQuestionSourcingFacade questionSourcingFacade;
     private final DailyQuizSetPersistenceService persistenceService;
 
@@ -56,9 +59,10 @@ public class DailyQuizSetGenerationFacade {
         }
 
         ConceptSlots conceptSlots = selectedConceptSlots.get();
+        QuestionSlots questionSlots = questionSlotAllocator.allocate(conceptSlots);
 
-        // 개념 슬롯을 기준으로 기존 문항을 재사용하고 부족한 문항은 AI로 확보합니다.
-        DailyQuizQuestionSourcingResult sourcingResult = questionSourcingFacade.sourceQuestions(conceptSlots);
+        // 개념과 문제 유형이 지정된 슬롯을 기준으로 기존 문항을 재사용하고 부족한 문항은 AI로 확보합니다.
+        DailyQuizQuestionSourcingResult sourcingResult = questionSourcingFacade.sourceQuestions(questionSlots);
 
         // 확보한 문항이 3개 미만이면 INSUFFICIENT_QUESTIONS를 반환합니다.
         if (!sourcingResult.canCreateQuiz()) {
