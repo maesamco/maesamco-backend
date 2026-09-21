@@ -4,6 +4,7 @@ import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSelect
 import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -92,6 +93,43 @@ class ReusableQuestionSelectorTest {
                 ));
     }
 
+    @Test
+    void 개념이_같아도_문제_유형이_다르면_재사용하지_않는다() {
+        QuestionSlots questionSlots = new QuestionSlots(List.of(
+                new QuestionSlot("반복문", DailyQuizProblemType.MULTIPLE_CHOICE),
+                new QuestionSlot("조건문", SHORT_ANSWER),
+                new QuestionSlot("배열", SHORT_ANSWER),
+                new QuestionSlot("문자열", SHORT_ANSWER),
+                new QuestionSlot("메서드", SHORT_ANSWER)
+        ));
+        DailyQuizQuestion wrongTypeQuestion = question(
+                1,
+                DailyQuizProblemType.SHORT_ANSWER,
+                "반복문"
+        );
+        DailyQuizQuestion conditionQuestion = question(2, "조건문");
+        DailyQuizQuestion arrayQuestion = question(3, "배열");
+        DailyQuizQuestion stringQuestion = question(4, "문자열");
+        DailyQuizQuestion methodQuestion = question(5, "메서드");
+
+        DailyQuizQuestionSelectionResult result = selector.select(
+                questionSlots,
+                List.of(
+                        wrongTypeQuestion,
+                        conditionQuestion,
+                        arrayQuestion,
+                        stringQuestion,
+                        methodQuestion
+                )
+        );
+
+        assertThat(result.selectedQuestionsBySlot())
+                .doesNotContainValue(wrongTypeQuestion)
+                .containsKeys(1, 2, 3, 4);
+        assertThat(result.missingQuestionSlotsByIndex())
+                .containsExactlyEntriesOf(Map.of(0, questionSlots.at(0)));
+    }
+
     private QuestionSlots sameConceptQuestionSlots() {
         return new QuestionSlots(List.of(
                 new QuestionSlot("반복문", SHORT_ANSWER),
@@ -113,10 +151,18 @@ class ReusableQuestionSelectorTest {
     }
 
     private DailyQuizQuestion question(long id, String... conceptTags) {
+        return question(id, SHORT_ANSWER, conceptTags);
+    }
+
+    private DailyQuizQuestion question(
+            long id,
+            DailyQuizProblemType problemType,
+            String... conceptTags
+    ) {
         DailyQuizQuestion question = DailyQuizQuestion.createNew(
-                SHORT_ANSWER,
-                "테스트 질문 " + id,
-                null,
+                problemType,
+                questionText(id, problemType),
+                choices(problemType),
                 "정답",
                 null,
                 List.of(conceptTags)
@@ -124,5 +170,17 @@ class ReusableQuestionSelectorTest {
 
         ReflectionTestUtils.setField(question, "id", new UUID(0L, id));
         return question;
+    }
+
+    private String questionText(long id, DailyQuizProblemType problemType) {
+        return problemType == DailyQuizProblemType.FILL_IN_BLANK
+                ? "테스트 ___ 질문 " + id
+                : "테스트 질문 " + id;
+    }
+
+    private List<String> choices(DailyQuizProblemType problemType) {
+        return problemType == DailyQuizProblemType.MULTIPLE_CHOICE
+                ? List.of("정답", "오답1", "오답2", "오답3")
+                : null;
     }
 }
