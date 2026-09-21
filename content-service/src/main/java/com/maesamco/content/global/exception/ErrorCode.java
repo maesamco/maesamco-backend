@@ -76,6 +76,7 @@ public enum ErrorCode {
     PROBLEM_VERSION_INVALID_VERSION_NO(HttpStatus.BAD_REQUEST, "문제 버전 번호는 1 이상이어야 합니다."),
 
     /* Problem Progress */
+    PROBLEM_PROGRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "문제 풀이 진행 상태를 찾을 수 없습니다."),
     PROBLEM_PROGRESS_INVALID_USER_ID(HttpStatus.BAD_REQUEST, "사용자 식별자는 null일 수 없습니다."),
     PROBLEM_PROGRESS_INVALID_PROBLEM_ID(HttpStatus.BAD_REQUEST, "문제 식별자는 null일 수 없습니다."),
     PROBLEM_PROGRESS_INVALID_SUBMISSION_RESULT(HttpStatus.BAD_REQUEST, "지원하지 않는 채점 결과입니다."),
