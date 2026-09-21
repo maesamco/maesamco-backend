@@ -31,4 +31,27 @@ class DltMetricRetryListenerTest {
                 .count();
         assertThat(count).isEqualTo(1.0);
     }
+
+    @Test
+    @DisplayName("wrapper 예외로 감싸져 있어도 root cause 타입을 라벨로 사용한다")
+    void incrementsCounterWithRootCauseTypeWhenWrapped() {
+        // given
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        DltMetricRetryListener listener = new DltMetricRetryListener(meterRegistry);
+        ConsumerRecord<String, String> record =
+                new ConsumerRecord<>("problem-published-events", 0, 0L, "key", "value");
+        Exception rootCause = new IllegalArgumentException("legacy language value");
+        RuntimeException wrapped = new RuntimeException("Listener failed", rootCause);
+
+        // when
+        listener.recovered(record, wrapped);
+
+        // then
+        double count = meterRegistry.get("judge.kafka.dlt.count")
+                .tag("topic", "problem-published-events")
+                .tag("exceptionType", "IllegalArgumentException")
+                .counter()
+                .count();
+        assertThat(count).isEqualTo(1.0);
+    }
 }

@@ -162,10 +162,18 @@ public class KafkaConsumerConfig {
 
         @Override
         public void recovered(ConsumerRecord<?,?> record, Exception e) {
-            String exceptionType = e != null ? e.getClass().getSimpleName() : "unknown";
+            String exceptionType = e != null ? rootCauseSimpleName(e) : "unknown";
             meterRegistry.counter(DLT_METRIC_NAME,
                     "topic", record.topic(),
                     "exceptionType", exceptionType).increment();
+        }
+
+        private String rootCauseSimpleName(Throwable ex) {
+            Throwable cause = ex;
+            while (cause.getCause() != null && cause.getCause() != cause) {
+                cause = cause.getCause();
+            }
+            return cause.getClass().getSimpleName();
         }
     }
 }
