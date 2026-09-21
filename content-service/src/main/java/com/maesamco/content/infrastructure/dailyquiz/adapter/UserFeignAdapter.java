@@ -1,6 +1,8 @@
 package com.maesamco.content.infrastructure.dailyquiz.adapter;
 
 import com.maesamco.content.application.dailyquiz.port.UserInterestConceptPort;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.SuccessResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +30,10 @@ public class UserFeignAdapter implements UserInterestConceptPort {
         SuccessResponse<UserInterestConceptResponse> response = feignClient.getUser(userId);
 
         if (response == null || !response.success() || response.data() == null) {
-            return List.of();
+            throw new BusinessException(
+                    ErrorCode.FEIGN_CLIENT_ERROR,
+                    "User Service 관심 개념 조회 응답이 올바르지 않습니다."
+            );
         }
 
         return response.data().interestConceptIds();
@@ -36,7 +41,14 @@ public class UserFeignAdapter implements UserInterestConceptPort {
 
     @SuppressWarnings("unused")
     List<UUID> getInterestConceptIdsFallback(UUID userId, Throwable throwable) {
-        log.warn("User Service 관심 개념 조회 실패. userId={}", userId, throwable);
-        return List.of();
+        if (throwable instanceof BusinessException businessException) {
+            throw businessException;
+        }
+
+        log.error("User Service 관심 개념 조회 실패. userId={}", userId, throwable);
+        throw new BusinessException(
+                ErrorCode.FEIGN_CLIENT_ERROR,
+                "User Service 관심 개념 조회 중 서비스 간 통신에 실패했습니다."
+        );
     }
 }

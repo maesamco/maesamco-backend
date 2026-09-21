@@ -1,5 +1,7 @@
 package com.maesamco.content.infrastructure.dailyquiz.adapter;
 
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.SuccessResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,17 +63,17 @@ class UserFeignAdapterTest {
     }
 
     @Test
-    @DisplayName("공통 응답이 null이면 콜드스타트 후보 없이 처리한다")
-    void getInterestConceptIds_returnsEmptyListForNullResponse() {
+    @DisplayName("공통 응답이 null이면 서비스 간 통신 오류로 처리한다")
+    void getInterestConceptIds_rejectsNullResponse() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId)).thenReturn(null);
 
-        assertThat(adapter.getInterestConceptIds(userId)).isEmpty();
+        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
     }
 
     @Test
-    @DisplayName("실패 공통 응답이면 콜드스타트 후보 없이 처리한다")
-    void getInterestConceptIds_returnsEmptyListForUnsuccessfulResponse() {
+    @DisplayName("실패 공통 응답이면 서비스 간 통신 오류로 처리한다")
+    void getInterestConceptIds_rejectsUnsuccessfulResponse() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId))
                 .thenReturn(new SuccessResponse<>(
@@ -78,27 +81,53 @@ class UserFeignAdapterTest {
                         new UserInterestConceptResponse(List.of(UUID.randomUUID()))
                 ));
 
-        assertThat(adapter.getInterestConceptIds(userId)).isEmpty();
+        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
     }
 
     @Test
-    @DisplayName("응답 data가 없으면 콜드스타트 후보 없이 처리한다")
-    void getInterestConceptIds_returnsEmptyListForMissingData() {
+    @DisplayName("응답 data가 없으면 서비스 간 통신 오류로 처리한다")
+    void getInterestConceptIds_rejectsMissingData() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId))
                 .thenReturn(new SuccessResponse<>(true, null));
 
-        assertThat(adapter.getInterestConceptIds(userId)).isEmpty();
+        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
     }
 
     @Test
-    @DisplayName("통신 장애 fallback은 특정 사용자의 관심 개념만 빈 목록으로 처리한다")
-    void getInterestConceptIdsFallback_returnsEmptyList() {
-        List<UUID> result = adapter.getInterestConceptIdsFallback(
+    @DisplayName("통신 장애 fallback은 서비스 간 통신 오류로 변환한다")
+    void getInterestConceptIdsFallback_wrapsCommunicationFailure() {
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(
                 UUID.randomUUID(),
                 new IllegalStateException("User Service 연결 실패")
+        ));
+    }
+
+    @Test
+    @DisplayName("fallback에 전달된 비즈니스 예외는 원래 오류를 유지한다")
+    void getInterestConceptIdsFallback_preservesBusinessException() {
+        BusinessException original = new BusinessException(
+                ErrorCode.INVALID_INPUT_VALUE,
+                "잘못된 사용자 ID입니다."
         );
 
-        assertThat(result).isEmpty();
+        assertThatThrownBy(() -> adapter.getInterestConceptIdsFallback(
+                UUID.randomUUID(),
+                original
+        )).isSameAs(original);
+    }
+
+    private void assertFeignClientError(ThrowingCall call) {
+        assertThatThrownBy(call::invoke)
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR)
+                );
+    }
+
+    @FunctionalInterface
+    private interface ThrowingCall {
+        void invoke();
     }
 }
