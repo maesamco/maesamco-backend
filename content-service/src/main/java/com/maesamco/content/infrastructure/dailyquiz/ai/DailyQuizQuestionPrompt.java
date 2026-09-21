@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class DailyQuizQuestionPrompt {
 
-    static final String VERSION = "v2";
+    static final String VERSION = "v3";
 
     static final String SYSTEM_PROMPT = """
             너는 Java 학습자를 위한 Daily Quiz 문항 생성기다.
@@ -46,6 +46,21 @@ final class DailyQuizQuestionPrompt {
 
     static String userPrompt(QuestionSlot questionSlot) {
         return "이번 개념: " + questionSlot.conceptTag()
-                + "\n지정 문제 유형: " + questionSlot.problemType().name();
+                + "\n지정 문제 유형: " + questionSlot.problemType().name()
+                + "\n필수 형식: " + requiredFormat(questionSlot);
+    }
+
+    static String retryUserPrompt(QuestionSlot questionSlot, String validationFailureReason) {
+        return userPrompt(questionSlot)
+                + "\n이전 응답의 검증 실패 사유: " + validationFailureReason
+                + "\n위 실패 사유를 수정하여 문항을 처음부터 다시 생성한다.";
+    }
+
+    private static String requiredFormat(QuestionSlot questionSlot) {
+        return switch (questionSlot.problemType()) {
+            case MULTIPLE_CHOICE -> "choices를 정확히 4개 생성하고 answer를 choices 중 하나와 일치시킨다.";
+            case SHORT_ANSWER -> "choices는 null로 반환하고 짧고 명확한 대표 정답을 생성한다.";
+            case FILL_IN_BLANK -> "questionText에 빈칸 표시 ___를 정확히 한 번 포함한다.";
+        };
     }
 }
