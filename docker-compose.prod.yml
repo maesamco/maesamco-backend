@@ -157,6 +157,11 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      # ⚠️ 실제 운영 중 발견 — 이 볼륨(grafana-data)이 없으면 Import한 대시보드가
+      # /var/lib/grafana(SQLite DB, Grafana 내부 상태 저장 위치)에 저장되는데,
+      # 이 경로가 영구 볼륨에 안 걸려있어서 컨테이너 재시작(재배포, EC2 재부팅 등)
+      # 때마다 Import했던 대시보드가 전부 사라지던 문제.
+      - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
 
@@ -336,3 +341,4 @@ services:
 volumes:
   kafka-data:
   judge0-data:
+  grafana-data:
