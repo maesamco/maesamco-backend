@@ -60,6 +60,19 @@ public class ClaudeModelAdapter implements AiModelPort {
         } catch (RuntimeException e) {
             throw new AiModelCallException("Claude 호출에 실패했습니다.", e);
         }
+
+        // 이슈 #262/#280(용현님 리뷰, GeminiModelAdapter에서 먼저 발견) — max-tokens를
+        // 늘리는 것만으로는 재발을 막지 못한다. finishReason을 확인하지 않으면 출력
+        // 한도로 중간에 잘린 응답도 content만 그대로 뽑아서 정상 성공 응답으로 반환해버린다.
+        // Anthropic stop_reason의 MAX_TOKENS 값은 소문자("max_tokens")로 내려온다
+        // (com.anthropic.models.messages.StopReason 소스 확인).
+        String finishReason = response.getResult().getMetadata().getFinishReason();
+        if ("max_tokens".equalsIgnoreCase(finishReason)) {
+            throw new AiModelCallException(
+                    "Claude 응답이 출력 토큰 한도로 중간에 잘렸습니다(finishReason=max_tokens).",
+                    new IllegalStateException("finishReason=" + finishReason));
+        }
+
         String content = response.getResult().getOutput().getText();
         String modelName = response.getMetadata().getModel();
         Integer tokenUsage = response.getMetadata().getUsage() == null
