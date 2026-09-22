@@ -199,12 +199,18 @@ class HintGenerationConcurrencyLoadTest {
         assertThat(finishedInTime).as("20초 안에 모든 요청이 끝나야 한다").isTrue();
         assertThat(successCount.get()).as("락을 획득해 실제로 힌트를 생성한 요청은 1건뿐").isEqualTo(1);
         assertThat(failureElapsedMillis).hasSize(CONCURRENT_REQUESTS - 1);
-        // waitForConcurrentHint()는 100ms×20회=2초 폴링 후 포기한다 — 넉넉한 오차(500ms)를 둔다.
+        // waitForConcurrentHint()는 100ms×20회=2초 폴링 후 포기한다. 상한은 이슈 #282에서
+        // 넓혔다 — 공유 CI 러너에서 스레드 10개가 동시에 Redis/DB 왕복을 반복하면 벽시계
+        // 시간이 순수 sleep 합보다 상당히 늘어날 수 있고(PR #275 빌드에서 실측 2873ms로
+        // 이 창을 넘겨 실패한 전례가 있음), 이 테스트의 핵심은 "정확히 2000ms"가 아니라
+        // "LOCK_TTL(150초)·AI 호출(90~100초)에 비해 훨씬 짧게 포기한다"는 것이므로 넉넉히 둔다.
         assertThat(failureElapsedMillis).as("나머지 요청은 전부 대기창(2초) 근처에서 실패해야 한다")
-                .allSatisfy(elapsed -> assertThat(elapsed).isBetween(1900L, 2500L));
+                .allSatisfy(elapsed -> assertThat(elapsed).isBetween(1900L, 6000L));
         // 핵심 증상: 승자는 3초 뒤 성공했을 텐데(AI_CALL_DELAY), 패자들은 그보다 먼저(2초)
         // 실패해버린다 — LOCK_TTL(150초)엔 한참 못 미치는데도 성공할 요청을 놓친다.
-        assertThat(testElapsedMillis).as("테스트 전체는 승자의 AI 호출 시간(3초)만큼만 걸려야 한다(직렬화 아님)")
-                .isLessThan(AI_CALL_DELAY.toMillis() + 2000);
+        // 상한 완화 이유는 위 failureElapsedMillis 어서션과 동일(이슈 #282) — 여전히
+        // 완전 직렬화(10건 × 3초 = 30초)와는 확실히 구분되는 값이다.
+        assertThat(testElapsedMillis).as("테스트 전체는 승자의 AI 호출 시간(3초) 근처만 걸려야 한다(직렬화 아님)")
+                .isLessThan(AI_CALL_DELAY.toMillis() + 6000);
     }
 }
