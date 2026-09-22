@@ -30,12 +30,12 @@ import java.util.UUID;
                         columnList = "problem_id"
                 ),
                 @Index(
-                        name = "idx_p_problem_progress_user_created",
-                        columnList = "user_id, created_at"
+                        name = "idx_p_problem_progress_user_created_id",
+                        columnList = "user_id, created_at, id"
                 ),
                 @Index(
-                        name = "idx_p_problem_progress_user_status_created",
-                        columnList = "user_id, progress_status, created_at"
+                        name = "idx_p_problem_progress_user_status_created_id",
+                        columnList = "user_id, progress_status, created_at, id"
                 )
         }
 )

@@ -213,7 +213,58 @@ COMMENT ON COLUMN content_schema.p_problem_progress.lock_version
 
 
 -- ============================================================
--- 9. ProblemEventOutbox Relay 조회 정렬 인덱스 보강
+-- 9. ProblemProgress 조회 인덱스 정렬
+-- ============================================================
+--
+-- 사용자별 ProblemProgress 조회는
+-- created_at DESC, id DESC 순으로 정렬합니다.
+--
+-- 상태 필터가 없는 조회:
+--   WHERE user_id = ?
+--   ORDER BY created_at DESC, id DESC
+--
+-- 상태 필터가 있는 조회:
+--   WHERE user_id = ?
+--     AND progress_status = ?
+--   ORDER BY created_at DESC, id DESC
+--
+-- 동일한 created_at을 가진 row에 대해서도
+-- 안정적인 정렬을 보장하도록 id를 tie-breaker로 포함합니다.
+--
+-- 기존 (user_id, progress_status) 인덱스는
+-- 신규 상태 조회 인덱스의 선행 컬럼과 중복되므로 제거합니다.
+-- ============================================================
+
+DROP INDEX IF EXISTS content_schema.idx_p_problem_progress_user_status;
+
+DROP INDEX IF EXISTS content_schema.idx_p_problem_progress_user_created;
+
+DROP INDEX IF EXISTS content_schema.idx_p_problem_progress_user_status_created;
+
+DROP INDEX IF EXISTS content_schema.idx_p_problem_progress_user_created_id;
+
+DROP INDEX IF EXISTS content_schema.idx_p_problem_progress_user_status_created_id;
+
+
+CREATE INDEX idx_p_problem_progress_user_created_id
+    ON content_schema.p_problem_progress (
+                                          user_id,
+                                          created_at,
+                                          id
+        );
+
+
+CREATE INDEX idx_p_problem_progress_user_status_created_id
+    ON content_schema.p_problem_progress (
+                                          user_id,
+                                          progress_status,
+                                          created_at,
+                                          id
+        );
+
+
+-- ============================================================
+-- 10. ProblemEventOutbox Relay 조회 정렬 인덱스 보강
 -- ============================================================
 --
 -- PENDING Outbox 조회 시 occurred_at이 같은 이벤트에 대해
