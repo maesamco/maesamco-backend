@@ -14,7 +14,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/admin/problems")
+@RequestMapping(" /api/v1/admin/contents/problems")
 public class AdminProblemController {
 
     private final ProblemPublicationFacade problemPublicationFacade;
