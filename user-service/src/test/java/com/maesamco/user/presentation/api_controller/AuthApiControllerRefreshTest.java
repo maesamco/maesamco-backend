@@ -5,6 +5,8 @@ import com.maesamco.user.application.service.*;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
+import com.maesamco.user.presentation.support.AuthCookieProperties;
+import com.maesamco.user.presentation.support.RefreshTokenCookieFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,6 +81,15 @@ class AuthApiControllerRefreshTest {
                 ZoneOffset.UTC
         );
 
+        RefreshTokenCookieFactory refreshTokenCookieFactory =
+                new RefreshTokenCookieFactory(
+                        new AuthCookieProperties(
+                                true,
+                                "Lax",
+                                "/api/v1/auth"
+                        )
+                );
+
         AuthApiController authApiController =
                 new AuthApiController(
                         emailVerificationService,
@@ -87,7 +98,8 @@ class AuthApiControllerRefreshTest {
                         refreshService,
                         logoutService,
                         clock,
-                        logoutAllService
+                        logoutAllService,
+                        refreshTokenCookieFactory
                 );
 
         JsonMapper jsonMapper =

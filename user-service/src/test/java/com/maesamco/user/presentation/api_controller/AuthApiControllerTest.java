@@ -8,11 +8,12 @@ import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
+import com.maesamco.user.presentation.support.AuthCookieProperties;
+import com.maesamco.user.presentation.support.RefreshTokenCookieFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
@@ -65,15 +66,25 @@ class AuthApiControllerTest {
     private LoginService loginService;
 
     @Mock
+    private RefreshService refreshService;
+
+    @Mock
+    private LogoutService logoutService;
+
+    @Mock
     private Clock clock;
 
-    @InjectMocks
+    @Mock
+    private LogoutAllService logoutAllService;
+
     private AuthApiController authApiController;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
+        authApiController = createAuthApiController();
+
         JsonMapper jsonMapper =
                 JsonMapper.builder()
                         .findAndAddModules()
@@ -98,6 +109,31 @@ class AuthApiControllerTest {
                         messageConverter
                 )
                 .build();
+    }
+
+    private AuthApiController createAuthApiController() {
+        AuthCookieProperties authCookieProperties =
+                new AuthCookieProperties(
+                        true,
+                        "Lax",
+                        "/api/v1/auth"
+                );
+
+        RefreshTokenCookieFactory refreshTokenCookieFactory =
+                new RefreshTokenCookieFactory(
+                        authCookieProperties
+                );
+
+        return new AuthApiController(
+                emailVerificationService,
+                signUpService,
+                loginService,
+                refreshService,
+                logoutService,
+                clock,
+                logoutAllService,
+                refreshTokenCookieFactory
+        );
     }
 
     @Test
