@@ -81,3 +81,6 @@ rate-limit:
   submissions:
     per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:30}
   trusted-proxy-ips: ${RATE_LIMIT_TRUSTED_PROXY_IPS:}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
