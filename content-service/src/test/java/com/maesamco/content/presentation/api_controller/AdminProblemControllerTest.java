@@ -63,7 +63,7 @@ class AdminProblemControllerTest {
 
         // when & then
         mockMvc.perform(
-                        post("/api/v1/admin/problems/{problemId}/approve", problemId)
+                        post("/api/v1/admin/contents/problems/{problemId}/approve", problemId)
                                 .with(asAdmin(adminId))
                 )
                 .andExpect(
@@ -84,7 +84,7 @@ class AdminProblemControllerTest {
 
         // when & then
         mockMvc.perform(
-                        post("/api/v1/admin/problems/{problemId}/approve", problemId)
+                        post("/api/v1/admin/contents/problems/{problemId}/approve", problemId)
                                 .with(asUser(userId))
                 )
                 .andExpect(

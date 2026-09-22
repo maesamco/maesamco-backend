@@ -65,14 +65,8 @@ class AdminProblemControllerSecurityTest {
 
         // when & then
         mockMvc.perform(
-                        post(
-                                "/api/v1/admin/problems/{problemId}/approve",
-                                problemId
-                        )
-                                .header(
-                                        HttpHeaders.AUTHORIZATION,
-                                        "Bearer " + accessToken
-                                )
+                        post("/api/v1/admin/contents/problems/{problemId}/approve", problemId)
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 )
                 .andExpect(status().isOk());
 
@@ -95,14 +89,8 @@ class AdminProblemControllerSecurityTest {
 
         // when & then
         mockMvc.perform(
-                        post(
-                                "/api/v1/admin/problems/{problemId}/approve",
-                                problemId
-                        )
-                                .header(
-                                        HttpHeaders.AUTHORIZATION,
-                                        "Bearer " + accessToken
-                                )
+                        post("/api/v1/admin/contents/problems/{problemId}/approve", problemId)
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 )
                 .andExpect(status().isForbidden());
 
