@@ -9,6 +9,9 @@ import java.util.UUID;
 
 interface SpringDataProblemVersionRepository extends JpaRepository<ProblemVersion, UUID> {
 
+    /** 문제 ID와 문제 버전 ID로 문제 버전을 조회합니다. */
+    Optional<ProblemVersion> findByProblemIdAndId(UUID problemId, UUID id);
+
     /** 특정 문제의 특정 버전 조회 */
     Optional<ProblemVersion> findByProblemIdAndVersionNo(UUID problemId, Integer versionNo);
 

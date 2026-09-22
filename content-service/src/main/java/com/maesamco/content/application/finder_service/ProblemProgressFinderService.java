@@ -1,6 +1,7 @@
 package com.maesamco.content.application.finder_service;
 
 import com.maesamco.content.application.finder.ProblemProgressFinder;
+import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
@@ -18,11 +19,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProblemProgressFinderService implements ProblemProgressFinder {
 
+    private final ProblemFinderService problemFinderService;
+
     private final ProblemProgressRepository problemProgressRepository;
 
     @Override
     public ProblemProgress getByUserIdAndProblemIdOrigin(UUID userId, UUID problemId) {
-        return problemProgressRepository.findByUserIdAndProblemId(userId, problemId)
+
+        Problem problem = problemFinderService.getById(problemId);
+
+        return problemProgressRepository.findByUserIdAndProblemId(userId, problem.getId())
                 .orElseThrow(
                         () -> new BusinessException(ErrorCode.PROBLEM_PROGRESS_NOT_FOUND)
                 );
@@ -31,8 +37,10 @@ public class ProblemProgressFinderService implements ProblemProgressFinder {
     @Override
     @Transactional(readOnly = true)
     public Optional<ProblemProgress> getByUserIdAndProblemId(UUID userId, UUID problemId) {
-        return problemProgressRepository
-                .findByUserIdAndProblemId(userId, problemId);
+
+        Problem problem = problemFinderService.getById(problemId);
+
+        return problemProgressRepository.findByUserIdAndProblemId(userId, problem.getId());
     }
 
     @Override

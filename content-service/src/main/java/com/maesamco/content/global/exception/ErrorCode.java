@@ -73,6 +73,7 @@ public enum ErrorCode {
     TEST_CASE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "비공개 테스트케이스에 접근할 권한이 없습니다."),
 
     /* Problem Version */
+    PROBLEM_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 문제에 속한 문제 버전을 찾을 수 없습니다."),
     PROBLEM_VERSION_INVALID_VERSION_NO(HttpStatus.BAD_REQUEST, "문제 버전 번호는 1 이상이어야 합니다."),
 
     /* Problem Progress */

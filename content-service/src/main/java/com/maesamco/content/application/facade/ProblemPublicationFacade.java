@@ -12,6 +12,7 @@ import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +20,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-@Service
+@Component
 @RequiredArgsConstructor
 public class ProblemPublicationFacade {
 

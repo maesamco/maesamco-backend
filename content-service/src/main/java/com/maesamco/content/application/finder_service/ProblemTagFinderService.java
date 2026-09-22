@@ -1,6 +1,7 @@
 package com.maesamco.content.application.finder_service;
 
 import com.maesamco.content.application.finder.ProblemTagFinder;
+import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.domain.entity.Tag;
@@ -16,26 +17,37 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProblemTagFinderService implements ProblemTagFinder {
 
+    private final ProblemFinderService problemFinderService;
+
     private final ProblemTagRepository problemTagRepository;
 
     /** 문제-태그 연결 존재 여부 조회 */
     @Override
     @Transactional(readOnly = true)
     public boolean existsByProblemIdAndTagId(UUID problemId, UUID tagId) {
-        return problemTagRepository.existsByProblemIdAndTagId(problemId, tagId);
+
+        Problem problem = problemFinderService.getById(problemId);
+
+        return problemTagRepository.existsByProblemIdAndTagId(problem.getId(), tagId);
     }
 
     /** 특정 문제의 문제-태그 연결 목록 조회 */
     @Override
     @Transactional(readOnly = true)
     public List<ProblemTag> getByProblemId(UUID problemId) {
-        return problemTagRepository.findAllByProblemId(problemId);
+
+        Problem problem = problemFinderService.getById(problemId);
+
+        return problemTagRepository.findAllByProblemId(problem.getId());
     }
 
     /** 특정 문제에 연결된 태그 목록을 조회한다. */
     @Override
     @Transactional(readOnly = true)
     public List<Tag> getTagsByProblemId(UUID problemId) {
-        return problemTagRepository.findAllTagsByProblemId(problemId);
+
+        Problem problem = problemFinderService.getById(problemId);
+
+        return problemTagRepository.findAllTagsByProblemId(problem.getId());
     }
 }

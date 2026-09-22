@@ -66,9 +66,9 @@ public class ProblemProgressCommandService {
     }
 
     private void createProgress(ProblemProgressSyncCommand command, ProblemProgressStatus progressStatus) {
-        // ProblemVersion이 존재하는지 확인
+        // 문제에 속한 ProblemVersion이 존재하는지 확인해야만 한다.
         ProblemVersion problemVersion =
-                problemVersionFinder.getById(command.problemVersionId());
+                problemVersionFinder.getByProblemIdAndId(command.problemId(), command.problemVersionId());
 
         ProblemProgress problemProgress =
                 ProblemProgress.create(
@@ -92,9 +92,10 @@ public class ProblemProgressCommandService {
             return;
         }
 
-        // 여기부터 최신 상태 변경
+        /* 여기부터 최신 상태 변경 */
+        // 문제에 속한 ProblemVersion이 존재하는지 확인해야만 한다.
         ProblemVersion problemVersion =
-                problemVersionFinder.getById(command.problemVersionId());
+                problemVersionFinder.getByProblemIdAndId(command.problemId(), command.problemVersionId());
 
         // 최신 제출에서 사용된 문제 버전 번호를 반영합니다.
         problemProgress.changeVersionNo(problemVersion.getVersionNo());

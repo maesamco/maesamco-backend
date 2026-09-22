@@ -9,4 +9,7 @@ public interface ProblemVersionFinder {
 
     /** 문제 버전 단건 조회 */
     ProblemVersion getById(UUID problemVersionId);
+
+    /** 문제에 속한 문제 버전 단건 조회 */
+    ProblemVersion getByProblemIdAndId(UUID problemId, UUID problemVersionId);
 }

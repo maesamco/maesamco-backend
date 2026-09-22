@@ -1,6 +1,8 @@
 package com.maesamco.content.application.finder_service;
 
+import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.finder.ProblemVersionFinder;
+import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -16,6 +18,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProblemVersionFinderService implements ProblemVersionFinder {
 
+    private final ProblemFinder problemFinder;
+
     private final ProblemVersionRepository problemVersionRepository;
 
     @Override
@@ -24,7 +28,21 @@ public class ProblemVersionFinderService implements ProblemVersionFinder {
         return problemVersionRepository.findById(problemVersionId)
                 .orElseThrow(() ->
                         new BusinessException(
-                                ErrorCode.PROBLEM_NOT_FOUND
+                                ErrorCode.PROBLEM_VERSION_NOT_FOUND
+                        )
+                );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProblemVersion getByProblemIdAndId(UUID problemId, UUID problemVersionId) {
+
+        Problem problem = problemFinder.getById(problemId);
+
+        return problemVersionRepository.findByProblemIdAndId(problem.getId(), problemVersionId)
+                .orElseThrow(
+                        () -> new BusinessException(
+                                ErrorCode.PROBLEM_VERSION_NOT_FOUND
                         )
                 );
     }

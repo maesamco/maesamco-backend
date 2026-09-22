@@ -44,6 +44,8 @@ public class ProblemInternalService {
     @Transactional(readOnly = true)
     public ProblemInternalResult getProblemVersionMetaData(UUID problemVersionId) {
 
+        // 외부에서 Problem Version을 조회하는 경우, problemId - problemVersionId를 가지고 있다고 가정한다.
+        // 그래서 따로 크로스 검증(problem에 대한 problemVersion인지) 하지 않는다.
         ProblemVersion problemVersion = problemVersionFinder.getById(problemVersionId);
 
         List<Tag> tags = problemTagFinder.getTagsByProblemId(problemVersion.getProblemId());
