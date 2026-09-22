@@ -113,7 +113,7 @@ INTERVAL=
 # ⚠️ 부하테스트(600명 동시)로 발견 — 기본값(t3.large 기준 2*nproc=4)이
 # 순간 부하를 못 받아내 judge0가 503을 반환하고, judge-service의 재시도가
 # 쌓이면서 응답 지연·에러율 상승으로 이어졌다(에러율 4.53%, 평균 응답 275ms).
-COUNT=16
+COUNT=
 
 # Specify maximum queue size. Represents maximum number of submissions that
 # can wait in the queue at once. If request for new submission comes and the
