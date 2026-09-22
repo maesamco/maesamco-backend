@@ -22,11 +22,8 @@ public class SubmissionJudgedKafkaConsumer {
     public void consume(SubmissionJudgedEvent event) {
         log.info(
                 "[Content] SubmissionJudged 이벤트 수신. "
-                        + "submissionId={}, userId={}, problemId={}, "
-                        + "problemVersionId={}, attemptNo={}, status={}, result={}, judgedAt={}",
-                event.submissionId(), event.userId(), event.problemId(),
-                event.problemVersionId(), event.attemptNo(), event.status(),
-                event.result(), event.judgedAt()
+                        + "submissionId={}, problemId={}, attemptNo={}, judgedAt={}",
+                event.submissionId(), event.problemId(), event.attemptNo(), event.judgedAt()
         );
 
         problemProgressCommandService.sync(event.toCommand());
