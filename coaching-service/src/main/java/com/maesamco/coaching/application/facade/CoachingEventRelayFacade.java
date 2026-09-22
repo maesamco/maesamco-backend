@@ -4,9 +4,7 @@ import com.maesamco.coaching.application.persistence_service.CoachingEventOutbox
 import com.maesamco.coaching.application.port.EventPublishOutcomeUnknownException;
 import com.maesamco.coaching.application.port.EventPublisherPort;
 import com.maesamco.coaching.domain.entity.CoachingEventOutbox;
-import com.maesamco.coaching.domain.entity.OutboxStatus;
 import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,7 +13,9 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Outbox Relay — p_coaching_event_outboxes를 폴링해서 Kafka로 CoachingCompleted 발행.
@@ -32,30 +32,58 @@ import java.util.List;
  * `outbox.relay.enabled`(기본 true)로 켜고 끌 수 있다 — User Service의 CoachingCompleted
  * 소비자가 아직 멱등 처리를 안 갖췄거나 장애 대응 중 잠시 발행을 멈춰야 할 때, 스케줄링
  * 전체를 끄지 않고 이 Relay만 끌 수 있어야 한다(PR #123 심층 재검토, 2026-09-09).
+ *
+ * 이슈 #261 — 매 폴링마다 새 claimId를 발급해 {@code claimPublishable()}로 선점한 뒤에만
+ * Kafka 발행을 시도한다. content-service DailyQuizEventOutboxRelayService(PR #244)와
+ * 동일하게, 선점 유효시간(lease)이 발행 타임아웃보다 짧으면 아직 응답을 기다리는 중인
+ * Outbox의 lease가 만료돼 다른 Worker가 재선점해버릴 수 있어 생성자에서 검증한다.
  */
 @Component
 @ConditionalOnProperty(prefix = "outbox.relay", name = "enabled", havingValue = "true", matchIfMissing = true)
-@RequiredArgsConstructor
 @Slf4j
 public class CoachingEventRelayFacade {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
+    private static final long MIN_LEASE_SAFETY_MARGIN_MILLIS = 1_000L;
 
     private final CoachingEventOutboxRepository coachingEventOutboxRepository;
     private final CoachingEventOutboxPersistenceService coachingEventOutboxPersistenceService;
     private final EventPublisherPort eventPublisherPort;
+    private final String coachingCompletedTopic;
+    private final long leaseDurationMillis;
 
-    @Value("${spring.kafka.topic.coaching-completed}")
-    private String coachingCompletedTopic;
+    public CoachingEventRelayFacade(
+            CoachingEventOutboxRepository coachingEventOutboxRepository,
+            CoachingEventOutboxPersistenceService coachingEventOutboxPersistenceService,
+            EventPublisherPort eventPublisherPort,
+            @Value("${spring.kafka.topic.coaching-completed}") String coachingCompletedTopic,
+            @Value("${outbox.relay.lease-duration-ms:300000}") long leaseDurationMillis,
+            @Value("${outbox.relay.publish-timeout-ms:3000}") long publishTimeoutMillis
+    ) {
+        this.coachingEventOutboxRepository = coachingEventOutboxRepository;
+        this.coachingEventOutboxPersistenceService = coachingEventOutboxPersistenceService;
+        this.eventPublisherPort = eventPublisherPort;
+        this.coachingCompletedTopic = coachingCompletedTopic;
+        if (leaseDurationMillis - publishTimeoutMillis < MIN_LEASE_SAFETY_MARGIN_MILLIS) {
+            throw new IllegalArgumentException(
+                    "선점 유효시간(outbox.relay.lease-duration-ms=%d)은 발행 타임아웃(outbox.relay.publish-timeout-ms=%d)보다 "
+                            .formatted(leaseDurationMillis, publishTimeoutMillis)
+                            + "최소 %dms 길어야 합니다.".formatted(MIN_LEASE_SAFETY_MARGIN_MILLIS)
+            );
+        }
+        this.leaseDurationMillis = leaseDurationMillis;
+    }
 
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
     public void relay() {
-        List<CoachingEventOutbox> pending =
-                coachingEventOutboxRepository.findPollableByStatus(OutboxStatus.PENDING, 100);
+        Instant claimedAt = Instant.now();
+        UUID claimId = UUID.randomUUID();
+        List<CoachingEventOutbox> claimed = coachingEventOutboxRepository.claimPublishable(
+                claimedAt, claimedAt.plusMillis(leaseDurationMillis), claimId, 100);
 
-        for (CoachingEventOutbox outbox : pending) {
+        for (CoachingEventOutbox outbox : claimed) {
             try {
-                relayOne(outbox);
+                relayOne(outbox, claimId);
             } catch (Exception e) {
                 // relayOne() 내부에서 못 잡은 예외(예: recordFailedAttempt/recordPostPublishFailure
                 // 자체가 DB 커넥션 풀 고갈 등으로 실패)가 이 항목 하나 때문에 같은 배치의 나머지
@@ -79,7 +107,7 @@ public class CoachingEventRelayFacade {
         }
     }
 
-    private void relayOne(CoachingEventOutbox outbox) {
+    private void relayOne(CoachingEventOutbox outbox, UUID claimId) {
         // Kafka 발행 시도
         try {
             eventPublisherPort.publish(
@@ -93,15 +121,15 @@ public class CoachingEventRelayFacade {
             // recordPostPublishFailure와 동일한 무한 재시도 경로로 보낸다(PR #123 심층 재검토,
             // 2026-09-09 — 처음엔 이 경우도 일반 발행 실패와 같이 취급해서, 마지막 재시도에서
             // 타임아웃이 나면 실제로는 전달된 이벤트를 영구 유실 처리할 위험이 있었다).
-            coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId());
+            coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), claimId);
             log.error("[Coaching] Outbox 발행 결과를 확인하지 못함 — 재시도 대상으로 표시. outboxId={}, eventType={}",
                     outbox.getId(), outbox.getEventType(), e);
             return;
         } catch (Exception e) {
-            // 1. 발행 실패 — 재시도 상한 안이면 status는 PENDING 그대로 둬서 다음 폴링 주기에 재시도.
+            // 1. 발행 실패 — 재시도 상한 안이면 status는 PENDING으로 되돌려서 다음 폴링 주기에 재시도.
             // 2. 상한 소진 시 recordFailedAttempt 내부에서 FAILED로 종료 처리.
             // 재시도로 인한 중복 발행 가능성은 User Service 소비자 쪽 멱등 처리로 대응.
-            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox.getId());
+            coachingEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), claimId);
             log.error("[Coaching] Outbox 발행 실패 — 재시도 상한 전이면 다음 폴링에서 재시도, 상한 도달이면 FAILED 처리됨. "
                             + "outboxId={}, eventType={}",
                     outbox.getId(), outbox.getEventType(), e);
@@ -109,11 +137,11 @@ public class CoachingEventRelayFacade {
         }
         // 발행 자체는 성공하여 상태 전이 + DB 저장 시도
         try {
-            coachingEventOutboxPersistenceService.markPublished(outbox.getId());
+            coachingEventOutboxPersistenceService.markPublished(outbox.getId(), claimId);
             log.info("[Coaching] Outbox 발행 성공. outboxId={}, eventType={}, aggregateId={}",
                     outbox.getId(), outbox.getEventType(), outbox.getAggregateId());
         } catch (Exception e) {
-            coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId());
+            coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), claimId);
             log.error("[Coaching] Kafka 발행은 성공했으나 후처리(Outbox 완료 표시) 실패 — "
                             + "재시도 대상으로 표시. outboxId={}, eventType={}",
                     outbox.getId(), outbox.getEventType(), e);

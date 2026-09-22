@@ -1,8 +1,8 @@
 package com.maesamco.coaching.domain.repository;
 
 import com.maesamco.coaching.domain.entity.CoachingEventOutbox;
-import com.maesamco.coaching.domain.entity.OutboxStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,9 +14,14 @@ public interface CoachingEventOutboxRepository {
     Optional<CoachingEventOutbox> findById(UUID id);
 
     /**
-     * Relay Worker가 폴링 배치로 쓰는 조회 — 오래된 것부터 최대 100건, 백오프 대기 중인
-     * (next_attempt_at이 아직 안 지난) 행은 제외한다(PR #123 재검토 2차, head-of-line
-     * blocking 방지).
+     * 이슈 #261 — 지금 발행할 수 있는 Outbox를 오래된 순서대로 잠그고 해당 Worker가
+     * 선점합니다. PENDING(재시도 대기 시각이 지난) 또는 lease가 만료된 IN_PROGRESS 행이
+     * 대상이며, 다른 트랜잭션이 잠근 행은 기다리지 않고 건너뜁니다.
      */
-    List<CoachingEventOutbox> findPollableByStatus(OutboxStatus status, int limit);
+    List<CoachingEventOutbox> claimPublishable(
+            Instant claimedAt,
+            Instant leaseUntil,
+            UUID claimId,
+            int limit
+    );
 }

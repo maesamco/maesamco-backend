@@ -1,5 +1,7 @@
 package com.maesamco.coaching.domain.entity;
 
+import com.maesamco.coaching.global.exception.BusinessException;
+import com.maesamco.coaching.global.exception.ErrorCode;
 import com.maesamco.coaching.global.util.Validate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,6 +52,15 @@ import java.util.UUID;
  * PENDING으로 읽어버리는 진짜 동시 실행까지는 막지 못한다(check-then-act). 낙관적 락을
  * 걸면 나중에 flush되는 트랜잭션이 `ObjectOptimisticLockingFailureException`으로 걸러져,
  * 호출자가 "다른 Relay가 이미 처리함"과 동일하게 무시할 수 있다.
+ *
+ * 이슈 #261 — 위 낙관적 락은 "발행 결과를 DB에 기록하는" 시점의 쓰기 충돌만 막을 뿐,
+ * 그보다 먼저 일어나는 "조회" 시점의 경합은 막지 못한다. 두 Relay 인스턴스가 폴링에서
+ * 같은 PENDING 행을 동시에 읽으면 둘 다 Kafka에 발행을 시도해버려서, DB 쓰기는 낙관적
+ * 락으로 하나만 성공하더라도 Kafka에는 이미 이벤트가 중복 발행된 뒤다. content-service
+ * DailyQuizEventOutbox(PR #244)와 동일한 claim/lease(선점) 패턴을 도입한다 —
+ * `claimForPublish()`가 `SELECT ... FOR UPDATE SKIP LOCKED`로 원자적으로 선점하며
+ * IN_PROGRESS로 전이시키고, `claimId`(fencing token)와 `leaseUntil`(선점 만료 시각)을
+ * 함께 기록해서 lease 만료 후 재선점된 행에 이전 Worker가 뒤늦게 결과를 쓰는 것도 막는다.
  */
 @Entity
 @Table(
@@ -97,6 +108,14 @@ public class CoachingEventOutbox {
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
+    /** 이슈 #261 — 현재 선점을 식별하는 fencing token. IN_PROGRESS일 때만 값이 있다. */
+    @Column(name = "claim_id")
+    private UUID claimId;
+
+    /** 이슈 #261 — 이 선점이 만료되는 시각. 지나면 다른 Worker가 재선점할 수 있다. */
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -126,6 +145,39 @@ public class CoachingEventOutbox {
         return payload.deepCopy();
     }
 
+    /**
+     * 이슈 #261 — Relay Worker가 Kafka 발행을 시작하기 위해 이 Outbox를 선점한다.
+     * PENDING(재시도 대기 시각이 지난) 행이거나, lease가 만료된 IN_PROGRESS 행만
+     * 선점할 수 있다. 호출자(Repository 구현체)는 이 메서드를
+     * {@code SELECT ... FOR UPDATE SKIP LOCKED}로 잠근 행에만 호출해야 한다 — 그렇지
+     * 않으면 이 메서드의 상태 검증만으로는 진짜 동시 선점을 막지 못한다.
+     */
+    public void claimForPublish(UUID claimId, Instant claimedAt, Instant leaseUntil) {
+        UUID validatedClaimId = Validate.requireNonNull(claimId, "발행 선점 ID");
+        if (!leaseUntil.isAfter(claimedAt)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "발행 선점 만료 시각은 선점 시각 이후여야 합니다."
+            );
+        }
+
+        boolean pendingAndReady = this.status == OutboxStatus.PENDING
+                && (this.nextAttemptAt == null || !this.nextAttemptAt.isAfter(claimedAt));
+        boolean expiredClaim = this.status == OutboxStatus.IN_PROGRESS
+                && this.leaseUntil != null && !this.leaseUntil.isAfter(claimedAt);
+        if (!pendingAndReady && !expiredClaim) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "선점 가능한 상태가 아닙니다. status=" + this.status
+            );
+        }
+
+        this.status = OutboxStatus.IN_PROGRESS;
+        this.claimId = validatedClaimId;
+        this.leaseUntil = leaseUntil;
+        this.nextAttemptAt = null;
+    }
+
     /** Relay Worker가 Kafka 발행 시도(성공/실패 무관)마다 호출 — 재시도 상한 판단용. */
     public void incrementAttemptCount() {
         this.attemptCount = Math.addExact(this.attemptCount, 1);
@@ -135,24 +187,34 @@ public class CoachingEventOutbox {
     public void markPublished() {
         this.status = OutboxStatus.COMPLETED;
         this.processedAt = Instant.now();
+        clearClaim();
     }
 
     /** Relay Worker가 재시도 상한까지 발행에 실패했을 때 호출 — 더 이상 재시도하지 않는다. */
     public void markFailed() {
         this.status = OutboxStatus.FAILED;
         this.processedAt = Instant.now();
+        clearClaim();
     }
 
     /**
-     * 실패한 시도 직후 호출 — 지수 백오프로 다음 재시도 가능 시각을 계산해 기록한다.
-     * {@code attemptCount}가 이미 증가된 뒤(호출자가 {@link #incrementAttemptCount()}를
-     * 먼저 호출한 뒤)라고 가정한다. 상한(30분) 이후로는 더 늘어나지 않는다.
+     * 실패한 시도 직후 호출 — 선점을 풀어 PENDING으로 되돌리고, 지수 백오프로 다음
+     * 재시도 가능 시각을 계산해 기록한다. {@code attemptCount}가 이미 증가된 뒤(호출자가
+     * {@link #incrementAttemptCount()}를 먼저 호출한 뒤)라고 가정한다. 상한(30분) 이후로는
+     * 더 늘어나지 않는다.
      */
     public void scheduleNextAttempt() {
         long backoffSeconds = Math.min(
                 BASE_RETRY_DELAY.toSeconds() * (1L << Math.min(attemptCount, 20)),
                 MAX_RETRY_DELAY.toSeconds()
         );
+        this.status = OutboxStatus.PENDING;
         this.nextAttemptAt = Instant.now().plusSeconds(backoffSeconds);
+        clearClaim();
+    }
+
+    private void clearClaim() {
+        this.claimId = null;
+        this.leaseUntil = null;
     }
 }
