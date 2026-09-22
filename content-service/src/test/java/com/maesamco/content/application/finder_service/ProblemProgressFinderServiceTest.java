@@ -1,5 +1,6 @@
 package com.maesamco.content.application.finder_service;
 
+import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
@@ -23,7 +24,13 @@ import static org.mockito.Mockito.when;
 class ProblemProgressFinderServiceTest {
 
     @Mock
+    private ProblemFinderService problemFinderService;
+
+    @Mock
     private ProblemProgressRepository problemProgressRepository;
+
+    @Mock
+    private Problem problem;
 
     private ProblemProgressFinderService problemProgressFinderService;
 
@@ -32,7 +39,10 @@ class ProblemProgressFinderServiceTest {
 
     @BeforeEach
     void setUp() {
-        problemProgressFinderService = new ProblemProgressFinderService(problemProgressRepository);
+        problemProgressFinderService = new ProblemProgressFinderService(
+                problemFinderService,
+                problemProgressRepository
+        );
 
         userId = UUID.randomUUID();
         problemId = UUID.randomUUID();
@@ -48,6 +58,12 @@ class ProblemProgressFinderServiceTest {
                 Instant.parse("2026-09-21T00:00:00Z")
         );
 
+        when(problemFinderService.getById(problemId))
+                .thenReturn(problem);
+
+        when(problem.getId())
+                .thenReturn(problemId);
+
         when(problemProgressRepository.findByUserIdAndProblemId(userId, problemId))
                 .thenReturn(Optional.of(problemProgress));
 
@@ -57,6 +73,7 @@ class ProblemProgressFinderServiceTest {
         // then
         assertThat(result).contains(problemProgress);
 
+        verify(problemFinderService).getById(problemId);
         verify(problemProgressRepository).findByUserIdAndProblemId(userId, problemId);
     }
 
@@ -64,6 +81,12 @@ class ProblemProgressFinderServiceTest {
     @DisplayName("사용자와 문제 ID에 해당하는 ProblemProgress가 없으면 빈 Optional을 반환한다")
     void getByUserIdAndProblemId_notExists_returnsEmpty() {
         // given
+        when(problemFinderService.getById(problemId))
+                .thenReturn(problem);
+
+        when(problem.getId())
+                .thenReturn(problemId);
+
         when(problemProgressRepository.findByUserIdAndProblemId(userId, problemId))
                 .thenReturn(Optional.empty());
 
@@ -73,6 +96,7 @@ class ProblemProgressFinderServiceTest {
         // then
         assertThat(result).isEmpty();
 
+        verify(problemFinderService).getById(problemId);
         verify(problemProgressRepository).findByUserIdAndProblemId(userId, problemId);
     }
 

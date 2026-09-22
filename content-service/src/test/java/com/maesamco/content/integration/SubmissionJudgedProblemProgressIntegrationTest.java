@@ -3,6 +3,7 @@ package com.maesamco.content.integration;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.maesamco.content.application.command_service.ProblemProgressCommandService;
 import com.maesamco.content.application.finder.ProblemProgressFinder;
+import com.maesamco.content.application.finder_service.ProblemFinderService;
 import com.maesamco.content.application.finder_service.ProblemProgressFinderService;
 import com.maesamco.content.application.finder_service.ProblemVersionFinderService;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
@@ -19,9 +20,12 @@ import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
 import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import com.maesamco.content.global.config.QuerydslConfig;
 import com.maesamco.content.infrastructure.messaging.consumer.SubmissionJudgedKafkaConsumer;
 import com.maesamco.content.infrastructure.messaging.event.SubmissionJudgedEvent;
+import com.maesamco.content.infrastructure.persistence.ProblemCommandRepositoryImpl;
 import com.maesamco.content.infrastructure.persistence.ProblemProgressRepositoryImpl;
+import com.maesamco.content.infrastructure.persistence.ProblemQueryRepositoryImpl;
 import com.maesamco.content.infrastructure.persistence.ProblemVersionRepositoryImpl;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -60,8 +64,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @Import({
         JpaAuditingConfig.class,
+        QuerydslConfig.class,
+        ProblemQueryRepositoryImpl.class,
+        ProblemCommandRepositoryImpl.class,
         ProblemProgressRepositoryImpl.class,
         ProblemVersionRepositoryImpl.class,
+        ProblemFinderService.class,
         ProblemProgressFinderService.class,
         ProblemVersionFinderService.class,
         ProblemProgressCommandService.class,

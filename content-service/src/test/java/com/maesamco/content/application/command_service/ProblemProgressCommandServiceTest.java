@@ -23,6 +23,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -101,7 +103,7 @@ class ProblemProgressCommandServiceTest {
         when(problemProgressFinder.getByUserIdAndProblemId(userId, problemId))
                 .thenReturn(Optional.empty());
 
-        when(problemVersionFinder.getById(problemVersionId))
+        when(problemVersionFinder.getByProblemIdAndId(problemId, problemVersionId))
                 .thenReturn(problemVersion);
 
         when(problemVersion.getVersionNo())
@@ -111,9 +113,17 @@ class ProblemProgressCommandServiceTest {
         problemProgressCommandService.sync(command);
 
         // then
-        ArgumentCaptor<ProblemProgress> progressCaptor = ArgumentCaptor.forClass(ProblemProgress.class);
+        ArgumentCaptor<ProblemProgress> progressCaptor =
+                ArgumentCaptor.forClass(ProblemProgress.class);
 
-        verify(problemProgressRepository).save(progressCaptor.capture());
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
+        verify(problemVersionFinder)
+                .getByProblemIdAndId(problemId, problemVersionId);
+
+        verify(problemProgressRepository)
+                .save(progressCaptor.capture());
 
         ProblemProgress savedProgress = progressCaptor.getValue();
 
@@ -142,7 +152,7 @@ class ProblemProgressCommandServiceTest {
         when(problemProgressFinder.getByUserIdAndProblemId(userId, problemId))
                 .thenReturn(Optional.empty());
 
-        when(problemVersionFinder.getById(problemVersionId))
+        when(problemVersionFinder.getByProblemIdAndId(problemId, problemVersionId))
                 .thenReturn(problemVersion);
 
         when(problemVersion.getVersionNo())
@@ -152,9 +162,17 @@ class ProblemProgressCommandServiceTest {
         problemProgressCommandService.sync(command);
 
         // then
-        ArgumentCaptor<ProblemProgress> progressCaptor = ArgumentCaptor.forClass(ProblemProgress.class);
+        ArgumentCaptor<ProblemProgress> progressCaptor =
+                ArgumentCaptor.forClass(ProblemProgress.class);
 
-        verify(problemProgressRepository).save(progressCaptor.capture());
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
+        verify(problemVersionFinder)
+                .getByProblemIdAndId(problemId, problemVersionId);
+
+        verify(problemProgressRepository)
+                .save(progressCaptor.capture());
 
         ProblemProgress savedProgress = progressCaptor.getValue();
 
@@ -193,7 +211,7 @@ class ProblemProgressCommandServiceTest {
         when(problemProgressFinder.getByUserIdAndProblemId(userId, problemId))
                 .thenReturn(Optional.of(progress));
 
-        when(problemVersionFinder.getById(problemVersionId))
+        when(problemVersionFinder.getByProblemIdAndId(problemId, problemVersionId))
                 .thenReturn(problemVersion);
 
         when(problemVersion.getVersionNo())
@@ -209,7 +227,14 @@ class ProblemProgressCommandServiceTest {
         assertThat(progress.getCreatedAt()).isEqualTo(firstJudgedAt);
         assertThat(progress.getSolvedAt()).isEqualTo(secondJudgedAt);
 
-        verifyNoInteractions(problemProgressRepository);
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
+        verify(problemVersionFinder)
+                .getByProblemIdAndId(problemId, problemVersionId);
+
+        verify(problemProgressRepository, never())
+                .save(any());
     }
 
     @Test
@@ -245,9 +270,60 @@ class ProblemProgressCommandServiceTest {
         assertThat(progress.getVersionNo()).isEqualTo(3);
         assertThat(progress.getAttemptNo()).isEqualTo(3);
         assertThat(progress.getProgressStatus()).isEqualTo(ProblemProgressStatus.CORRECT);
+        assertThat(progress.getCreatedAt()).isEqualTo(olderJudgedAt);
+        assertThat(progress.getSolvedAt()).isEqualTo(latestJudgedAt);
 
-        verify(problemProgressRepository).save(progress);
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
         verifyNoInteractions(problemVersionFinder);
+
+        verify(problemProgressRepository)
+                .save(progress);
+    }
+
+    @Test
+    @DisplayName("동일한 제출 시도 이벤트가 다시 도착하면 최신 상태를 변경하지 않는다")
+    void sync_sameAttempt_doesNotOverwriteLatestState() {
+        // given
+        Instant judgedAt = Instant.parse("2026-09-21T02:00:00Z");
+
+        ProblemProgress progress = ProblemProgress.create(
+                userId,
+                problemId,
+                3,
+                3,
+                ProblemProgressStatus.CORRECT,
+                judgedAt
+        );
+
+        ProblemProgressSyncCommand command = createCommand(
+                3,
+                "COMPLETED",
+                "WRONG",
+                judgedAt
+        );
+
+        when(problemProgressFinder.getByUserIdAndProblemId(userId, problemId))
+                .thenReturn(Optional.of(progress));
+
+        // when
+        problemProgressCommandService.sync(command);
+
+        // then
+        assertThat(progress.getVersionNo()).isEqualTo(3);
+        assertThat(progress.getAttemptNo()).isEqualTo(3);
+        assertThat(progress.getProgressStatus()).isEqualTo(ProblemProgressStatus.CORRECT);
+        assertThat(progress.getCreatedAt()).isEqualTo(judgedAt);
+        assertThat(progress.getSolvedAt()).isEqualTo(judgedAt);
+
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
+        verifyNoInteractions(problemVersionFinder);
+
+        verify(problemProgressRepository)
+                .save(progress);
     }
 
     @Test
@@ -284,9 +360,15 @@ class ProblemProgressCommandServiceTest {
         assertThat(progress.getVersionNo()).isEqualTo(3);
         assertThat(progress.getAttemptNo()).isEqualTo(3);
         assertThat(progress.getProgressStatus()).isEqualTo(ProblemProgressStatus.WRONG);
+        assertThat(progress.getSolvedAt()).isNull();
 
-        verify(problemProgressRepository).save(progress);
+        verify(problemProgressFinder)
+                .getByUserIdAndProblemId(userId, problemId);
+
         verifyNoInteractions(problemVersionFinder);
+
+        verify(problemProgressRepository)
+                .save(progress);
     }
 
     @Test
