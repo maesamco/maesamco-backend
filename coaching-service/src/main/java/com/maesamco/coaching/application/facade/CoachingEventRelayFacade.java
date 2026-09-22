@@ -37,6 +37,18 @@ import java.util.UUID;
  * Kafka 발행을 시도한다. content-service DailyQuizEventOutboxRelayService(PR #244)와
  * 동일하게, 선점 유효시간(lease)이 발행 타임아웃보다 짧으면 아직 응답을 기다리는 중인
  * Outbox의 lease가 만료돼 다른 Worker가 재선점해버릴 수 있어 생성자에서 검증한다.
+ *
+ * 이슈 #280(승환님 리뷰) — 처음엔 한 번에 최대 100건(MAX_BATCH_SIZE)을 같은
+ * claimedAt·leaseUntil로 묶어서 선점한 뒤 순차 발행했다. 하지만 발행은 건당 최대
+ * publish-timeout-ms(기본 3초)까지 걸릴 수 있어, 배치 전체를 순차 처리하면 최악의 경우
+ * 100건 × 3초 = lease-duration-ms(기본 300초)에 근접·초과할 수 있다 —
+ * 배치 후반 항목은 첫 Worker가 발행을 시도하기도 전에 lease가 만료돼 다른 Worker가
+ * 재선점해 같은 이벤트를 중복 발행하게 된다. claimId 검증은 그 뒤의 DB 상태 갱신만 막을
+ * 뿐 이미 발생한 Kafka 발행 자체는 막지 못한다. content-service의 실제 구현
+ * (relayPendingOutboxes())을 다시 보니 배치 크기만큼 반복하며 매 회 한 건씩(limit=1) 새
+ * claimedAt으로 선점하고 있었다 — 이 클래스도 그 방식으로 맞춘다. 항목마다 독립적인
+ * lease를 받으므로, 생성자 검증(lease가 단일 publish-timeout보다 충분히 길다)만으로
+ * 배치 크기와 무관하게 항상 충분하다.
  */
 @Component
 @ConditionalOnProperty(prefix = "outbox.relay", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -45,6 +57,7 @@ public class CoachingEventRelayFacade {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final long MIN_LEASE_SAFETY_MARGIN_MILLIS = 1_000L;
+    private static final int MAX_BATCH_SIZE = 100;
 
     private final CoachingEventOutboxRepository coachingEventOutboxRepository;
     private final CoachingEventOutboxPersistenceService coachingEventOutboxPersistenceService;
@@ -76,20 +89,25 @@ public class CoachingEventRelayFacade {
 
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:1000}")
     public void relay() {
-        Instant claimedAt = Instant.now();
-        UUID claimId = UUID.randomUUID();
-        List<CoachingEventOutbox> claimed = coachingEventOutboxRepository.claimPublishable(
-                claimedAt, claimedAt.plusMillis(leaseDurationMillis), claimId, 100);
+        for (int processedCount = 0; processedCount < MAX_BATCH_SIZE; processedCount++) {
+            Instant claimedAt = Instant.now();
+            UUID claimId = UUID.randomUUID();
+            List<CoachingEventOutbox> claimed = coachingEventOutboxRepository.claimPublishable(
+                    claimedAt, claimedAt.plusMillis(leaseDurationMillis), claimId, 1);
 
-        for (CoachingEventOutbox outbox : claimed) {
+            if (claimed.isEmpty()) {
+                return;
+            }
+            CoachingEventOutbox outbox = claimed.get(0);
+
             try {
                 relayOne(outbox, claimId);
             } catch (Exception e) {
                 // relayOne() 내부에서 못 잡은 예외(예: recordFailedAttempt/recordPostPublishFailure
                 // 자체가 DB 커넥션 풀 고갈 등으로 실패)가 이 항목 하나 때문에 같은 배치의 나머지
-                // outbox까지 막지 않도록 격리한다. findTop100...OrderByCreatedAtAsc가 오래된 순으로
-                // 뽑으므로, 여기서 격리하지 않으면 이 outbox가 다음 폴링에서도 계속 맨 앞을 차지하며
-                // 뒤의 항목들을 무기한 밀어낼 수 있다(PR #123 심층 재검토, 2026-09-09).
+                // outbox까지 막지 않도록 격리한다. 오래된 순으로 선점하므로, 여기서 격리하지
+                // 않으면 이 outbox가 다음 폴링에서도 계속 맨 앞을 차지하며 뒤의 항목들을 무기한
+                // 밀어낼 수 있다(PR #123 심층 재검토, 2026-09-09).
                 log.error("[Coaching] Outbox 처리 중 예상치 못한 예외 — 이 항목만 건너뛰고 나머지 배치는 계속 처리. outboxId={}",
                         outbox.getId(), e);
             }
@@ -102,7 +120,7 @@ public class CoachingEventRelayFacade {
             // 신호이므로 배치를 계속 돌리지 않고 바로 멈춘다(PR #123 심층 재검토, 2026-09-09).
             if (Thread.currentThread().isInterrupted()) {
                 log.warn("[Coaching] 인터럽트 감지 — 남은 Outbox 배치 처리를 중단합니다.");
-                break;
+                return;
             }
         }
     }

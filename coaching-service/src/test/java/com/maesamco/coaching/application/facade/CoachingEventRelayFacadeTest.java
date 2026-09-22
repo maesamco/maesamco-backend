@@ -16,6 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +28,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,9 +70,14 @@ class CoachingEventRelayFacadeTest {
         return CoachingEventOutbox.create(UUID.randomUUID(), "CoachingCompleted", payload);
     }
 
+    // 이슈 #280(승환님 리뷰) — relay()가 한 번에 최대 100건을 같은 lease로 묶어서 선점하던
+    // 방식에서, 매 회 한 건씩(limit=1) 새 lease로 선점하는 방식으로 바뀌었다. 이 스텁도
+    // 그에 맞춰 claimPublishable() 호출마다 순서대로 하나씩 내주고, 소진되면 빈 리스트를
+    // 반환해 relay()의 반복 루프가 멈추게 한다.
     private void stubClaimable(CoachingEventOutbox... outboxes) {
-        given(coachingEventOutboxRepository.claimPublishable(any(Instant.class), any(Instant.class), any(UUID.class), eq(100)))
-                .willReturn(List.of(outboxes));
+        Iterator<CoachingEventOutbox> iterator = List.of(outboxes).iterator();
+        given(coachingEventOutboxRepository.claimPublishable(any(Instant.class), any(Instant.class), any(UUID.class), eq(1)))
+                .willAnswer(invocation -> iterator.hasNext() ? List.of(iterator.next()) : List.of());
     }
 
     @Nested
@@ -168,6 +175,28 @@ class CoachingEventRelayFacadeTest {
 
             verify(eventPublisherPort).publish(eq(TOPIC), eq(healthyOutbox.getAggregateId().toString()), anyString());
             verify(coachingEventOutboxPersistenceService).markPublished(eq(healthyOutbox.getId()), any(UUID.class));
+        }
+
+        @Test
+        @DisplayName("이슈 #280 - 여러 건을 처리할 때 항목마다 독립적으로 선점해 각자 새 lease를 받는다"
+                + "(배치 전체를 한 lease로 묶어서 선점하지 않는다)")
+        void claimsEachItemIndividuallyWithFreshLease() {
+            CoachingEventOutbox first = pendingOutbox();
+            CoachingEventOutbox second = pendingOutbox();
+            stubClaimable(first, second);
+
+            coachingEventRelayFacade.relay();
+
+            // claimPublishable(limit=1) 호출 3번 — first, second, 그리고 빈 리스트로
+            // 반복을 멈추기 위한 마지막 호출. 매 호출이 서로 다른 Instant/claimId 인자로
+            // 들어가므로(스텁이 any()로만 매칭), 항목마다 새 claimedAt·claimId·lease를
+            // 받는다는 것 자체가 이 검증의 핵심이다 — 100건을 한 번에 같은 lease로 묶어서
+            // 선점했다면 이 메서드는 딱 1번만 호출됐을 것이다.
+            verify(coachingEventOutboxRepository, times(3))
+                    .claimPublishable(any(Instant.class), any(Instant.class), any(UUID.class), eq(1));
+            // pendingOutbox()는 저장 전이라 getId()가 둘 다 null이라 값으로 구분이 안 된다 —
+            // 두 항목 모두 실제로 markPublished까지 도달했다는 건 호출 횟수로 확인한다.
+            verify(coachingEventOutboxPersistenceService, times(2)).markPublished(any(), any(UUID.class));
         }
 
         @Test
