@@ -68,6 +68,7 @@ spring:
         chat:
           options:
             model: gemini-3.6-flash # 로컬 전용(GeminiModelAdapter) — AI_MODEL_CHAT=google-genai일 때만 사용, 실제 호출로 확인(2026-09-02)
+            max-output-tokens: 4096 # 이슈 #262 — thinking 모델이 추론 토큰을 많이 써서 미설정 시 답변이 중간에 잘리는 문제 대응
   cloud:
     openfeign:
       client:
