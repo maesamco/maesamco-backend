@@ -15,6 +15,9 @@ import java.util.List;
  *
  * 허용 Origin은 환경변수로 주입하여
  * 로컬 개발 환경과 배포 환경을 코드 수정 없이 구분합니다.
+ *
+ * 설정 변경 후에는 실제 브라우저 요청으로
+ * preflight(OPTIONS)와 credentials 포함 요청까지 검증합니다.
  */
 @Configuration
 public class CorsConfig {
@@ -25,13 +28,14 @@ public class CorsConfig {
             @Value("${cors.allowed-origins:http://localhost:3000}")
             String allowedOrigins
     ) {
-        this.allowedOrigins =
-                Arrays.stream(
-                                allowedOrigins.split(",")
-                        )
-                        .map(String::trim)
-                        .filter(origin -> !origin.isBlank())
-                        .toList();
+        this.allowedOrigins = parseAllowedOrigins(allowedOrigins);
+    }
+
+    static List<String> parseAllowedOrigins(String allowedOrigins) {
+        return Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toList();
     }
 
     @Bean
