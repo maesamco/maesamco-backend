@@ -110,18 +110,13 @@ INTERVAL=
 
 # Specify how many parallel workers to run.
 # Default: 2*nproc (https://linux.die.net/man/1/nproc)
-# ⚠️ 부하테스트(600명 동시)로 발견 — 기본값(t3.large 기준 2*nproc=4)이
-# 순간 부하를 못 받아내 judge0가 503을 반환하고, judge-service의 재시도가
-# 쌓이면서 응답 지연·에러율 상승으로 이어졌다(에러율 4.53%, 평균 응답 275ms).
-COUNT=6
+COUNT=
 
 # Specify maximum queue size. Represents maximum number of submissions that
 # can wait in the queue at once. If request for new submission comes and the
 # queue if full then submission will be rejected.
 # Default: 100
-# ⚠️ 위와 동일한 이유로 상향 — 기본값(100)으로는 순간 몰리는 제출을
-# 다 못 받아내고 503으로 거부하던 것을 확인함.
-MAX_QUEUE_SIZE=200
+MAX_QUEUE_SIZE=
 
 
 ################################################################################
