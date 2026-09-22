@@ -1,5 +1,5 @@
 -- ============================================================
--- V11: ProblemProgress 상태, 최초 채점 시각 및 제출 시도 번호 정렬
+-- V15: ProblemProgress 상태, 최초 채점 시각 및 제출 시도 번호 정렬
 -- ============================================================
 --
 -- ProblemProgress 명세에 맞게 p_problem_progress를 수정합니다.
@@ -13,12 +13,16 @@
 --     신규 추가
 --     TIMESTAMPTZ NOT NULL
 --     (user_id, problem_id) 기준 최초 채점 결과의 judgedAt을 저장
---     더 이전 이벤트가 늦게 도착한 경우 더 이른 judgedAt으로 보정 가능
 --
 --   attempt_no
 --     신규 추가
 --     INT NOT NULL
 --     마지막으로 ProblemProgress에 반영된 제출 시도 번호를 저장
+--
+--   lock_version
+--     신규 추가
+--     BIGINT NOT NULL
+--     동일 ProblemProgress에 대한 동시 갱신 충돌 감지에 사용
 --
 -- 기존 유지
 --   id
@@ -27,6 +31,24 @@
 --   version_no
 --   solved_at
 --   UNIQUE (user_id, problem_id)
+--
+-- ============================================================
+-- 기존 데이터 마이그레이션 정책
+-- ============================================================
+--
+-- 기존 ProblemProgress에는 attempt_no가 존재하지 않으며,
+-- Content Service의 기존 데이터만으로 실제 Submission의
+-- 제출 시도 번호를 정확하게 복원할 수 없습니다.
+--
+-- 임의의 attempt_no를 부여할 경우 Kafka에서 늦게 도착한
+-- 이전 SubmissionJudged 이벤트를 최신 이벤트로 오인하여
+-- version_no, progress_status 등의 최신 상태를 덮어쓸 수 있습니다.
+--
+-- 따라서 기존 데이터를 임의로 backfill하지 않고
+-- V15 적용 시 기존 ProblemProgress 데이터를 초기화합니다.
+--
+-- 이후 ProblemProgress는 SubmissionJudged 이벤트를 기준으로
+-- 새로운 도메인 모델에 맞게 다시 생성됩니다.
 -- ============================================================
 
 
@@ -39,53 +61,22 @@ ALTER TABLE content_schema.p_problem_progress
 
 
 -- ============================================================
--- 2. 기존 NOT_ATTEMPTED 데이터 확인
+-- 2. 기존 ProblemProgress 데이터 초기화
 -- ============================================================
 --
--- ProblemProgress는 실제 채점 결과가 발생한 시점에 생성되며,
--- 최종 상태는 WRONG 또는 CORRECT만 허용합니다.
+-- 기존 row에는 정확한 attempt_no를 부여할 수 없으므로
+-- 새로운 SubmissionJudged 기반 ProblemProgress 모델과
+-- 일관성을 보장하기 위해 기존 데이터를 초기화합니다.
 --
--- 기존 NOT_ATTEMPTED 데이터가 존재하면 마이그레이션을 중단합니다.
--- 임의로 WRONG/CORRECT로 변환하지 않습니다.
+-- NOT_ATTEMPTED뿐 아니라 WRONG/CORRECT 상태의 기존 row 역시
+-- attempt_no를 복원할 수 없으므로 모두 초기화 대상입니다.
 -- ============================================================
 
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1
-            FROM content_schema.p_problem_progress
-            WHERE progress_status = 'NOT_ATTEMPTED'
-        ) THEN
-            RAISE EXCEPTION
-                'p_problem_progress contains NOT_ATTEMPTED progress_status.';
-        END IF;
-    END
-$$;
+DELETE FROM content_schema.p_problem_progress;
 
 
 -- ============================================================
--- 3. progress_status 기존 데이터 검증
--- ============================================================
-
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1
-            FROM content_schema.p_problem_progress
-            WHERE progress_status NOT IN (
-                                          'WRONG',
-                                          'CORRECT'
-                )
-        ) THEN
-            RAISE EXCEPTION
-                'p_problem_progress.progress_status contains invalid values.';
-        END IF;
-    END
-$$;
-
-
--- ============================================================
--- 4. progress_status CHECK 제약 재생성
+-- 3. progress_status CHECK 제약 재생성
 -- ============================================================
 
 ALTER TABLE content_schema.p_problem_progress
@@ -99,7 +90,7 @@ ALTER TABLE content_schema.p_problem_progress
 
 
 -- ============================================================
--- 5. created_at 컬럼 추가
+-- 4. created_at 컬럼 추가
 -- ============================================================
 --
 -- created_at은 단순 DB INSERT 시각이 아니라
@@ -109,31 +100,24 @@ ALTER TABLE content_schema.p_problem_progress
 -- 더 이른 judgedAt을 가진 이벤트가 늦게 도착한 경우
 -- Application 계층에서 created_at을 보정할 수 있습니다.
 --
--- 기존 데이터는 실제 최초 judgedAt을 복원할 수 없으므로
--- 마이그레이션 시점의 현재 시각으로 초기화합니다.
+-- 기존 ProblemProgress는 위에서 초기화했으므로
+-- 임의의 CURRENT_TIMESTAMP backfill을 수행하지 않습니다.
 -- ============================================================
 
 ALTER TABLE content_schema.p_problem_progress
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;
 
 
-UPDATE content_schema.p_problem_progress
-SET created_at = CURRENT_TIMESTAMP
-WHERE created_at IS NULL;
+ALTER TABLE content_schema.p_problem_progress
+    ALTER COLUMN created_at DROP DEFAULT;
 
 
 ALTER TABLE content_schema.p_problem_progress
     ALTER COLUMN created_at SET NOT NULL;
 
 
--- created_at은 Application에서 judgedAt을 명시적으로 저장하므로
--- CURRENT_TIMESTAMP 기본값을 사용하지 않습니다.
-ALTER TABLE content_schema.p_problem_progress
-    ALTER COLUMN created_at DROP DEFAULT;
-
-
 -- ============================================================
--- 6. attempt_no 컬럼 추가
+-- 5. attempt_no 컬럼 추가
 -- ============================================================
 --
 -- attempt_no는 현재 ProblemProgress에 마지막으로 반영된
@@ -144,29 +128,12 @@ ALTER TABLE content_schema.p_problem_progress
 -- 오래된 이벤트가 version_no, progress_status 등의
 -- 최신 상태를 덮어쓰지 않도록 사용합니다.
 --
--- 기존 ProblemProgress 데이터의 실제 제출 시도 번호는
--- Content Service만으로 정확하게 복원할 수 없으므로
--- 임의의 기본값을 저장하지 않습니다.
+-- 기존 ProblemProgress는 정확한 attempt_no를 복원할 수 없어
+-- 위에서 초기화했으므로 임의의 기본값을 사용하지 않습니다.
 -- ============================================================
 
 ALTER TABLE content_schema.p_problem_progress
     ADD COLUMN IF NOT EXISTS attempt_no INT;
-
-
--- 기존 데이터가 존재하면 새 attempt_no의 실제 값을 알 수 없으므로
--- 임의로 값을 채우지 않고 마이그레이션을 중단합니다.
-DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1
-            FROM content_schema.p_problem_progress
-            WHERE attempt_no IS NULL
-        ) THEN
-            RAISE EXCEPTION
-                'p_problem_progress contains rows without attempt_no.';
-        END IF;
-    END
-$$;
 
 
 ALTER TABLE content_schema.p_problem_progress
@@ -174,7 +141,7 @@ ALTER TABLE content_schema.p_problem_progress
 
 
 -- ============================================================
--- 7. attempt_no CHECK 제약 추가
+-- 6. attempt_no CHECK 제약 추가
 -- ============================================================
 
 ALTER TABLE content_schema.p_problem_progress
@@ -187,7 +154,7 @@ ALTER TABLE content_schema.p_problem_progress
 
 
 -- ============================================================
--- 8. lock_version 컬럼 추가
+-- 7. lock_version 컬럼 추가
 -- ============================================================
 --
 -- lock_version은 동일한 ProblemProgress row에 대해
@@ -211,7 +178,7 @@ ALTER TABLE content_schema.p_problem_progress
 
 
 -- ============================================================
--- 9. 컬럼 설명 정리
+-- 8. 컬럼 설명 정리
 -- ============================================================
 
 COMMENT ON TABLE content_schema.p_problem_progress
@@ -246,7 +213,7 @@ COMMENT ON COLUMN content_schema.p_problem_progress.lock_version
 
 
 -- ============================================================
--- 10. ProblemEventOutbox Relay 조회 정렬 인덱스 보강
+-- 9. ProblemEventOutbox Relay 조회 정렬 인덱스 보강
 -- ============================================================
 --
 -- PENDING Outbox 조회 시 occurred_at이 같은 이벤트에 대해
@@ -255,5 +222,12 @@ COMMENT ON COLUMN content_schema.p_problem_progress.lock_version
 
 DROP INDEX IF EXISTS content_schema.idx_problem_event_outboxes_status_occurred_at;
 
+DROP INDEX IF EXISTS content_schema.idx_problem_event_outboxes_status_occurred_at_id;
+
+
 CREATE INDEX idx_problem_event_outboxes_status_occurred_at_id
-    ON content_schema.p_problem_event_outboxes (status, occurred_at, id);
+    ON content_schema.p_problem_event_outboxes (
+                                                status,
+                                                occurred_at,
+                                                id
+        );
