@@ -45,17 +45,14 @@ public class SubmissionCommandService {
                             .formatted(spec.getLanguage(), requestedLanguage));
         }
 
-        //저장+경합 재시도 루프
+        //저장 재시도 루프 — attemptNo 산정은 advisory lock으로 직렬화되므로(SubmissionSaveExecutor 참고)
+        //이 재시도는 더 이상 attemptNo 경합이 아니라 그 외의 드문 제약 위반 상황에 대한 방어용으로 남긴다.
         for (int attempt = 1; attempt <= MAX_SAVE_RETRY; attempt++) {
-            int attemptNo = submissionRepository.findMaxAttemptNoByUserIdAndProblemId(
-                    command.userId(), command.problemId()) +1;
-            Submission submission = Submission.create(
-                    command.userId(), command.problemId(), spec.getProblemVersionId(), attemptNo,
-                    command.code(), requestedLanguage, command.idempotencyKey()
-            );
-
             try {
-                submissionSaveExecutor.saveWithOutbox(submission);
+                Submission submission = submissionSaveExecutor.createAndSave(
+                        command.userId(), command.problemId(), spec.getProblemVersionId(),
+                        command.code(), requestedLanguage, command.idempotencyKey());
+                return SubmissionCreateResult.created(submission.getId(), submission.getStatus());
             } catch (DataIntegrityViolationException ex) {
                 // 이전 시도의 트랜잭션은 이미 REQUIRES_NEW 경계에서 롤백/종료됐으므로
                 // 여기서의 재조회는 새 트랜잭션에서 안전하게 실행된다.
@@ -63,11 +60,9 @@ public class SubmissionCommandService {
                 if (racedByKey.isPresent()) {
                     return toIdempotentResult(racedByKey.get(), command);
                 }
-                log.info("[Judge] 제출 저장 경합 상태(attemptNo 추정) — 재시도 {}/{}. userId={}, problemId={}",
+                log.info("[Judge] 제출 저장 경합 상태 — 재시도 {}/{}. userId={}, problemId={}",
                         attempt, MAX_SAVE_RETRY, command.userId(), command.problemId());
-                continue;
             }
-            return SubmissionCreateResult.created(submission.getId(), submission.getStatus());
         }
         throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,
                 "동시 제출 경합으로 인해 접수에 실패했습니다. 다시 시도해주세요.");

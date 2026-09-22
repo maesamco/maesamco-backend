@@ -21,6 +21,15 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
             + "where s.userId = :userId and s.problemId = :problemId")
     int findMaxAttemptNoByUserIdAndProblemId(@Param("userId") UUID userId, @Param("problemId") UUID problemId);
 
+    /**
+     * (userId, problemId) 조합에 대한 PostgreSQL 트랜잭션 범위 advisory lock을 획득한다.
+     * attemptNo를 "조회 후 +1"로 산정하기 전에 호출해서 동시 요청 간 경합을 직렬화한다(#287).
+     * 이 메서드를 호출한 트랜잭션이 커밋/롤백되면 PostgreSQL이 자동으로 락을 해제하므로
+     * 별도의 unlock 호출은 필요 없다.
+     */
+    @Query(value = "select pg_advisory_xact_lock(hashtext(:userId), hashtext(:problemId))", nativeQuery = true)
+    void acquireAttemptNoLock(@Param("userId") String userId, @Param("problemId") String problemId);
+
     /** 재시도 스케줄러가 폴링 배치로 쓰는 조회 — 오래된 것부터 batchSize만큼. */
     List<Submission> findByStatusOrderBySubmittedAtAsc(SubmissionStatus status, Pageable pageable);
 

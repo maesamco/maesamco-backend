@@ -8,6 +8,7 @@ import static org.mockito.Mockito.*;
 
 import com.maesamco.judge.domain.entity.Submission;
 import com.maesamco.judge.domain.entity.SubmissionEventOutbox;
+import com.maesamco.judge.domain.entity.SubmissionLanguage;
 import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
 import java.util.UUID;
@@ -37,38 +38,50 @@ class SubmissionSaveExecutorTest {
     @org.mockito.InjectMocks
     private SubmissionSaveExecutor submissionSaveExecutor;
 
+    private final UUID userId = UUID.randomUUID();
+    private final UUID problemId = UUID.randomUUID();
+    private final UUID problemVersionId = UUID.randomUUID();
+
     @Test
-    @DisplayName("저장에 성공하면 Outbox도 함께 기록하고, 저장이 Outbox 기록보다 먼저 일어난다")
-    void savesSubmissionAndOutboxInOrder() {
+    @DisplayName("advisory lock을 먼저 획득한 뒤 attemptNo를 산정해 저장하고, Outbox도 함께 기록한다")
+    void acquiresLockThenComputesAttemptNoAndSavesWithOutbox() {
         // given
-        UUID submissionId = UUID.randomUUID();
-        Submission submission = mock(Submission.class);
-        given(submission.getId()).willReturn(submissionId);
+        given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(1);
 
         // when
-        submissionSaveExecutor.saveWithOutbox(submission);
+        Submission result = submissionSaveExecutor.createAndSave(
+                userId, problemId, problemVersionId, "public class Main {}", SubmissionLanguage.JAVA17, "idem-key");
 
-        // then
+        // then — 이전 max(1) 기준으로 다음 attemptNo(2)가 산정됐는지
+        assertThat(result.getAttemptNo()).isEqualTo(2);
+
+        // then — lock 획득 → attemptNo 조회 → 저장 → Outbox 기록 순서로 일어나는지
         InOrder inOrder = inOrder(submissionRepository, submissionEventOutboxRepository);
-        inOrder.verify(submissionRepository).saveAndFlush(submission);
+        inOrder.verify(submissionRepository).acquireAttemptNoLock(userId.toString(), problemId.toString());
+        inOrder.verify(submissionRepository).findMaxAttemptNoByUserIdAndProblemId(userId, problemId);
+        inOrder.verify(submissionRepository).saveAndFlush(result);
         inOrder.verify(submissionEventOutboxRepository).save(any(SubmissionEventOutbox.class));
 
         ArgumentCaptor<SubmissionEventOutbox> captor = ArgumentCaptor.forClass(SubmissionEventOutbox.class);
         verify(submissionEventOutboxRepository).save(captor.capture());
-        // payload(JSONB 문자열)에 submissionId가 실제로 직렬화됐는지 확인
-        assertThat(captor.getValue().getPayload()).contains(submissionId.toString());
+        // payload(JSONB 문자열)에 이벤트 타입이 실제로 직렬화됐는지 확인.
+        // (Submission.id는 Hibernate @UuidGenerator가 실제 persist 시점에 채우는 값이라,
+        // saveAndFlush가 mock인 이 단위테스트에서는 id 자체를 신뢰성 있게 검증할 수 없다.
+        // id가 payload에 실려 나가는지는 Testcontainers 기반 동시성 테스트에서 검증된다.)
+        assertThat(captor.getValue().getPayload()).contains("JudgeRequested");
     }
 
     @Test
     @DisplayName("저장이 실패하면 Outbox는 기록되지 않고 예외가 그대로 전파된다")
     void doesNotWriteOutboxWhenSaveFails() {
         // given
-        Submission submission = mock(Submission.class);
+        given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
         doThrow(new DataIntegrityViolationException("unique violation"))
-                .when(submissionRepository).saveAndFlush(submission);
+                .when(submissionRepository).saveAndFlush(any(Submission.class));
 
         // when / then
-        assertThatThrownBy(() -> submissionSaveExecutor.saveWithOutbox(submission))
+        assertThatThrownBy(() -> submissionSaveExecutor.createAndSave(
+                userId, problemId, problemVersionId, "code", SubmissionLanguage.JAVA17, "idem-key"))
                 .isInstanceOf(DataIntegrityViolationException.class);
         verify(submissionEventOutboxRepository, never()).save(any());
     }
