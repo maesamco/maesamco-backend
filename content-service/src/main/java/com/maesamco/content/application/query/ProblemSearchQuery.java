@@ -6,6 +6,8 @@ import com.maesamco.content.domain.repository.problem.ProblemSearchCondition;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.UUID;
+
 @Getter
 @AllArgsConstructor
 public class ProblemSearchQuery {
@@ -15,6 +17,7 @@ public class ProblemSearchQuery {
     private ProblemType type;
     private ProblemStatus problemStatus;
     private ProblemSource source;
+    private UUID lessonId;
 
     public void forcePublished() {
         this.problemStatus = ProblemStatus.PUBLISHED;
@@ -26,7 +29,8 @@ public class ProblemSearchQuery {
                 difficulty,
                 type,
                 source,
-                problemStatus
+                problemStatus,
+                lessonId
         );
     }
 }

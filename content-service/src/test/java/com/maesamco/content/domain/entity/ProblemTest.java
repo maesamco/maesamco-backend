@@ -6,6 +6,8 @@ import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -270,18 +272,61 @@ class ProblemTest {
     }
 
     @Test
-    @DisplayName("문제 상태를 DRAFT로 변경할 수 있다")
-    void setProblemStatusDraft_changesStatusToDraft() {
+    @DisplayName("이슈 #291 — 문제를 레슨에 연결할 수 있다")
+    void changeLessonId_assignsProblemToLesson() {
+        // given
+        Problem problem = createProblem();
+        UUID lessonId = UUID.randomUUID();
+
+        // when
+        problem.changeLessonId(lessonId);
+
+        // then
+        assertThat(problem.getLessonId()).isEqualTo(lessonId);
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨 연결을 null로 해제할 수 있다")
+    void changeLessonId_null_unassignsFromLesson() {
+        // given
+        Problem problem = createProblem();
+        problem.changeLessonId(UUID.randomUUID());
+
+        // when
+        problem.changeLessonId(null);
+
+        // then
+        assertThat(problem.getLessonId()).isNull();
+    }
+
+    @Test
+    @DisplayName("PUBLISHED 상태의 문제를 재발행을 위해 REVIEW_PENDING으로 되돌릴 수 있다")
+    void revertToReviewPendingForRepublish_changesPublishedToReviewPending() {
         // given
         Problem problem = createProblem();
         problem.requestPublicationReview();
+        problem.approvePublication();
 
         // when
-        problem.setProblemStatusDraft();
+        problem.revertToReviewPendingForRepublish();
 
         // then
         assertThat(problem.getProblemStatus())
-                .isEqualTo(ProblemStatus.DRAFT);
+                .isEqualTo(ProblemStatus.REVIEW_PENDING);
+    }
+
+    @Test
+    @DisplayName("PUBLISHED 상태가 아닌 문제는 재발행을 위해 되돌릴 수 없다")
+    void revertToReviewPendingForRepublish_throwsWhenNotPublished() {
+        // given
+        Problem problem = createProblem();
+        problem.requestPublicationReview(); // REVIEW_PENDING, 아직 PUBLISHED 아님
+
+        // when & then
+        assertThatThrownBy(problem::revertToReviewPendingForRepublish)
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
     }
 
     @Test

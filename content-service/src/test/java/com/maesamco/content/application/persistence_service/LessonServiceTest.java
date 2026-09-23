@@ -4,8 +4,12 @@ import com.maesamco.content.application.finder.LessonFinder;
 import com.maesamco.content.application.finder.UnitFinder;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.repository.LessonRepository;
+import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
+import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
@@ -13,6 +17,7 @@ import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
+import com.maesamco.content.presentation.response.TagResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -47,11 +52,18 @@ class LessonServiceTest {
     @Mock
     private UnitFinder unitFinder;
 
+    @Mock
+    private ProblemQueryRepository problemQueryRepository;
+
+    @Mock
+    private ProblemTagRepository problemTagRepository;
+
     private LessonService lessonService;
 
     @BeforeEach
     void setUp() {
-        lessonService = new LessonService(lessonRepository, lessonFinder, unitFinder);
+        lessonService = new LessonService(
+                lessonRepository, lessonFinder, unitFinder, problemQueryRepository, problemTagRepository);
     }
 
     @Nested
@@ -710,6 +722,77 @@ class LessonServiceTest {
 
             verify(lessonFinder).getById(lessonId);
             verifyNoInteractions(lessonRepository, unitFinder);
+        }
+    }
+
+    @Nested
+    @DisplayName("getLessonConcepts")
+    class GetLessonConcepts {
+
+        @Test
+        @DisplayName("이슈 #291 — 연결된 문제들의 CONCEPT 태그를 중복 없이 조회한다")
+        void getLessonConcepts_withConnectedProblems_returnsDistinctConceptTags() {
+            // given
+            UUID lessonId = UUID.randomUUID();
+            UUID problemId1 = UUID.randomUUID();
+            UUID problemId2 = UUID.randomUUID();
+
+            Tag stackTag = Tag.create("스택", TagAttribute.CONCEPT);
+            Tag queueTag = Tag.create("큐", TagAttribute.CONCEPT);
+
+            when(lessonFinder.getById(lessonId)).thenReturn(mock(Lesson.class));
+            when(problemQueryRepository.findProblemIdsByLessonId(lessonId))
+                    .thenReturn(List.of(problemId1, problemId2));
+            when(problemTagRepository.findDistinctTagsByProblemIdsAndAttribute(
+                    List.of(problemId1, problemId2), TagAttribute.CONCEPT))
+                    .thenReturn(List.of(stackTag, queueTag));
+
+            // when
+            List<TagResponse> result = lessonService.getLessonConcepts(lessonId);
+
+            // then
+            assertThat(result).hasSize(2);
+            assertThat(result).extracting(TagResponse::getName).containsExactly("스택", "큐");
+
+            verify(lessonFinder).getById(lessonId);
+            verify(problemQueryRepository).findProblemIdsByLessonId(lessonId);
+            verify(problemTagRepository)
+                    .findDistinctTagsByProblemIdsAndAttribute(List.of(problemId1, problemId2), TagAttribute.CONCEPT);
+        }
+
+        @Test
+        @DisplayName("이슈 #291 — 연결된 문제가 없으면 태그 조회 없이 빈 목록을 반환한다")
+        void getLessonConcepts_noConnectedProblems_returnsEmptyListWithoutTagQuery() {
+            // given
+            UUID lessonId = UUID.randomUUID();
+
+            when(lessonFinder.getById(lessonId)).thenReturn(mock(Lesson.class));
+            when(problemQueryRepository.findProblemIdsByLessonId(lessonId)).thenReturn(List.of());
+
+            // when
+            List<TagResponse> result = lessonService.getLessonConcepts(lessonId);
+
+            // then
+            assertThat(result).isEmpty();
+
+            verify(problemQueryRepository).findProblemIdsByLessonId(lessonId);
+            verifyNoInteractions(problemTagRepository);
+        }
+
+        @Test
+        @DisplayName("이슈 #291 — 존재하지 않는 레슨이면 예외를 그대로 전파한다")
+        void getLessonConcepts_lessonNotFound_propagatesException() {
+            // given
+            UUID lessonId = UUID.randomUUID();
+            BusinessException exception = new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+
+            when(lessonFinder.getById(lessonId)).thenThrow(exception);
+
+            // when & then
+            assertThatThrownBy(() -> lessonService.getLessonConcepts(lessonId))
+                    .isSameAs(exception);
+
+            verifyNoInteractions(problemQueryRepository, problemTagRepository);
         }
     }
 

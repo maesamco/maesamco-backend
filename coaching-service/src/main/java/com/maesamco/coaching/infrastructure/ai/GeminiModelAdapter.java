@@ -48,6 +48,19 @@ public class GeminiModelAdapter implements AiModelPort {
         } catch (RuntimeException e) {
             throw new AiModelCallException("Gemini 호출에 실패했습니다.", e);
         }
+
+        // 이슈 #262/#280(용현님 리뷰) — max-output-tokens를 늘리는 것만으로는 재발을 막지
+        // 못한다. finishReason을 확인하지 않으면, 출력 한도로 중간에 잘린 응답도 content만
+        // 그대로 뽑아서 정상 성공 응답으로 반환해버린다(원래 힌트 잘림 버그의 진짜 원인).
+        // MAX_TOKENS로 끝난 응답은 실패로 분류해서 Facade가 AI_GENERATION_FAILED로
+        // 처리하게 한다 — 잘린 내용이 정상 Hint/설명/피드백으로 저장되는 것을 막는다.
+        String finishReason = response.getResult().getMetadata().getFinishReason();
+        if ("MAX_TOKENS".equalsIgnoreCase(finishReason)) {
+            throw new AiModelCallException(
+                    "Gemini 응답이 출력 토큰 한도로 중간에 잘렸습니다(finishReason=MAX_TOKENS).",
+                    new IllegalStateException("finishReason=" + finishReason));
+        }
+
         String content = response.getResult().getOutput().getText();
         String modelName = response.getMetadata().getModel();
         Integer tokenUsage = response.getMetadata().getUsage() == null

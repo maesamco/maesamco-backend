@@ -26,6 +26,8 @@ public class ProblemResult {
     private final ProblemStatus problemStatus;
     private final Integer currentVersionNo;
     private final Long lockVersion;
+    /** 연결된 레슨 ID(이슈 #291). 아직 레슨에 배정되지 않았으면 null. */
+    private final UUID lessonId;
 
     public static ProblemResult from(Problem problem) {
         return new ProblemResult(
@@ -42,7 +44,8 @@ public class ProblemResult {
                 problem.getSource(),
                 problem.getProblemStatus(),
                 problem.getCurrentVersionNo(),
-                problem.getLockVersion()
+                problem.getLockVersion(),
+                problem.getLessonId()
         );
     }
 }

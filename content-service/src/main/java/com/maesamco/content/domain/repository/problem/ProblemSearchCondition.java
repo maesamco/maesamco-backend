@@ -8,6 +8,8 @@ import com.maesamco.content.domain.entity.problem.ProblemType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.UUID;
+
 /** 문제 Repository 검색 조건 */
 @Getter
 @AllArgsConstructor
@@ -18,4 +20,5 @@ public class ProblemSearchCondition {
     private final ProblemType type;
     private final ProblemSource source;
     private final ProblemStatus problemStatus;
+    private final UUID lessonId;
 }
