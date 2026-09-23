@@ -85,6 +85,13 @@ spring:
       fail-on-unknown-properties: true
 
 security:
+  social:
+    google:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID}
+
+    signup:
+      token-ttl: ${SOCIAL_SIGNUP_TOKEN_TTL:10m}
+
   email:
     encryption-key: ${EMAIL_ENCRYPTION_KEY}
     lookup-hmac-key: ${EMAIL_LOOKUP_HMAC_KEY}
