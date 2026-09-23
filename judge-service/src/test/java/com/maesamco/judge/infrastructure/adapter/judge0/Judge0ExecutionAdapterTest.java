@@ -95,6 +95,64 @@ class Judge0ExecutionAdapterTest {
             assertThat(body).contains("\"cpu_time_limit\":2.0");
             assertThat(body).contains("\"memory_limit\":256000");
         }
+
+        @Test
+        @DisplayName("#292 — 요청이 20건 초과(21건)이면 Judge0에 20건+1건, 두 번으로 나눠 보낸다")
+        void splitsRequestsExceedingJudge0BatchLimitIntoMultipleCalls() throws InterruptedException {
+            // given — 21건 요청, Judge0 배치 제한(20)을 하나 넘김
+            List<JudgeExecutionRequest> requests = java.util.stream.IntStream.range(0, 21)
+                    .mapToObj(i -> new JudgeExecutionRequest("public class Main {}", "1 2", "3", 2.0, 256000))
+                    .toList();
+
+            String firstChunkTokens = java.util.stream.IntStream.range(0, 20)
+                    .mapToObj(i -> "\"token\":\"tok-" + i + "\"")
+                    .map(t -> "{" + t + "}")
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody(firstChunkTokens));
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody("[{\"token\":\"tok-20\"}]"));
+
+            // when
+            List<String> tokens = adapter.submitBatch(requests);
+
+            // then — Judge0 호출이 정확히 2번 나가야 함(20 + 1), 전체 토큰은 21개 다 모여야 함
+            assertThat(server.getRequestCount()).isEqualTo(2);
+            assertThat(tokens).hasSize(21);
+            assertThat(tokens).doesNotContainNull();
+        }
+
+        @Test
+        @DisplayName("#293 P1 — 두 청크 중 하나가 실패해도, 성공한 청크의 토큰은 유실되지 않고 "
+                + "실패한 청크만 token=null로 채워진다(전체가 예외로 날아가지 않음)")
+        void partialChunkFailureDoesNotLoseSuccessfulChunkTokens() {
+            // given — 21건 요청 → 20건짜리 청크(성공) + 1건짜리 청크(실패, 500)
+            List<JudgeExecutionRequest> requests = java.util.stream.IntStream.range(0, 21)
+                    .mapToObj(i -> new JudgeExecutionRequest("public class Main {}", "1 2", "3", 2.0, 256000))
+                    .toList();
+
+            String firstChunkTokens = java.util.stream.IntStream.range(0, 20)
+                    .mapToObj(i -> "\"token\":\"tok-" + i + "\"")
+                    .map(t -> "{" + t + "}")
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody(firstChunkTokens));
+            server.enqueue(new MockResponse().setResponseCode(500)); // 두 번째 청크(1건)는 실패
+
+            // when
+            List<String> tokens = adapter.submitBatch(requests);
+
+            // then — 21개 전부 반환되되, 앞 20개는 성공 토큰, 마지막 1개만 null
+            assertThat(tokens).hasSize(21);
+            assertThat(tokens.subList(0, 20)).doesNotContainNull();
+            assertThat(tokens.get(20)).isNull();
+        }
     }
 
     @Nested
@@ -152,6 +210,63 @@ class Judge0ExecutionAdapterTest {
                     .filter(r -> r.token().equals("tok-bad")).findFirst().orElseThrow();
             assertThat(bad.status()).isEqualTo(com.maesamco.judge.application.port.JudgeExecutionStatus.INTERNAL_ERROR);
             assertThat(bad.stdout()).isNull();
+        }
+
+        @Test
+        @DisplayName("#292 — 토큰이 20건 초과(21건)이면 Judge0에 두 번(20건+1건)으로 나눠 조회한다")
+        void splitsTokensExceedingJudge0BatchLimitIntoMultipleCalls() {
+            // given — 21개 토큰
+            List<String> tokens = java.util.stream.IntStream.range(0, 21)
+                    .mapToObj(i -> "tok-" + i)
+                    .toList();
+
+            String firstChunkBody = "{\"submissions\":" + java.util.stream.IntStream.range(0, 20)
+                    .mapToObj(i -> "{\"token\":\"tok-" + i + "\",\"stdout\":null,\"stderr\":null,"
+                            + "\"compile_output\":null,\"message\":null,\"time\":null,\"memory\":null,"
+                            + "\"status\":{\"id\":3,\"description\":\"Accepted\"}}")
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]")) + "}";
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody(firstChunkBody));
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody("{\"submissions\":[{\"token\":\"tok-20\",\"stdout\":null,\"stderr\":null,"
+                            + "\"compile_output\":null,\"message\":null,\"time\":null,\"memory\":null,"
+                            + "\"status\":{\"id\":3,\"description\":\"Accepted\"}}]}"));
+
+            // when
+            List<JudgeExecutionResult> results = adapter.fetchResults(tokens);
+
+            // then — Judge0 호출이 정확히 2번, 전체 21건 결과가 다 모여야 함
+            assertThat(server.getRequestCount()).isEqualTo(2);
+            assertThat(results).hasSize(21);
+        }
+
+        @Test
+        @DisplayName("#292 — 한 청크 조회가 네트워크 오류로 실패해도 다른 청크 결과는 정상 반환된다")
+        void continuesOtherChunksWhenOneChunkFetchFails() {
+            // given — 21개 토큰, 첫 청크(20건)는 실패(500), 두 번째 청크(1건)는 성공
+            List<String> tokens = java.util.stream.IntStream.range(0, 21)
+                    .mapToObj(i -> "tok-" + i)
+                    .toList();
+
+            server.enqueue(new MockResponse().setResponseCode(500));
+            server.enqueue(new MockResponse()
+                    .setResponseCode(200)
+                    .addHeader("Content-Type", "application/json")
+                    .setBody("{\"submissions\":[{\"token\":\"tok-20\",\"stdout\":null,\"stderr\":null,"
+                            + "\"compile_output\":null,\"message\":null,\"time\":null,\"memory\":null,"
+                            + "\"status\":{\"id\":3,\"description\":\"Accepted\"}}]}"));
+
+            // when
+            List<JudgeExecutionResult> results = adapter.fetchResults(tokens);
+
+            // then — 실패한 청크(20건)는 결과에서 빠지고, 성공한 청크(1건)만 반환됨
+            // (예외로 전체가 죽지 않고, 실패 청크만 건너뛰고 계속 진행됨)
+            assertThat(results).hasSize(1);
+            assertThat(results.get(0).token()).isEqualTo("tok-20");
         }
     }
 }
