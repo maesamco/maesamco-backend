@@ -99,6 +99,14 @@ judge0:
 judge:
   polling:
     batch-size: 100
+  # ⚠️ #292 — Judge0의 배치 크기 제한(judge0.conf MAX_SUBMISSION_BATCH_SIZE,
+  # 기본 20)과 반드시 일치해야 한다. polling.batch-size(위, DB에서 한 번에
+  # 가져올 개수)와는 별개로 "Judge0에 한 번의 HTTP 호출로 보낼 개수"를
+  # 제한한다(Judge0ExecutionAdapter가 내부적으로 청크 분할). 예전엔 이 제한이
+  # 없어 polling.batch-size(100)를 그대로 Judge0에 한 번에 요청했고,
+  # Judge0가 20건 넘는 요청을 400으로 거부하면서 채점 결과 반영이
+  # 영구 정지되는 버그가 있었다.
+  max-batch-size: 20
   retry:
     fixed-delay-ms: 10000
     batch-size: 100
