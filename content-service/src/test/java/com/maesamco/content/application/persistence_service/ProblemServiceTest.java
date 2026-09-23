@@ -317,6 +317,11 @@ class ProblemServiceTest {
                         UpdateField.undefined()
                 );
 
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
         // when
         ProblemResult result =
                 problemService.updateProblem(
@@ -380,6 +385,11 @@ class ProblemServiceTest {
         when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
         when(command.getStarterCode()).thenReturn(UpdateField.undefined());
 
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
         // when
         problemService.updateProblem(problemId, command);
 
@@ -403,6 +413,11 @@ class ProblemServiceTest {
         when(command.getLockVersion()).thenReturn(0L);
         when(command.getTitle()).thenReturn("제목만 변경");
         when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
 
         // when
         problemService.updateProblem(problemId, command);
@@ -428,6 +443,11 @@ class ProblemServiceTest {
         when(command.getLockVersion()).thenReturn(0L);
         when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
         when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
 
         // when
         problemService.updateProblem(problemId, command);
@@ -461,6 +481,11 @@ class ProblemServiceTest {
 
         // 요청에 starterCode 필드 자체가 없는 경우
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );
@@ -506,6 +531,11 @@ class ProblemServiceTest {
         when(command.getStarterCode())
                 .thenReturn(
                         UpdateField.of(null)
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -555,6 +585,11 @@ class ProblemServiceTest {
                         UpdateField.of(
                                 "public class UpdatedMain {}"
                         )
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -658,6 +693,11 @@ class ProblemServiceTest {
                 .thenReturn("동시 수정");
 
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );

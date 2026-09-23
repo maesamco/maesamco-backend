@@ -5,6 +5,8 @@ import com.maesamco.content.domain.entity.problem.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.UUID;
+
 @Getter
 @AllArgsConstructor
 public class ProblemCreateCommand {
@@ -19,4 +21,6 @@ public class ProblemCreateCommand {
     private RunningMemoryLimit runningMemoryLimit;
     private TimerPolicy timerPolicy;
     private ProblemSource source;
+    /** 연결할 레슨 ID(이슈 #291). 아직 레슨에 배정하지 않으려면 null. */
+    private UUID lessonId;
 }

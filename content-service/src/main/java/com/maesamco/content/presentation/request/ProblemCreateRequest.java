@@ -63,6 +63,9 @@ public class ProblemCreateRequest {
     @NotNull
     private ProblemSource source;
 
+    /** 생성 시점에 바로 연결할 레슨 ID(선택, 이슈 #291) */
+    private UUID lessonId;
+
     public ProblemCreateCommand toCommand() {
         return new ProblemCreateCommand(
                 title,
@@ -74,7 +77,8 @@ public class ProblemCreateRequest {
                 runningTimeLimit,
                 runningMemoryLimit,
                 timerPolicy,
-                source
+                source,
+                lessonId
         );
     }
 }

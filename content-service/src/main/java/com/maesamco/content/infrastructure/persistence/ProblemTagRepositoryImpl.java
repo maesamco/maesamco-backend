@@ -1,6 +1,7 @@
 package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,5 +63,15 @@ public class ProblemTagRepositoryImpl implements ProblemTagRepository {
     public List<Tag> findAllTagsByProblemId(UUID problemId) {
         return springDataProblemTagRepository
                 .findAllTagsByProblemId(problemId);
+    }
+
+    @Override
+    public List<Tag> findDistinctTagsByProblemIdsAndAttribute(Collection<UUID> problemIds, TagAttribute attribute) {
+        if (problemIds.isEmpty()) {
+            return List.of();
+        }
+
+        return springDataProblemTagRepository
+                .findDistinctTagsByProblemIdsAndAttribute(problemIds, attribute);
     }
 }
