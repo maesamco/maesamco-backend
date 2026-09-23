@@ -287,6 +287,115 @@ class ProblemPublicationFacadeTest {
         verify(problemPublishedEventPort).record(any(ProblemPublishedEventData.class));
     }
 
+    @Test
+    @DisplayName("이슈 #253 — PUBLISHED 문제를 재발행을 위해 REVIEW_PENDING으로 되돌린다")
+    void revertToReviewPendingForRepublish_success_changesPublishedToReviewPending() {
+        // given
+        Problem problem = createPublishedProblem();
+
+        ReflectionTestUtils.setField(problem, "id", problemId);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+
+        // when
+        problemPublicationFacade.revertToReviewPendingForRepublish(problemId);
+
+        // then
+        assertThat(problem.getProblemStatus()).isEqualTo(ProblemStatus.REVIEW_PENDING);
+        verify(problemFinder).lockById(problemId);
+        verifyNoInteractions(testCaseFinder, problemVersionRepository, problemPublishedEventPort);
+    }
+
+    @Test
+    @DisplayName("이슈 #253 — PUBLISHED 상태가 아닌 문제는 재발행을 위해 되돌릴 수 없다")
+    void revertToReviewPendingForRepublish_notPublished_throwsException() {
+        // given
+        Problem problem = createReviewPendingProblem();
+
+        ReflectionTestUtils.setField(problem, "id", problemId);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+
+        // when & then
+        assertThatThrownBy(() -> problemPublicationFacade.revertToReviewPendingForRepublish(problemId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
+
+        assertThat(problem.getProblemStatus()).isEqualTo(ProblemStatus.REVIEW_PENDING);
+        verifyNoInteractions(testCaseFinder, problemVersionRepository, problemPublishedEventPort);
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED 문제의 재발행 시 새 ProblemVersion을 저장하고 발행 이벤트를 기록한다")
+    void republishExistingVersion_success_savesVersionAndRecordsEvent() {
+        // given
+        UUID problemVersionId = UUID.randomUUID();
+
+        Problem problem = createPublishedProblem();
+        ReflectionTestUtils.setField(problem, "id", problemId);
+
+        TestCase testCase = createApprovedTestCase(problemId);
+
+        when(testCaseFinder.findApprovedTestCases(problemId)).thenReturn(List.of(testCase));
+        when(problemVersionRepository.save(any(ProblemVersion.class))).thenAnswer(invocation -> {
+            ProblemVersion version = invocation.getArgument(0);
+            ReflectionTestUtils.setField(version, "id", problemVersionId);
+            return version;
+        });
+
+        // when
+        problemPublicationFacade.republishExistingVersion(problem);
+
+        // then
+        assertThat(problem.getProblemStatus()).isEqualTo(ProblemStatus.PUBLISHED);
+
+        ArgumentCaptor<ProblemVersion> versionCaptor = ArgumentCaptor.forClass(ProblemVersion.class);
+        verify(problemVersionRepository).save(versionCaptor.capture());
+        assertThat(versionCaptor.getValue().getId()).isEqualTo(problemVersionId);
+
+        ArgumentCaptor<ProblemPublishedEventData> eventCaptor = ArgumentCaptor.forClass(ProblemPublishedEventData.class);
+        verify(problemPublishedEventPort).record(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().problemVersionId()).isEqualTo(problemVersionId);
+
+        // 상태 전환 메서드가 아니므로 락 재조회는 발생하지 않는다(호출자가 이미 조회한 problem을 그대로 사용).
+        verifyNoInteractions(problemFinder);
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED 상태가 아닌 문제는 재발행할 수 없다")
+    void republishExistingVersion_notPublished_throwsException() {
+        // given
+        Problem problem = createReviewPendingProblem();
+        ReflectionTestUtils.setField(problem, "id", problemId);
+
+        // when & then
+        assertThatThrownBy(() -> problemPublicationFacade.republishExistingVersion(problem))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
+
+        verifyNoInteractions(testCaseFinder, problemVersionRepository, problemPublishedEventPort);
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — 승인된 테스트케이스가 없는 PUBLISHED 문제는 재발행할 수 없다")
+    void republishExistingVersion_noApprovedTestCases_throwsException() {
+        // given
+        Problem problem = createPublishedProblem();
+        ReflectionTestUtils.setField(problem, "id", problemId);
+
+        when(testCaseFinder.findApprovedTestCases(problemId)).thenReturn(List.of());
+
+        // when & then
+        assertThatThrownBy(() -> problemPublicationFacade.republishExistingVersion(problem))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PROBLEM_PUBLICATION_TEST_CASE_REQUIRED);
+
+        verifyNoInteractions(problemVersionRepository, problemPublishedEventPort);
+    }
+
     private Problem createReviewPendingProblem() {
         return Problem.create(
                 "두 수 더하기",
@@ -306,6 +415,28 @@ class ProblemPublicationFacadeTest {
                 TimerPolicy.APPLY60,
                 ProblemSource.HUMAN_AUTHORED,
                 ProblemStatus.REVIEW_PENDING
+        );
+    }
+
+    private Problem createPublishedProblem() {
+        return Problem.create(
+                "두 수 더하기",
+                ProgrammingLanguage.JAVA,
+                ProblemDifficulty.EASY,
+                ProblemType.CODE,
+                "두 정수를 입력받아 합을 반환하세요.",
+                """
+                public class Solution {
+                    public int solution(int a, int b) {
+                        return 0;
+                    }
+                }
+                """,
+                RunningTimeLimit.SECOND_2,
+                RunningMemoryLimit.MB_256,
+                TimerPolicy.APPLY60,
+                ProblemSource.HUMAN_AUTHORED,
+                ProblemStatus.PUBLISHED
         );
     }
 
