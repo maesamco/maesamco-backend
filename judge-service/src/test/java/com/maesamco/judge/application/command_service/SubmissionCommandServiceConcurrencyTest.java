@@ -20,6 +20,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import com.maesamco.judge.global.exception.BusinessException;
+import com.maesamco.judge.global.exception.ErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -132,5 +135,71 @@ class SubmissionCommandServiceConcurrencyTest {
         assertThat(saved).extracting(Submission::getAttemptNo).containsExactlyInAnyOrder(1, 2);
         assertThat(submissionEventOutboxRepository.findAll()).hasSize(2);
         assertThat(results).extracting(SubmissionCreateResult::submissionId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void concurrentSubmissionsWithSameIdempotencyKeyDifferentBodyReturnConsistentResult() throws InterruptedException {
+        // given — 같은 Idempotency-Key, 다른 code(body)로 두 요청이 동시에 들어온다
+        String sharedIdempotencyKey = "shared-idem-key";
+        CountDownLatch readyLatch = new CountDownLatch(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        List<Object> outcomes; // 성공 결과 또는 발생한 예외를 그대로 담는다
+
+        try (ExecutorService executorService = Executors.newFixedThreadPool(2)) {
+            List<Future<Object>> futures = List.of(
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+                        try {
+                            return submissionCommandService.submit(new SubmissionCreateCommand(
+                                    userId, sharedIdempotencyKey, problemId, "public class Main { /* A */ }", "JAVA17"));
+                        } catch (Exception e) {
+                            return e;
+                        }
+                    }),
+                    executorService.submit(() -> {
+                        readyLatch.countDown();
+                        startLatch.await();
+                        try {
+                            return submissionCommandService.submit(new SubmissionCreateCommand(
+                                    userId, sharedIdempotencyKey, problemId, "public class Main { /* B */ }", "JAVA17"));
+                        } catch (Exception e) {
+                            return e;
+                        }
+                    })
+            );
+
+            boolean bothReady = readyLatch.await(5, TimeUnit.SECONDS);
+            assertThat(bothReady).as("두 스레드가 제시간 안에 준비되지 못했다").isTrue();
+            startLatch.countDown();
+
+            outcomes = futures.stream()
+                    .map(f -> {
+                        try {
+                            return f.get(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException("테스트 스레드가 인터럽트됨", e);
+                        } catch (ExecutionException | TimeoutException e) {
+                            throw new IllegalStateException("제출 처리 중 예외 발생", e);
+                        }
+                    })
+                    .toList();
+        }
+
+        // then — DB에는 idempotency_key 유니크 제약 덕분에 정확히 1건만 저장돼야 한다
+        List<Submission> saved = submissionRepository.findAll();
+        assertThat(saved).hasSize(1);
+        assertThat(saved.getFirst().getIdempotencyKey()).isEqualTo(sharedIdempotencyKey);
+
+        // then — 나머지 한 쪽은 반드시 IDEMPOTENCY_KEY_CONFLICT(409)여야 한다. INTERNAL_SERVER_ERROR면 버그.
+        long successCount = outcomes.stream().filter(o -> o instanceof SubmissionCreateResult).count();
+        long conflictCount = outcomes.stream()
+                .filter(o -> o instanceof BusinessException be && be.getErrorCode() == ErrorCode.IDEMPOTENCY_KEY_CONFLICT)
+                .count();
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(conflictCount).isEqualTo(1);
     }
 }
