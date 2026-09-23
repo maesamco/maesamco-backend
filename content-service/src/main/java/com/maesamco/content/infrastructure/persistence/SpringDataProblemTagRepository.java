@@ -28,18 +28,26 @@ interface SpringDataProblemTagRepository extends JpaRepository<ProblemTag, UUID>
     /** 특정 태그를 참조하는 모든 문제-태그 연결 삭제 */
     void deleteAllByTagId(UUID tagId);
 
-    /** 특정 문제의 태그 목록을 createdAt, id 내림차순으로 페이지 조회 */
+    /**
+     * 특정 문제의 태그 목록을 createdAt, id 내림차순으로 페이지 조회한다.
+     *
+     * <p>이슈 #307 — {@code Pageable}에 담긴 동적 Sort는 Spring Data가 FROM 절의
+     * 첫 번째 별칭에 붙인다. {@code ProblemTag}를 먼저 쓰면(comma-FROM) 정렬 대상이
+     * 아닌 {@code ProblemTag}(BaseEntity 미상속, createdAt 없음) 기준으로 정렬을
+     * 시도해 500으로 이어진다 — SELECT 대상인 {@code Tag}를 FROM 절 첫 번째로 둬서
+     * 동적 Sort가 항상 {@code Tag}를 기준으로 해석되게 한다.</p>
+     */
     @Query(
             value = """
                     select tag
-                    from ProblemTag problemTag, Tag tag
+                    from Tag tag, ProblemTag problemTag
                     where problemTag.tagId = tag.id
                       and problemTag.problemId = :problemId
                     order by tag.createdAt desc, tag.id desc
                     """,
             countQuery = """
                     select count(problemTag)
-                    from ProblemTag problemTag, Tag tag
+                    from Tag tag, ProblemTag problemTag
                     where problemTag.tagId = tag.id
                       and problemTag.problemId = :problemId
                     """
