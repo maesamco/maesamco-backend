@@ -10,12 +10,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -28,7 +22,6 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/problems/{problemId}/tags")
 public class ProblemTagController implements ProblemTagApiDocs {
 
     private final ProblemTagService problemTagService;
@@ -42,19 +35,12 @@ public class ProblemTagController implements ProblemTagApiDocs {
      * @return 문제에 등록된 태그 목록
      */
     @Override
-    @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getProblemTags(
-            @PathVariable UUID problemId,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
+            UUID problemId,
+            Integer page,
+            Integer size
     ) {
-        Pageable pageable =
-                PageableFactory.of(
-                        page,
-                        size,
-                        null,
-                        null
-                );
+        Pageable pageable = PageableFactory.of(page, size, null, null);
 
         PageResponse<TagResponse> response =
                 problemTagService.searchProblemTags(
@@ -75,16 +61,9 @@ public class ProblemTagController implements ProblemTagApiDocs {
      * @return 데이터가 없는 성공 응답
      */
     @Override
-    @PostMapping("/{tagId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SuccessResponse<Void>> addTagToProblem(
-            @PathVariable UUID problemId,
-            @PathVariable UUID tagId
-    ) {
-        problemTagService.addTagToProblem(
-                problemId,
-                tagId
-        );
+    public ResponseEntity<SuccessResponse<Void>> addTagToProblem(UUID problemId, UUID tagId) {
+        problemTagService.addTagToProblem(problemId, tagId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -99,16 +78,9 @@ public class ProblemTagController implements ProblemTagApiDocs {
      * @return 데이터가 없는 성공 응답
      */
     @Override
-    @DeleteMapping("/{tagId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(
-            @PathVariable UUID problemId,
-            @PathVariable UUID tagId
-    ) {
-        problemTagService.removeTagFromProblem(
-                problemId,
-                tagId
-        );
+    public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(UUID problemId, UUID tagId) {
+        problemTagService.removeTagFromProblem(problemId, tagId);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

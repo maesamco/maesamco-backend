@@ -10,56 +10,47 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-/**
- * ProblemProgress API Swagger 문서입니다.
- *
- * <p>현재 인증된 사용자의 문제 풀이 진행 이력을 조회하는
- * API 명세를 제공합니다.</p>
- */
+@Controller
+@RequestMapping("/api/v1/contents/problem-progress")
+@Tag(name = "Problem Progress", description = "사용자 문제 풀이 진행 이력 조회 API")
+@SecurityRequirement(name = "bearerAuth")
 public interface ProblemProgressApiDocs {
 
+    @GetMapping
     @Operation(
             summary = "내 문제 풀이 이력 목록 조회",
-            description = """
-                    현재 인증된 사용자의 문제 풀이 이력을 페이징하여 조회합니다.
-
-                    progressStatus를 전달하지 않으면 전체 풀이 이력을 조회하고,
-                    progressStatus를 전달하면 해당 상태의 풀이 이력만 조회합니다.
-
-                    조회 결과는 최근 생성된 이력부터 반환됩니다.
-                    page와 size를 생략하면 기본 페이징 값이 적용됩니다.
-
-                    인증된 사용자만 요청할 수 있으며,
-                    다른 사용자의 풀이 이력은 조회할 수 없습니다.
-                    """
+            description = "현재 인증된 사용자의 문제 풀이 이력을 페이징하여 조회합니다. "
+                    + "progressStatus를 생략하면 전체 이력을 조회하고 전달하면 해당 상태의 이력만 조회합니다. "
+                    + "조회 결과는 최근 생성된 이력부터 반환되며 다른 사용자의 이력은 조회할 수 없습니다."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "문제 풀이 이력 목록 조회 성공"
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "풀이 상태 또는 페이징 요청 값이 올바르지 않음"
-            )
+            @ApiResponse(responseCode = "200", description = "문제 풀이 이력 목록 조회 성공"),
+            @ApiResponse(responseCode = "400", description = "풀이 상태 또는 페이징 요청 값이 올바르지 않음"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청")
     })
     ResponseEntity<SuccessResponse<PageResponse<ProblemProgressResponse>>> getProblemProgresses(
             @Parameter(hidden = true)
-            UUID userId,
+            @AuthenticationPrincipal UUID userId,
 
             @Parameter(
                     name = "progressStatus",
-                    description = """
-                            조회할 문제 풀이 상태입니다.
-                            생략하면 현재 사용자의 전체 풀이 이력을 조회합니다.
-                            """,
+                    description = "조회할 문제 풀이 상태이며 생략하면 전체 풀이 이력을 조회합니다.",
                     in = ParameterIn.QUERY
             )
-            ProblemProgressStatus progressStatus,
+            @RequestParam(required = false) ProblemProgressStatus progressStatus,
 
             @Parameter(
                     name = "page",
@@ -71,7 +62,7 @@ public interface ProblemProgressApiDocs {
                             minimum = "0"
                     )
             )
-            Integer page,
+            @RequestParam(required = false) Integer page,
 
             @Parameter(
                     name = "size",
@@ -84,43 +75,26 @@ public interface ProblemProgressApiDocs {
                             maximum = "100"
                     )
             )
-            Integer size
+            @RequestParam(required = false) Integer size
     );
 
+    @GetMapping("/{problemId}")
     @Operation(
             summary = "특정 문제의 내 풀이 이력 조회",
-            description = """
-                    현재 인증된 사용자의 특정 문제에 대한 풀이 이력을 조회합니다.
-
-                    현재 로그인한 사용자 ID와 문제 ID를 함께 사용해
-                    해당 사용자의 풀이 진행 이력을 조회합니다.
-
-                    사용자가 해당 문제를 한 번도 풀이하지 않은 경우
-                    풀이 이력을 조회할 수 없습니다.
-
-                    인증된 사용자만 요청할 수 있으며,
-                    다른 사용자의 풀이 이력은 조회할 수 없습니다.
-                    """
+            description = "현재 인증된 사용자의 특정 문제에 대한 풀이 이력을 조회합니다. "
+                    + "현재 사용자 ID와 문제 ID를 기준으로 조회하며 다른 사용자의 이력은 조회할 수 없습니다. "
+                    + "해당 문제를 한 번도 풀이하지 않은 경우 풀이 이력을 조회할 수 없습니다."
     )
     @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "문제 풀이 이력 조회 성공"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "해당 문제에 대한 사용자의 풀이 이력을 찾을 수 없음"
-            )
+            @ApiResponse(responseCode = "200", description = "문제 풀이 이력 조회 성공"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
+            @ApiResponse(responseCode = "404", description = "해당 문제에 대한 사용자의 풀이 이력을 찾을 수 없음")
     })
     ResponseEntity<SuccessResponse<ProblemProgressResponse>> getProblemProgress(
-            @Parameter(
-                    description = "풀이 이력을 조회할 문제 ID",
-                    required = true,
-                    example = "550e8400-e29b-41d4-a716-446655440000"
-            )
-            UUID problemId,
+            @Parameter(description = "풀이 이력을 조회할 문제 ID")
+            @PathVariable UUID problemId,
 
             @Parameter(hidden = true)
-            UUID userId
+            @AuthenticationPrincipal UUID userId
     );
 }

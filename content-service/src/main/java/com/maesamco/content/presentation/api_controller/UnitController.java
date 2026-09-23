@@ -8,14 +8,12 @@ import com.maesamco.content.presentation.request.UnitCreateRequest;
 import com.maesamco.content.presentation.request.UnitUpdateRequest;
 import com.maesamco.content.presentation.response.UnitCreateResponse;
 import com.maesamco.content.presentation.response.UnitResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -30,7 +28,6 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/units")
 public class UnitController implements UnitApiDocs {
 
     /** 유닛 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
@@ -47,10 +44,7 @@ public class UnitController implements UnitApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<SuccessResponse<UnitCreateResponse>> createUnit(
-            @Valid @RequestBody UnitCreateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<UnitCreateResponse>> createUnit(UnitCreateRequest request) {
         UnitCreateResponse response = unitService.createUnit(request);
 
         return ResponseEntity
@@ -69,10 +63,7 @@ public class UnitController implements UnitApiDocs {
      */
     @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{unitId}")
-    public ResponseEntity<SuccessResponse<UnitResponse>> getUnit(
-            @PathVariable UUID unitId
-    ) {
+    public ResponseEntity<SuccessResponse<UnitResponse>> getUnit(UUID unitId) {
         UnitResponse response = unitService.getUnit(unitId);
 
         return ResponseEntity.ok(
@@ -96,11 +87,10 @@ public class UnitController implements UnitApiDocs {
      */
     @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<UnitResponse>>> getUnits(
-            @RequestParam UUID curriculumId,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
+            UUID curriculumId,
+            Integer page,
+            Integer size
     ) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
 
@@ -128,11 +118,7 @@ public class UnitController implements UnitApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/{unitId}")
-    public ResponseEntity<SuccessResponse<UnitResponse>> updateUnit(
-            @PathVariable UUID unitId,
-            @Valid @RequestBody UnitUpdateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<UnitResponse>> updateUnit(UUID unitId, UnitUpdateRequest request) {
         UnitResponse response = unitService.updateUnit(unitId, request);
 
         return ResponseEntity.ok(
@@ -155,11 +141,7 @@ public class UnitController implements UnitApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{unitId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteUnit(
-            @PathVariable UUID unitId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteUnit(UUID unitId, UUID userId) {
         unitService.deleteUnit(unitId, userId);
 
         return ResponseEntity.ok(

@@ -9,21 +9,11 @@ import com.maesamco.content.presentation.request.TagCreateRequest;
 import com.maesamco.content.presentation.request.TagUpdateRequest;
 import com.maesamco.content.presentation.response.TagCreateResponse;
 import com.maesamco.content.presentation.response.TagResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -36,7 +26,6 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1")
 public class TagController implements TagApiDocs {
 
     private final TagService tagService;
@@ -46,9 +35,8 @@ public class TagController implements TagApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/admin/contents/tags")
     public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
-            @Valid @RequestBody TagCreateRequest request
+            TagCreateRequest request
     ) {
         TagCreateResponse response = tagService.createTag(request);
 
@@ -63,15 +51,9 @@ public class TagController implements TagApiDocs {
      * 태그 목록을 조회합니다.
      */
     @Override
-    @GetMapping("/contents/tags")
     public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getTags(
-            @RequestParam(required = false)
             TagAttribute attribute,
-
-            @RequestParam(required = false)
             Integer page,
-
-            @RequestParam(required = false)
             Integer size
     ) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
@@ -94,11 +76,7 @@ public class TagController implements TagApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/admin/contents/tags/{tagId}")
-    public ResponseEntity<SuccessResponse<Void>> updateTag(
-            @PathVariable UUID tagId,
-            @Valid @RequestBody TagUpdateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> updateTag(UUID tagId, TagUpdateRequest request) {
         tagService.updateTag(tagId, request);
 
         return ResponseEntity.ok(
@@ -115,11 +93,7 @@ public class TagController implements TagApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/admin/contents/tags/{tagId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteTag(
-            @PathVariable UUID tagId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteTag(UUID tagId, UUID userId) {
         tagService.deleteTag(tagId, userId);
 
         return ResponseEntity.ok(

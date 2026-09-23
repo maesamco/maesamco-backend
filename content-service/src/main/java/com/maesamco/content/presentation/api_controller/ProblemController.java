@@ -13,15 +13,13 @@ import com.maesamco.content.presentation.response.ProblemCreateResponse;
 import com.maesamco.content.presentation.response.ProblemResponse;
 import com.maesamco.content.presentation.response.ProblemSearchItemResponse;
 import com.maesamco.content.presentation.response.ProblemShortResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -36,7 +34,6 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/problems")
 public class ProblemController implements ProblemApiDocs {
 
     /** 문제 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
@@ -53,16 +50,13 @@ public class ProblemController implements ProblemApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
-            @Valid @RequestBody ProblemCreateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(ProblemCreateRequest request) {
         ProblemResult result = problemService.createProblem(request.toCommand());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED) // 201 Created
                 .body(SuccessResponse.success(
-                        ProblemCreateResponse.from(result)
+                                ProblemCreateResponse.from(result)
                         )
                 );
     }
@@ -79,10 +73,7 @@ public class ProblemController implements ProblemApiDocs {
     // 정확한 정보는 관리자만이 조회할 수 있다.
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/admin/{problemId}")
-    public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(
-            @PathVariable UUID problemId
-    ) {
+    public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(UUID problemId) {
         ProblemResult result = problemService.getProblemForAdmin(problemId);
 
         return ResponseEntity.ok(
@@ -93,10 +84,7 @@ public class ProblemController implements ProblemApiDocs {
     }
     // 모든 사용자는 문제의 간단 정보를 조회할 수 있다.
     @Override
-    @GetMapping("/{problemId}")
-    public ResponseEntity<SuccessResponse<ProblemShortResponse>> getProblemShort(
-            @PathVariable UUID problemId
-    ) {
+    public ResponseEntity<SuccessResponse<ProblemShortResponse>> getProblemShort(UUID problemId) {
         ProblemResult result =
                 problemService.getProblemForUser(problemId);
 
@@ -124,13 +112,12 @@ public class ProblemController implements ProblemApiDocs {
      * @return 검색 조건에 해당하는 페이징된 문제 목록
      */
     @Override
-    @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<ProblemSearchItemResponse>>> getProblems(
-            @Valid @ModelAttribute ProblemSearchRequest request,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String direction
+            ProblemSearchRequest request,
+            Integer page,
+            Integer size,
+            String sort,
+            String direction
     ) {
         Pageable pageable = PageableFactory.of(page, size, sort, direction);
 
@@ -146,19 +133,19 @@ public class ProblemController implements ProblemApiDocs {
     }
 
     /*
-    * 다중 정렬은
-    * @RequestParam(required = false) Integer page,
-    * @RequestParam(required = false) Integer size,
-    * @RequestParam(required = false) List<String> sort
-    * 로 Controller에서 받고, 요청은
-    * ?page=0
-    * &size=20
-    * &sort=title,asc
-    * &sort=createdAt,desc
-    * 와 같은 식의 예시처럼 받기로 약속한다.
-    * 그리고 List<String> sort의 경우, PageableFactory에서 약속한 sort 리스트의 구분자로 파싱해서 Sort.Order로 바꾼다.
-    * 이에 대해 다중 정렬에 대한 구현은 ProblemSearchRepositoryImpl에 미리 해놓았다.
-    * */
+     * 다중 정렬은
+     * @RequestParam(required = false) Integer page,
+     * @RequestParam(required = false) Integer size,
+     * @RequestParam(required = false) List<String> sort
+     * 로 Controller에서 받고, 요청은
+     * ?page=0
+     * &size=20
+     * &sort=title,asc
+     * &sort=createdAt,desc
+     * 와 같은 식의 예시처럼 받기로 약속한다.
+     * 그리고 List<String> sort의 경우, PageableFactory에서 약속한 sort 리스트의 구분자로 파싱해서 Sort.Order로 바꾼다.
+     * 이에 대해 다중 정렬에 대한 구현은 ProblemSearchRepositoryImpl에 미리 해놓았다.
+     * */
 
     /**
      * 지정한 문제의 정보를 수정합니다.
@@ -175,11 +162,7 @@ public class ProblemController implements ProblemApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/{problemId}")
-    public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(
-            @PathVariable UUID problemId,
-            @Valid @RequestBody ProblemUpdateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(UUID problemId, ProblemUpdateRequest request) {
         ProblemResult result = problemService.updateProblem(problemId, request.toCommand());
 
         return ResponseEntity.ok(
@@ -204,11 +187,7 @@ public class ProblemController implements ProblemApiDocs {
      */
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{problemId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteProblem(
-            @PathVariable UUID problemId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteProblem(UUID problemId, UUID userId) {
         problemService.deleteProblem(problemId, userId);
 
         return ResponseEntity.ok(
