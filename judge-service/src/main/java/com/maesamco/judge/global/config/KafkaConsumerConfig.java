@@ -61,6 +61,11 @@ public class KafkaConsumerConfig {
 
     private final MeterRegistry meterRegistry;
 
+    @Bean
+    public DltMetricRetryListener dltMetricRetryListener() {
+        return new DltMetricRetryListener(meterRegistry);
+    }
+
     // ===== ProblemPublished =====
 
     @Bean
@@ -77,11 +82,13 @@ public class KafkaConsumerConfig {
     public ConcurrentKafkaListenerContainerFactory<String, ProblemPublishedEvent>
     problemPublishedKafkaListenerContainerFactory(
             ConsumerFactory<String, ProblemPublishedEvent> problemPublishedConsumerFactory,
-            KafkaTemplate<Object, Object> problemPublishedDltKafkaTemplate
+            KafkaTemplate<Object, Object> problemPublishedDltKafkaTemplate,
+            RetryListener retryListener
     ) {
         return createContainerFactory(
                 problemPublishedConsumerFactory,
                 problemPublishedDltKafkaTemplate,
+                retryListener,
                 ProblemPublishedConsumer.UnsupportedProblemPublishedEventVersionException.class,
                 InvalidProblemPublishedEventException.class
         );
@@ -103,11 +110,13 @@ public class KafkaConsumerConfig {
     public ConcurrentKafkaListenerContainerFactory<String, JudgeRequestedEvent>
     judgeRequestedKafkaListenerContainerFactory(
             ConsumerFactory<String, JudgeRequestedEvent> judgeRequestedConsumerFactory,
-            KafkaTemplate<Object, Object> judgeRequestedDltKafkaTemplate
+            KafkaTemplate<Object, Object> judgeRequestedDltKafkaTemplate,
+            RetryListener retryListener
     ) {
         ConcurrentKafkaListenerContainerFactory<String, JudgeRequestedEvent> factory = createContainerFactory(
                 judgeRequestedConsumerFactory,
                 judgeRequestedDltKafkaTemplate,
+                retryListener,
                 JudgeRequestedConsumer.UnsupportedJudgeRequestedEventVersionException.class);
         // ⚠️ 부하테스트로 발견 — concurrency 미설정(기본값 1) + Judge0ExecutionAdapter의
         // .block() 동기 대기가 겹쳐서, judge-service가 "한 번에 딱 1건"만 처리 가능한
@@ -156,6 +165,7 @@ public class KafkaConsumerConfig {
     private <T> ConcurrentKafkaListenerContainerFactory<String, T> createContainerFactory(
             ConsumerFactory<String, T> consumerFactory,
             KafkaTemplate<Object, Object> dltKafkaTemplate,
+            RetryListener retryListener,
             Class<? extends Exception>... notRetryableExceptions
     ) {
         ConcurrentKafkaListenerContainerFactory<String, T> factory = new ConcurrentKafkaListenerContainerFactory<>();
@@ -163,7 +173,7 @@ public class KafkaConsumerConfig {
 
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(dltKafkaTemplate);
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
-        errorHandler.setRetryListeners(new DltMetricRetryListener(meterRegistry));
+        errorHandler.setRetryListeners(retryListener);
 
         if (notRetryableExceptions.length > 0) {
             errorHandler.addNotRetryableExceptions(notRetryableExceptions);
