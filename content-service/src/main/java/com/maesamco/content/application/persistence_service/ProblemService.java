@@ -53,6 +53,11 @@ public class ProblemService {
                 ProblemStatus.DRAFT
         );
 
+        // 이슈 #291 — 생성 시점에 바로 레슨에 연결할 수도 있다(선택 사항).
+        if (command.getLessonId() != null) {
+            problem.changeLessonId(command.getLessonId());
+        }
+
         problem.requestPublicationReview();
 
         Problem savedProblem = problemCommandRepository.save(problem);
@@ -133,7 +138,8 @@ public class ProblemService {
                         || command.getRunningTimeLimit() != null
                         || command.getRunningMemoryLimit() != null
                         || command.getTimerPolicy() != null
-                        || command.getSource() != null;
+                        || command.getSource() != null
+                        || command.getLessonId().isDefined();
 
         // 수정 요청이 있는 값들만 수정
         if (command.getTitle() != null) {
@@ -168,6 +174,10 @@ public class ProblemService {
         }
         if (command.getSource() != null) {
             problem.changeSource(command.getSource());
+        }
+        // 들어왔는데 null인 경우 -> 레슨 연결 해제 / 안 들어와서 null인 경우 -> 안 바꿈 (이슈 #291)
+        if (command.getLessonId().isDefined()) {
+            problem.changeLessonId(command.getLessonId().getValue());
         }
 
         if (isModified) {

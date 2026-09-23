@@ -871,6 +871,46 @@ class ProblemQueryRepositoryImplTest {
                 .isEqualTo(4);
     }
 
+    @Test
+    @DisplayName("이슈 #291 — 레슨 ID 조건으로 문제를 검색한다")
+    void searchProblems_filtersByLessonId() {
+        // given
+        UUID targetLessonId = UUID.randomUUID();
+
+        javaEasy.changeLessonId(targetLessonId);
+        entityManager.flush();
+        entityManager.clear();
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        // when
+        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(javaEasy.getId());
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨에 연결되지 않은 문제는 lessonId 조건에서 제외된다")
+    void searchProblems_filtersByLessonId_excludesUnassignedProblems() {
+        // given
+        UUID targetLessonId = UUID.randomUUID();
+        // javaEasy, javaHard 등 어떤 문제도 이 레슨에 연결하지 않는다.
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        // when
+        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
     private ProblemSearchCondition emptyCondition() {
         return condition(
                 null,
@@ -885,6 +925,20 @@ class ProblemQueryRepositoryImplTest {
             ProblemDifficulty difficulty,
             ProblemSource source,
             ProblemStatus problemStatus
+    ) {
+        return conditionWithLessonId(language, difficulty, source, problemStatus, null);
+    }
+
+    private ProblemSearchCondition conditionWithLessonId(UUID lessonId) {
+        return conditionWithLessonId(null, null, null, null, lessonId);
+    }
+
+    private ProblemSearchCondition conditionWithLessonId(
+            ProgrammingLanguage language,
+            ProblemDifficulty difficulty,
+            ProblemSource source,
+            ProblemStatus problemStatus,
+            UUID lessonId
     ) {
         return mock(
                 ProblemSearchCondition.class,
@@ -922,6 +976,10 @@ class ProblemQueryRepositoryImplTest {
                              "status",
                              "getStatus" ->
                                 problemStatus;
+
+                        case "lessonId",
+                             "getLessonId" ->
+                                lessonId;
 
                         default ->
                                 Answers.RETURNS_DEFAULTS

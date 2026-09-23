@@ -8,6 +8,7 @@ import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
+import com.maesamco.content.presentation.response.TagResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -159,6 +161,27 @@ public class LessonController {
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()
+        );
+    }
+
+    /**
+     * 레슨이 다루는 개념(태그) 목록을 조회합니다(이슈 #291).
+     *
+     * <p>레슨이 태그를 직접 소유하는 것이 아니라, 이 레슨에 연결된
+     * 문제들의 태그(CONCEPT 속성) 중 중복 없이 모은 파생값입니다.</p>
+     *
+     * @param lessonId 조회할 레슨의 고유 ID
+     * @return 이 레슨과 연결된 문제들이 다루는 개념 태그 목록
+     */
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/{lessonId}/concepts")
+    public ResponseEntity<SuccessResponse<List<TagResponse>>> getLessonConcepts(
+            @PathVariable UUID lessonId
+    ) {
+        List<TagResponse> response = lessonService.getLessonConcepts(lessonId);
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(response)
         );
     }
 }

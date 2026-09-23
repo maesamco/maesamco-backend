@@ -39,6 +39,14 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
     }
 
     @Override
+    public List<UUID> findProblemIdsByLessonId(UUID lessonId) {
+        return springDataProblemRepository.findAllByLessonIdAndDeletedAtIsNull(lessonId)
+                .stream()
+                .map(Problem::getId)
+                .toList();
+    }
+
+    @Override
     public Page<Problem> searchProblems(ProblemSearchCondition condition, Pageable pageable) {
         QProblem problem = QProblem.problem;
 
@@ -47,7 +55,8 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
                 difficultyEq(problem, condition),
                 typeEq(problem, condition),
                 sourceEq(problem, condition),
-                statusEq(problem, condition)
+                statusEq(problem, condition),
+                lessonIdEq(problem, condition)
         };
 
         List<Problem> problems = queryFactory
@@ -108,6 +117,14 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
         }
 
         return problem.problemStatus.eq(condition.getProblemStatus());
+    }
+
+    private BooleanExpression lessonIdEq(QProblem problem, ProblemSearchCondition condition) {
+        if (condition == null || condition.getLessonId() == null) {
+            return null;
+        }
+
+        return problem.lessonId.eq(condition.getLessonId());
     }
 
     private OrderSpecifier<?>[] toOrderSpecifiers(QProblem problem, Pageable pageable) {

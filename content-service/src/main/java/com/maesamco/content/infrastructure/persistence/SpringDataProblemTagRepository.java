@@ -1,6 +1,7 @@
 package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,5 +59,22 @@ interface SpringDataProblemTagRepository extends JpaRepository<ProblemTag, UUID>
             """)
     List<Tag> findAllTagsByProblemId(
             @Param("problemId") UUID problemId
+    );
+
+    /**
+     * 여러 문제 ID에 연결된 태그 중, 특정 속성(attribute)에 해당하는 태그만
+     * 중복 없이 조회한다(이슈 #291).
+     */
+    @Query("""
+            select distinct tag
+            from ProblemTag problemTag, Tag tag
+            where problemTag.tagId = tag.id
+              and problemTag.problemId in :problemIds
+              and tag.attribute = :attribute
+            order by tag.name asc
+            """)
+    List<Tag> findDistinctTagsByProblemIdsAndAttribute(
+            @Param("problemIds") Collection<UUID> problemIds,
+            @Param("attribute") TagAttribute attribute
     );
 }

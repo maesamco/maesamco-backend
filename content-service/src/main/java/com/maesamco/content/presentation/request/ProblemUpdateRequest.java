@@ -10,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.openapitools.jackson.nullable.JsonNullable;
 
+import java.util.UUID;
+
 /**
  * 문제 수정 요청 정보를 전달합니다.
  *
@@ -60,6 +62,12 @@ public class ProblemUpdateRequest {
     /** 수정할 문제 출처입니다. */
     private ProblemSource source;
 
+    /**
+     * 연결할 레슨 ID입니다(이슈 #291). 필드 자체가 요청에 없으면 기존 연결을
+     * 유지하고, 명시적으로 null을 보내면 레슨 연결을 해제합니다.
+     */
+    private JsonNullable<UUID> lessonId = JsonNullable.undefined();
+
     public ProblemUpdateCommand toCommand() {
         return new ProblemUpdateCommand(
                 title,
@@ -72,7 +80,8 @@ public class ProblemUpdateRequest {
                 runningTimeLimit,
                 runningMemoryLimit,
                 timerPolicy,
-                source
+                source,
+                toUpdateField(lessonId)
         );
     }
 
