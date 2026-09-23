@@ -14,9 +14,20 @@ final class AiGeneratedDailyQuizQuestionValidator {
     private static final String FILL_IN_BLANK_MARKER = "___";
     private static final int FILL_IN_BLANK_MARKER_COUNT = 1;
 
-    static void validate(AiGeneratedDailyQuizQuestionResponse response) {
+    static void validate(
+            AiGeneratedDailyQuizQuestionResponse response,
+            DailyQuizProblemType requiredProblemType
+    ) {
         if (response.problemType() == null) {
             throw new IllegalArgumentException("문제 타입은 필수입니다.");
+        }
+        if (response.problemType() != requiredProblemType) {
+            throw new IllegalArgumentException(
+                    "AI 응답 문제 유형이 요청 유형과 일치하지 않습니다. 요청: "
+                            + requiredProblemType
+                            + ", 응답: "
+                            + response.problemType()
+            );
         }
 
         if (response.questionText() == null || response.questionText().isBlank()) {

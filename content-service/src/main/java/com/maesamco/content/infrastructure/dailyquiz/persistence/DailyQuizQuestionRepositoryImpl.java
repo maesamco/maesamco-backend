@@ -1,5 +1,7 @@
 package com.maesamco.content.infrastructure.dailyquiz.persistence;
 
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
+import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -29,26 +31,23 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
     }
 
     @Override
-    public List<DailyQuizQuestion> findActiveByAnyConcepts(List<String> conceptTags) {
-        if (conceptTags == null) {
-            throw invalidInput("개념 태그 목록은 필수입니다.");
-        }
-        if (conceptTags.contains(null)) {
-            throw invalidInput("개념 태그는 비어 있을 수 없습니다.");
-        }
-        if (conceptTags.isEmpty()) {
-            return List.of();
+    public List<DailyQuizQuestion> findActiveByQuestionSlots(QuestionSlots questionSlots) {
+        if (questionSlots == null) {
+            throw invalidInput("문항 슬롯은 필수입니다.");
         }
 
-        String[] conceptTagArray = conceptTags.toArray(String[]::new);
+        String[] conceptTags = questionSlots.values().stream()
+                .map(QuestionSlot::conceptTag)
+                .toArray(String[]::new);
+        String[] problemTypes = questionSlots.values().stream()
+                .map(QuestionSlot::problemType)
+                .map(Enum::name)
+                .toArray(String[]::new);
 
-        // 각 개념에서 전체 슬롯 수 이상의 후보를 유지하면 현재 이분 매칭의
-        // 최대 매칭 크기를 보존하면서 문제은행 전체 조회를 피할 수 있습니다.
-        int limitPerConcept = conceptTags.size();
-
-        return springDataRepository.findActiveByAnyConceptTags(
-                conceptTagArray,
-                limitPerConcept
+        return springDataRepository.findActiveByQuestionSlots(
+                conceptTags,
+                problemTypes,
+                questionSlots.size()
         );
     }
 

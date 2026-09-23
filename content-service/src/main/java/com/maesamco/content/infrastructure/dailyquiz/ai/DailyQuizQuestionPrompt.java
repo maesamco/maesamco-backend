@@ -1,19 +1,20 @@
 package com.maesamco.content.infrastructure.dailyquiz.ai;
 
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class DailyQuizQuestionPrompt {
 
-    static final String VERSION = "v1";
+    static final String VERSION = "v3";
 
     static final String SYSTEM_PROMPT = """
             너는 Java 학습자를 위한 Daily Quiz 문항 생성기다.
             다음 규칙을 모두 지켜 문항 한 개를 생성한다.
 
             - 사용자 메시지로 전달된 개념에 집중한 짧은 복습 문제를 생성한다.
-            - 문제 유형은 MULTIPLE_CHOICE, FILL_IN_BLANK, SHORT_ANSWER 중 하나를 선택한다.
+            - problemType은 반드시 사용자 메시지에 지정된 문제 유형과 동일해야 한다.
             - 문제 지문과 일반 설명은 한국어로 작성한다.
             - questionText는 코드와 공백을 포함해 1000자 이하로 작성한다.
             - Java 키워드, 코드, 타입명, 식별자는 원문을 유지한다.
@@ -43,7 +44,23 @@ final class DailyQuizQuestionPrompt {
             - answer와 같은 값을 allowedAnswerVariants에 다시 포함하지 않는다.
             """;
 
-    static String userPrompt(String conceptTag) {
-        return "이번 개념: " + conceptTag;
+    static String userPrompt(QuestionSlot questionSlot) {
+        return "이번 개념: " + questionSlot.conceptTag()
+                + "\n지정 문제 유형: " + questionSlot.problemType().name()
+                + "\n필수 형식: " + requiredFormat(questionSlot);
+    }
+
+    static String retryUserPrompt(QuestionSlot questionSlot, String validationFailureReason) {
+        return userPrompt(questionSlot)
+                + "\n이전 응답의 검증 실패 사유: " + validationFailureReason
+                + "\n위 실패 사유를 수정하여 문항을 처음부터 다시 생성한다.";
+    }
+
+    private static String requiredFormat(QuestionSlot questionSlot) {
+        return switch (questionSlot.problemType()) {
+            case MULTIPLE_CHOICE -> "choices를 정확히 4개 생성하고 answer를 choices 중 하나와 일치시킨다.";
+            case SHORT_ANSWER -> "choices는 null로 반환하고 짧고 명확한 대표 정답을 생성한다.";
+            case FILL_IN_BLANK -> "questionText에 빈칸 표시 ___를 정확히 한 번 포함한다.";
+        };
     }
 }

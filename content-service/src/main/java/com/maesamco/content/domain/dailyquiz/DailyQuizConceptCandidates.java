@@ -15,7 +15,7 @@ public record DailyQuizConceptCandidates(
         // 현재 오답 상태인 문제들의 개념
         List<String> wrongConcepts,
         // 정답 처리한 문제들의 개념
-        List<String> solvedConcepts,
+        List<String> correctConcepts,
         // 풀이 이력이 없는 신규 사용자의 관심 개념 목록
         List<String> interestConcepts
 ) {
@@ -24,7 +24,7 @@ public record DailyQuizConceptCandidates(
         if (wrongConcepts == null) {
             throw invalidInput("오답 개념 목록은 필수입니다.");
         }
-        if (solvedConcepts == null) {
+        if (correctConcepts == null) {
             throw invalidInput("정답 개념 목록은 필수입니다.");
         }
         if (interestConcepts == null) {
@@ -33,7 +33,7 @@ public record DailyQuizConceptCandidates(
         if (wrongConcepts.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("오답 개념은 비어 있을 수 없습니다.");
         }
-        if (solvedConcepts.stream().anyMatch(Objects::isNull)) {
+        if (correctConcepts.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("정답 개념은 비어 있을 수 없습니다.");
         }
         if (interestConcepts.stream().anyMatch(Objects::isNull)) {
@@ -41,13 +41,13 @@ public record DailyQuizConceptCandidates(
         }
 
         wrongConcepts = List.copyOf(wrongConcepts);
-        solvedConcepts = List.copyOf(solvedConcepts);
+        correctConcepts = List.copyOf(correctConcepts);
         interestConcepts = List.copyOf(interestConcepts);
 
         if (hasProblemProgress && !interestConcepts.isEmpty()) {
             throw invalidInput("풀이 이력이 있는 사용자는 관심 개념을 사용할 수 없습니다.");
         }
-        if (!hasProblemProgress && (!wrongConcepts.isEmpty() || !solvedConcepts.isEmpty())) {
+        if (!hasProblemProgress && (!wrongConcepts.isEmpty() || !correctConcepts.isEmpty())) {
             throw invalidInput("풀이 이력이 없는 사용자는 오답 또는 정답 개념을 사용할 수 없습니다.");
         }
     }
@@ -58,12 +58,12 @@ public record DailyQuizConceptCandidates(
 
     public static DailyQuizConceptCandidates fromProblemProgress(
             List<String> wrongConcepts,
-            List<String> solvedConcepts
+            List<String> correctConcepts
     ) {
         return new DailyQuizConceptCandidates(
                 true,
                 wrongConcepts,
-                solvedConcepts,
+                correctConcepts,
                 List.of()
         );
     }

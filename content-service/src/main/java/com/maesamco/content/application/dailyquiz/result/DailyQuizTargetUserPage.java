@@ -4,6 +4,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -22,7 +23,7 @@ public record DailyQuizTargetUserPage(
         if (userIds == null) {
             throw invalidInput("대상 사용자 ID 목록은 필수입니다.");
         }
-        if (userIds.contains(null)) {
+        if (userIds.stream().anyMatch(Objects::isNull)) {
             throw invalidInput("대상 사용자 ID는 비어 있을 수 없습니다.");
         }
 

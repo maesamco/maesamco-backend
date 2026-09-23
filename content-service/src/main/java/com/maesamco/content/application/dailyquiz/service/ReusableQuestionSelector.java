@@ -1,6 +1,8 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSelectionResult;
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
+import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +19,7 @@ import java.util.UUID;
 public class ReusableQuestionSelector {
 
     public DailyQuizQuestionSelectionResult select(
-            List<String> requiredConcepts,
+            QuestionSlots requiredSlots,
             List<DailyQuizQuestion> candidates
     ) {
         // MVP에서는 날짜가 다르면 동일 문항의 반복 출제를 허용하고, 결정적인 선택 결과를 위해 UUID 순으로 정렬합니다.
@@ -27,12 +29,12 @@ public class ReusableQuestionSelector {
                 .toList();
 
         Map<UUID, Integer> slotByQuestionId = new HashMap<>();
-        DailyQuizQuestion[] questionBySlot = new DailyQuizQuestion[requiredConcepts.size()];
+        DailyQuizQuestion[] questionBySlot = new DailyQuizQuestion[requiredSlots.size()];
 
-        for (int slotIndex = 0; slotIndex < requiredConcepts.size(); slotIndex++) {
+        for (int slotIndex = 0; slotIndex < requiredSlots.size(); slotIndex++) {
             tryAssign(
                     slotIndex,
-                    requiredConcepts,
+                    requiredSlots,
                     sortedCandidates,
                     slotByQuestionId,
                     questionBySlot,
@@ -41,33 +43,34 @@ public class ReusableQuestionSelector {
         }
 
         Map<Integer, DailyQuizQuestion> selectedQuestionsBySlot = new LinkedHashMap<>();
-        Map<Integer, String> missingConceptsBySlot = new LinkedHashMap<>();
+        Map<Integer, QuestionSlot> missingQuestionSlotsByIndex = new LinkedHashMap<>();
 
-        for (int slotIndex = 0; slotIndex < requiredConcepts.size(); slotIndex++) {
+        for (int slotIndex = 0; slotIndex < requiredSlots.size(); slotIndex++) {
             DailyQuizQuestion selectedQuestion = questionBySlot[slotIndex];
 
             if (selectedQuestion != null) {
                 selectedQuestionsBySlot.put(slotIndex, selectedQuestion);
             } else {
-                missingConceptsBySlot.put(slotIndex, requiredConcepts.get(slotIndex));
+                missingQuestionSlotsByIndex.put(slotIndex, requiredSlots.at(slotIndex));
             }
         }
 
-        return new DailyQuizQuestionSelectionResult(selectedQuestionsBySlot, missingConceptsBySlot);
+        return new DailyQuizQuestionSelectionResult(selectedQuestionsBySlot, missingQuestionSlotsByIndex);
     }
 
     private boolean tryAssign(
             int slotIndex,
-            List<String> requiredConcepts,
+            QuestionSlots requiredSlots,
             List<DailyQuizQuestion> sortedCandidates,
             Map<UUID, Integer> slotByQuestionId,
             DailyQuizQuestion[] questionBySlot,
             Set<UUID> visitedQuestionIds
     ) {
-        String requiredConcept = requiredConcepts.get(slotIndex);
+        QuestionSlot requiredSlot = requiredSlots.at(slotIndex);
 
         for (DailyQuizQuestion candidate : sortedCandidates) {
-            if (!candidate.getConceptTags().contains(requiredConcept)) {
+            if (!candidate.getConceptTags().contains(requiredSlot.conceptTag())
+                    || candidate.getProblemType() != requiredSlot.problemType()) {
                 continue;
             }
 
@@ -80,7 +83,7 @@ public class ReusableQuestionSelector {
             boolean isUnassigned = assignedSlotIndex == null;
             boolean canMoveAssignedSlot = !isUnassigned && tryAssign(
                     assignedSlotIndex,
-                    requiredConcepts,
+                    requiredSlots,
                     sortedCandidates,
                     slotByQuestionId,
                     questionBySlot,

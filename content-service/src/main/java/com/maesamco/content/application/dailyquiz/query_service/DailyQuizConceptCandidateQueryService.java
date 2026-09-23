@@ -18,8 +18,8 @@ import java.util.UUID;
 /**
  * 사용자 풀이 이력 또는 관심 개념을 이용해 Daily Quiz 출제 개념 후보를 조회합니다.
  *
- * TODO: ProblemProgressQueryRepository와 ConceptRepository가 병합되면
- * 임시 Port 주입을 실제 Repository 주입으로 교체하고 @Service로 등록합니다.
+ * TODO: ProblemProgressConceptPort의 실제 구현이 병합되면
+ * Service로 등록합니다.
  */
 // @Service
 @RequiredArgsConstructor
@@ -27,13 +27,11 @@ public class DailyQuizConceptCandidateQueryService {
 
     private final ProblemProgressConceptPort problemProgressConceptPort;
 
-    // TODO: ProblemProgressQueryRepository가 병합되면 실제 Repository 주입으로 교체합니다.
     private final UserInterestConceptPort userInterestConceptPort;
 
-    // TODO: ConceptRepository가 병합되면 실제 Repository 주입으로 교체합니다.
     private final ConceptLookupPort conceptLookupPort;
 
-    // 배치 실행 날짜와 동일한 timezone으로 SOLVED 조회 cutoff를 계산합니다.
+    // 배치 실행 날짜와 동일한 timezone으로 CORRECT 조회 cutoff를 계산합니다.
     private final Clock dailyQuizClock;
 
     public DailyQuizConceptCandidates get(DailyQuizConceptCandidatesGetQuery query) {
@@ -56,16 +54,16 @@ public class DailyQuizConceptCandidateQueryService {
         // 풀이 이력이 있으면 WRONG 개념을 조회합니다.
         List<String> wrongConcepts = problemProgressConceptPort.getWrongConceptTags(query.userId());
 
-        // 퀴즈 날짜의 시작 시각을 구하고, 그 전에 SOLVED된 개념을 조회합니다.
+        // 퀴즈 날짜의 시작 시각을 구하고, 그 전에 CORRECT 처리된 개념을 조회합니다.
         Instant quizDateStart = query.attemptDate()
                 .atStartOfDay(dailyQuizClock.getZone())
                 .toInstant();
 
-        List<String> solvedConcepts = problemProgressConceptPort.getSolvedConceptTagsBefore(
+        List<String> correctConcepts = problemProgressConceptPort.getCorrectConceptTagsBefore(
                 query.userId(),
                 quizDateStart
         );
 
-        return DailyQuizConceptCandidates.fromProblemProgress(wrongConcepts, solvedConcepts);
+        return DailyQuizConceptCandidates.fromProblemProgress(wrongConcepts, correctConcepts);
     }
 }

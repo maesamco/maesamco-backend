@@ -8,7 +8,8 @@ import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSourci
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionSelectionResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizQuestionGenerationService;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizQuestionReuseService;
-import com.maesamco.content.domain.dailyquiz.ConceptSlots;
+import com.maesamco.content.domain.dailyquiz.QuestionSlot;
+import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
@@ -40,15 +41,15 @@ public class DailyQuizQuestionSourcingFacade {
 
     private final AiGenerationHistoryRecorder historyRecorder;
 
-    public DailyQuizQuestionSourcingResult sourceQuestions(ConceptSlots requiredConcepts) {
-        if (requiredConcepts == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "개념 슬롯은 필수입니다.");
+    public DailyQuizQuestionSourcingResult sourceQuestions(QuestionSlots requiredSlots) {
+        if (requiredSlots == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "문항 슬롯은 필수입니다.");
         }
 
-        DailyQuizQuestionSelectionResult selection = reuseService.selectReusableQuestions(requiredConcepts.values());
+        DailyQuizQuestionSelectionResult selection = reuseService.selectReusableQuestions(requiredSlots);
 
         DailyQuizQuestionGenerationResult generationResult =
-                generationService.generateMissingQuestions(selection.missingConceptsBySlot());
+                generationService.generateMissingQuestions(selection.missingQuestionSlotsByIndex());
 
         Map<Integer, DailyQuizQuestion> questionsBySlot =
                 new HashMap<>(selection.selectedQuestionsBySlot());
@@ -60,6 +61,7 @@ public class DailyQuizQuestionSourcingFacade {
                 .sorted(Map.Entry.comparingByKey())
                 .toList()) {
             int slotIndex = generatedSlot.getKey();
+            QuestionSlot requiredSlot = requiredSlots.at(slotIndex);
             GeneratedDailyQuizQuestion generatedQuestion = generatedSlot.getValue();
             DailyQuizQuestion question;
 
@@ -70,7 +72,7 @@ public class DailyQuizQuestionSourcingFacade {
                 // 도메인 규칙을 통과하지 못한 AI 문항을 실패로 기록하고 다음 슬롯을 처리합니다.
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -81,7 +83,7 @@ public class DailyQuizQuestionSourcingFacade {
                         generatedQuestion.conceptTags(),
                         exception.getMessage()
                 );
-                failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
+                failedConceptsBySlot.put(slotIndex, requiredSlot.conceptTag());
                 continue;
             }
 
@@ -93,14 +95,14 @@ public class DailyQuizQuestionSourcingFacade {
                 historyRecorder.recordSuccess(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
                         savedQuestion.getId(),
-                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata()
                 );
             } catch (DataIntegrityViolationException exception) {
                 // UNIQUE를 포함한 DB 무결성 오류를 실패로 기록합니다.
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -124,11 +126,11 @@ public class DailyQuizQuestionSourcingFacade {
                         generatedQuestion.conceptTags(),
                         exception.getMessage()
                 );
-                failedConceptsBySlot.put(slotIndex, requiredConcepts.at(slotIndex));
+                failedConceptsBySlot.put(slotIndex, requiredSlot.conceptTag());
             } catch (RuntimeException exception) {
                 historyRecorder.recordFailure(
                         AiGenerationPurpose.DAILY_QUIZ_GENERATION,
-                        Map.of("conceptTag", requiredConcepts.at(slotIndex)),
+                        requestContext(requiredSlot),
                         generatedQuestion.generationMetadata(),
                         exception
                 );
@@ -138,11 +140,11 @@ public class DailyQuizQuestionSourcingFacade {
 
         List<DailyQuizQuestion> sourcedQuestions = valuesInSlotOrder(
                 questionsBySlot,
-                requiredConcepts.size()
+                requiredSlots.size()
         );
         List<String> failedConcepts = valuesInSlotOrder(
                 failedConceptsBySlot,
-                requiredConcepts.size()
+                requiredSlots.size()
         );
 
         return new DailyQuizQuestionSourcingResult(sourcedQuestions, failedConcepts);
@@ -153,6 +155,13 @@ public class DailyQuizQuestionSourcingFacade {
                 .mapToObj(valuesBySlot::get)
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private static Map<String, Object> requestContext(QuestionSlot questionSlot) {
+        return Map.of(
+                "conceptTag", questionSlot.conceptTag(),
+                "problemType", questionSlot.problemType().name()
+        );
     }
 
     private static DailyQuizQuestion toDailyQuizQuestion(GeneratedDailyQuizQuestion generatedQuestion) {
