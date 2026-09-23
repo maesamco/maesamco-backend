@@ -69,6 +69,9 @@ write EMAIL_ENCRYPTION_KEY
 write EMAIL_LOOKUP_HMAC_KEY
 write EMAIL_VERIFICATION_HMAC_KEY
 
+# ===== Google OAuth =====
+write GOOGLE_OAUTH_CLIENT_ID
+
 # ===== SMTP =====
 write MAIL_HOST
 write MAIL_PORT
