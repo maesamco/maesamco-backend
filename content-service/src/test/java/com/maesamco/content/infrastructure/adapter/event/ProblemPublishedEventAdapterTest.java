@@ -52,7 +52,10 @@ class ProblemPublishedEventAdapterTest {
 
     @BeforeEach
     void setUp() {
-        problemPublishedEventAdapter = new ProblemPublishedEventAdapter(problemEventOutboxRepository, jsonMapper);
+        problemPublishedEventAdapter = new ProblemPublishedEventAdapter(
+                problemEventOutboxRepository,
+                jsonMapper
+        );
     }
 
     @Test
@@ -67,6 +70,116 @@ class ProblemPublishedEventAdapterTest {
         Instant occurredAt = Instant.parse("2026-09-21T01:00:00Z");
         Instant publishedAt = Instant.parse("2026-09-21T00:59:00Z");
 
+        ProblemPublishedEventData eventData = createEventData(
+                eventId,
+                problemId,
+                problemVersionId,
+                testCaseId,
+                occurredAt,
+                publishedAt
+        );
+
+        String payload = """
+                {
+                  "eventType": "PROBLEM_PUBLISHED"
+                }
+                """;
+
+        when(jsonMapper.writeValueAsString(any(ProblemPublishedEvent.class))).thenReturn(payload);
+
+        // when
+        problemPublishedEventAdapter.record(eventData);
+
+        // then
+        ArgumentCaptor<ProblemPublishedEvent> eventCaptor =
+                ArgumentCaptor.forClass(ProblemPublishedEvent.class);
+
+        verify(jsonMapper).writeValueAsString(eventCaptor.capture());
+
+        ProblemPublishedEvent event = eventCaptor.getValue();
+
+        assertThat(event.eventId()).isEqualTo(eventId);
+        assertThat(event.eventType()).isEqualTo(ProblemPublishedEvent.EVENT_TYPE);
+        assertThat(event.eventVersion()).isEqualTo(ProblemPublishedEvent.EVENT_VERSION);
+        assertThat(event.occurredAt()).isEqualTo(occurredAt);
+        assertThat(event.problemId()).isEqualTo(problemId);
+        assertThat(event.problemVersionId()).isEqualTo(problemVersionId);
+        assertThat(event.versionNo()).isEqualTo(3);
+        assertThat(event.language()).isEqualTo(ProgrammingLanguage.JAVA.name() + "17");
+        assertThat(event.starterCode()).contains("public class Solution");
+        assertThat(event.timeLimit()).isEqualTo(2000);
+        assertThat(event.memoryLimit()).isEqualTo(256);
+        assertThat(event.publishedAt()).isEqualTo(publishedAt);
+
+        assertThat(event.testCases()).hasSize(1);
+        assertThat(event.testCases().get(0).testCaseId()).isEqualTo(testCaseId);
+        assertThat(event.testCases().get(0).isPublic()).isTrue();
+        assertThat(event.testCases().get(0).input()).isEqualTo("1 2");
+        assertThat(event.testCases().get(0).expectedOutput()).isEqualTo("3");
+        assertThat(event.testCases().get(0).displayOrder()).isEqualTo(1);
+
+        ArgumentCaptor<ProblemEventOutbox> outboxCaptor =
+                ArgumentCaptor.forClass(ProblemEventOutbox.class);
+
+        verify(problemEventOutboxRepository).save(outboxCaptor.capture());
+
+        ProblemEventOutbox outbox = outboxCaptor.getValue();
+
+        assertThat(outbox.getEventId()).isEqualTo(eventId);
+        assertThat(outbox.getAggregateType()).isEqualTo("PROBLEM");
+        assertThat(outbox.getAggregateId()).isEqualTo(problemId);
+        assertThat(outbox.getEventType()).isEqualTo(ProblemPublishedEvent.EVENT_TYPE);
+        assertThat(outbox.getEventVersion()).isEqualTo(ProblemPublishedEvent.EVENT_VERSION);
+        assertThat(outbox.getPayload()).isEqualTo(payload);
+        assertThat(outbox.getOccurredAt()).isEqualTo(occurredAt);
+        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
+        assertThat(outbox.getRetryCount()).isZero();
+        assertThat(outbox.getNextAttemptAt()).isNull();
+        assertThat(outbox.getPublishedAt()).isNull();
+        assertThat(outbox.getLastError()).isNull();
+    }
+
+    @Test
+    @DisplayName("ProblemPublishedEvent 직렬화에 실패하면 Outbox를 저장하지 않고 예외를 발생시킨다")
+    void record_serializationFailure_throwsExceptionAndDoesNotSaveOutbox() throws Exception {
+        // given
+        UUID eventId = UUID.randomUUID();
+        UUID problemId = UUID.randomUUID();
+        UUID problemVersionId = UUID.randomUUID();
+
+        Instant occurredAt = Instant.parse("2026-09-21T01:00:00Z");
+
+        ProblemPublishedEventData eventData = createEventData(
+                eventId,
+                problemId,
+                problemVersionId,
+                UUID.randomUUID(),
+                occurredAt,
+                occurredAt
+        );
+
+        JacksonException serializationException = mock(JacksonException.class);
+
+        when(jsonMapper.writeValueAsString(any(ProblemPublishedEvent.class)))
+                .thenThrow(serializationException);
+
+        // when & then
+        assertThatThrownBy(() -> problemPublishedEventAdapter.record(eventData))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("ProblemPublished event serialization failed")
+                .hasCause(serializationException);
+
+        verifyNoInteractions(problemEventOutboxRepository);
+    }
+
+    private ProblemPublishedEventData createEventData(
+            UUID eventId,
+            UUID problemId,
+            UUID problemVersionId,
+            UUID testCaseId,
+            Instant occurredAt,
+            Instant publishedAt
+    ) {
         Problem problem = Problem.create(
                 "두 수 더하기",
                 ProgrammingLanguage.JAVA,
@@ -106,128 +219,11 @@ class ProblemPublishedEventAdapterTest {
 
         ReflectionTestUtils.setField(problemVersion, "id", problemVersionId);
 
-        ProblemPublishedEventData eventData = new ProblemPublishedEventData(
+        return new ProblemPublishedEventData(
                 eventId,
                 occurredAt,
                 problemVersionId,
                 problemVersion
         );
-
-        String payload = """
-                {
-                  "eventType": "PROBLEM_PUBLISHED"
-                }
-                """;
-
-        when(jsonMapper.writeValueAsString(any(ProblemPublishedEvent.class))).thenReturn(payload);
-
-        // when
-        problemPublishedEventAdapter.record(eventData);
-
-        // then
-        ArgumentCaptor<ProblemPublishedEvent> eventCaptor = ArgumentCaptor.forClass(ProblemPublishedEvent.class);
-        verify(jsonMapper).writeValueAsString(eventCaptor.capture());
-
-        ProblemPublishedEvent event = eventCaptor.getValue();
-
-        assertThat(event.eventId()).isEqualTo(eventId);
-        assertThat(event.eventType()).isEqualTo(ProblemPublishedEvent.EVENT_TYPE);
-        assertThat(event.eventVersion()).isEqualTo(ProblemPublishedEvent.EVENT_VERSION);
-        assertThat(event.occurredAt()).isEqualTo(occurredAt);
-        assertThat(event.problemId()).isEqualTo(problemId);
-        assertThat(event.problemVersionId()).isEqualTo(problemVersionId);
-        assertThat(event.versionNo()).isEqualTo(3);
-        assertThat(event.language()).isEqualTo(ProgrammingLanguage.JAVA.name() + "17");
-        assertThat(event.starterCode()).contains("public class Solution");
-        assertThat(event.timeLimit()).isEqualTo(2000);
-        assertThat(event.memoryLimit()).isEqualTo(256);
-        assertThat(event.publishedAt()).isEqualTo(publishedAt);
-
-        assertThat(event.testCases()).hasSize(1);
-        assertThat(event.testCases().get(0).testCaseId()).isEqualTo(testCaseId);
-        assertThat(event.testCases().get(0).isPublic()).isTrue();
-        assertThat(event.testCases().get(0).input()).isEqualTo("1 2");
-        assertThat(event.testCases().get(0).expectedOutput()).isEqualTo("3");
-        assertThat(event.testCases().get(0).displayOrder()).isEqualTo(1);
-
-        ArgumentCaptor<ProblemEventOutbox> outboxCaptor = ArgumentCaptor.forClass(ProblemEventOutbox.class);
-        verify(problemEventOutboxRepository).save(outboxCaptor.capture());
-
-        ProblemEventOutbox outbox = outboxCaptor.getValue();
-
-        assertThat(outbox.getEventId()).isEqualTo(eventId);
-        assertThat(outbox.getAggregateId()).isEqualTo(problemId);
-        assertThat(outbox.getEventType()).isEqualTo(ProblemPublishedEvent.EVENT_TYPE);
-        assertThat(outbox.getEventVersion()).isEqualTo(ProblemPublishedEvent.EVENT_VERSION);
-        assertThat(outbox.getPayload()).isEqualTo(payload);
-        assertThat(outbox.getOccurredAt()).isEqualTo(occurredAt);
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
-        assertThat(outbox.getRetryCount()).isZero();
-        assertThat(outbox.getPublishedAt()).isNull();
-    }
-
-    @Test
-    @DisplayName("ProblemPublishedEvent 직렬화에 실패하면 Outbox를 저장하지 않고 예외를 발생시킨다")
-    void record_serializationFailure_throwsExceptionAndDoesNotSaveOutbox() throws Exception {
-        // given
-        UUID eventId = UUID.randomUUID();
-        UUID problemId = UUID.randomUUID();
-        UUID problemVersionId = UUID.randomUUID();
-        UUID testCaseId = UUID.randomUUID();
-
-        Instant occurredAt = Instant.parse("2026-09-21T01:00:00Z");
-
-        Problem problem = Problem.create(
-                "두 수 더하기",
-                ProgrammingLanguage.JAVA,
-                ProblemDifficulty.EASY,
-                ProblemType.CODE,
-                "두 정수를 입력받아 합을 반환하세요.",
-                "class Solution {}",
-                RunningTimeLimit.SECOND_2,
-                RunningMemoryLimit.MB_256,
-                TimerPolicy.APPLY60,
-                ProblemSource.HUMAN_AUTHORED,
-                ProblemStatus.PUBLISHED
-        );
-
-        ReflectionTestUtils.setField(problem, "id", problemId);
-        ReflectionTestUtils.setField(problem, "currentVersionNo", 3);
-
-        ProblemVersionTestCaseItem testCase = new ProblemVersionTestCaseItem(
-                testCaseId,
-                true,
-                "1 2",
-                "3",
-                1
-        );
-
-        ProblemVersion problemVersion = ProblemVersion.createPublished(
-                problem,
-                List.of(testCase),
-                occurredAt
-        );
-
-        ReflectionTestUtils.setField(problemVersion, "id", problemVersionId);
-
-        ProblemPublishedEventData eventData = new ProblemPublishedEventData(
-                eventId,
-                occurredAt,
-                problemVersionId,
-                problemVersion
-        );
-
-        JacksonException serializationException = mock(JacksonException.class);
-
-        when(jsonMapper.writeValueAsString(any(ProblemPublishedEvent.class)))
-                .thenThrow(serializationException);
-
-        // when & then
-        assertThatThrownBy(() -> problemPublishedEventAdapter.record(eventData))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("ProblemPublished event serialization failed")
-                .hasCause(serializationException);
-
-        verifyNoInteractions(problemEventOutboxRepository);
     }
 }

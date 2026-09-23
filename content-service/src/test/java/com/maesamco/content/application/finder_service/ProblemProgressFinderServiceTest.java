@@ -4,19 +4,24 @@ import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,14 +54,10 @@ class ProblemProgressFinderServiceTest {
     }
 
     @Test
-    @DisplayName("사용자와 문제 ID로 ProblemProgress를 조회한다")
-    void getByUserIdAndProblemId_exists_returnsProblemProgress() {
+    @DisplayName("Problem이 존재하고 ProblemProgress가 있으면 정상 조회한다")
+    void getByUserIdAndProblemId_success() {
         // given
-        ProblemProgress problemProgress = createProblemProgress(
-                problemId,
-                ProblemProgressStatus.WRONG,
-                Instant.parse("2026-09-21T00:00:00Z")
-        );
+        ProblemProgress progress = createProblemProgress();
 
         when(problemFinderService.getById(problemId))
                 .thenReturn(problem);
@@ -65,21 +66,28 @@ class ProblemProgressFinderServiceTest {
                 .thenReturn(problemId);
 
         when(problemProgressRepository.findByUserIdAndProblemId(userId, problemId))
-                .thenReturn(Optional.of(problemProgress));
+                .thenReturn(Optional.of(progress));
 
         // when
-        Optional<ProblemProgress> result = problemProgressFinderService.getByUserIdAndProblemId(userId, problemId);
+        Optional<ProblemProgress> result =
+                problemProgressFinderService.getByUserIdAndProblemId(
+                        userId,
+                        problemId
+                );
 
         // then
-        assertThat(result).contains(problemProgress);
+        assertThat(result).containsSame(progress);
 
-        verify(problemFinderService).getById(problemId);
-        verify(problemProgressRepository).findByUserIdAndProblemId(userId, problemId);
+        verify(problemFinderService)
+                .getById(problemId);
+
+        verify(problemProgressRepository)
+                .findByUserIdAndProblemId(userId, problemId);
     }
 
     @Test
-    @DisplayName("사용자와 문제 ID에 해당하는 ProblemProgress가 없으면 빈 Optional을 반환한다")
-    void getByUserIdAndProblemId_notExists_returnsEmpty() {
+    @DisplayName("Problem은 존재하지만 ProblemProgress가 없으면 Optional.empty를 반환한다")
+    void getByUserIdAndProblemId_progressNotFound_returnsEmpty() {
         // given
         when(problemFinderService.getById(problemId))
                 .thenReturn(problem);
@@ -91,123 +99,135 @@ class ProblemProgressFinderServiceTest {
                 .thenReturn(Optional.empty());
 
         // when
-        Optional<ProblemProgress> result = problemProgressFinderService.getByUserIdAndProblemId(userId, problemId);
+        Optional<ProblemProgress> result =
+                problemProgressFinderService.getByUserIdAndProblemId(
+                        userId,
+                        problemId
+                );
 
         // then
         assertThat(result).isEmpty();
 
-        verify(problemFinderService).getById(problemId);
-        verify(problemProgressRepository).findByUserIdAndProblemId(userId, problemId);
+        verify(problemFinderService)
+                .getById(problemId);
+
+        verify(problemProgressRepository)
+                .findByUserIdAndProblemId(userId, problemId);
     }
 
     @Test
-    @DisplayName("사용자의 전체 ProblemProgress 목록을 조회한다")
-    void getByUserId_returnsProblemProgressList() {
+    @DisplayName("ProblemProgress 조회 전에 Problem 존재 여부를 검증한다")
+    void getByUserIdAndProblemId_validatesProblemFirst() {
         // given
-        ProblemProgress first = createProblemProgress(
-                UUID.randomUUID(),
-                ProblemProgressStatus.CORRECT,
-                Instant.parse("2026-09-21T02:00:00Z")
-        );
+        when(problemFinderService.getById(problemId))
+                .thenReturn(problem);
 
-        ProblemProgress second = createProblemProgress(
-                UUID.randomUUID(),
-                ProblemProgressStatus.WRONG,
-                Instant.parse("2026-09-21T01:00:00Z")
-        );
+        when(problem.getId())
+                .thenReturn(problemId);
 
-        List<ProblemProgress> expected = List.of(first, second);
-
-        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
-                .thenReturn(expected);
+        when(problemProgressRepository.findByUserIdAndProblemId(userId, problemId))
+                .thenReturn(Optional.empty());
 
         // when
-        List<ProblemProgress> result = problemProgressFinderService.getByUserId(userId);
+        problemProgressFinderService.getByUserIdAndProblemId(
+                userId,
+                problemId
+        );
 
         // then
-        assertThat(result).containsExactly(first, second);
+        InOrder inOrder = inOrder(
+                problemFinderService,
+                problemProgressRepository
+        );
 
-        verify(problemProgressRepository).findByUserIdOrderByCreatedAtDescIdDesc(userId);
+        inOrder.verify(problemFinderService)
+                .getById(problemId);
+
+        inOrder.verify(problemProgressRepository)
+                .findByUserIdAndProblemId(userId, problemId);
     }
 
     @Test
-    @DisplayName("사용자의 ProblemProgress가 없으면 빈 목록을 반환한다")
-    void getByUserId_notExists_returnsEmptyList() {
+    @DisplayName("존재하지 않는 Problem이면 ProblemProgress를 조회하지 않고 예외를 전파한다")
+    void getByUserIdAndProblemId_problemNotFound_throwsException() {
         // given
-        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
-                .thenReturn(List.of());
+        when(problemFinderService.getById(problemId))
+                .thenThrow(
+                        new BusinessException(
+                                ErrorCode.PROBLEM_NOT_FOUND
+                        )
+                );
 
-        // when
-        List<ProblemProgress> result = problemProgressFinderService.getByUserId(userId);
+        // when & then
+        assertThatThrownBy(() ->
+                problemProgressFinderService.getByUserIdAndProblemId(
+                        userId,
+                        problemId
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception ->
+                        ((BusinessException) exception)
+                                .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);
 
-        // then
-        assertThat(result).isEmpty();
+        verify(problemFinderService)
+                .getById(problemId);
 
-        verify(problemProgressRepository).findByUserIdOrderByCreatedAtDescIdDesc(userId);
+        verify(problemProgressRepository, never())
+                .findByUserIdAndProblemId(
+                        userId,
+                        problemId
+                );
     }
 
     @Test
-    @DisplayName("사용자와 풀이 상태로 ProblemProgress 목록을 조회한다")
-    void getByUserIdAndProgressStatus_returnsMatchingProblemProgressList() {
+    @DisplayName("요청받은 userId와 Problem의 id를 Progress 조회에 정확히 전달한다")
+    void getByUserIdAndProblemId_passesExactIds() {
         // given
-        ProblemProgressStatus progressStatus = ProblemProgressStatus.WRONG;
+        UUID requestedUserId = UUID.randomUUID();
+        UUID requestedProblemId = UUID.randomUUID();
 
-        ProblemProgress first = createProblemProgress(
-                UUID.randomUUID(),
-                progressStatus,
-                Instant.parse("2026-09-21T02:00:00Z")
-        );
+        when(problemFinderService.getById(requestedProblemId))
+                .thenReturn(problem);
 
-        ProblemProgress second = createProblemProgress(
-                UUID.randomUUID(),
-                progressStatus,
-                Instant.parse("2026-09-21T01:00:00Z")
-        );
+        when(problem.getId())
+                .thenReturn(requestedProblemId);
 
-        List<ProblemProgress> expected = List.of(first, second);
-
-        when(problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus))
-                .thenReturn(expected);
+        when(problemProgressRepository.findByUserIdAndProblemId(
+                requestedUserId,
+                requestedProblemId
+        )).thenReturn(Optional.empty());
 
         // when
-        List<ProblemProgress> result = problemProgressFinderService.getByUserIdAndProgressStatus(userId, progressStatus);
+        problemProgressFinderService.getByUserIdAndProblemId(
+                requestedUserId,
+                requestedProblemId
+        );
 
         // then
-        assertThat(result).containsExactly(first, second);
+        verify(problemFinderService)
+                .getById(requestedProblemId);
 
-        verify(problemProgressRepository).findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus);
+        verify(problem)
+                .getId();
+
+        verify(problemProgressRepository)
+                .findByUserIdAndProblemId(
+                        requestedUserId,
+                        requestedProblemId
+                );
     }
 
-    @Test
-    @DisplayName("해당 풀이 상태의 ProblemProgress가 없으면 빈 목록을 반환한다")
-    void getByUserIdAndProgressStatus_notExists_returnsEmptyList() {
-        // given
-        ProblemProgressStatus progressStatus = ProblemProgressStatus.CORRECT;
-
-        when(problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus))
-                .thenReturn(List.of());
-
-        // when
-        List<ProblemProgress> result = problemProgressFinderService.getByUserIdAndProgressStatus(userId, progressStatus);
-
-        // then
-        assertThat(result).isEmpty();
-
-        verify(problemProgressRepository).findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus);
-    }
-
-    private ProblemProgress createProblemProgress(
-            UUID targetProblemId,
-            ProblemProgressStatus progressStatus,
-            Instant judgedAt
-    ) {
+    private ProblemProgress createProblemProgress() {
         return ProblemProgress.create(
                 userId,
-                targetProblemId,
+                problemId,
                 1,
                 1,
-                progressStatus,
-                judgedAt
+                ProblemProgressStatus.WRONG,
+                Instant.parse("2026-09-23T01:00:00Z")
         );
     }
 }

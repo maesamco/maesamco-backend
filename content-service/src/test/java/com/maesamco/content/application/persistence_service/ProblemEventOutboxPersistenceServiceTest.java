@@ -3,272 +3,554 @@ package com.maesamco.content.application.persistence_service;
 import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
 import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;
 import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProblemEventOutboxPersistenceServiceTest {
 
+    private static final int MAX_RETRY_COUNT = 5;
+
+    private static final long FIRST_RETRY_DELAY_SECONDS = 60L;
+    private static final long SECOND_RETRY_DELAY_SECONDS = 120L;
+    private static final long THIRD_RETRY_DELAY_SECONDS = 240L;
+    private static final long FOURTH_RETRY_DELAY_SECONDS = 480L;
+
+    private static final String KAFKA_PUBLISH_FAILED = "KAFKA_PUBLISH_FAILED:IllegalStateException";
+    private static final String POST_PUBLISH_FAILED = "KAFKA_PUBLISH_OUTCOME_UNKNOWN";
+    private static final String PAYLOAD_TOO_LARGE = "EVENT_PAYLOAD_TOO_LARGE";
+
     @Mock
     private ProblemEventOutboxRepository problemEventOutboxRepository;
 
+    @InjectMocks
     private ProblemEventOutboxPersistenceService problemEventOutboxPersistenceService;
 
-    private UUID outboxId;
-    private UUID eventId;
-    private UUID problemId;
+    @Nested
+    @DisplayName("PENDING 처리 가드")
+    class PendingGuard {
 
-    @BeforeEach
-    void setUp() {
-        problemEventOutboxPersistenceService = new ProblemEventOutboxPersistenceService(problemEventOutboxRepository);
+        @Test
+        @DisplayName("PENDING Outbox는 실패 기록 대상으로 처리되어 저장된다")
+        void recordFailedAttempt_pendingOutbox_processesSuccessfully() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        outboxId = UUID.randomUUID();
-        eventId = UUID.randomUUID();
-        problemId = UUID.randomUUID();
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(1);
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
+
+            verify(problemEventOutboxRepository).findById(outbox.getId());
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("이미 PUBLISHED 처리된 Outbox는 다시 실패 처리하지 않는다")
+        void recordFailedAttempt_publishedOutbox_isIgnored() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+            Instant publishedAt = Instant.parse("2026-09-23T00:10:00Z");
+
+            outbox.markPublished(publishedAt);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+            assertThat(outbox.getPublishedAt()).isEqualTo(publishedAt);
+            assertThat(outbox.getRetryCount()).isZero();
+
+            verify(problemEventOutboxRepository, never()).save(outbox);
+        }
+
+        @Test
+        @DisplayName("이미 FAILED 처리된 Outbox는 다시 실패 처리하지 않는다")
+        void recordFailedAttempt_failedOutbox_isIgnored() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "status", ProblemEventOutboxStatus.FAILED);
+            ReflectionTestUtils.setField(outbox, "retryCount", MAX_RETRY_COUNT);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
+            assertThat(outbox.getRetryCount()).isEqualTo(MAX_RETRY_COUNT);
+
+            verify(problemEventOutboxRepository, never()).save(outbox);
+        }
     }
 
-    @Test
-    @DisplayName("PENDING Outbox의 Kafka 발행 성공을 PUBLISHED 상태로 기록한다")
-    void markPublished_pending_marksPublished() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
+    @Nested
+    @DisplayName("재시도 실패 기록")
+    class RetryFailure {
 
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
+        @Test
+        @DisplayName("Kafka 발행 실패를 기록하면 retryCount가 1 증가한다")
+        void recordFailedAttempt_incrementsRetryCount() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        Instant before = Instant.now();
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
 
-        // when
-        problemEventOutboxPersistenceService.markPublished(outboxId);
+            assertThat(outbox.getRetryCount()).isZero();
 
-        Instant after = Instant.now();
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
 
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
-        assertThat(outbox.getPublishedAt()).isBetween(before, after);
-        assertThat(outbox.getLastError()).isNull();
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(1);
 
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository).save(outbox);
-        verifyNoMoreInteractions(problemEventOutboxRepository);
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("Kafka 발행 실패를 기록하면 nextAttemptAt이 계산된다")
+        void recordFailedAttempt_setsNextAttemptAt() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            assertThat(outbox.getNextAttemptAt()).isNull();
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getNextAttemptAt()).isNotNull();
+            assertThat(outbox.getNextAttemptAt()).isAfterOrEqualTo(before.plusSeconds(FIRST_RETRY_DELAY_SECONDS));
+            assertThat(outbox.getNextAttemptAt()).isBeforeOrEqualTo(after.plusSeconds(FIRST_RETRY_DELAY_SECONDS));
+        }
+
+        @Test
+        @DisplayName("첫 번째 실패 후 재시도 지연 시간은 60초다")
+        void recordFailedAttempt_firstFailure_uses60SecondBackoff() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(1);
+            assertBackoff(outbox, before, after, FIRST_RETRY_DELAY_SECONDS);
+        }
+
+        @Test
+        @DisplayName("두 번째 실패 후 재시도 지연 시간은 120초다")
+        void recordFailedAttempt_secondFailure_uses120SecondBackoff() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "retryCount", 1);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(2);
+            assertBackoff(outbox, before, after, SECOND_RETRY_DELAY_SECONDS);
+        }
+
+        @Test
+        @DisplayName("세 번째 실패 후 재시도 지연 시간은 240초다")
+        void recordFailedAttempt_thirdFailure_uses240SecondBackoff() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "retryCount", 2);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(3);
+            assertBackoff(outbox, before, after, THIRD_RETRY_DELAY_SECONDS);
+        }
+
+        @Test
+        @DisplayName("네 번째 실패 후 재시도 지연 시간은 480초다")
+        void recordFailedAttempt_fourthFailure_uses480SecondBackoff() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "retryCount", 3);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(4);
+            assertBackoff(outbox, before, after, FOURTH_RETRY_DELAY_SECONDS);
+        }
+
+        @Test
+        @DisplayName("최대 재시도 횟수에 도달하기 전에는 PENDING 상태를 유지한다")
+        void recordFailedAttempt_beforeMaxRetry_remainsPending() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "retryCount", 3);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(4);
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
+            assertThat(outbox.getNextAttemptAt()).isNotNull();
+
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("최대 재시도 횟수에 도달하면 FAILED 상태로 전환한다")
+        void recordFailedAttempt_reachesMaxRetry_marksFailed() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            ReflectionTestUtils.setField(outbox, "retryCount", 4);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(MAX_RETRY_COUNT);
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
+            assertThat(outbox.getLastError()).isEqualTo(KAFKA_PUBLISH_FAILED);
+
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("Kafka 발행 실패 사유를 lastError에 저장한다")
+        void recordFailedAttempt_recordsLastError() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getLastError()).isEqualTo(KAFKA_PUBLISH_FAILED);
+        }
+
+        @Test
+        @DisplayName("연속 실패할 때 retryCount에 따라 exponential backoff가 증가한다")
+        void recordFailedAttempt_multipleFailures_usesExponentialBackoff() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            Instant firstBefore = Instant.now();
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+            Instant firstAfter = Instant.now();
+            Instant firstNextAttemptAt = outbox.getNextAttemptAt();
+
+            Instant secondBefore = Instant.now();
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+            Instant secondAfter = Instant.now();
+            Instant secondNextAttemptAt = outbox.getNextAttemptAt();
+
+            Instant thirdBefore = Instant.now();
+            problemEventOutboxPersistenceService.recordFailedAttempt(outbox.getId(), KAFKA_PUBLISH_FAILED);
+            Instant thirdAfter = Instant.now();
+            Instant thirdNextAttemptAt = outbox.getNextAttemptAt();
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(3);
+
+            assertInstantWithinBackoffWindow(firstNextAttemptAt, firstBefore, firstAfter, FIRST_RETRY_DELAY_SECONDS);
+            assertInstantWithinBackoffWindow(secondNextAttemptAt, secondBefore, secondAfter, SECOND_RETRY_DELAY_SECONDS);
+            assertInstantWithinBackoffWindow(thirdNextAttemptAt, thirdBefore, thirdAfter, THIRD_RETRY_DELAY_SECONDS);
+
+            assertThat(Duration.between(firstAfter, firstNextAttemptAt).toSeconds())
+                    .isLessThan(Duration.between(secondAfter, secondNextAttemptAt).toSeconds());
+
+            assertThat(Duration.between(secondAfter, secondNextAttemptAt).toSeconds())
+                    .isLessThan(Duration.between(thirdAfter, thirdNextAttemptAt).toSeconds());
+
+            verify(problemEventOutboxRepository, times(3)).save(outbox);
+        }
     }
 
-    @Test
-    @DisplayName("PENDING이 아닌 Outbox에는 발행 성공 상태를 다시 반영하지 않는다")
-    void markPublished_notPending_doesNothing() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        outbox.markPublished(Instant.parse("2026-09-21T00:00:00Z"));
+    @Nested
+    @DisplayName("발행 완료 처리")
+    class MarkPublished {
 
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
+        @Test
+        @DisplayName("PENDING Outbox를 발행 완료 처리하면 PUBLISHED 상태가 된다")
+        void markPublished_changesStatusToPublished() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        // when
-        problemEventOutboxPersistenceService.markPublished(outboxId);
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
 
-        // then
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository, never()).save(any());
-        verifyNoMoreInteractions(problemEventOutboxRepository);
+            // when
+            problemEventOutboxPersistenceService.markPublished(outbox.getId());
+
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("PENDING Outbox를 발행 완료 처리하면 publishedAt이 기록된다")
+        void markPublished_recordsPublishedAt() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            Instant before = Instant.now();
+
+            // when
+            problemEventOutboxPersistenceService.markPublished(outbox.getId());
+
+            Instant after = Instant.now();
+
+            // then
+            assertThat(outbox.getPublishedAt()).isNotNull();
+            assertThat(outbox.getPublishedAt()).isAfterOrEqualTo(before);
+            assertThat(outbox.getPublishedAt()).isBeforeOrEqualTo(after);
+        }
+
+        @Test
+        @DisplayName("이미 PUBLISHED 상태인 Outbox는 다시 발행 완료 처리하지 않는다")
+        void markPublished_alreadyPublished_isIgnored() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+            Instant originalPublishedAt = Instant.parse("2026-09-23T00:10:00Z");
+
+            outbox.markPublished(originalPublishedAt);
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.markPublished(outbox.getId());
+
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+            assertThat(outbox.getPublishedAt()).isEqualTo(originalPublishedAt);
+
+            verify(problemEventOutboxRepository, never()).save(outbox);
+        }
     }
 
-    @Test
-    @DisplayName("Kafka 발행 실패를 기록하면 retryCount를 증가시키고 PENDING 상태를 유지한다")
-    void recordFailedAttempt_belowMaxRetry_increasesRetryCount() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        String error = "Kafka publish failed";
+    @Nested
+    @DisplayName("Post Publish 실패 처리")
+    class PostPublishFailure {
 
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
+        @Test
+        @DisplayName("Kafka 발행 결과를 확정할 수 없으면 Outbox는 PENDING 상태를 유지한다")
+        void recordPostPublishFailure_keepsPendingStatus() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        // when
-        problemEventOutboxPersistenceService.recordFailedAttempt(outboxId, error);
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
 
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
-        assertThat(outbox.getRetryCount()).isEqualTo(1);
-        assertThat(outbox.getLastError()).isEqualTo(error);
-        assertThat(outbox.getPublishedAt()).isNull();
+            // when
+            problemEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), POST_PUBLISH_FAILED);
 
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository).save(outbox);
-        verifyNoMoreInteractions(problemEventOutboxRepository);
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
+            assertThat(outbox.getPublishedAt()).isNull();
+
+            verify(problemEventOutboxRepository).save(outbox);
+        }
+
+        @Test
+        @DisplayName("post publish 실패 사유를 lastError에 기록한다")
+        void recordPostPublishFailure_recordsLastError() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), POST_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getLastError()).isEqualTo(POST_PUBLISH_FAILED);
+        }
+
+        @Test
+        @DisplayName("post publish 실패를 기록하면 retryCount가 1 증가한다")
+        void recordPostPublishFailure_incrementsRetryCount() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            assertThat(outbox.getRetryCount()).isZero();
+
+            // when
+            problemEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), POST_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getRetryCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("이미 PUBLISHED 상태인 Outbox에는 post publish 실패를 다시 기록하지 않는다")
+        void recordPostPublishFailure_publishedOutbox_isIgnored() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
+
+            outbox.markPublished(Instant.parse("2026-09-23T00:10:00Z"));
+
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+
+            // when
+            problemEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), POST_PUBLISH_FAILED);
+
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+
+            verify(problemEventOutboxRepository, never()).save(outbox);
+        }
     }
 
-    @Test
-    @DisplayName("Kafka 발행 실패가 최대 재시도 횟수에 도달하면 FAILED 상태로 변경한다")
-    void recordFailedAttempt_reachesMaxRetry_marksFailed() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
+    @Nested
+    @DisplayName("강제 FAILED 처리")
+    class MarkFailed {
 
-        outbox.recordFailure("failure-1", 5);
-        outbox.recordFailure("failure-2", 5);
-        outbox.recordFailure("failure-3", 5);
-        outbox.recordFailure("failure-4", 5);
+        @Test
+        @DisplayName("복구 불가능한 오류이면 Outbox를 FAILED 상태로 변경한다")
+        void markFailed_changesStatusToFailed() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
 
-        // when
-        problemEventOutboxPersistenceService.recordFailedAttempt(outboxId, "failure-5");
+            // when
+            problemEventOutboxPersistenceService.markFailed(outbox.getId(), PAYLOAD_TOO_LARGE);
 
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
-        assertThat(outbox.getRetryCount()).isEqualTo(5);
-        assertThat(outbox.getLastError()).isEqualTo("failure-5");
-        assertThat(outbox.getPublishedAt()).isNull();
+            // then
+            assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
+            assertThat(outbox.getLastError()).isEqualTo(PAYLOAD_TOO_LARGE);
 
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository).save(outbox);
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
+            verify(problemEventOutboxRepository).save(outbox);
+        }
 
-    @Test
-    @DisplayName("PENDING이 아닌 Outbox에는 Kafka 발행 실패를 다시 기록하지 않는다")
-    void recordFailedAttempt_notPending_doesNothing() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        outbox.markFailed("permanent failure");
+        @Test
+        @DisplayName("강제 FAILED 처리 시 publishedAt은 기록하지 않는다")
+        void markFailed_doesNotSetPublishedAt() {
+            // given
+            ProblemEventOutbox outbox = createPendingOutbox();
 
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
+            when(problemEventOutboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
 
-        // when
-        problemEventOutboxPersistenceService.recordFailedAttempt(outboxId, "another failure");
+            // when
+            problemEventOutboxPersistenceService.markFailed(outbox.getId(), PAYLOAD_TOO_LARGE);
 
-        // then
-        assertThat(outbox.getRetryCount()).isEqualTo(1);
-        assertThat(outbox.getLastError()).isEqualTo("permanent failure");
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository, never()).save(any());
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
-
-    @Test
-    @DisplayName("Kafka 발행 결과를 확정할 수 없는 실패는 retryCount를 증가시키지 않고 PENDING 상태를 유지한다")
-    void recordPostPublishFailure_pending_keepsPendingWithoutRetryIncrease() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        String error = "Kafka publish outcome unknown";
-
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
-
-        // when
-        problemEventOutboxPersistenceService.recordPostPublishFailure(outboxId, error);
-
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PENDING);
-        assertThat(outbox.getRetryCount()).isZero();
-        assertThat(outbox.getLastError()).isEqualTo(error);
-        assertThat(outbox.getPublishedAt()).isNull();
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository).save(outbox);
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
-
-    @Test
-    @DisplayName("PENDING이 아닌 Outbox에는 발행 결과 불명확 실패를 다시 기록하지 않는다")
-    void recordPostPublishFailure_notPending_doesNothing() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        outbox.markPublished(Instant.parse("2026-09-21T00:00:00Z"));
-
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
-
-        // when
-        problemEventOutboxPersistenceService.recordPostPublishFailure(outboxId, "unknown");
-
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
-        assertThat(outbox.getLastError()).isNull();
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository, never()).save(any());
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
-
-    @Test
-    @DisplayName("복구할 수 없는 Kafka 발행 실패는 즉시 FAILED 상태로 변경한다")
-    void markFailed_pending_marksFailed() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        String error = "non-retryable failure";
-
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
-
-        // when
-        problemEventOutboxPersistenceService.markFailed(outboxId, error);
-
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
-        assertThat(outbox.getRetryCount()).isEqualTo(1);
-        assertThat(outbox.getLastError()).isEqualTo(error);
-        assertThat(outbox.getPublishedAt()).isNull();
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository).save(outbox);
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
-
-    @Test
-    @DisplayName("PENDING이 아닌 Outbox에는 복구 불가능 실패를 다시 기록하지 않는다")
-    void markFailed_notPending_doesNothing() {
-        // given
-        ProblemEventOutbox outbox = createPendingOutbox();
-        outbox.markFailed("first failure");
-
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.of(outbox));
-
-        // when
-        problemEventOutboxPersistenceService.markFailed(outboxId, "second failure");
-
-        // then
-        assertThat(outbox.getStatus()).isEqualTo(ProblemEventOutboxStatus.FAILED);
-        assertThat(outbox.getRetryCount()).isEqualTo(1);
-        assertThat(outbox.getLastError()).isEqualTo("first failure");
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository, never()).save(any());
-        verifyNoMoreInteractions(problemEventOutboxRepository);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 Outbox를 상태 변경하려고 하면 예외가 발생한다")
-    void markPublished_outboxNotFound_throwsException() {
-        // given
-        when(problemEventOutboxRepository.findById(outboxId)).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> problemEventOutboxPersistenceService.markPublished(outboxId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Problem Event Outbox를 찾을 수 없습니다. outboxId=" + outboxId);
-
-        verify(problemEventOutboxRepository).findById(outboxId);
-        verify(problemEventOutboxRepository, never()).save(any());
-        verifyNoMoreInteractions(problemEventOutboxRepository);
+            // then
+            assertThat(outbox.getPublishedAt()).isNull();
+        }
     }
 
     private ProblemEventOutbox createPendingOutbox() {
-        return ProblemEventOutbox.createPending(
-                eventId,
-                problemId,
+        ProblemEventOutbox outbox = ProblemEventOutbox.createPending(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
                 1,
-                "{\"problemId\":\"" + problemId + "\"}",
-                Instant.parse("2026-09-21T00:00:00Z")
+                """
+                {
+                  "eventType": "PROBLEM_PUBLISHED"
+                }
+                """,
+                Instant.parse("2026-09-23T00:00:00Z")
         );
+
+        ReflectionTestUtils.setField(outbox, "id", UUID.randomUUID());
+
+        return outbox;
+    }
+
+    private void assertBackoff(
+            ProblemEventOutbox outbox,
+            Instant before,
+            Instant after,
+            long expectedSeconds
+    ) {
+        assertThat(outbox.getNextAttemptAt()).isNotNull();
+        assertInstantWithinBackoffWindow(outbox.getNextAttemptAt(), before, after, expectedSeconds);
+    }
+
+    private void assertInstantWithinBackoffWindow(
+            Instant actual,
+            Instant before,
+            Instant after,
+            long expectedSeconds
+    ) {
+        assertThat(actual).isAfterOrEqualTo(before.plusSeconds(expectedSeconds));
+        assertThat(actual).isBeforeOrEqualTo(after.plusSeconds(expectedSeconds));
     }
 }

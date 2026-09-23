@@ -4,6 +4,8 @@ import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +34,23 @@ class ProblemTagFinderServiceTest {
     @Mock
     private Problem problem;
 
+    @Mock
+    private ProblemTag firstProblemTag;
+
+    @Mock
+    private ProblemTag secondProblemTag;
+
+    @Mock
+    private Tag firstTag;
+
+    @Mock
+    private Tag secondTag;
+
     private ProblemTagFinderService problemTagFinderService;
+
+    private UUID problemId;
+    private UUID resolvedProblemId;
+    private UUID tagId;
 
     @BeforeEach
     void setUp() {
@@ -39,115 +58,88 @@ class ProblemTagFinderServiceTest {
                 problemFinderService,
                 problemTagRepository
         );
+
+        problemId = UUID.randomUUID();
+        resolvedProblemId = UUID.randomUUID();
+        tagId = UUID.randomUUID();
     }
 
     @Test
-    @DisplayName("문제와 태그의 연결이 존재하면 true를 반환한다")
+    @DisplayName("Problem과 ProblemTag가 존재하면 true를 반환한다")
     void existsByProblemIdAndTagId_exists_returnsTrue() {
         // given
-        UUID problemId = UUID.randomUUID();
-        UUID tagId = UUID.randomUUID();
-
-        when(problemFinderService.getById(problemId))
-                .thenReturn(problem);
-
-        when(problem.getId())
-                .thenReturn(problemId);
-
-        when(problemTagRepository.existsByProblemIdAndTagId(problemId, tagId))
-                .thenReturn(true);
+        when(problemFinderService.getById(problemId)).thenReturn(problem);
+        when(problem.getId()).thenReturn(resolvedProblemId);
+        when(problemTagRepository.existsByProblemIdAndTagId(resolvedProblemId, tagId)).thenReturn(true);
 
         // when
-        boolean result = problemTagFinderService.existsByProblemIdAndTagId(
-                problemId,
-                tagId
-        );
+        boolean result = problemTagFinderService.existsByProblemIdAndTagId(problemId, tagId);
 
         // then
         assertThat(result).isTrue();
 
-        verify(problemFinderService)
-                .getById(problemId);
-
-        verify(problemTagRepository)
-                .existsByProblemIdAndTagId(problemId, tagId);
+        verify(problemFinderService).getById(problemId);
+        verify(problem).getId();
+        verify(problemTagRepository).existsByProblemIdAndTagId(resolvedProblemId, tagId);
     }
 
     @Test
-    @DisplayName("특정 문제의 문제-태그 연결 목록을 조회한다")
+    @DisplayName("Problem이 존재하면 연결된 ProblemTag 목록을 반환한다")
     void getByProblemId_returnsProblemTags() {
         // given
-        UUID problemId = UUID.randomUUID();
+        List<ProblemTag> problemTags = List.of(firstProblemTag, secondProblemTag);
 
-        ProblemTag first = mock(ProblemTag.class);
-        ProblemTag second = mock(ProblemTag.class);
-
-        List<ProblemTag> problemTags = List.of(
-                first,
-                second
-        );
-
-        when(problemFinderService.getById(problemId))
-                .thenReturn(problem);
-
-        when(problem.getId())
-                .thenReturn(problemId);
-
-        when(problemTagRepository.findAllByProblemId(problemId))
-                .thenReturn(problemTags);
+        when(problemFinderService.getById(problemId)).thenReturn(problem);
+        when(problem.getId()).thenReturn(resolvedProblemId);
+        when(problemTagRepository.findAllByProblemId(resolvedProblemId)).thenReturn(problemTags);
 
         // when
-        List<ProblemTag> result = problemTagFinderService.getByProblemId(
-                problemId
-        );
+        List<ProblemTag> result = problemTagFinderService.getByProblemId(problemId);
 
         // then
-        assertThat(result)
-                .containsExactly(first, second);
+        assertThat(result).containsExactly(firstProblemTag, secondProblemTag);
 
-        verify(problemFinderService)
-                .getById(problemId);
-
-        verify(problemTagRepository)
-                .findAllByProblemId(problemId);
+        verify(problemFinderService).getById(problemId);
+        verify(problem).getId();
+        verify(problemTagRepository).findAllByProblemId(resolvedProblemId);
     }
 
     @Test
-    @DisplayName("특정 문제에 연결된 태그 목록을 조회한다")
+    @DisplayName("Problem이 존재하면 연결된 Tag 목록을 반환한다")
     void getTagsByProblemId_returnsTags() {
         // given
-        UUID problemId = UUID.randomUUID();
+        List<Tag> tags = List.of(firstTag, secondTag);
 
-        Tag first = mock(Tag.class);
-        Tag second = mock(Tag.class);
-
-        List<Tag> tags = List.of(
-                first,
-                second
-        );
-
-        when(problemFinderService.getById(problemId))
-                .thenReturn(problem);
-
-        when(problem.getId())
-                .thenReturn(problemId);
-
-        when(problemTagRepository.findAllTagsByProblemId(problemId))
-                .thenReturn(tags);
+        when(problemFinderService.getById(problemId)).thenReturn(problem);
+        when(problem.getId()).thenReturn(resolvedProblemId);
+        when(problemTagRepository.findAllTagsByProblemId(resolvedProblemId)).thenReturn(tags);
 
         // when
-        List<Tag> result = problemTagFinderService.getTagsByProblemId(
-                problemId
-        );
+        List<Tag> result = problemTagFinderService.getTagsByProblemId(problemId);
 
         // then
-        assertThat(result)
-                .containsExactly(first, second);
+        assertThat(result).containsExactly(firstTag, secondTag);
 
-        verify(problemFinderService)
-                .getById(problemId);
+        verify(problemFinderService).getById(problemId);
+        verify(problem).getId();
+        verify(problemTagRepository).findAllTagsByProblemId(resolvedProblemId);
+    }
 
-        verify(problemTagRepository)
-                .findAllTagsByProblemId(problemId);
+    @Test
+    @DisplayName("Problem이 존재하지 않으면 ProblemTag Repository를 조회하지 않고 예외를 전파한다")
+    void getByProblemId_problemNotFound_throwsException() {
+        // given
+        when(problemFinderService.getById(problemId))
+                .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+        // when & then
+        assertThatThrownBy(() -> problemTagFinderService.getByProblemId(problemId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PROBLEM_NOT_FOUND);
+
+        verify(problemFinderService).getById(problemId);
+        verify(problem, never()).getId();
+        verify(problemTagRepository, never()).findAllByProblemId(problemId);
     }
 }
