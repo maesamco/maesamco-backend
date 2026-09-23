@@ -33,7 +33,13 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
     // judge0.conf의 MAX_SUBMISSION_BATCH_SIZE와 반드시 일치해야 한다(둘 다 20으로
     // 명시 설정, 암묵적 기본값 의존 제거).
     @Value("${judge.max-batch-size:20}")
-    private int judge0MaxBatchSize;
+    // ⚠️ 리뷰 반영 — @Value의 ${...:20}은 Spring이 프로퍼티를 못 찾을 때만 쓰이는
+    // 기본값이라, 이 프로젝트 관례대로 테스트에서 new Judge0ExecutionAdapter(webClient)로
+    // Spring 컨테이너 없이 직접 생성하면 전혀 적용되지 않고 int 기본값 0으로 남는다.
+    // partition(list, 0)은 i += 0으로 루프가 끝나지 않아 빈 리스트를 무한히 쌓다가
+    // OOM으로 죽는다(실제로 기존 Judge0ExecutionAdapterTest에서 재현됨). 필드 선언에
+    // 리터럴 기본값을 직접 줘서, Spring 없이 생성돼도 안전하도록 한다.
+    private int judge0MaxBatchSize = 20;
 
     /**
      * Judge0 batch 제출 — 응답으로 오는 토큰 리스트는 요청 순서와 같다고 가정.
@@ -122,8 +128,18 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
                 .toList();
     }
 
-    /** 리스트를 size 단위로 나눈다. 외부 라이브러리(Guava 등) 없이 표준 라이브러리만으로 구현. */
+    /**
+     * 리스트를 size 단위로 나눈다. 외부 라이브러리(Guava 등) 없이 표준 라이브러리만으로 구현.
+     *
+     * ⚠️ 리뷰로 발견된 문제 재발 방지용 방어 코드 — size가 0 이하로 잘못 들어오면(설정
+     * 주입 실패, 향후 다른 호출부의 실수 등) i += size가 전혀 진행되지 않아 무한 루프로
+     * OOM을 일으킨다. 필드 기본값(judge0MaxBatchSize = 20)으로 이미 막았지만, 이 메서드
+     * 자체도 잘못된 입력에 안전하도록 명시적으로 예외를 던진다.
+     */
     private static <T> List<List<T>> partition(List<T> list, int size) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("partition size는 1 이상이어야 합니다. size=" + size);
+        }
         List<List<T>> chunks = new ArrayList<>();
         for (int i = 0; i < list.size(); i += size) {
             chunks.add(list.subList(i, Math.min(i + size, list.size())));
