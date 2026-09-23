@@ -1,4 +1,8 @@
 spring:
+  kafka:
+    listener:
+      auto-startup: false
+
   jpa:
     hibernate:
       # Flyway가 실제 PostgreSQL 스키마와 인덱스를 생성하므로

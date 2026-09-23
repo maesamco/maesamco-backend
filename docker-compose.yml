@@ -187,6 +187,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       EUREKA_URL: http://eureka-server:8761/eureka/
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       # JMeter 부하 테스트용 — 테스트 직전에만 .env에서 넉넉한 값으로 올렸다가 끝나면 지우면 됨.
       # 안 채우면 기본값(분당 30회) 그대로 적용되어 평소엔 안전함(리뷰 반영 — 실제 컨테이너에
       # 값이 전달 안 되고 있던 걸 발견해 수정).
@@ -235,6 +236,16 @@ services:
       HMAC_KEY_COACHING_TO_USER: ${HMAC_KEY_COACHING_TO_USER}
       # ⚠️ 리뷰로 발견 — User → Content 내부 통신용(user-service가 발신자일 때 서명할 키)
       HMAC_KEY_USER_TO_CONTENT: ${HMAC_KEY_USER_TO_CONTENT}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-Lax}
+      AUTH_COOKIE_PATH: ${AUTH_COOKIE_PATH:-/api/v1/auth}
+
+      MAIL_CONNECTION_TIMEOUT_MS: ${MAIL_CONNECTION_TIMEOUT_MS:-5000}
+      MAIL_READ_TIMEOUT_MS: ${MAIL_READ_TIMEOUT_MS:-5000}
+      MAIL_WRITE_TIMEOUT_MS: ${MAIL_WRITE_TIMEOUT_MS:-5000}
+
+      JPA_FORMAT_SQL: ${JPA_FORMAT_SQL:-false}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.0}
     depends_on:
       postgres-user:
         condition: service_healthy

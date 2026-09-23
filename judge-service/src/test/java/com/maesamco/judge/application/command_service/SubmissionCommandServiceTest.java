@@ -58,6 +58,10 @@ class SubmissionCommandServiceTest {
         return spec;
     }
 
+    private Submission createdSubmission(String code) {
+        return Submission.create(userId, problemId, problemVersionId, 1, code, SubmissionLanguage.JAVA17, idempotencyKey);
+    }
+
     @Nested
     @DisplayName("submit")
     class Submit {
@@ -70,13 +74,16 @@ class SubmissionCommandServiceTest {
             ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
                     .willReturn(Optional.of(spec));
-            given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
+            given(submissionSaveExecutor.createAndSave(
+                    userId, problemId, problemVersionId, "public class Main {}", SubmissionLanguage.JAVA17, idempotencyKey))
+                    .willReturn(createdSubmission("public class Main {}"));
 
             // when
             SubmissionCreateResult result = submissionCommandService.submit(command("public class Main {}", "JAVA17"));
 
             // then
-            verify(submissionSaveExecutor, times(1)).saveWithOutbox(any(Submission.class));
+            verify(submissionSaveExecutor, times(1)).createAndSave(
+                    userId, problemId, problemVersionId, "public class Main {}", SubmissionLanguage.JAVA17, idempotencyKey);
             assertThat(result.status()).isEqualTo(SubmissionStatus.PENDING);
         }
 
@@ -92,7 +99,7 @@ class SubmissionCommandServiceTest {
             assertThatThrownBy(() -> submissionCommandService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROBLEM_NOT_FOUND);
-            verify(submissionSaveExecutor, never()).saveWithOutbox(any());
+            verify(submissionSaveExecutor, never()).createAndSave(any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -110,7 +117,7 @@ class SubmissionCommandServiceTest {
 
             // then
             assertThat(result.submissionId()).isEqualTo(existing.getId());
-            verify(submissionSaveExecutor, never()).saveWithOutbox(any());
+            verify(submissionSaveExecutor, never()).createAndSave(any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -147,28 +154,25 @@ class SubmissionCommandServiceTest {
         }
 
         @Test
-        @DisplayName("attemptNo 경합(DataIntegrityViolationException)이 나도 재조회 후 재시도해 성공한다")
-        void retriesOnAttemptNoRaceAndSucceeds() {
+        @DisplayName("저장 중 경합(DataIntegrityViolationException)이 나도 재시도해 성공한다")
+        void retriesOnSaveRaceAndSucceeds() {
             // given
             given(submissionRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
             ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
                     .willReturn(Optional.of(spec));
-            given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId))
-                    .willReturn(0, 1);
-            given(submissionRepository.findByIdempotencyKey(idempotencyKey))
-                    .willReturn(Optional.empty());
 
-            // saveWithOutbox는 void라 doThrow().doNothing() 그대로 사용 가능
             doThrow(new DataIntegrityViolationException("unique violation"))
-                    .doNothing()
-                    .when(submissionSaveExecutor).saveWithOutbox(any(Submission.class));
+                    .doReturn(createdSubmission("code"))
+                    .when(submissionSaveExecutor).createAndSave(
+                            userId, problemId, problemVersionId, "code", SubmissionLanguage.JAVA17, idempotencyKey);
 
             // when
             SubmissionCreateResult result = submissionCommandService.submit(command("code", "JAVA17"));
 
             // then
-            verify(submissionSaveExecutor, times(2)).saveWithOutbox(any(Submission.class));
+            verify(submissionSaveExecutor, times(2)).createAndSave(
+                    userId, problemId, problemVersionId, "code", SubmissionLanguage.JAVA17, idempotencyKey);
             assertThat(result).isNotNull();
         }
 
@@ -180,15 +184,16 @@ class SubmissionCommandServiceTest {
             ProblemExecutionSpec spec = spec();
             given(problemExecutionSpecRepository.findFirstByProblemIdOrderByPublishedAtDesc(problemId))
                     .willReturn(Optional.of(spec));
-            given(submissionRepository.findMaxAttemptNoByUserIdAndProblemId(userId, problemId)).willReturn(0);
             doThrow(new DataIntegrityViolationException("unique violation"))
-                    .when(submissionSaveExecutor).saveWithOutbox(any(Submission.class));
+                    .when(submissionSaveExecutor).createAndSave(
+                            userId, problemId, problemVersionId, "code", SubmissionLanguage.JAVA17, idempotencyKey);
 
             // when / then
             assertThatThrownBy(() -> submissionCommandService.submit(command("code", "JAVA17")))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INTERNAL_SERVER_ERROR);
-            verify(submissionSaveExecutor, times(3)).saveWithOutbox(any());
+            verify(submissionSaveExecutor, times(3)).createAndSave(
+                    userId, problemId, problemVersionId, "code", SubmissionLanguage.JAVA17, idempotencyKey);
         }
 
         @Test

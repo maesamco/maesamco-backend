@@ -6,6 +6,7 @@ import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
 import com.maesamco.user.global.security.AccessTokenAuthenticationDetails;
+import com.maesamco.user.presentation.support.RefreshTokenCookieFactory;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -26,8 +27,7 @@ import java.util.UUID;
 
 import static com.maesamco.user.presentation.support.AuthenticationPrincipalResolver.requireUserId;
 import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.COOKIE_NAME;
-import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.create;
-import static com.maesamco.user.presentation.support.RefreshTokenCookieFactory.createExpired;
+
 
 /**
  * 회원가입, 로그인, Refresh Token 재발급 및 로그아웃을 포함한
@@ -52,6 +52,7 @@ public class AuthApiController implements AuthApiDocs {
     private final LogoutService logoutService;
     private final Clock clock;
     private final LogoutAllService logoutAllService;
+    private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     /**
      * 회원가입을 위한 이메일 인증 코드를 요청합니다.
@@ -125,7 +126,7 @@ public class AuthApiController implements AuthApiDocs {
                 signUpService.signUp(command);
 
         var refreshTokenCookie =
-                create(
+                refreshTokenCookieFactory.create(
                         result.issuedTokens(),
                         clock
                 );
@@ -156,7 +157,7 @@ public class AuthApiController implements AuthApiDocs {
                 loginService.login(command);
 
         var refreshTokenCookie =
-                create(
+                refreshTokenCookieFactory.create(
                         result.issuedTokens(),
                         clock
                 );
@@ -195,7 +196,7 @@ public class AuthApiController implements AuthApiDocs {
                 );
 
         var refreshTokenCookie =
-                create(
+                refreshTokenCookieFactory.create(
                         result.issuedTokens(),
                         clock
                 );
@@ -241,7 +242,7 @@ public class AuthApiController implements AuthApiDocs {
         );
 
         var expiredRefreshTokenCookie =
-                createExpired();
+                refreshTokenCookieFactory.createExpired();
 
         return ResponseEntity
                 .noContent()
@@ -309,7 +310,7 @@ public class AuthApiController implements AuthApiDocs {
         );
 
         var expiredRefreshTokenCookie =
-                createExpired();
+                refreshTokenCookieFactory.createExpired();
 
         return ResponseEntity
                 .noContent()

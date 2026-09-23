@@ -91,6 +91,10 @@ judge0:
   base-url: ${JUDGE0_BASE_URL}
   connect-timeout-ms: 3000
   response-timeout-ms: 5000
+  validation:
+    max-poll-attempts: 10
+    poll-interval-ms: 500
+    max-consecutive-fetch-failures: 3
 
 judge:
   polling:
