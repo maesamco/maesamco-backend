@@ -8,11 +8,26 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@RestController
+@RequestMapping("/api/v1/daily-quiz")
+@Tag(name = "Daily Quiz", description = "일일 퀴즈 조회 및 문항 제출 API")
+@SecurityRequirement(name = "bearerAuth")
 public interface DailyQuizApiDocs {
 
+    @GetMapping
     @Operation(
             summary = "오늘의 일일 퀴즈 조회",
             description = "Access Token으로 인증된 사용자의 오늘 세트를 조회합니다. "
@@ -25,9 +40,10 @@ public interface DailyQuizApiDocs {
             @ApiResponse(responseCode = "404", description = "QUIZ_NOT_FOUND — 오늘 생성된 세트가 없음")
     })
     SuccessResponse<DailyQuizGetResponse> getDailyQuiz(
-            @Parameter(hidden = true) UUID userId
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID userId
     );
 
+    @PostMapping("/{quizAttemptId}/questions/{questionVersionId}/submit")
     @Operation(
             summary = "일일 퀴즈 문항 제출",
             description = "인증된 사용자가 자신에게 배정된 문항 하나를 제출하고 즉시 채점합니다. "
@@ -45,9 +61,9 @@ public interface DailyQuizApiDocs {
             @ApiResponse(responseCode = "410", description = "QUIZ_EXPIRED — 이전 날짜의 세트")
     })
     SuccessResponse<DailyQuizSubmitResponse> submitQuestion(
-            @Parameter(hidden = true) UUID userId,
-            @Parameter(description = "일일 퀴즈 세트 ID") UUID quizAttemptId,
-            @Parameter(description = "배정된 문항 버전 ID") UUID questionVersionId,
-            DailyQuizSubmitRequest request
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID userId,
+            @Parameter(description = "일일 퀴즈 세트 ID") @PathVariable UUID quizAttemptId,
+            @Parameter(description = "배정된 문항 버전 ID") @PathVariable UUID questionVersionId,
+            @Valid @RequestBody DailyQuizSubmitRequest request
     );
 }

@@ -1,9 +1,11 @@
 package com.maesamco.content.presentation.dailyquiz;
 
+import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
 import com.maesamco.content.application.dailyquiz.query.DailyQuizGetQuery;
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizGetQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizGetResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionGetResult;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizSubmitService;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptStatus;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
@@ -21,6 +23,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -35,10 +38,12 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,7 +70,7 @@ class DailyQuizControllerTest {
     private DailyQuizSubmitService submitService;
 
     @TestConfiguration
-    @EnableMethodSecurity(proxyTargetClass = true)
+    @EnableMethodSecurity
     static class TestSecurityConfig {
 
         @Bean
@@ -128,6 +133,50 @@ class DailyQuizControllerTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(queryService);
+    }
+
+    @Test
+    void 문항_제출은_인터페이스의_경로와_본문_매핑을_사용한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        UUID questionVersionId = UUID.randomUUID();
+        when(submitService.submit(any(DailyQuizSubmitCommand.class)))
+                .thenReturn(new DailyQuizSubmitResult(questionVersionId, true, false, null, null));
+
+        mockMvc.perform(post("/api/v1/daily-quiz/{quizAttemptId}/questions/{questionVersionId}/submit",
+                        attemptId, questionVersionId)
+                        .with(asUser(userId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"response\":\"int\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questionVersionId").value(questionVersionId.toString()))
+                .andExpect(jsonPath("$.data.correct").value(true));
+
+        verify(submitService).submit(new DailyQuizSubmitCommand(userId, attemptId, questionVersionId, "int"));
+    }
+
+    @Test
+    void 미인증_문항_제출은_차단한다() throws Exception {
+        mockMvc.perform(post("/api/v1/daily-quiz/{quizAttemptId}/questions/{questionVersionId}/submit",
+                        UUID.randomUUID(), UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"response\":\"int\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(submitService);
+    }
+
+    @Test
+    void 공백_답안은_인터페이스의_검증을_거쳐_거부한다() throws Exception {
+        mockMvc.perform(post("/api/v1/daily-quiz/{quizAttemptId}/questions/{questionVersionId}/submit",
+                        UUID.randomUUID(), UUID.randomUUID())
+                        .with(asUser(UUID.randomUUID()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"response\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT_VALUE"));
+
+        verifyNoInteractions(submitService);
     }
 
     @Test
