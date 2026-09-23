@@ -117,8 +117,30 @@ public class Problem extends BaseEntity {
     public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
     public void changeSource(ProblemSource newSource) { this.source = newSource; }
 
-    public void setProblemStatusDraft() {
-        this.problemStatus = ProblemStatus.DRAFT;
+    /**
+     * 발행된 문제를 재발행하기 위해 관리자 승인 대기 상태로 되돌립니다.
+     *
+     * <p>PUBLISHED 상태의 문제만 되돌릴 수 있습니다. 이 메서드는
+     * "발행 자체를 실패로 되돌린다"는 의미가 아니라, 잘못된 데이터로
+     * 발행된 문제(예: 이벤트 발행 버그로 다른 서비스에 정상 반영되지
+     * 못한 경우)를 별도 삭제·재생성 없이 기존 문제 그대로 재발행할 수
+     * 있도록, {@link #approvePublication()}을 다시 호출 가능한 상태로
+     * 되돌리기 위해 존재합니다.</p>
+     *
+     * <p>REVIEW_PENDING으로 직접 되돌리는 이유: DRAFT로 되돌리면
+     * {@link #requestPublicationReview()}를 다시 호출해야 REVIEW_PENDING로
+     * 갈 수 있는데, 이 메서드를 외부에서 호출할 수 있는 API가 현재
+     * create() 흐름 밖에는 없습니다. 재발행은 콘텐츠 수정 없이 그대로
+     * 다시 승인만 받으면 되는 시나리오이므로, DRAFT를 거치지 않고 바로
+     * REVIEW_PENDING으로 되돌려 기존 승인 절차({@link #approvePublication()})를
+     * 그대로 재사용합니다.</p>
+     */
+    public void revertToReviewPendingForRepublish() {
+        if (this.problemStatus != ProblemStatus.PUBLISHED) {
+            throw new BusinessException(ErrorCode.INVALID_PROBLEM_STATUS_TRANSITION);
+        }
+
+        this.problemStatus = ProblemStatus.REVIEW_PENDING;
     }
 
     /**

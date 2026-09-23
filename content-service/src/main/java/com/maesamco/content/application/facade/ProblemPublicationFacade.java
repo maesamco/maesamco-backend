@@ -123,6 +123,14 @@ public class ProblemPublicationFacade {
      * <p>이 메서드 자체는 문제 콘텐츠나 테스트케이스를 전혀 건드리지 않고
      * 상태 전환만 수행합니다 — 재발행 전에 콘텐츠 수정이 필요하다면 별도
      * 수정 API를 통해 상태 전환과 무관하게 처리합니다.</p>
+     *
+     * <p>⚠️ 참고(P4, 비차단): REVIEW_PENDING으로 되돌린 시점부터 다시
+     * {@link #approvePublication(UUID)}로 PUBLISHED가 될 때까지, 이 문제는
+     * 공개 검색·목록 조회({@code searchProblems}의 강제 PUBLISHED 필터)에서
+     * 잠깐 빠집니다. 관리자가 곧바로 재승인할 것을 전제로 한 짧은 창이라
+     * 문제로 보지 않지만, 재발행 API를 호출하고 오래 방치하면 그 시간만큼
+     * 사용자에게 노출되지 않는 상태가 지속된다는 점은 인지하고 있어야
+     * 합니다.</p>
      */
     @Transactional
     public void revertToReviewPendingForRepublish(UUID problemId) {
