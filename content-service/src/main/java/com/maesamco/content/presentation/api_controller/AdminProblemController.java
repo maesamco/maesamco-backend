@@ -15,7 +15,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/contents/problems")
-public class AdminProblemController {
+public class AdminProblemController implements AdminProblemApiDocs {
 
     private final ProblemPublicationFacade problemPublicationFacade;
 
@@ -28,6 +28,7 @@ public class AdminProblemController {
      * @param problemId 발행을 승인할 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{problemId}/approve")
     public ResponseEntity<SuccessResponse<Void>> approvePublication(
@@ -53,6 +54,7 @@ public class AdminProblemController {
      * @param problemId 재발행을 위해 되돌릴 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{problemId}/republish")
     public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(
