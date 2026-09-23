@@ -10,23 +10,15 @@ import com.maesamco.content.presentation.dailyquiz.request.DailyQuizSubmitReques
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizGetResponse;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizSubmitResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/daily-quiz")
-public class DailyQuizController {
+public class DailyQuizController implements DailyQuizApiDocs {
 
     private final DailyQuizGetQueryService queryService;
     private final DailyQuizSubmitService submitService;
@@ -35,10 +27,10 @@ public class DailyQuizController {
      * 인증된 사용자의 오늘 Daily Quiz 세트를 조회하고 최초 진입이면 시작 처리합니다.
      * 오늘의 Daily Quiz 세트와 문항별 진행 상태
      */
-    @GetMapping
     @PreAuthorize("isAuthenticated()")
+    @Override
     public SuccessResponse<DailyQuizGetResponse> getDailyQuiz(
-            @AuthenticationPrincipal UUID userId
+            UUID userId
     ) {
         // 인증된 사용자 ID를 Application 계층의 조회 조건으로 변환합니다.
         DailyQuizGetQuery query = DailyQuizGetQuery.from(userId);
@@ -53,13 +45,13 @@ public class DailyQuizController {
     /**
      * Daily Quiz에 배정된 문항 하나를 제출하고 즉시 채점합니다.
      */
-    @PostMapping("/{quizAttemptId}/questions/{questionVersionId}/submit")
     @PreAuthorize("isAuthenticated()")
+    @Override
     public SuccessResponse<DailyQuizSubmitResponse> submitQuestion(
-            @AuthenticationPrincipal UUID userId,
-            @PathVariable UUID quizAttemptId,
-            @PathVariable UUID questionVersionId,
-            @Valid @RequestBody DailyQuizSubmitRequest request
+            UUID userId,
+            UUID quizAttemptId,
+            UUID questionVersionId,
+            DailyQuizSubmitRequest request
     ) {
         DailyQuizSubmitCommand command = DailyQuizSubmitCommand.from(
                 userId,
