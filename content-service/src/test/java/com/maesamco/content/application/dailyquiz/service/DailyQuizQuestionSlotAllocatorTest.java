@@ -3,6 +3,8 @@ package com.maesamco.content.application.dailyquiz.service;
 import com.maesamco.content.domain.dailyquiz.ConceptSlots;
 import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import com.maesamco.content.domain.dailyquiz.QuestionSlots;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,6 +13,7 @@ import static com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType.
 import static com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType.MULTIPLE_CHOICE;
 import static com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType.SHORT_ANSWER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DailyQuizQuestionSlotAllocatorTest {
 
@@ -41,5 +44,16 @@ class DailyQuizQuestionSlotAllocatorTest {
                         SHORT_ANSWER,
                         FILL_IN_BLANK
                 );
+    }
+
+    @Test
+    void 개념_슬롯이_null이면_실패한다() {
+        assertThatThrownBy(() -> allocator.allocate(null))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE)
+                )
+                .hasMessage("개념 슬롯은 필수입니다.");
     }
 }
