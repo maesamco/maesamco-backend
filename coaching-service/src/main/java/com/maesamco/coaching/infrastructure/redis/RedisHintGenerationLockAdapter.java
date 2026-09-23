@@ -50,9 +50,11 @@ import java.util.UUID;
  * ~105초 worst-case에 여유를 둬서 150초로 올린다(재시도/타임아웃 설정이 나중에 바뀌면
  * 이 계산도 다시 해야 한다).
  *
- * TODO(#207): TTL을 올리면서 waitForConcurrentHint()(HintGenerationFacade, 현재 100ms×20회
- * =2초 대기)와의 격차가 커졌다 — 락을 못 잡은 요청이 2초만 기다리다 실패 처리될 수 있는데,
- * 대기 시간을 얼마나 늘릴지(HTTP 스레드 점유 시간과 트레이드오프)는 팀 판단이 필요하다.
+ * 이슈 #207(해결됨) — TTL을 올리면서 waitForConcurrentHint()(HintGenerationFacade, 현재
+ * 100ms×20회=2초 대기)와의 격차가 커졌던 문제는, 대기 시간을 늘리는 대신 에러코드를
+ * 분리하는 방향(PR #210)으로 해결했다 — 대기창을 넘기면 실패가 아니라
+ * HINT_GENERATION_IN_PROGRESS(409)로 응답해 "아직 진행 중이니 잠시 후 다시 시도"임을
+ * 구분해서 알린다.
  */
 @Slf4j
 @Component

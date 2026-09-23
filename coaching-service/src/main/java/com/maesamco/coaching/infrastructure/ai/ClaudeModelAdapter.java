@@ -48,11 +48,10 @@ public class ClaudeModelAdapter implements AiModelPort {
         // 하나에만 좁혀서, 파싱 단계의 NPE 등 우리 코드 버그까지 "Claude 호출 실패"(503)로
         // 뭉뚱그려지지 않게 한다. 파싱 버그는 GlobalExceptionHandler의 500 안전망으로 간다.
         //
-        // TODO(#206): 이 e(Anthropic SDK 원본 예외)가 각 Facade의 log.warn(..., e)로 그대로
-        // 로깅되는데, Anthropic SDK의 에러 메시지가 팀 컨벤션 14절이 금지하는 "사용자 제출
-        // 코드 원문"을 담을 수 있는지 실측 확인 안 됨(PR #182) — Gemini는 동일 방식으로
-        // 확인해서 노출 없음을 확인했지만, 로컬에 실제 ANTHROPIC_API_KEY가 없어 Claude
-        // 경로는 아직 재현하지 못했다.
+        // 이슈 #206(해결됨) — 이 e(Anthropic SDK 원본 예외)가 각 Facade의 log.warn(..., e)로
+        // 그대로 로깅되는데, Anthropic SDK의 에러 메시지가 팀 컨벤션 14절이 금지하는 "사용자
+        // 제출 코드 원문"을 담을 수 있는지는 Gemini/Claude 둘 다 실제 유료 API 키로 잘못된
+        // 모델명을 유발해 실측 확인 완료 — 두 벤더 모두 cause 체인에 노출 없음.
         Prompt prompt = new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
         ChatResponse response;
         try {

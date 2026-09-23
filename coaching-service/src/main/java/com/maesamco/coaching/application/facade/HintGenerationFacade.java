@@ -232,6 +232,10 @@ public class HintGenerationFacade {
      * 시간(2초)이 LLM 왕복 시간(최악 90~100초)보다 훨씬 짧아서 대부분 못 기다리고
      * 포기하는 것뿐이다 — HINT_GENERATION_IN_PROGRESS(409)로 응답해 "실패"가 아니라
      * "아직 진행 중이니 잠시 후 다시 시도"임을 클라이언트에 구분해서 알린다.
+     *
+     * 이슈 #282 — 이 타임아웃은 정상적인 동시 요청에서 항상 발생할 수 있는 기대된
+     * 상황이라(PR #137이 도입한 LogSeverity.DEBUG의 원래 취지와 동일 — Refresh Token
+     * grace window 동시 요청 사례 참고), WARN이 아니라 DEBUG로 남긴다.
      */
     private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int expectedStage, boolean skipAvailable) {
         for (int attempt = 0; attempt < LOCK_WAIT_MAX_ATTEMPTS; attempt++) {
@@ -246,8 +250,12 @@ public class HintGenerationFacade {
                 return new HintGenerationResult(coachingSessionId, hint.get(), skipAvailable, false);
             }
         }
-        log.warn("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
-        throw new BusinessException(ErrorCode.HINT_GENERATION_IN_PROGRESS);
+        log.debug("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
+        throw new BusinessException(
+                ErrorCode.HINT_GENERATION_IN_PROGRESS,
+                ErrorCode.HINT_GENERATION_IN_PROGRESS.getMessage(),
+                BusinessException.LogSeverity.DEBUG
+        );
     }
 
     private Hint maxStageHint(List<Hint> existingHints) {
