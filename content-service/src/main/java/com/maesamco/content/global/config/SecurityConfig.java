@@ -25,7 +25,8 @@ import java.util.Base64;
  * (게이트웨이 및 인증 보안 설계 1절 — 인증/인가 책임 분리 원칙).
  */
 @Configuration
-@EnableMethodSecurity
+// ApiDocs 인터페이스를 구현한 컨트롤러의 매핑이 메서드 보안 프록시에서도 유지되도록 합니다.
+@EnableMethodSecurity(proxyTargetClass = true)
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 

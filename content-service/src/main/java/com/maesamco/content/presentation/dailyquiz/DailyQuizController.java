@@ -10,6 +10,8 @@ import com.maesamco.content.presentation.dailyquiz.request.DailyQuizSubmitReques
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizGetResponse;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizSubmitResponse;
 import com.maesamco.content.global.response.SuccessResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,7 +28,9 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/daily-quiz")
-public class DailyQuizController {
+@Tag(name = "Daily Quiz", description = "일일 퀴즈 조회 및 문항 제출 API")
+@SecurityRequirement(name = "bearerAuth")
+public class DailyQuizController implements DailyQuizApiDocs {
 
     private final DailyQuizGetQueryService queryService;
     private final DailyQuizSubmitService submitService;
@@ -37,6 +41,7 @@ public class DailyQuizController {
      */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
+    @Override
     public SuccessResponse<DailyQuizGetResponse> getDailyQuiz(
             @AuthenticationPrincipal UUID userId
     ) {
@@ -55,6 +60,7 @@ public class DailyQuizController {
      */
     @PostMapping("/{quizAttemptId}/questions/{questionVersionId}/submit")
     @PreAuthorize("isAuthenticated()")
+    @Override
     public SuccessResponse<DailyQuizSubmitResponse> submitQuestion(
             @AuthenticationPrincipal UUID userId,
             @PathVariable UUID quizAttemptId,

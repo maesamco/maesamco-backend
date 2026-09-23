@@ -7,10 +7,16 @@ import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionGetRes
 import com.maesamco.content.application.dailyquiz.service.DailyQuizSubmitService;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptStatus;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
+import com.maesamco.content.global.config.OpenApiConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
+import org.springdoc.core.configuration.SpringDocConfiguration;
+import org.springdoc.core.configuration.SpringDocSpecPropertiesConfiguration;
+import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
@@ -39,8 +45,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 오늘의 Daily Quiz 조회 API 계약과 인증 정책을 검증합니다.
  */
-@WebMvcTest(DailyQuizController.class)
-@Import(DailyQuizControllerTest.TestSecurityConfig.class)
+@WebMvcTest(controllers = DailyQuizController.class, properties = "springdoc.api-docs.enabled=true")
+@Import({DailyQuizControllerTest.TestSecurityConfig.class, OpenApiConfig.class})
+@ImportAutoConfiguration({
+        SpringDocConfiguration.class,
+        SpringDocWebMvcConfiguration.class,
+        SpringDocSpecPropertiesConfiguration.class,
+        SpringDocConfigProperties.class
+})
 class DailyQuizControllerTest {
 
     @Autowired
@@ -53,7 +65,7 @@ class DailyQuizControllerTest {
     private DailyQuizSubmitService submitService;
 
     @TestConfiguration
-    @EnableMethodSecurity
+    @EnableMethodSecurity(proxyTargetClass = true)
     static class TestSecurityConfig {
 
         @Bean
@@ -116,6 +128,35 @@ class DailyQuizControllerTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(queryService);
+    }
+
+    @Test
+    void Swagger_문서에_조회와_제출_계약을_표시한다() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.summary")
+                        .value("오늘의 일일 퀴즈 조회"))
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.parameters").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.responses['404'].description")
+                        .value("QUIZ_NOT_FOUND — 오늘 생성된 세트가 없음"))
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/{quizAttemptId}/questions/"
+                        + "{questionVersionId}/submit'].post.summary")
+                        .value("일일 퀴즈 문항 제출"))
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/{quizAttemptId}/questions/"
+                        + "{questionVersionId}/submit'].post.parameters.length()")
+                        .value(2))
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/{quizAttemptId}/questions/"
+                        + "{questionVersionId}/submit'].post.parameters[?(@.name == 'quizAttemptId')].description")
+                        .value("일일 퀴즈 세트 ID"))
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/{quizAttemptId}/questions/"
+                        + "{questionVersionId}/submit'].post.responses['409'].description")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.DailyQuizGetResponse.properties.totalCount.description")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.DailyQuizSubmitResponse.properties.summary.description")
+                        .exists())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"));
     }
 
     private static RequestPostProcessor asUser(UUID userId) {
