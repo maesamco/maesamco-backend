@@ -222,6 +222,7 @@ services:
       # 이슈(배포 스크립트 리뷰) — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
       # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
       EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
