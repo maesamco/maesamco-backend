@@ -39,6 +39,22 @@ public enum ErrorCode {
             HttpStatus.FORBIDDEN,
             "현재 로그인할 수 없는 계정입니다."
     ),
+    SOCIAL_PROVIDER_NOT_SUPPORTED(
+            HttpStatus.BAD_REQUEST,
+            "지원하지 않는 소셜 로그인 방식입니다."
+    ),
+    SOCIAL_EMAIL_NOT_VERIFIED(
+            HttpStatus.UNAUTHORIZED,
+            "소셜 계정의 이메일 인증을 확인할 수 없습니다."
+    ),
+    SOCIAL_SIGNUP_EMAIL_ALREADY_EXISTS(
+            HttpStatus.CONFLICT,
+            "이미 다른 로그인 방식으로 가입된 계정입니다. 기존 로그인 방법을 이용해주세요."
+    ),
+    SOCIAL_PROVIDER_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "소셜 로그인 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(

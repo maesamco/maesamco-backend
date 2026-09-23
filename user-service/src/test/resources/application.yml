@@ -17,6 +17,10 @@ spring:
           create_namespaces: true
 
 security:
+  social:
+    google:
+      client-id: test-google-client-id.apps.googleusercontent.com
+
   email:
     encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     lookup-hmac-key: ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=

@@ -30,6 +30,8 @@ dependencies {
     annotationProcessor "io.github.openfeign.querydsl:querydsl-apt:${querydslVersion}:jakarta"
     implementation "org.bouncycastle:bcprov-jdk18on:${bouncycastleVersion}"
 
+    implementation "com.google.api-client:google-api-client-gson:${googleApiClientVersion}"
+
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
