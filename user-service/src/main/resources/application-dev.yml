@@ -8,3 +8,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+management:
+  health:
+    mail:
+      enabled: false
