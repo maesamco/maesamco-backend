@@ -2,6 +2,7 @@ package com.maesamco.content.application.persistence_service;
 
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
@@ -33,6 +34,7 @@ public class ProblemService {
 
     private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
+    private final ProblemPublicationFacade problemPublicationFacade;
 
     /** 문제 생성 */
     @Transactional(rollbackFor = Exception.class)
@@ -50,6 +52,11 @@ public class ProblemService {
                 command.getSource(),
                 ProblemStatus.DRAFT
         );
+
+        // 이슈 #291 — 생성 시점에 바로 레슨에 연결할 수도 있다(선택 사항).
+        if (command.getLessonId() != null) {
+            problem.changeLessonId(command.getLessonId());
+        }
 
         problem.requestPublicationReview();
 
@@ -131,7 +138,8 @@ public class ProblemService {
                         || command.getRunningTimeLimit() != null
                         || command.getRunningMemoryLimit() != null
                         || command.getTimerPolicy() != null
-                        || command.getSource() != null;
+                        || command.getSource() != null
+                        || command.getLessonId().isDefined();
 
         // 수정 요청이 있는 값들만 수정
         if (command.getTitle() != null) {
@@ -167,18 +175,40 @@ public class ProblemService {
         if (command.getSource() != null) {
             problem.changeSource(command.getSource());
         }
+        // 들어왔는데 null인 경우 -> 레슨 연결 해제 / 안 들어와서 null인 경우 -> 안 바꿈 (이슈 #291)
+        if (command.getLessonId().isDefined()) {
+            problem.changeLessonId(command.getLessonId().getValue());
+        }
 
         if (isModified) {
             problem.increaseVersion();
-            // TODO: problem publish 재발행 ( increaseVersion 이거 중복 처리되지 않도록 주의 )
 
-            /*
-             * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
-             * 새 버전 스냅샷으로 저장합니다.
-             */
-            ProblemVersion snapshot = ProblemVersion.snapshot(problem);
+            // ⚠️ 이슈 #254 — PUBLISHED 상태의 문제에서 채점에 실제로 영향을 주는
+            // 필드(language, runningTimeLimit, runningMemoryLimit)가 바뀌면,
+            // judge-service의 실행 스펙(p_problem_execution_specs)이 낡은 채로
+            // 남아 두 서비스 데이터가 조용히 어긋나는 문제가 있었다. 이 경우
+            // 일반 snapshot() 대신 승인된 테스트케이스까지 포함한 발행 버전을
+            // 새로 만들어 ProblemPublished 이벤트를 재발행한다.
+            //
+            // 반드시 양자택일이어야 한다 — 같은 currentVersionNo로 ProblemVersion을
+            // 두 번(snapshot() 한 번, createPublished() 한 번) 저장하면
+            // UNIQUE(problem_id, version_no) 제약 위반이 발생한다.
+            boolean gradingCriticalFieldChanged =
+                    command.getLanguage() != null
+                            || command.getRunningTimeLimit() != null
+                            || command.getRunningMemoryLimit() != null;
 
-            problemVersionRepository.save(snapshot);
+            if (problem.getProblemStatus() == ProblemStatus.PUBLISHED && gradingCriticalFieldChanged) {
+                problemPublicationFacade.republishExistingVersion(problem);
+            } else {
+                /*
+                 * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
+                 * 새 버전 스냅샷으로 저장합니다.
+                 */
+                ProblemVersion snapshot = ProblemVersion.snapshot(problem);
+
+                problemVersionRepository.save(snapshot);
+            }
 
             // 응답을 생성하기 전에 UPDATE를 실행하여 JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
             problemCommandRepository.flush();

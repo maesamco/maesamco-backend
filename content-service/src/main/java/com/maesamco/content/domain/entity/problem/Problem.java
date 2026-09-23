@@ -65,6 +65,9 @@ public class Problem extends BaseEntity {
     @Column(name = "problem_status", nullable = false, length = 20)
     private ProblemStatus problemStatus;
 
+    @Column(name = "lesson_id")
+    private UUID lessonId;
+
     // default = 1이고, problem이 수정될 때 currentVersionNo++;
     @Column(name = "current_version_no", nullable = false)
     private Integer currentVersionNo = 1;
@@ -116,6 +119,15 @@ public class Problem extends BaseEntity {
     public void changeRunningMemoryLimit(RunningMemoryLimit newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
     public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
     public void changeSource(ProblemSource newSource) { this.source = newSource; }
+
+    /**
+     * 문제를 특정 레슨에 연결합니다(이슈 #291).
+     *
+     * <p>레슨 연결을 해제하려면 {@code null}을 전달합니다. 문제 하나는
+     * 최대 하나의 레슨에만 연결됩니다(1:N) — 여러 레슨에서 재사용되는
+     * 요구사항은 없는 것으로 확인되어 이렇게 설계했습니다.</p>
+     */
+    public void changeLessonId(UUID newLessonId) { this.lessonId = newLessonId; }
 
     /**
      * 발행된 문제를 재발행하기 위해 관리자 승인 대기 상태로 되돌립니다.

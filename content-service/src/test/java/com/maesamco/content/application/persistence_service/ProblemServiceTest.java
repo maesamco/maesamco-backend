@@ -3,6 +3,7 @@ package com.maesamco.content.application.persistence_service;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
@@ -51,6 +52,9 @@ class ProblemServiceTest {
 
     @Mock
     private ProblemFinder problemFinder;
+
+    @Mock
+    private ProblemPublicationFacade problemPublicationFacade;
 
     @InjectMocks
     private ProblemService problemService;
@@ -313,6 +317,11 @@ class ProblemServiceTest {
                         UpdateField.undefined()
                 );
 
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
         // when
         ProblemResult result =
                 problemService.updateProblem(
@@ -364,6 +373,92 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("이슈 #254 — PUBLISHED 문제의 채점 관련 필드(language)가 바뀌면 일반 스냅샷 대신 재발행한다")
+    void updateProblem_publishedAndLanguageChanged_republishesInsteadOfSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.PUBLISHED);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        assertThat(problem.getCurrentVersionNo()).isEqualTo(2);
+
+        verify(problemPublicationFacade).republishExistingVersion(problem);
+        verifyNoInteractions(problemVersionRepository);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED 문제라도 채점과 무관한 필드(title)만 바뀌면 일반 스냅샷을 저장한다")
+    void updateProblem_publishedButOnlyNonGradingFieldChanged_savesPlainSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.PUBLISHED);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getTitle()).thenReturn("제목만 변경");
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        assertThat(problem.getTitle()).isEqualTo("제목만 변경");
+        assertThat(problem.getCurrentVersionNo()).isEqualTo(2);
+
+        verify(problemVersionRepository).save(any(ProblemVersion.class));
+        verifyNoInteractions(problemPublicationFacade);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED가 아닌 문제는 채점 관련 필드가 바뀌어도 재발행하지 않는다")
+    void updateProblem_notPublishedAndLanguageChanged_savesPlainSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.REVIEW_PENDING);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        verify(problemVersionRepository).save(any(ProblemVersion.class));
+        verifyNoInteractions(problemPublicationFacade);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
     @DisplayName("starterCode가 요청에 포함되지 않으면 기존 값을 유지한다")
     void updateProblem_starterCodeUndefined_keepsExistingValue() {
         // given
@@ -386,6 +481,11 @@ class ProblemServiceTest {
 
         // 요청에 starterCode 필드 자체가 없는 경우
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );
@@ -431,6 +531,11 @@ class ProblemServiceTest {
         when(command.getStarterCode())
                 .thenReturn(
                         UpdateField.of(null)
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -480,6 +585,11 @@ class ProblemServiceTest {
                         UpdateField.of(
                                 "public class UpdatedMain {}"
                         )
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -583,6 +693,11 @@ class ProblemServiceTest {
                 .thenReturn("동시 수정");
 
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );

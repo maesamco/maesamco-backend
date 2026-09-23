@@ -1,6 +1,9 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.ProblemSource;
@@ -871,6 +874,68 @@ class ProblemQueryRepositoryImplTest {
                 .isEqualTo(4);
     }
 
+    @Test
+    @DisplayName("이슈 #291 — 레슨 ID 조건으로 문제를 검색한다")
+    void searchProblems_filtersByLessonId() {
+        // given
+        // ⚠️ 리뷰 반영(P1) — 이 PR이 추가한 fk_p_problems_lesson_id FK 제약 때문에,
+        // 실제로 존재하지 않는 UUID.randomUUID()를 lessonId로 그대로 저장하려고
+        // 하면 ConstraintViolationException이 발생한다(직접 재현 확인). 실제
+        // Curriculum → Unit → Lesson 픽스처를 만들어 그 lesson_id를 사용해야 한다.
+        Curriculum curriculum = Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA, 1);
+        entityManager.persist(curriculum);
+
+        Unit unit = Unit.create(curriculum.getId(), "자료구조", ProgrammingLanguage.JAVA, 1);
+        entityManager.persist(unit);
+
+        Lesson lesson = Lesson.create(
+                unit.getId(), "스택과 큐", "설명", "내용", ProgrammingLanguage.JAVA, 1);
+        entityManager.persist(lesson);
+
+        entityManager.flush();
+
+        UUID targetLessonId = lesson.getId();
+
+        // ⚠️ 리뷰 반영(P1) — setUp()이 끝나며 entityManager.clear()를 호출해
+        // javaEasy는 detached 상태다. detached 엔티티에 changeLessonId()를
+        // 호출해도 JPA 변경 감지가 동작하지 않아 flush()해도 DB에 반영되지
+        // 않는다(직접 재현 확인) — 반드시 관리(managed) 상태로 다시 조회해서
+        // 수정해야 한다.
+        Problem managedJavaEasy = entityManager.find(Problem.class, javaEasy.getId());
+        managedJavaEasy.changeLessonId(targetLessonId);
+        entityManager.flush();
+        entityManager.clear();
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        // when
+        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(javaEasy.getId());
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨에 연결되지 않은 문제는 lessonId 조건에서 제외된다")
+    void searchProblems_filtersByLessonId_excludesUnassignedProblems() {
+        // given
+        UUID targetLessonId = UUID.randomUUID();
+        // javaEasy, javaHard 등 어떤 문제도 이 레슨에 연결하지 않는다.
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        Pageable pageable = PageRequest.of(0, 20);
+
+        // when
+        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
     private ProblemSearchCondition emptyCondition() {
         return condition(
                 null,
@@ -885,6 +950,20 @@ class ProblemQueryRepositoryImplTest {
             ProblemDifficulty difficulty,
             ProblemSource source,
             ProblemStatus problemStatus
+    ) {
+        return conditionWithLessonId(language, difficulty, source, problemStatus, null);
+    }
+
+    private ProblemSearchCondition conditionWithLessonId(UUID lessonId) {
+        return conditionWithLessonId(null, null, null, null, lessonId);
+    }
+
+    private ProblemSearchCondition conditionWithLessonId(
+            ProgrammingLanguage language,
+            ProblemDifficulty difficulty,
+            ProblemSource source,
+            ProblemStatus problemStatus,
+            UUID lessonId
     ) {
         return mock(
                 ProblemSearchCondition.class,
@@ -922,6 +1001,10 @@ class ProblemQueryRepositoryImplTest {
                              "status",
                              "getStatus" ->
                                 problemStatus;
+
+                        case "lessonId",
+                             "getLessonId" ->
+                                lessonId;
 
                         default ->
                                 Answers.RETURNS_DEFAULTS

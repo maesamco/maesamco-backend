@@ -125,6 +125,9 @@ class GeminiModelAdapterTest {
         Generation generation = new Generation(
                 org.springframework.ai.chat.messages.AssistantMessage.builder()
                         .content("응답 텍스트")
+                        .build(),
+                org.springframework.ai.chat.metadata.ChatGenerationMetadata.builder()
+                        .finishReason("STOP")
                         .build()
         );
         ChatResponseMetadata metadata = ChatResponseMetadata.builder()
@@ -142,5 +145,36 @@ class GeminiModelAdapterTest {
         assertThat(result.content()).isEqualTo("응답 텍스트");
         assertThat(result.modelName()).isEqualTo("gemini-pro");
         assertThat(result.tokenUsage()).isEqualTo(30);
+    }
+
+    /**
+     * 이슈 #262/#280(용현님 리뷰) — max-output-tokens를 늘리는 것만으로는 이 이슈의 재발을
+     * 막지 못한다는 지적에 대한 회귀 테스트. finishReason=MAX_TOKENS로 끝난 응답은 content가
+     * 비어있지 않아도(부분적으로 잘린 채) 정상 성공으로 반환되면 안 된다.
+     */
+    @Test
+    void finishReason이_MAX_TOKENS면_잘린_content가_있어도_AiModelCallException으로_처리한다() {
+        Generation generation = new Generation(
+                org.springframework.ai.chat.messages.AssistantMessage.builder()
+                        .content("중간에 잘린 응답...")
+                        .build(),
+                org.springframework.ai.chat.metadata.ChatGenerationMetadata.builder()
+                        .finishReason("MAX_TOKENS")
+                        .build()
+        );
+        ChatResponseMetadata metadata = ChatResponseMetadata.builder()
+                .model("gemini-pro")
+                .usage(new DefaultUsage(10, 4096))
+                .build();
+        ChatResponse response = ChatResponse.builder()
+                .generations(java.util.List.of(generation))
+                .metadata(metadata)
+                .build();
+        when(chatModel.call(any(Prompt.class))).thenReturn(response);
+
+        assertThatThrownBy(() -> geminiModelAdapter.generate("system", "user"))
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(false);
     }
 }

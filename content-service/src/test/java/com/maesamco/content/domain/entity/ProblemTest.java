@@ -6,6 +6,8 @@ import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -267,6 +269,34 @@ class ProblemTest {
         // then
         assertThat(problem.getSource())
                 .isEqualTo(ProblemSource.AI_ASSISTED);
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 문제를 레슨에 연결할 수 있다")
+    void changeLessonId_assignsProblemToLesson() {
+        // given
+        Problem problem = createProblem();
+        UUID lessonId = UUID.randomUUID();
+
+        // when
+        problem.changeLessonId(lessonId);
+
+        // then
+        assertThat(problem.getLessonId()).isEqualTo(lessonId);
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨 연결을 null로 해제할 수 있다")
+    void changeLessonId_null_unassignsFromLesson() {
+        // given
+        Problem problem = createProblem();
+        problem.changeLessonId(UUID.randomUUID());
+
+        // when
+        problem.changeLessonId(null);
+
+        // then
+        assertThat(problem.getLessonId()).isNull();
     }
 
     @Test
