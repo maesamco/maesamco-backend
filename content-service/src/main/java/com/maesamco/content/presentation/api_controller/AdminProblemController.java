@@ -1,14 +1,26 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
+import com.maesamco.content.application.persistence_service.ProblemService;
+import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
+import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.presentation.request.ProblemSearchRequest;
+import com.maesamco.content.presentation.response.AdminProblemSearchItemResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
@@ -19,8 +31,60 @@ public class AdminProblemController {
 
     private final ProblemPublicationFacade problemPublicationFacade;
 
+    private final ProblemService problemService;
 
-    // TODO: GET  /api/v1/admin/problems ( problemStatus 필터 )
+    /**
+     * 관리자가 문제 상태를 포함한 조건으로 문제 목록을 검색합니다.
+     *
+     * <p>공개 문제 목록과 달리 DRAFT, REVIEW_PENDING,
+     * PUBLISHED 상태를 모두 조회할 수 있습니다.</p>
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping
+    public ResponseEntity<
+            SuccessResponse<
+                    PageResponse<AdminProblemSearchItemResponse>
+                    >
+            > searchProblems(
+            @Valid
+            @ModelAttribute
+            ProblemSearchRequest request,
+            @RequestParam(required = false)
+            Integer page,
+            @RequestParam(required = false)
+            Integer size,
+            @RequestParam(required = false)
+            String sort,
+            @RequestParam(required = false)
+            String direction
+    ) {
+        Pageable pageable =
+                PageableFactory.of(
+                        page,
+                        size,
+                        sort,
+                        direction
+                );
+
+        Page<ProblemSearchResult> results =
+                problemService.searchProblemsForAdmin(
+                        request.toQuery(),
+                        pageable
+                );
+
+        PageResponse<AdminProblemSearchItemResponse>
+                response =
+                PageResponse.from(
+                        results,
+                        AdminProblemSearchItemResponse::from
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        response
+                )
+        );
+    }
 
     /**
      * REVIEW_PENDING 상태의 문제 발행을 승인합니다.
@@ -30,11 +94,14 @@ public class AdminProblemController {
      */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{problemId}/approve")
-    public ResponseEntity<SuccessResponse<Void>> approvePublication(
-            @PathVariable UUID problemId
+    public ResponseEntity<SuccessResponse<Void>>
+    approvePublication(
+            @PathVariable
+            UUID problemId
     ) {
-        // TODO: Facade 방식으로 (관리자가 문제 상태를 PUBLISHED로 변경 -> ProblemVersion 생성/저장 -> 발행 이벤트 기록)
-        problemPublicationFacade.approvePublication(problemId);
+        problemPublicationFacade.approvePublication(
+                problemId
+        );
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()
@@ -42,30 +109,24 @@ public class AdminProblemController {
     }
 
     /**
-     * 발행된 문제를 재발행하기 위해 관리자 승인 대기(REVIEW_PENDING) 상태로 되돌립니다.
-     *
-     * <p>이슈 #253 — ProblemPublished 이벤트가 어떤 이유로든(버그, Kafka 장애 등)
-     * 다른 서비스에 정상 반영되지 못했을 때, 삭제·재생성 없이 기존 문제 그대로
-     * 재발행할 수 있도록 하는 복구 경로입니다. 이 API 호출 후 기존
-     * {@code POST /{problemId}/approve}를 다시 호출하면 새 ProblemVersion과
-     * 새 ProblemPublished 이벤트가 생성됩니다.</p>
-     *
-     * @param problemId 재발행을 위해 되돌릴 문제의 고유 ID
-     * @return 응답 데이터가 없는 성공 응답
+     * 발행된 문제를 재발행하기 위해 관리자 승인 대기 상태로 되돌립니다.
      */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{problemId}/republish")
-    public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(
-            @PathVariable UUID problemId
+    public ResponseEntity<SuccessResponse<Void>>
+    revertToReviewPendingForRepublish(
+            @PathVariable
+            UUID problemId
     ) {
-        problemPublicationFacade.revertToReviewPendingForRepublish(problemId);
+        problemPublicationFacade
+                .revertToReviewPendingForRepublish(
+                        problemId
+                );
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()
         );
     }
-
-
 
     // TODO: POST /api/v1/admin/problems/{problemId}/reject
 }

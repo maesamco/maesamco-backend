@@ -16,7 +16,7 @@ public enum ProblemType {
     ONE_CHOICE,
 
     /** 객관식 2개 이상 선택 */
-    MULTIPLE_CHOICE,
+    MULTI_SELECT,
 
     /** 빈칸 채우기 */
     FILL_IN_BLANK
