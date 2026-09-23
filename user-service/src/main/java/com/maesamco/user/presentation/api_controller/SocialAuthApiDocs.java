@@ -49,7 +49,9 @@ public interface SocialAuthApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "INVALID_INPUT_VALUE",
+                    description =
+                            "INVALID_INPUT_VALUE 또는 "
+                                    + "SOCIAL_PROVIDER_NOT_SUPPORTED",
                     content = @Content(
                             schema = @Schema(
                                     implementation =

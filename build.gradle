@@ -16,10 +16,6 @@ allprojects {
     // 서비스별 build.gradle에서 ${jjwtVersion} 처럼 바로 참조합니다.
     // (Version Catalog 대신 ext 블록 사용 — Spring Cloud가 생성해주는
     //  ext { set('springCloudVersion', ...) } 패턴과 스타일을 통일)
-    // ===== 버전 중앙 관리 =====
-// 서비스별 build.gradle에서 ${jjwtVersion} 처럼 바로 참조합니다.
-// (Version Catalog 대신 ext 블록 사용 — Spring Cloud가 생성해주는
-//  ext { set('springCloudVersion', ...) } 패턴과 스타일을 통일)
     ext {
         springCloudVersion      = "2025.1.3"   // 확정 (Boot 4.1.1 + Initializr 실측)
         jjwtVersion             = "0.13.0"
