@@ -1,7 +1,7 @@
 package com.maesamco.content.presentation.Internal;
 
 import com.maesamco.content.application.result.ProblemInternalResult;
-import com.maesamco.content.application.service.ProblemInternalService;
+import com.maesamco.content.application.persistence_service.ProblemInternalService;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.security.hmac.InternalCallHeaders;

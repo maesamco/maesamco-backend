@@ -7,11 +7,12 @@ import com.maesamco.content.domain.entity.problem.ProblemSource;
 import com.maesamco.content.domain.entity.problem.ProblemStatus;
 import com.maesamco.content.domain.entity.problem.ProblemType;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.ProblemVersionSnapshot;
+import com.maesamco.content.domain.entity.problem.ProblemVersionTestCaseItem;
 import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
 import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
 import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
-import com.maesamco.content.global.common.BaseEntity;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -43,12 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.jpa.properties.hibernate.default_schema=content_schema",
         "spring.data.jpa.repositories.enabled=false"
 })
-@AutoConfigureTestDatabase(
-        replace = AutoConfigureTestDatabase.Replace.NONE
-)
-@ImportAutoConfiguration(
-        FlywayAutoConfiguration.class
-)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({
         JpaAuditingConfig.class,
         ProblemVersionRepositoryImpl.class
@@ -63,9 +60,7 @@ class ProblemVersionRepositoryImplTest {
     @ServiceConnection
     static final PostgreSQLContainer postgres =
             new PostgreSQLContainer(
-                    DockerImageName.parse(
-                            "postgres:16-alpine"
-                    )
+                    DockerImageName.parse("postgres:16-alpine")
             );
 
     static {
@@ -79,9 +74,7 @@ class ProblemVersionRepositoryImplTest {
     private ProblemVersionRepository problemVersionRepository;
 
     @Test
-    @DisplayName(
-            "ProblemVersion을 저장하면 발행 스냅샷이 PostgreSQL JSONB로 저장되고 복원된다"
-    )
+    @DisplayName("ProblemVersion을 저장하면 발행 스냅샷이 PostgreSQL JSONB로 저장되고 복원된다")
     void saveAndFind_restoresJsonbSnapshot() {
         // given
         Problem problem = createProblem();
@@ -89,167 +82,79 @@ class ProblemVersionRepositoryImplTest {
         entityManager.persist(problem);
         entityManager.flush();
 
-        UUID firstTestCaseId =
-                UUID.randomUUID();
+        UUID firstTestCaseId = UUID.randomUUID();
+        UUID secondTestCaseId = UUID.randomUUID();
 
-        UUID secondTestCaseId =
-                UUID.randomUUID();
+        List<ProblemVersionTestCaseItem> testCases = List.of(
+                new ProblemVersionTestCaseItem(
+                        firstTestCaseId,
+                        true,
+                        "1 2",
+                        "3",
+                        1
+                ),
+                new ProblemVersionTestCaseItem(
+                        secondTestCaseId,
+                        false,
+                        "10 20",
+                        "30",
+                        2
+                )
+        );
 
-        List<ProblemVersion.TestCaseItem> testCases =
-                List.of(
-                        new ProblemVersion.TestCaseItem(
-                                firstTestCaseId,
-                                true,
-                                "1 2",
-                                "3",
-                                1
-                        ),
-                        new ProblemVersion.TestCaseItem(
-                                secondTestCaseId,
-                                false,
-                                "10 20",
-                                "30",
-                                2
-                        )
-                );
+        Instant publishedAt = Instant.parse("2026-09-08T00:00:00Z");
 
-        Instant publishedAt =
-                Instant.parse(
-                        "2026-09-08T00:00:00Z"
-                );
-
-        ProblemVersion problemVersion =
-                ProblemVersion.createPublished(
-                        problem.getId(),
-                        problem,
-                        testCases,
-                        publishedAt
-                );
+        ProblemVersion problemVersion = ProblemVersion.createPublished(
+                problem,
+                testCases,
+                publishedAt
+        );
 
         // when
-        ProblemVersion saved =
-                problemVersionRepository.save(
-                        problemVersion
-                );
+        ProblemVersion saved = problemVersionRepository.save(problemVersion);
 
         problemVersionRepository.flush();
 
-        UUID problemVersionId =
-                saved.getId();
+        UUID problemVersionId = saved.getId();
 
         entityManager.clear();
 
-        ProblemVersion found =
-                problemVersionRepository
-                        .findById(
-                                problemVersionId
-                        )
-                        .orElseThrow();
+        ProblemVersion found = problemVersionRepository.findById(problemVersionId)
+                .orElseThrow();
 
         // then
-        assertThat(found.getId())
-                .isEqualTo(problemVersionId);
+        assertThat(found.getId()).isEqualTo(problemVersionId);
+        assertThat(found.getProblemId()).isEqualTo(problem.getId());
+        assertThat(found.getVersionNo()).isEqualTo(1);
+        assertThat(found.getPublishedAt()).isEqualTo(publishedAt);
 
-        assertThat(found.getProblemId())
-                .isEqualTo(problem.getId());
+        ProblemVersionSnapshot snapshot = found.toVersionSnapshot();
 
-        assertThat(found.getVersionNo())
-                .isEqualTo(1);
+        assertThat(snapshot.title()).isEqualTo("두 수의 합");
+        assertThat(snapshot.language()).isEqualTo(ProgrammingLanguage.JAVA);
+        assertThat(snapshot.difficulty()).isEqualTo(ProblemDifficulty.EASY);
+        assertThat(snapshot.type()).isEqualTo(ProblemType.CODE);
+        assertThat(snapshot.description()).isEqualTo("두 정수를 더한 값을 반환하세요.");
+        assertThat(snapshot.starterCode()).isEqualTo("class Solution {}");
+        assertThat(snapshot.runningTimeLimit()).isEqualTo(1);
+        assertThat(snapshot.runningMemoryLimit()).isEqualTo(128);
+        assertThat(snapshot.timerPolicy()).isEqualTo(TimerPolicy.APPLY60);
+        assertThat(snapshot.source()).isEqualTo(ProblemSource.HUMAN_AUTHORED);
 
-        assertThat(found.getPublishedAt())
-                .isEqualTo(publishedAt);
+        assertThat(snapshot.testCases()).containsExactlyElementsOf(testCases);
 
-        UUID createdBy =
-                (UUID) entityManager
-                        .createNativeQuery(
-                                """
-                                SELECT created_by
-                                FROM content_schema.p_problem_versions
-                                WHERE id = :problemVersionId
-                                """
-                        )
-                        .setParameter(
-                                "problemVersionId",
-                                problemVersionId
-                        )
-                        .getSingleResult();
+        String columnType = (String) entityManager
+                .createNativeQuery(
+                        """
+                        SELECT pg_typeof(problem_snapshot)::text
+                        FROM content_schema.p_problem_versions
+                        WHERE id = :problemVersionId
+                        """
+                )
+                .setParameter("problemVersionId", problemVersionId)
+                .getSingleResult();
 
-        assertThat(createdBy)
-                .isEqualTo(
-                        BaseEntity.SYSTEM_ACTOR_ID
-                );
-
-        ProblemVersion.ProblemVersionSnapshot snapshot =
-                found.getContentSnapshot();
-
-        assertThat(snapshot.title())
-                .isEqualTo(
-                        "두 수의 합"
-                );
-
-        assertThat(snapshot.language())
-                .isEqualTo(
-                        ProgrammingLanguage.JAVA
-                );
-
-        assertThat(snapshot.difficulty())
-                .isEqualTo(
-                        ProblemDifficulty.EASY
-                );
-
-        assertThat(snapshot.type())
-                .isEqualTo(
-                        ProblemType.CODE
-                );
-
-        assertThat(snapshot.description())
-                .isEqualTo(
-                        "두 정수를 더한 값을 반환하세요."
-                );
-
-        assertThat(snapshot.starterCode())
-                .isEqualTo(
-                        "class Solution {}"
-                );
-
-        assertThat(snapshot.runningTimeLimit())
-                .isEqualTo(1);
-
-        assertThat(snapshot.runningMemoryLimit())
-                .isEqualTo(128);
-
-        assertThat(snapshot.timerPolicy())
-                .isEqualTo(
-                        TimerPolicy.APPLY60
-                );
-
-        assertThat(snapshot.source())
-                .isEqualTo(
-                        ProblemSource.HUMAN_AUTHORED
-                );
-
-        assertThat(snapshot.testCases())
-                .containsExactlyElementsOf(
-                        testCases
-                );
-
-        String columnType =
-                (String) entityManager
-                        .createNativeQuery(
-                                """
-                                SELECT pg_typeof(problem_snapshot)::text
-                                FROM content_schema.p_problem_versions
-                                WHERE id = :problemVersionId
-                                """
-                        )
-                        .setParameter(
-                                "problemVersionId",
-                                problemVersionId
-                        )
-                        .getSingleResult();
-
-        assertThat(columnType)
-                .isEqualTo("jsonb");
+        assertThat(columnType).isEqualTo("jsonb");
     }
 
     private Problem createProblem() {

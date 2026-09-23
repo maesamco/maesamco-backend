@@ -31,10 +31,7 @@ public enum ErrorCode {
     AUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
 
     // ===== 서비스 간 통신 =====
-    FEIGN_CLIENT_ERROR(
-            HttpStatus.BAD_GATEWAY,
-            "서비스 간 통신 중 오류가 발생했습니다."
-    ),
+    FEIGN_CLIENT_ERROR(HttpStatus.BAD_GATEWAY, "서비스 간 통신 중 오류가 발생했습니다."),
     INTERNAL_CALL_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "내부 호출 서명이 유효하지 않습니다."),
     INTERNAL_CALL_TIMESTAMP_EXPIRED(HttpStatus.UNAUTHORIZED, "내부 호출 요청이 만료되었습니다(재전송 의심)."),
 
@@ -57,26 +54,11 @@ public enum ErrorCode {
 
     /* Problem */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
-    PROBLEM_MODIFIED_CONCURRENTLY(
-            HttpStatus.CONFLICT,
-            "문제가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."
-    ),
-    STARTER_CODE_NOT_INITIALIZED(
-            HttpStatus.BAD_REQUEST,
-            "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."
-    ),
-    INVALID_PROBLEM_TYPE(
-            HttpStatus.BAD_REQUEST,
-            "현재 문제 도메인은 CODE 유형만 지원합니다."
-    ),
-    INVALID_PROBLEM_STATUS_TRANSITION(
-            HttpStatus.BAD_REQUEST,
-            "허용되지 않은 문제 상태 변경입니다."
-    ),
-    PROBLEM_PUBLICATION_TEST_CASE_REQUIRED(
-            HttpStatus.CONFLICT,
-            "문제를 발행하려면 승인된 테스트케이스가 최소 1개 이상 필요합니다."
-    ),
+    PROBLEM_MODIFIED_CONCURRENTLY(HttpStatus.CONFLICT, "문제가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."),
+    STARTER_CODE_NOT_INITIALIZED(HttpStatus.BAD_REQUEST, "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."),
+    INVALID_PROBLEM_TYPE(HttpStatus.BAD_REQUEST, "현재 문제 도메인은 CODE 유형만 지원합니다."),
+    INVALID_PROBLEM_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "허용되지 않은 문제 상태 변경입니다."),
+    PROBLEM_PUBLICATION_TEST_CASE_REQUIRED(HttpStatus.CONFLICT, "문제를 발행하려면 승인된 테스트케이스가 최소 1개 이상 필요합니다."),
 
     /* Tag */
     TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "태그를 찾을 수 없습니다."),
@@ -88,10 +70,21 @@ public enum ErrorCode {
 
     /* Testcase */
     TEST_CASE_NOT_FOUND(HttpStatus.NOT_FOUND, "테스트케이스를 찾을 수 없습니다."),
-    TEST_CASE_ACCESS_DENIED(
-            HttpStatus.FORBIDDEN,
-            "비공개 테스트케이스에 접근할 권한이 없습니다."
-    ),
+    TEST_CASE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "비공개 테스트케이스에 접근할 권한이 없습니다."),
+
+    /* Problem Version */
+    PROBLEM_VERSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 문제에 속한 문제 버전을 찾을 수 없습니다."),
+    PROBLEM_VERSION_INVALID_VERSION_NO(HttpStatus.BAD_REQUEST, "문제 버전 번호는 1 이상이어야 합니다."),
+
+    /* Problem Progress */
+    PROBLEM_PROGRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "문제 풀이 진행 상태를 찾을 수 없습니다."),
+    PROBLEM_PROGRESS_INVALID_USER_ID(HttpStatus.BAD_REQUEST, "사용자 식별자는 null일 수 없습니다."),
+    PROBLEM_PROGRESS_INVALID_PROBLEM_ID(HttpStatus.BAD_REQUEST, "문제 식별자는 null일 수 없습니다."),
+    PROBLEM_PROGRESS_INVALID_SUBMISSION_RESULT(HttpStatus.BAD_REQUEST, "지원하지 않는 채점 결과입니다."),
+    PROBLEM_PROGRESS_INVALID_ATTEMPT_NO(HttpStatus.BAD_REQUEST, "제출 시도 번호는 1 이상이어야 합니다."),
+    PROBLEM_PROGRESS_INVALID_STATUS(HttpStatus.BAD_REQUEST, "문제 풀이 상태가 올바르지 않습니다."),
+    PROBLEM_PROGRESS_INVALID_JUDGED_AT(HttpStatus.BAD_REQUEST, "채점 완료 시각은 null일 수 없습니다."),
+
     // HmacVerificationFilter는 "유효하게 서명된 내부 호출인가"만 확인하고 "어느 서비스가
     // 이 API를 호출할 수 있는가"는 확인하지 않는다 — 서명은 유효하지만 이 API의 허용
     // 대상이 아닌 서비스가 호출한 경우에 쓴다(PR #124 리뷰, 용현님).
@@ -100,10 +93,7 @@ public enum ErrorCode {
     private final HttpStatus status;
     private final String message;
 
-    ErrorCode(
-            HttpStatus status,
-            String message
-    ) {
+    ErrorCode(HttpStatus status, String message) {
         this.status = status;
         this.message = message;
     }

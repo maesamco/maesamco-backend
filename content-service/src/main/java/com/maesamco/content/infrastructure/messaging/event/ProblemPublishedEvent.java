@@ -2,6 +2,7 @@ package com.maesamco.content.infrastructure.messaging.event;
 
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.ProblemVersionSnapshot;
 
 import java.time.Instant;
 import java.util.List;
@@ -40,14 +41,13 @@ public record ProblemPublishedEvent(
         int versionNo,
         String language,
         String starterCode,
-        List<TestCaseItem> testCases,
+        List<ProblemPublishedTestCaseItem> testCases,
         int timeLimit,
         int memoryLimit,
         Instant publishedAt
 ) {
 
-    public static final String EVENT_TYPE =
-            "PROBLEM_PUBLISHED";
+    public static final String EVENT_TYPE = "PROBLEM_PUBLISHED";
 
     public static final int EVENT_VERSION = 1;
 
@@ -79,29 +79,17 @@ public record ProblemPublishedEvent(
             UUID problemVersionId,
             ProblemVersion problemVersion
     ) {
-        ProblemVersion.ProblemVersionSnapshot snapshot =
-                problemVersion.getContentSnapshot();
+        ProblemVersionSnapshot snapshot = problemVersion.toVersionSnapshot();
 
-        List<TestCaseItem> eventTestCases =
-                snapshot.testCases()
-                        .stream()
-                        .map(
-                                testCase ->
-                                        new TestCaseItem(
-                                                testCase.testCaseId(),
-                                                testCase.isPublic(),
-                                                testCase.input(),
-                                                testCase.expectedOutput(),
-                                                testCase.displayOrder()
-                                        )
-                        )
-                        .toList();
+        List<ProblemPublishedTestCaseItem> eventTestCases = snapshot.testCases()
+                .stream()
+                .map(ProblemPublishedTestCaseItem::from)
+                .toList();
 
-        int timeLimitMs =
-                Math.multiplyExact(
-                        snapshot.runningTimeLimit(),
-                        MILLIS_PER_SECOND
-                );
+        int timeLimitMs = Math.multiplyExact(
+                snapshot.runningTimeLimit(),
+                MILLIS_PER_SECOND
+        );
 
         return new ProblemPublishedEvent(
                 eventId,
@@ -134,23 +122,5 @@ public record ProblemPublishedEvent(
         }
 
         return programmingLanguage;
-    }
-
-    /**
-     * 발행된 문제 버전에 포함되는 테스트케이스입니다.
-     *
-     * @param testCaseId 테스트케이스 식별자
-     * @param isPublic 공개 테스트케이스 여부
-     * @param input 테스트 입력값
-     * @param expectedOutput 기대 출력값
-     * @param displayOrder 테스트케이스 표시 및 실행 순서
-     */
-    public record TestCaseItem(
-            UUID testCaseId,
-            boolean isPublic,
-            String input,
-            String expectedOutput,
-            int displayOrder
-    ) {
     }
 }

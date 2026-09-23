@@ -12,14 +12,11 @@ public interface ProblemVersionRepository {
 
     Optional<ProblemVersion> findById(UUID problemVersionId);
 
+    Optional<ProblemVersion> findByProblemIdAndId(UUID problemId, UUID id);
+
     void flush();
 
-    Optional<ProblemVersion> findByProblemIdAndVersionNo(
-            UUID problemId,
-            Integer versionNo
-    );
+    Optional<ProblemVersion> findByProblemIdAndVersionNo(UUID problemId, Integer versionNo);
 
-    List<ProblemVersion> findAllByProblemIdOrderByVersionNoDesc(
-            UUID problemId
-    );
+    List<ProblemVersion> findAllByProblemIdOrderByVersionNoDesc(UUID problemId);
 }

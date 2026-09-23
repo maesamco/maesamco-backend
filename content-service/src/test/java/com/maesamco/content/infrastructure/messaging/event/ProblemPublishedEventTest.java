@@ -1,9 +1,19 @@
 package com.maesamco.content.infrastructure.messaging.event;
 
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.ProblemVersionTestCaseItem;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -11,9 +21,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * ProblemPublished 이벤트 생성 규칙을 검증합니다.
- */
 class ProblemPublishedEventTest {
 
     @Test
@@ -22,6 +29,7 @@ class ProblemPublishedEventTest {
                     + "채점 실행 명세가 올바르게 변환된다"
     )
     void fromPublishedVersion_createsEvent() {
+        // given
         UUID problemId = UUID.randomUUID();
         UUID problemVersionId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
@@ -30,27 +38,29 @@ class ProblemPublishedEventTest {
         UUID hiddenTestCaseId = UUID.randomUUID();
 
         Instant publishedAt =
-                Instant.parse(
-                        "2026-09-08T00:00:00Z"
-                );
+                Instant.parse("2026-09-21T00:00:00Z");
 
         Instant occurredAt =
-                Instant.parse(
-                        "2026-09-08T00:00:01Z"
-                );
+                Instant.parse("2026-09-21T00:00:01Z");
 
         Problem problem = createProblem();
 
-        List<ProblemVersion.TestCaseItem> testCases =
+        ReflectionTestUtils.setField(
+                problem,
+                "id",
+                problemId
+        );
+
+        List<ProblemVersionTestCaseItem> testCases =
                 List.of(
-                        new ProblemVersion.TestCaseItem(
+                        new ProblemVersionTestCaseItem(
                                 publicTestCaseId,
                                 true,
                                 "1 2",
                                 "3",
                                 1
                         ),
-                        new ProblemVersion.TestCaseItem(
+                        new ProblemVersionTestCaseItem(
                                 hiddenTestCaseId,
                                 false,
                                 "10 20",
@@ -61,12 +71,12 @@ class ProblemPublishedEventTest {
 
         ProblemVersion problemVersion =
                 ProblemVersion.createPublished(
-                        problemId,
                         problem,
                         testCases,
                         publishedAt
                 );
 
+        // when
         ProblemPublishedEvent event =
                 ProblemPublishedEvent.fromPublishedVersion(
                         eventId,
@@ -75,14 +85,19 @@ class ProblemPublishedEventTest {
                         problemVersion
                 );
 
+        // then
         assertThat(event.eventId())
                 .isEqualTo(eventId);
 
         assertThat(event.eventType())
-                .isEqualTo("PROBLEM_PUBLISHED");
+                .isEqualTo(
+                        ProblemPublishedEvent.EVENT_TYPE
+                );
 
         assertThat(event.eventVersion())
-                .isEqualTo(1);
+                .isEqualTo(
+                        ProblemPublishedEvent.EVENT_VERSION
+                );
 
         assertThat(event.occurredAt())
                 .isEqualTo(occurredAt);
@@ -102,12 +117,6 @@ class ProblemPublishedEventTest {
         assertThat(event.starterCode())
                 .isEqualTo("class Solution {}");
 
-        /*
-         * Content 도메인은 실행 시간을 초 단위로 저장하고,
-         * Judge 실행 명세에는 밀리초 단위로 전달합니다.
-         *
-         * 1초 -> 1000ms
-         */
         assertThat(event.timeLimit())
                 .isEqualTo(1000);
 
@@ -119,14 +128,14 @@ class ProblemPublishedEventTest {
 
         assertThat(event.testCases())
                 .containsExactly(
-                        new ProblemPublishedEvent.TestCaseItem(
+                        new ProblemPublishedTestCaseItem(
                                 publicTestCaseId,
                                 true,
                                 "1 2",
                                 "3",
                                 1
                         ),
-                        new ProblemPublishedEvent.TestCaseItem(
+                        new ProblemPublishedTestCaseItem(
                                 hiddenTestCaseId,
                                 false,
                                 "10 20",

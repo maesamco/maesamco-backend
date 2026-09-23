@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.CurriculumService;
+import com.maesamco.content.application.persistence_service.CurriculumService;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.global.response.PageResponse;

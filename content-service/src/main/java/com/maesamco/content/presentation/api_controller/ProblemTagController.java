@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.ProblemTagService;
+import com.maesamco.content.application.persistence_service.ProblemTagService;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
@@ -42,9 +42,7 @@ public class ProblemTagController {
      * @return 문제에 등록된 태그 목록
      */
     @GetMapping
-    public ResponseEntity<
-            SuccessResponse<PageResponse<TagResponse>>
-            > getProblemTags(
+    public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getProblemTags(
             @PathVariable UUID problemId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size

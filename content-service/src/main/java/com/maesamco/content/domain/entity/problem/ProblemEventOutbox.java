@@ -10,12 +10,14 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -44,8 +46,12 @@ import java.util.UUID;
                         columnList = "status"
                 ),
                 @Index(
-                        name = "idx_problem_event_outboxes_status_occurred_at",
-                        columnList = "status, occurred_at"
+                        name = "idx_problem_event_outboxes_status_occurred_at_id",
+                        columnList = "status, occurred_at, id"
+                ),
+                @Index(
+                        name = "idx_problem_event_outboxes_pollable",
+                        columnList = "status, next_attempt_at, occurred_at, id"
                 )
         }
 )
@@ -53,98 +59,58 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProblemEventOutbox {
 
-    private static final String AGGREGATE_TYPE_PROBLEM =
-            "PROBLEM";
+    private static final String AGGREGATE_TYPE_PROBLEM = "PROBLEM";
+    private static final String EVENT_TYPE_PROBLEM_PUBLISHED = "PROBLEM_PUBLISHED";
 
-    private static final String EVENT_TYPE_PROBLEM_PUBLISHED =
-            "PROBLEM_PUBLISHED";
+    private static final Duration BASE_RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration MAX_RETRY_DELAY = Duration.ofMinutes(30);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(
-            name = "id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(
-            name = "event_id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
 
-    @Column(
-            name = "aggregate_type",
-            nullable = false,
-            updatable = false,
-            length = 50
-    )
+    @Column(name = "aggregate_type", nullable = false, updatable = false, length = 50)
     private String aggregateType;
 
-    @Column(
-            name = "aggregate_id",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "aggregate_id", nullable = false, updatable = false)
     private UUID aggregateId;
 
-    @Column(
-            name = "event_type",
-            nullable = false,
-            updatable = false,
-            length = 50
-    )
+    @Column(name = "event_type", nullable = false, updatable = false, length = 50)
     private String eventType;
 
-    @Column(
-            name = "event_version",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "event_version", nullable = false, updatable = false)
     private int eventVersion;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(
-            name = "payload",
-            nullable = false,
-            updatable = false,
-            columnDefinition = "jsonb"
-    )
+    @Column(name = "payload", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(
-            name = "status",
-            nullable = false,
-            length = 20
-    )
+    @Column(name = "status", nullable = false, length = 20)
     private ProblemEventOutboxStatus status;
 
-    @Column(
-            name = "retry_count",
-            nullable = false
-    )
+    @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
-    @Column(
-            name = "occurred_at",
-            nullable = false,
-            updatable = false
-    )
+    @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    @Column(
-            name = "published_at"
-    )
+    @Column(name = "published_at")
     private Instant publishedAt;
 
-    @Column(
-            name = "last_error",
-            columnDefinition = "text"
-    )
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
+
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private long lockVersion;
 
     private ProblemEventOutbox(
             UUID eventId,
@@ -163,6 +129,7 @@ public class ProblemEventOutbox {
         this.retryCount = 0;
         this.occurredAt = occurredAt;
         this.publishedAt = null;
+        this.nextAttemptAt = null;
         this.lastError = null;
     }
 
@@ -183,25 +150,16 @@ public class ProblemEventOutbox {
             String payload,
             Instant occurredAt
     ) {
-        Objects.requireNonNull(
-                eventId,
-                "eventId must not be null"
-        );
+        Objects.requireNonNull(eventId, "eventId must not be null");
+        Objects.requireNonNull(problemId, "problemId must not be null");
+        Objects.requireNonNull(payload, "payload must not be null");
+        Objects.requireNonNull(occurredAt, "occurredAt must not be null");
 
-        Objects.requireNonNull(
-                problemId,
-                "problemId must not be null"
-        );
-
-        Objects.requireNonNull(
-                payload,
-                "payload must not be null"
-        );
-
-        Objects.requireNonNull(
-                occurredAt,
-                "occurredAt must not be null"
-        );
+        if (eventVersion < 1) {
+            throw new IllegalArgumentException(
+                    "eventVersion must be greater than 0"
+            );
+        }
 
         return new ProblemEventOutbox(
                 eventId,
@@ -215,47 +173,46 @@ public class ProblemEventOutbox {
     /**
      * Kafka 발행 실패를 기록합니다.
      *
-     * <p>실패 횟수가 최대 재시도 횟수에 도달하기 전까지는
-     * PENDING 상태를 유지하여 동일 eventId로 다시 발행할 수 있습니다.</p>
-     *
-     * <p>최대 재시도 횟수에 도달하면 FAILED 상태로 전환하여
-     * 오래된 실패 이벤트가 Relay의 PENDING 배치를 계속 점유하지 않도록 합니다.</p>
+     * <p>최대 재시도 횟수에 도달하기 전까지는 PENDING 상태를 유지하고,
+     * 지수 백오프로 다음 재시도 가능 시각을 기록합니다.</p>
      *
      * @param error 외부 노출이 없는 안전한 오류 요약
      * @param maxRetryCount 최대 재시도 횟수
      */
-    public void recordFailure(
-            String error,
-            int maxRetryCount
-    ) {
+    public void recordFailure(String error, int maxRetryCount) {
         if (maxRetryCount < 1) {
             throw new IllegalArgumentException(
                     "maxRetryCount must be greater than 0"
             );
         }
 
+        validatePendingStatus();
+
         this.retryCount++;
         this.lastError = error;
 
         if (this.retryCount >= maxRetryCount) {
-            this.status =
-                    ProblemEventOutboxStatus.FAILED;
+            this.status = ProblemEventOutboxStatus.FAILED;
             this.publishedAt = null;
+            this.nextAttemptAt = null;
+            return;
         }
+
+        scheduleNextAttempt();
     }
 
     /**
      * 재시도로 복구할 수 없는 Kafka 발행 실패를 기록합니다.
      *
-     * <p>FAILED 상태는 Relay의 PENDING 조회 대상에서 제외되어
-     * 이후 정상 이벤트의 발행을 막지 않습니다.</p>
-     *
      * @param error 외부 노출이 없는 안전한 오류 요약
      */
     public void markFailed(String error) {
+        validatePendingStatus();
+
         this.status = ProblemEventOutboxStatus.FAILED;
         this.retryCount++;
         this.publishedAt = null;
+        this.nextAttemptAt = null;
         this.lastError = error;
     }
 
@@ -264,14 +221,51 @@ public class ProblemEventOutbox {
      *
      * @param publishedAt 실제 Kafka 발행 완료 시각
      */
-    public void markPublished(
-            Instant publishedAt
-    ) {
+    public void markPublished(Instant publishedAt) {
+        validatePendingStatus();
+        Objects.requireNonNull(publishedAt, "publishedAt must not be null");
+
         this.status = ProblemEventOutboxStatus.PUBLISHED;
-        this.publishedAt = Objects.requireNonNull(
-                publishedAt,
-                "publishedAt must not be null"
-        );
+        this.publishedAt = publishedAt;
+        this.nextAttemptAt = null;
         this.lastError = null;
+    }
+
+    /**
+     * Kafka 발행 결과를 확정할 수 없는 실패를 기록합니다.
+     * FAILED 상태로 종료하지 않고 PENDING 상태에서 재시도합니다.
+     *
+     * @param error 외부 노출이 없는 안전한 오류 요약
+     */
+    public void recordPostPublishFailure(String error) {
+        validatePendingStatus();
+
+        this.retryCount++;
+        this.lastError = error;
+        scheduleNextAttempt();
+    }
+
+    /**
+     * 실패한 시도 이후 지수 백오프로 다음 재시도 가능 시각을 기록합니다.
+     * 최대 지연 시간은 30분입니다.
+     */
+    private void scheduleNextAttempt() {
+        long backoffSeconds = Math.min(
+                BASE_RETRY_DELAY.toSeconds() * (1L << Math.min(this.retryCount, 20)),
+                MAX_RETRY_DELAY.toSeconds()
+        );
+
+        this.nextAttemptAt = Instant.now().plusSeconds(backoffSeconds);
+    }
+
+    /**
+     * 발행 상태 변경은 PENDING 상태의 Outbox에서만 허용합니다.
+     */
+    private void validatePendingStatus() {
+        if (this.status != ProblemEventOutboxStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Only PENDING outbox can change publish state"
+            );
+        }
     }
 }

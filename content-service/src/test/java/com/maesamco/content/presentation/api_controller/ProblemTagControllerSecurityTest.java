@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.api_controller;
 
-import com.maesamco.content.application.service.ProblemTagService;
+import com.maesamco.content.application.persistence_service.ProblemTagService;
 import com.maesamco.content.global.config.SecurityConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
