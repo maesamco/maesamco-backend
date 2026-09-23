@@ -2,9 +2,9 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.global.response.SuccessResponse;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,7 +28,7 @@ public class AdminProblemController {
      * @param problemId 발행을 승인할 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping("/{problemId}/approve")
     public ResponseEntity<SuccessResponse<Void>> approvePublication(
             @PathVariable UUID problemId
@@ -53,7 +53,7 @@ public class AdminProblemController {
      * @param problemId 재발행을 위해 되돌릴 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping("/{problemId}/republish")
     public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(
             @PathVariable UUID problemId

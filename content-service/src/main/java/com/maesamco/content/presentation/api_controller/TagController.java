@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,7 +44,7 @@ public class TagController {
     /**
      * 태그를 생성합니다.
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping("/admin/contents/tags")
     public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
             @Valid @RequestBody TagCreateRequest request
@@ -102,7 +102,7 @@ public class TagController {
     /**
      * 태그 정보를 수정합니다.
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PatchMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> updateTag(
             @PathVariable UUID tagId,
@@ -125,7 +125,7 @@ public class TagController {
      * @param userId 인증된 관리자 식별자
      * @return 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @DeleteMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTag(
             @PathVariable UUID tagId,

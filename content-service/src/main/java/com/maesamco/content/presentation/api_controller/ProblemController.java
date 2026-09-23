@@ -19,7 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,7 +51,7 @@ public class ProblemController {
      * @param request 문제 생성 요청 정보
      * @return 생성된 문제 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
             @Valid @RequestBody ProblemCreateRequest request
@@ -76,7 +76,7 @@ public class ProblemController {
      * @return 조회된 문제 정보를 포함한 성공 응답
      */
     // 정확한 정보는 관리자만이 조회할 수 있다.
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @GetMapping("/admin/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(
             @PathVariable UUID problemId
@@ -169,7 +169,7 @@ public class ProblemController {
      * @param request 문제 수정 요청 정보
      * @return 수정된 문제 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PatchMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(
             @PathVariable UUID problemId,
@@ -197,7 +197,7 @@ public class ProblemController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @DeleteMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<Void>> deleteProblem(
             @PathVariable UUID problemId,

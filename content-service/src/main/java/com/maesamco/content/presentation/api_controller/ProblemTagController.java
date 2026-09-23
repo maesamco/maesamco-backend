@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,7 +74,7 @@ public class ProblemTagController {
      * @return 데이터가 없는 성공 응답
      */
     @PostMapping("/{tagId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> addTagToProblem(
             @PathVariable UUID problemId,
             @PathVariable UUID tagId
@@ -97,7 +97,7 @@ public class ProblemTagController {
      * @return 데이터가 없는 성공 응답
      */
     @DeleteMapping("/{tagId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(
             @PathVariable UUID problemId,
             @PathVariable UUID tagId

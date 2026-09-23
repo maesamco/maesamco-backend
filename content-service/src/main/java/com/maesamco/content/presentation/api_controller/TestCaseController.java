@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -47,7 +47,7 @@ public class TestCaseController {
      * @param request 테스트케이스 생성 요청 정보
      * @return 생성된 테스트케이스 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<TestCaseCreateResponse>> createTestCase(
             @PathVariable UUID problemId,
@@ -127,7 +127,7 @@ public class TestCaseController {
      * @param request 테스트케이스 수정 요청 정보
      * @return 수정된 테스트케이스 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PatchMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> updateTestCase(
             @PathVariable UUID testCaseId,
@@ -150,7 +150,7 @@ public class TestCaseController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @DeleteMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTestCase(
             @PathVariable UUID testCaseId,

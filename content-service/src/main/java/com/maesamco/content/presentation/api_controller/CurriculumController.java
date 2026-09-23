@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,7 +46,7 @@ public class CurriculumController {
      * @param request 커리큘럼 생성 요청 정보
      * @return 생성된 커리큘럼 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PostMapping
     public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(
             @Valid @RequestBody CurriculumCreateRequest request
@@ -118,7 +119,7 @@ public class CurriculumController {
      * @param request 커리큘럼 수정 요청 정보
      * @return 수정된 커리큘럼 정보를 포함한 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @PatchMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(
             @PathVariable UUID curriculumId,
@@ -144,7 +145,7 @@ public class CurriculumController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     @DeleteMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<Void>> deleteCurriculum(
             @PathVariable UUID curriculumId,
