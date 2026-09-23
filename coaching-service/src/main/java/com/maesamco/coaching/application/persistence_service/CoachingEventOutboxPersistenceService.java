@@ -46,7 +46,14 @@ import java.util.UUID;
  * (4) `recordPostPublishFailure()`의 무한 재시도가 Relay의 oldest-first LIMIT 100 폴링과
  *     결합되면 head-of-line blocking을 일으킬 수 있어, 실패마다
  *     {@code CoachingEventOutbox.scheduleNextAttempt()}로 지수 백오프 시각을 기록한다.
- *     Relay 조회(`findPollableByStatus`)는 이 시각이 지나지 않은 행을 제외한다.
+ *     Relay 조회(이슈 #261 이후 `claimPublishable`)는 이 시각이 지나지 않은 행을 제외한다.
+ *
+ * 이슈 #261 — 위 (3)의 낙관적 락은 "결과를 DB에 쓰는" 시점의 충돌만 막고, 그 전에 두 Relay가
+ * 같은 행을 동시에 폴링해서 Kafka에 중복 발행하는 것 자체는 막지 못했다. `CoachingEventRelayFacade`가
+ * 이제 `claimPublishable()`(`FOR UPDATE SKIP LOCKED`)로 선점한 뒤에만 Kafka 발행을 시도하므로,
+ * 이 클래스의 각 메서드는 "PENDING인지"가 아니라 "지금 이 호출자의 claimId로 IN_PROGRESS
+ * 선점 중인지"를 확인한다 — lease가 만료돼 다른 Worker가 이미 재선점한 경우도 이 확인으로
+ * 같이 걸러진다(claimId가 더 이상 일치하지 않으므로).
  */
 @Service
 @RequiredArgsConstructor
@@ -65,13 +72,13 @@ public class CoachingEventOutboxPersistenceService {
     // save()하면 merge 과정에서 이미 반영된 최신 상태를 오래된 값으로 덮어쓴다(PR #123 심층
     // 재검토, 2026-09-09).
     @Transactional
-    public void markPublished(UUID outboxId) {
+    public void markPublished(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 처리했거나, lease 만료 후 재선점함 — 멱등하게 무시
         }
 
         freshOutbox.incrementAttemptCount();
@@ -91,13 +98,13 @@ public class CoachingEventOutboxPersistenceService {
     // markPublished()와 같은 이유로 id로 다시 조회한 fresh entity를 쓴다 — 오래된 객체를
     // 그대로 쓰면 이미 다른 실행이 COMPLETED로 끝낸 Outbox를 FAILED로 되돌려버릴 수 있다.
     @Transactional
-    public void recordFailedAttempt(UUID outboxId) {
+    public void recordFailedAttempt(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 실패 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 처리했거나, lease 만료 후 재선점함 — 멱등하게 무시
         }
 
         freshOutbox.incrementAttemptCount();
@@ -133,13 +140,13 @@ public class CoachingEventOutboxPersistenceService {
     // 그래서 이 경로는 attemptCount만 계속 늘리며 무한 재시도한다 — 재발행으로 인한 중복은
     // User Service 소비자 쪽 멱등 처리로 상쇄하는 게 이미 설계상 전제돼 있다(이슈 #89 문서).
     @Transactional
-    public void recordPostPublishFailure(UUID outboxId) {
+    public void recordPostPublishFailure(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 COMPLETED로 끝냈다면 여기서 FAILED로 되돌리지 않는다
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 COMPLETED로 끝냈거나 lease 만료 후 재선점함 — 되돌리지 않는다
         }
 
         freshOutbox.incrementAttemptCount();
@@ -154,5 +161,11 @@ public class CoachingEventOutboxPersistenceService {
                         + "이벤트가 이미 전달됐을 수 있어 FAILED로 종료하지 않고 계속 재시도합니다. "
                         + "attemptCount={}, outboxId={}",
                 freshOutbox.getAttemptCount(), outboxId);
+    }
+
+    /** 지금 이 호출자가 IN_PROGRESS 선점을 유효하게 들고 있는지 확인한다(이슈 #261). */
+    private boolean isActiveClaim(CoachingEventOutbox outbox, UUID claimId) {
+        return outbox.getStatus() == OutboxStatus.IN_PROGRESS
+                && claimId.equals(outbox.getClaimId());
     }
 }

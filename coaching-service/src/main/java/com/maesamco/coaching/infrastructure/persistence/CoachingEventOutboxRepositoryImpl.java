@@ -6,6 +6,7 @@ import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,8 +37,23 @@ public class CoachingEventOutboxRepositoryImpl implements CoachingEventOutboxRep
     }
 
     @Override
-    public List<CoachingEventOutbox> findPollableByStatus(OutboxStatus status, int limit) {
-        return springDataCoachingEventOutboxRepository.findPollableByStatus(
-                status, Instant.now(), PageRequest.of(0, limit));
+    @Transactional
+    public List<CoachingEventOutbox> claimPublishable(
+            Instant claimedAt,
+            Instant leaseUntil,
+            UUID claimId,
+            int limit
+    ) {
+        List<CoachingEventOutbox> claimed = springDataCoachingEventOutboxRepository.findClaimableForUpdate(
+                OutboxStatus.PENDING,
+                OutboxStatus.IN_PROGRESS,
+                claimedAt,
+                PageRequest.of(0, limit)
+        );
+
+        claimed.forEach(outbox -> outbox.claimForPublish(claimId, claimedAt, leaseUntil));
+        springDataCoachingEventOutboxRepository.flush();
+
+        return claimed;
     }
 }
