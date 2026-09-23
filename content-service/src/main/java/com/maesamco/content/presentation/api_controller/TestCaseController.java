@@ -32,7 +32,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1")
-public class TestCaseController {
+public class TestCaseController implements TestCaseApiDocs {
 
     /** 테스트케이스 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final TestCaseService testCaseService;
@@ -47,6 +47,7 @@ public class TestCaseController {
      * @param request 테스트케이스 생성 요청 정보
      * @return 생성된 테스트케이스 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<TestCaseCreateResponse>> createTestCase(
@@ -66,6 +67,7 @@ public class TestCaseController {
      * @param testCaseId 조회할 테스트케이스의 고유 ID
      * @return 조회된 테스트케이스 정보를 포함한 성공 응답
      */
+    @Override
     @GetMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> getTestCase(
             @PathVariable UUID testCaseId,
@@ -95,6 +97,7 @@ public class TestCaseController {
      * @param size 한 페이지에 조회할 테스트케이스 개수
      * @return 특정 문제의 페이징된 테스트케이스 목록
      */
+    @Override
     @GetMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<PageResponse<TestCaseResponse>>> getTestCases(
             @PathVariable UUID problemId,
@@ -127,6 +130,7 @@ public class TestCaseController {
      * @param request 테스트케이스 수정 요청 정보
      * @return 수정된 테스트케이스 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> updateTestCase(
@@ -150,6 +154,7 @@ public class TestCaseController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTestCase(

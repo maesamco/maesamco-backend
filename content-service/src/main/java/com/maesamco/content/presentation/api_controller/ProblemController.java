@@ -37,7 +37,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/problems")
-public class ProblemController {
+public class ProblemController implements ProblemApiDocs {
 
     /** 문제 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final ProblemService problemService;
@@ -51,6 +51,7 @@ public class ProblemController {
      * @param request 문제 생성 요청 정보
      * @return 생성된 문제 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
@@ -76,6 +77,7 @@ public class ProblemController {
      * @return 조회된 문제 정보를 포함한 성공 응답
      */
     // 정확한 정보는 관리자만이 조회할 수 있다.
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(
@@ -90,6 +92,7 @@ public class ProblemController {
         );
     }
     // 모든 사용자는 문제의 간단 정보를 조회할 수 있다.
+    @Override
     @GetMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemShortResponse>> getProblemShort(
             @PathVariable UUID problemId
@@ -120,6 +123,7 @@ public class ProblemController {
      * @param direction 정렬 방향
      * @return 검색 조건에 해당하는 페이징된 문제 목록
      */
+    @Override
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<ProblemSearchItemResponse>>> getProblems(
             @Valid @ModelAttribute ProblemSearchRequest request,
@@ -169,6 +173,7 @@ public class ProblemController {
      * @param request 문제 수정 요청 정보
      * @return 수정된 문제 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(
@@ -197,6 +202,7 @@ public class ProblemController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<Void>> deleteProblem(

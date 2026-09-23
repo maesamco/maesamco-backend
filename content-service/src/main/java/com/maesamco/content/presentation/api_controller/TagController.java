@@ -37,20 +37,20 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1")
-public class TagController {
+public class TagController implements TagApiDocs {
 
     private final TagService tagService;
 
     /**
      * 태그를 생성합니다.
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/contents/tags")
     public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
             @Valid @RequestBody TagCreateRequest request
     ) {
-        TagCreateResponse response =
-                tagService.createTag(request);
+        TagCreateResponse response = tagService.createTag(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -62,6 +62,7 @@ public class TagController {
     /**
      * 태그 목록을 조회합니다.
      */
+    @Override
     @GetMapping("/contents/tags")
     public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getTags(
             @RequestParam(required = false)
@@ -73,25 +74,14 @@ public class TagController {
             @RequestParam(required = false)
             Integer size
     ) {
-        Pageable pageable =
-                PageableFactory.of(
-                        page,
-                        size,
-                        null,
-                        null
-                );
+        Pageable pageable = PageableFactory.of(page, size, null, null);
 
         PageResponse<TagResponse> response;
 
         if (attribute == null) {
-            response =
-                    tagService.searchTags(pageable);
+            response = tagService.searchTags(pageable);
         } else {
-            response =
-                    tagService.searchTagsByAttribute(
-                            attribute,
-                            pageable
-                    );
+            response = tagService.searchTagsByAttribute(attribute, pageable);
         }
 
         return ResponseEntity.ok(
@@ -102,16 +92,14 @@ public class TagController {
     /**
      * 태그 정보를 수정합니다.
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> updateTag(
             @PathVariable UUID tagId,
             @Valid @RequestBody TagUpdateRequest request
     ) {
-        tagService.updateTag(
-                tagId,
-                request
-        );
+        tagService.updateTag(tagId, request);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()
@@ -125,16 +113,14 @@ public class TagController {
      * @param userId 인증된 관리자 식별자
      * @return 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/admin/contents/tags/{tagId}")
     public ResponseEntity<SuccessResponse<Void>> deleteTag(
             @PathVariable UUID tagId,
             @AuthenticationPrincipal UUID userId
     ) {
-        tagService.deleteTag(
-                tagId,
-                userId
-        );
+        tagService.deleteTag(tagId, userId);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

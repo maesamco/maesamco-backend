@@ -8,6 +8,7 @@ import com.maesamco.content.presentation.request.CurriculumCreateRequest;
 import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
 import com.maesamco.content.presentation.response.CurriculumCreateResponse;
 import com.maesamco.content.presentation.response.CurriculumResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -28,10 +37,11 @@ import java.util.UUID;
  * <p>모든 정상 응답은 {@link SuccessResponse}로 감싸 반환하며,
  * 목록 조회 결과는 {@link PageResponse}를 사용해 페이징 정보를 함께 제공합니다.</p>
  */
+@Tag(name = "Curriculum", description = "커리큘럼 생성, 조회, 수정, 삭제 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/curriculums")
-public class CurriculumController {
+public class CurriculumController implements CurriculumApiDocs {
 
     /** 커리큘럼 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final CurriculumService curriculumService;
@@ -45,6 +55,7 @@ public class CurriculumController {
      * @param request 커리큘럼 생성 요청 정보
      * @return 생성된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(
@@ -66,6 +77,7 @@ public class CurriculumController {
      * @param curriculumId 조회할 커리큘럼의 고유 ID
      * @return 조회된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(
@@ -91,6 +103,7 @@ public class CurriculumController {
      * @param size 한 페이지에 조회할 커리큘럼 개수
      * @return 페이징된 커리큘럼 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(
@@ -118,6 +131,7 @@ public class CurriculumController {
      * @param request 커리큘럼 수정 요청 정보
      * @return 수정된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(
@@ -144,6 +158,7 @@ public class CurriculumController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{curriculumId}")
     public ResponseEntity<SuccessResponse<Void>> deleteCurriculum(

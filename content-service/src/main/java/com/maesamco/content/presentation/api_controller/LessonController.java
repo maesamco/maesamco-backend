@@ -33,7 +33,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/lessons")
-public class LessonController {
+public class LessonController implements LessonApiDocs {
 
     /** 레슨 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final LessonService lessonService;
@@ -47,6 +47,7 @@ public class LessonController {
      * @param request 레슨 생성 요청 정보
      * @return 생성된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<LessonCreateResponse>> createLesson(
@@ -68,6 +69,7 @@ public class LessonController {
      * @param lessonId 조회할 레슨의 고유 ID
      * @return 조회된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<LessonResponse>> getLesson(
@@ -94,6 +96,7 @@ public class LessonController {
      * @param size 한 페이지에 조회할 레슨 개수
      * @return 특정 유닛의 페이징된 레슨 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<LessonResponse>>> getLessons(
@@ -125,6 +128,7 @@ public class LessonController {
      * @param request 레슨 수정 요청 정보
      * @return 수정된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<LessonResponse>> updateLesson(
@@ -151,6 +155,7 @@ public class LessonController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{lessonId}")
     public ResponseEntity<SuccessResponse<Void>> deleteLesson(

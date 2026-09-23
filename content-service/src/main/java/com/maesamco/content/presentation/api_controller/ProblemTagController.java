@@ -29,7 +29,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/problems/{problemId}/tags")
-public class ProblemTagController {
+public class ProblemTagController implements ProblemTagApiDocs {
 
     private final ProblemTagService problemTagService;
 
@@ -41,6 +41,7 @@ public class ProblemTagController {
      * @param size 한 페이지의 태그 개수
      * @return 문제에 등록된 태그 목록
      */
+    @Override
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getProblemTags(
             @PathVariable UUID problemId,
@@ -73,6 +74,7 @@ public class ProblemTagController {
      * @param tagId 등록할 태그 식별자
      * @return 데이터가 없는 성공 응답
      */
+    @Override
     @PostMapping("/{tagId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuccessResponse<Void>> addTagToProblem(
@@ -96,6 +98,7 @@ public class ProblemTagController {
      * @param tagId 제거할 태그 식별자
      * @return 데이터가 없는 성공 응답
      */
+    @Override
     @DeleteMapping("/{tagId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(

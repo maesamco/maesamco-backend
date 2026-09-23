@@ -31,7 +31,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/units")
-public class UnitController {
+public class UnitController implements UnitApiDocs {
 
     /** 유닛 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final UnitService unitService;
@@ -45,6 +45,7 @@ public class UnitController {
      * @param request 유닛 생성 요청 정보
      * @return 생성된 유닛 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<SuccessResponse<UnitCreateResponse>> createUnit(
@@ -66,6 +67,7 @@ public class UnitController {
      * @param unitId 조회할 유닛의 고유 ID
      * @return 조회된 유닛 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<UnitResponse>> getUnit(
@@ -92,6 +94,7 @@ public class UnitController {
      * @param size 한 페이지에 조회할 유닛 개수
      * @return 특정 커리큘럼의 페이징된 유닛 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<UnitResponse>>> getUnits(
@@ -123,6 +126,7 @@ public class UnitController {
      * @param request 유닛 수정 요청 정보
      * @return 수정된 유닛 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<UnitResponse>> updateUnit(
@@ -149,6 +153,7 @@ public class UnitController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{unitId}")
     public ResponseEntity<SuccessResponse<Void>> deleteUnit(

@@ -41,7 +41,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/contents/problem-progress")
-public class ProblemProgressController {
+public class ProblemProgressController implements ProblemProgressApiDocs {
 
     /** 문제 풀이 진행 이력 조회 비즈니스 로직을 담당하는 서비스입니다. */
     private final ProblemProgressService problemProgressService;
@@ -64,6 +64,7 @@ public class ProblemProgressController {
      * @param size 한 페이지에 조회할 문제 풀이 이력 개수
      * @return 사용자의 페이징된 문제 풀이 이력 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<SuccessResponse<PageResponse<ProblemProgressResponse>>> getProblemProgresses(
@@ -101,6 +102,7 @@ public class ProblemProgressController {
      * @param userId 현재 인증된 사용자의 고유 ID
      * @return 특정 문제의 풀이 이력을 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/{problemId}")
     public ResponseEntity<SuccessResponse<ProblemProgressResponse>> getProblemProgress(
