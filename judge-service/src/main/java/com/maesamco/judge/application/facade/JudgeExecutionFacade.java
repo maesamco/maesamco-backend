@@ -103,6 +103,17 @@ public class JudgeExecutionFacade {
                         "Judge0 batch 응답 개수 불일치. submissionId=" + submissionId
                                 + ", 요청=" + testCases.size() + ", 응답=" + tokens.size());
             }
+            // ⚠️ 리뷰 반영(#293 P1) — submitBatch()는 이제 청크가 부분 실패해도 예외를
+            // 던지지 않고 실패한 항목만 token=null로 채워 반환한다(청크 중 일부만 실패한
+            // 경우, 이미 성공한 청크까지 재시도로 중복 제출되는 걸 막기 위함). 다만
+            // "전부"(모든 청크) 실패한 경우엔 성공한 게 하나도 없으니 중복 위험 없이
+            // 안전하게 전체 재시도를 태워야 한다 — 예전(예외를 던지던 방식)과 동일한
+            // 동작을 이 경우에 한해 복원한다.
+            if (tokens.stream().allMatch(java.util.Objects::isNull)) {
+                log.error("[Judge] Judge0 제출 전체 실패(모든 청크 실패) — 재시도 판단. submissionId={}", submissionId);
+                handleRetryableFailureSafely(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);
+                return;
+            }
         } catch (Exception e) {
             log.error("[Judge] Judge0 제출 단계 실패 — 재시도 판단. submissionId={}", submissionId, e);
             handleRetryableFailureSafely(submissionId, FailureCode.JUDGE0_RESPONSE_FAILURE);

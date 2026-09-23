@@ -50,40 +50,75 @@ public class Judge0ExecutionAdapter implements JudgeExecutionPort {
      * 순서 매칭 외에는 요청-응답을 짝지을 방법이 없는 상황. 즉 이 API를 배치로 쓰는 이상
      * 사실상 암묵적으로 의존할 수밖에 없는 가정임. 만약 향후 이 가정이 깨지는 게
      * 확인되면(순서가 안 맞는 사례 발견), 배치 대신 건별 제출로 전환하는 것을 검토할 예정
+     *
+     * ⚠️ 리뷰 반영(#293 P1) — 청크 여러 개 중 하나가 실패했을 때 예전엔 예외를 던져서
+     * submitBatch() 전체가 실패 처리됐다. 그러면 JudgeExecutionFacade가 "제출 단계 실패"로
+     * 판단해 handleRetryableFailureSafely()로 전체 재시도를 스케줄링하는데, 재시도는
+     * 테스트케이스 전체를 처음부터 다시 제출한다 — 즉 이미 성공해서 Judge0에 접수된
+     * 앞선 청크까지 중복 제출·중복 채점되는 문제가 있었다.
+     *
+     * 이제는 청크 하나가 실패해도 예외를 던지지 않고, 그 청크에 해당하는 항목들만
+     * token=null로 채워서 반환한다. 이러면:
+     *   - 성공한 청크의 토큰은 정상적으로 반환/저장되어 중복 제출되지 않는다.
+     *   - 실패한 청크의 항목들은 savePendingExecutions()의 기존 null 처리 로직
+     *     (Judge0가 개별 테스트케이스만 검증 실패시켰을 때와 동일한 경로)을 그대로 타서
+     *     PendingJudge0Execution에 저장되지 않는다. 이 항목들이 이후 어떻게 재시도되어야
+     *     하는지는 이 PR의 범위를 벗어나며, 기존 이슈 #142에서 다루는 문제와 동일하다
+     *     (이 변경으로 새로 생기는 문제가 아니라, 청크 실패 시 그 갭에 더 자주 해당될
+     *     뿐이다 — 반대로 "전체 중복 재실행"이라는 더 심각한 문제는 사라진다).
      */
     @Override
     public List<String> submitBatch(List<JudgeExecutionRequest> requests) {
         List<String> tokens = new ArrayList<>(requests.size());
         for (List<JudgeExecutionRequest> chunk : partition(requests, judge0MaxBatchSize)) {
-            tokens.addAll(submitSingleChunk(chunk));
+            tokens.addAll(submitSingleChunkSafely(chunk));
         }
         return tokens;
     }
 
-    private List<String> submitSingleChunk(List<JudgeExecutionRequest> requests) {
-        List<Judge0SubmissionRequest> submissions = requests.stream()
-                .map(this::toJudge0Request)
-                .toList();
+    private List<String> submitSingleChunkSafely(List<JudgeExecutionRequest> requests) {
+        try {
+            List<Judge0SubmissionRequest> submissions = requests.stream()
+                    .map(this::toJudge0Request)
+                    .toList();
 
-        List<Judge0TokenResponse> responses = judge0WebClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/submissions/batch")
-                        .queryParam("base64_encoded", true)
-                        .build())
-                .bodyValue(Judge0BatchSubmissionRequest.of(submissions))
-                .retrieve()
-                .bodyToMono(new org.springframework.core.ParameterizedTypeReference<List<Judge0TokenResponse>>() {})
-                .block();
+            List<Judge0TokenResponse> responses = judge0WebClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/submissions/batch")
+                            .queryParam("base64_encoded", true)
+                            .build())
+                    .bodyValue(Judge0BatchSubmissionRequest.of(submissions))
+                    .retrieve()
+                    .bodyToMono(new org.springframework.core.ParameterizedTypeReference<List<Judge0TokenResponse>>() {})
+                    .block();
 
-        if (responses == null) {
-            // Judge0 응답 자체가 없는 경우 — 로그만 남기고 상위(재시도 로직, 이슈 8번)에서 처리하도록 예외를 던짐
-            log.warn("[Judge] Judge0 batch 제출 응답이 비어있음, 요청 건수={}", requests.size());
-            throw new IllegalStateException("Judge0 batch submission returned no response");
+            if (responses == null) {
+                log.error("[Judge] Judge0 batch 제출 청크 응답이 비어있음 — 이 청크는 전부 token=null 처리. 요청 건수={}",
+                        requests.size());
+                return nullTokens(requests.size());
+            }
+            if (responses.size() != requests.size()) {
+                log.error("[Judge] Judge0 batch 제출 청크 응답 개수 불일치 — 이 청크는 전부 token=null 처리. 요청={}, 응답={}",
+                        requests.size(), responses.size());
+                return nullTokens(requests.size());
+            }
+
+            return responses.stream()
+                    .map(Judge0TokenResponse::token) // 검증 실패 항목은 token이 null
+                    .collect(Collectors.toList());
+        } catch (Exception ex) {
+            log.error("[Judge] Judge0 batch 제출 청크 실패 — 이 청크는 전부 token=null 처리(다른 청크는 영향 없음). 요청 건수={}",
+                    requests.size(), ex);
+            return nullTokens(requests.size());
         }
+    }
 
-        return responses.stream()
-                .map(Judge0TokenResponse::token) // 검증 실패 항목은 token이 null
-                .collect(Collectors.toList());
+    private static List<String> nullTokens(int size) {
+        List<String> nulls = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            nulls.add(null);
+        }
+        return nulls;
     }
 
     @Override
