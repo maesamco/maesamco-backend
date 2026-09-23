@@ -66,7 +66,11 @@ ENABLE_BATCHED_SUBMISSIONS=
 
 # Maximum number of submissions that can be created or get in a batch.
 # Default: 20
-MAX_SUBMISSION_BATCH_SIZE=
+# ⚠️ #292 — 암묵적 기본값(20)에 의존하다가, judge-service가 100건씩 한 번에
+# 요청하면서 Judge0가 400으로 거부하고 채점 결과 반영이 영구 정지되는 문제가
+# 발생했다. 명시적으로 20으로 고정하고, judge-service의 application.yml
+# judge.max-batch-size도 반드시 이 값과 일치시켜야 한다.
+MAX_SUBMISSION_BATCH_SIZE=20
 
 # If enabled user can use callbacks.
 # Default: true
