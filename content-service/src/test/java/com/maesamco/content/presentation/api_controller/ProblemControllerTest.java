@@ -599,6 +599,9 @@ class ProblemControllerTest {
 
         updatedProblem.increaseVersion();
 
+        UUID lessonId = UUID.randomUUID();
+        updatedProblem.changeLessonId(lessonId);
+
         when(problemService.updateProblem(
                 eq(problemId),
                 any(ProblemUpdateCommand.class)
@@ -656,6 +659,10 @@ class ProblemControllerTest {
                         jsonPath(
                                 "$.data.currentVersionNo"
                         ).value(2)
+                )
+                .andExpect(
+                        jsonPath("$.data.lessonId")
+                                .value(lessonId.toString())
                 );
 
         ArgumentCaptor<ProblemUpdateCommand> captor =
