@@ -69,4 +69,23 @@ public class ProblemPublicationFacade {
         // ProblemPublished 이벤트를 Outbox에 기록합니다.
         problemPublishedEventPort.record(eventData);
     }
+
+    /**
+     * ⚠️ 이슈 #253 — 발행된 문제를 되돌리거나 재발행할 방법이 없던 문제 해결.
+     *
+     * <p>ProblemPublished 이벤트가 어떤 이유로든(버그, Kafka 장애 등) 다른
+     * 서비스에 정상 반영되지 못한 문제를, 삭제·재생성 없이 그대로 재발행할
+     * 수 있도록 PUBLISHED 상태를 REVIEW_PENDING으로 되돌립니다. 이후 관리자가
+     * 기존 승인 API({@link #approvePublication(UUID)})를 다시 호출하면, 새
+     * ProblemVersion과 새 ProblemPublished 이벤트가 생성되어 재발행됩니다.</p>
+     *
+     * <p>이 메서드 자체는 문제 콘텐츠나 테스트케이스를 전혀 건드리지 않고
+     * 상태 전환만 수행합니다 — 재발행 전에 콘텐츠 수정이 필요하다면 별도
+     * 수정 API를 통해 상태 전환과 무관하게 처리합니다.</p>
+     */
+    @Transactional
+    public void revertToReviewPendingForRepublish(UUID problemId) {
+        Problem problem = problemFinder.lockById(problemId);
+        problem.revertToReviewPendingForRepublish();
+    }
 }

@@ -96,6 +96,45 @@ class AdminProblemControllerTest {
         );
     }
 
+    @Test
+    @DisplayName("이슈 #253 — ADMIN이 재발행을 요청하면 Facade를 호출하고 200을 반환한다")
+    void revertToReviewPendingForRepublish_admin_returns200() throws Exception {
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/admin/contents/problems/{problemId}/republish", problemId)
+                                .with(asAdmin(adminId))
+                )
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                );
+
+        verify(problemPublicationFacade)
+                .revertToReviewPendingForRepublish(problemId);
+    }
+
+    @Test
+    @DisplayName("이슈 #253 — ADMIN이 아닌 사용자가 재발행을 요청하면 403을 반환한다")
+    void revertToReviewPendingForRepublish_nonAdmin_returns403() throws Exception {
+
+        // when & then
+        mockMvc.perform(
+                        post("/api/v1/admin/contents/problems/{problemId}/republish", problemId)
+                                .with(asUser(userId))
+                )
+                .andExpect(
+                        status().isForbidden()
+                );
+
+        verifyNoInteractions(
+                problemPublicationFacade
+        );
+    }
+
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(
                 new UsernamePasswordAuthenticationToken(
