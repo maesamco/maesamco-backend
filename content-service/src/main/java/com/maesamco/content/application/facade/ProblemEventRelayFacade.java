@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * PENDING 상태의 Problem Event Outbox를 조회해 Kafka로 발행합니다.
+ * PENDING 상태이며 재시도 가능 시각이 도래한 Problem Event Outbox를 조회해 Kafka로 발행합니다.
  * Kafka 외부 호출과 DB 상태 변경을 조율하며 Facade 자체에는 트랜잭션을 두지 않습니다.
  */
 @Component
@@ -46,7 +46,7 @@ public class ProblemEventRelayFacade {
     @Scheduled(fixedDelayString = "${outbox.problem-published.relay.fixed-delay-ms:1000}")
     public void relay() {
         List<ProblemEventOutbox> pendingOutboxes =
-                problemEventOutboxRepository.findAllByStatusOrderByOccurredAtAscIdAsc(
+                problemEventOutboxRepository.findPollableByStatus(
                         ProblemEventOutboxStatus.PENDING,
                         batchSize
                 );
@@ -55,8 +55,11 @@ public class ProblemEventRelayFacade {
             try {
                 relayOne(outbox);
             } catch (Exception e) {
-                log.error("[Content] Outbox 처리 중 예상치 못한 예외 — 해당 Outbox만 건너뜁니다. outboxId={}",
-                        outbox.getId(), e);
+                log.error(
+                        "[Content] Outbox 처리 중 예상치 못한 예외 — 해당 Outbox만 건너뜁니다. outboxId={}",
+                        outbox.getId(),
+                        e
+                );
             }
 
             if (Thread.currentThread().isInterrupted()) {
@@ -68,10 +71,16 @@ public class ProblemEventRelayFacade {
 
     private void relayOne(ProblemEventOutbox outbox) {
         if (isPayloadTooLarge(outbox.getPayload())) {
-            problemEventOutboxPersistenceService.markFailed(outbox.getId(), PAYLOAD_TOO_LARGE_ERROR);
+            problemEventOutboxPersistenceService.markFailed(
+                    outbox.getId(),
+                    PAYLOAD_TOO_LARGE_ERROR
+            );
 
-            log.error("[Content] ProblemPublished payload 크기 초과 — FAILED 처리. outboxId={}, eventId={}",
-                    outbox.getId(), outbox.getEventId());
+            log.error(
+                    "[Content] ProblemPublished payload 크기 초과 — FAILED 처리. outboxId={}, eventId={}",
+                    outbox.getId(),
+                    outbox.getEventId()
+            );
             return;
         }
 
@@ -87,8 +96,12 @@ public class ProblemEventRelayFacade {
                     PUBLISH_OUTCOME_UNKNOWN_ERROR
             );
 
-            log.error("[Content] Outbox 발행 결과를 확인할 수 없음 — PENDING 상태로 유지합니다. outboxId={}, eventType={}",
-                    outbox.getId(), outbox.getEventType(), e);
+            log.error(
+                    "[Content] Outbox 발행 결과를 확인할 수 없음 — PENDING 상태로 유지합니다. outboxId={}, eventType={}",
+                    outbox.getId(),
+                    outbox.getEventType(),
+                    e
+            );
             return;
         } catch (Exception e) {
             problemEventOutboxPersistenceService.recordFailedAttempt(
@@ -96,24 +109,36 @@ public class ProblemEventRelayFacade {
                     safePublishError(e)
             );
 
-            log.error("[Content] Outbox 발행 실패 — 재시도 상한 전이면 다음 폴링에서 재시도합니다. outboxId={}, eventType={}",
-                    outbox.getId(), outbox.getEventType(), e);
+            log.error(
+                    "[Content] Outbox 발행 실패 — 재시도 상한 전이면 다음 폴링에서 재시도합니다. outboxId={}, eventType={}",
+                    outbox.getId(),
+                    outbox.getEventType(),
+                    e
+            );
             return;
         }
 
         try {
             problemEventOutboxPersistenceService.markPublished(outbox.getId());
 
-            log.info("[Content] Outbox 발행 성공. outboxId={}, eventType={}, aggregateId={}",
-                    outbox.getId(), outbox.getEventType(), outbox.getAggregateId());
+            log.info(
+                    "[Content] Outbox 발행 성공. outboxId={}, eventType={}, aggregateId={}",
+                    outbox.getId(),
+                    outbox.getEventType(),
+                    outbox.getAggregateId()
+            );
         } catch (Exception e) {
             problemEventOutboxPersistenceService.recordPostPublishFailure(
                     outbox.getId(),
                     POST_PUBLISH_FAILURE_ERROR
             );
 
-            log.error("[Content] Kafka 발행은 성공했으나 Outbox 완료 상태 저장 실패 — PENDING 상태로 유지합니다. outboxId={}, eventType={}",
-                    outbox.getId(), outbox.getEventType(), e);
+            log.error(
+                    "[Content] Kafka 발행은 성공했으나 Outbox 완료 상태 저장 실패 — PENDING 상태로 유지합니다. outboxId={}, eventType={}",
+                    outbox.getId(),
+                    outbox.getEventType(),
+                    e
+            );
         }
     }
 

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,7 +20,7 @@ public class ProblemEventOutboxRepositoryImpl implements ProblemEventOutboxRepos
 
     @Override
     public ProblemEventOutbox save(ProblemEventOutbox problemEventOutbox) {
-        return springDataProblemEventOutboxRepository.save(problemEventOutbox);
+        return springDataProblemEventOutboxRepository.saveAndFlush(problemEventOutbox);
     }
 
     @Override
@@ -28,9 +29,13 @@ public class ProblemEventOutboxRepositoryImpl implements ProblemEventOutboxRepos
     }
 
     @Override
-    public List<ProblemEventOutbox> findAllByStatusOrderByOccurredAtAscIdAsc(ProblemEventOutboxStatus status, int limit) {
-        return springDataProblemEventOutboxRepository.findAllByStatusOrderByOccurredAtAscIdAsc(
+    public List<ProblemEventOutbox> findPollableByStatus(
+            ProblemEventOutboxStatus status,
+            int limit
+    ) {
+        return springDataProblemEventOutboxRepository.findPollableByStatus(
                 status,
+                Instant.now(),
                 PageRequest.of(0, limit)
         );
     }

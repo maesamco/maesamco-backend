@@ -13,8 +13,5 @@ public interface ProblemEventOutboxRepository {
 
     Optional<ProblemEventOutbox> findById(UUID outboxId);
 
-    List<ProblemEventOutbox> findAllByStatusOrderByOccurredAtAscIdAsc(
-            ProblemEventOutboxStatus status,
-            int limit
-    );
+    List<ProblemEventOutbox> findPollableByStatus(ProblemEventOutboxStatus status, int limit);
 }
