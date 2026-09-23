@@ -10,8 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 관심 개념 태그 ID를 활성 CONCEPT 태그명으로 변환하는 Adapter
@@ -40,10 +42,15 @@ public class ConceptLookupAdapter implements ConceptLookupPort {
             return List.of();
         }
 
-        return tagIds.stream()
+        List<UUID> distinctTagIds = tagIds.stream()
                 .distinct()
-                .map(tagRepository::findById)
-                .flatMap(Optional::stream)
+                .toList();
+        Map<UUID, Tag> tagsById = tagRepository.findAllByIds(distinctTagIds).stream()
+                .collect(Collectors.toMap(Tag::getId, Function.identity()));
+
+        return distinctTagIds.stream()
+                .map(tagsById::get)
+                .filter(tag -> tag != null)
                 .filter(tag -> tag.getAttribute() == TagAttribute.CONCEPT)
                 .map(Tag::getName)
                 .toList();
