@@ -2,20 +2,16 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.security.authorization.RequireAdmin;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/admin/contents/problems")
-public class AdminProblemController {
+public class AdminProblemController implements AdminProblemApiDocs {
 
     private final ProblemPublicationFacade problemPublicationFacade;
 
@@ -28,11 +24,9 @@ public class AdminProblemController {
      * @param problemId 발행을 승인할 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @RequireAdmin
-    @PostMapping("/{problemId}/approve")
-    public ResponseEntity<SuccessResponse<Void>> approvePublication(
-            @PathVariable UUID problemId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> approvePublication(UUID problemId) {
         // TODO: Facade 방식으로 (관리자가 문제 상태를 PUBLISHED로 변경 -> ProblemVersion 생성/저장 -> 발행 이벤트 기록)
         problemPublicationFacade.approvePublication(problemId);
 
@@ -53,11 +47,9 @@ public class AdminProblemController {
      * @param problemId 재발행을 위해 되돌릴 문제의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @RequireAdmin
-    @PostMapping("/{problemId}/republish")
-    public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(
-            @PathVariable UUID problemId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(UUID problemId) {
         problemPublicationFacade.revertToReviewPendingForRepublish(problemId);
 
         return ResponseEntity.ok(
