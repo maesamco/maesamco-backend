@@ -1,6 +1,7 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
+import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.global.config.SecurityConfig;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,9 @@ class AdminProblemControllerSecurityTest {
 
     @MockitoBean
     private ProblemPublicationFacade problemPublicationFacade;
+
+    @MockitoBean
+    private ProblemService problemService;
 
     private static final KeyPair KEY_PAIR = generateKeyPair();
 

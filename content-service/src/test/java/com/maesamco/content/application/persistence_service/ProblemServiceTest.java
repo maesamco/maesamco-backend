@@ -133,6 +133,69 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("관리자 문제 검색은 요청한 상태 조건을 강제로 PUBLISHED로 변경하지 않는다")
+    void searchProblemsForAdmin_preservesRequestedStatus() {
+
+        ProblemSearchQuery query =
+                new ProblemSearchQuery(
+                        null,
+                        null,
+                        null,
+                        ProblemStatus.REVIEW_PENDING,
+                        null,
+                        null
+                );
+
+        Pageable pageable =
+                PageRequest.of(
+                        0,
+                        20
+                );
+
+        ProblemSearchCondition condition =
+                query.toCondition();
+
+        when(
+                problemQueryRepository.searchProblems(
+                        any(ProblemSearchCondition.class),
+                        eq(pageable)
+                )
+        ).thenReturn(
+                Page.empty()
+        );
+
+        problemService.searchProblemsForAdmin(
+                query,
+                pageable
+        );
+
+        assertThat(
+                query.getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
+
+        ArgumentCaptor<ProblemSearchCondition>
+                conditionCaptor =
+                ArgumentCaptor.forClass(
+                        ProblemSearchCondition.class
+                );
+
+        verify(problemQueryRepository)
+                .searchProblems(
+                        conditionCaptor.capture(),
+                        eq(pageable)
+                );
+
+        assertThat(
+                conditionCaptor.getValue()
+                        .getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
+    }
+
+    @Test
     @DisplayName("관리자 문제 조회는 ProblemFinder를 통해 문제를 조회한다")
     void getProblemForAdmin_success() {
         // given

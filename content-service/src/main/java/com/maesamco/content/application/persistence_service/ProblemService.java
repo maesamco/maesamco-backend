@@ -111,6 +111,29 @@ public class ProblemService {
         return problems.map(ProblemSearchResult::from);
     }
 
+    /**
+     * 관리자 문제 검색
+     *
+     * <p>공개 검색과 달리 PUBLISHED 상태를 강제하지 않습니다.
+     * 관리자가 전달한 problemStatus 조건을 그대로 적용하며,
+     * 상태를 지정하지 않으면 모든 상태의 문제를 조회합니다.</p>
+     */
+    @Transactional(readOnly = true)
+    public Page<ProblemSearchResult> searchProblemsForAdmin(
+            ProblemSearchQuery query,
+            Pageable pageable
+    ) {
+        Page<Problem> problems =
+                problemQueryRepository.searchProblems(
+                        query.toCondition(),
+                        pageable
+                );
+
+        return problems.map(
+                ProblemSearchResult::from
+        );
+    }
+
     /** 문제 수정 */
     @Transactional(rollbackFor = Exception.class)
     public ProblemResult updateProblem(
