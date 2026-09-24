@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.application.result.CurriculumResult;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,7 +15,7 @@ public class CurriculumCreateResponse {
     private final UUID id;
     private final String title;
 
-    public static CurriculumCreateResponse from(Curriculum curriculum) {
+    public static CurriculumCreateResponse from(CurriculumResult curriculum) {
         return new CurriculumCreateResponse(
                 curriculum.getId(),
                 curriculum.getTitle()

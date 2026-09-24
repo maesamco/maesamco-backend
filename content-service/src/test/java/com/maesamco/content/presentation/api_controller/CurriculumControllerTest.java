@@ -3,11 +3,11 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.persistence_service.CurriculumService;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.CurriculumCreateRequest;
-import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
-import com.maesamco.content.presentation.response.CurriculumCreateResponse;
-import com.maesamco.content.presentation.response.CurriculumResponse;
+import com.maesamco.content.application.command.CurriculumCreateCommand;
+import com.maesamco.content.application.command.CurriculumUpdateCommand;
+import com.maesamco.content.application.result.CurriculumResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -16,9 +16,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -118,10 +115,10 @@ class CurriculumControllerTest {
 
         when(
                 curriculumService.createCurriculum(
-                        any(CurriculumCreateRequest.class)
+                        any(CurriculumCreateCommand.class)
                 )
         ).thenReturn(
-                CurriculumCreateResponse.from(curriculum)
+                CurriculumResult.from(curriculum)
         );
 
         String json = """
@@ -149,9 +146,9 @@ class CurriculumControllerTest {
                                 .value("Java 기초")
                 );
 
-        ArgumentCaptor<CurriculumCreateRequest> captor =
+        ArgumentCaptor<CurriculumCreateCommand> captor =
                 ArgumentCaptor.forClass(
-                        CurriculumCreateRequest.class
+                        CurriculumCreateCommand.class
                 );
 
         verify(curriculumService)
@@ -201,7 +198,7 @@ class CurriculumControllerTest {
 
         when(curriculumService.getCurriculum(curriculumId))
                 .thenReturn(
-                        CurriculumResponse.from(curriculum)
+                        CurriculumResult.from(curriculum)
                 );
 
         // when & then
@@ -244,20 +241,19 @@ class CurriculumControllerTest {
                         1
                 );
 
-        PageResponse<CurriculumResponse> response =
-                PageResponse.from(
-                        new PageImpl<>(
-                                List.of(
-                                        CurriculumResponse.from(curriculum)
-                                ),
-                                PageRequest.of(1, 5),
-                                6
-                        )
+        PageResult<CurriculumResult> response =
+                new PageResult<>(
+                        List.of(
+                                CurriculumResult.from(curriculum)
+                        ),
+                        1,
+                        5,
+                        6
                 );
 
         when(
                 curriculumService.searchCurriculums(
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(response);
 
@@ -287,16 +283,16 @@ class CurriculumControllerTest {
                                 .value(6)
                 );
 
-        ArgumentCaptor<Pageable> captor =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<PageQuery> captor =
+                ArgumentCaptor.forClass(PageQuery.class);
 
         verify(curriculumService)
                 .searchCurriculums(captor.capture());
 
-        assertThat(captor.getValue().getPageNumber())
+        assertThat(captor.getValue().page())
                 .isEqualTo(1);
 
-        assertThat(captor.getValue().getPageSize())
+        assertThat(captor.getValue().size())
                 .isEqualTo(5);
     }
 
@@ -316,10 +312,10 @@ class CurriculumControllerTest {
         when(
                 curriculumService.updateCurriculum(
                         eq(curriculumId),
-                        any(CurriculumUpdateRequest.class)
+                        any(CurriculumUpdateCommand.class)
                 )
         ).thenReturn(
-                CurriculumResponse.from(curriculum)
+                CurriculumResult.from(curriculum)
         );
 
         String json = """
@@ -353,7 +349,7 @@ class CurriculumControllerTest {
         verify(curriculumService)
                 .updateCurriculum(
                         eq(curriculumId),
-                        any(CurriculumUpdateRequest.class)
+                        any(CurriculumUpdateCommand.class)
                 );
     }
 

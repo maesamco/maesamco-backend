@@ -2,9 +2,10 @@ package com.maesamco.content.infrastructure.persistence;
 
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.repository.CurriculumRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -47,12 +48,14 @@ public class CurriculumRepositoryImpl
     }
 
     @Override
-    public Page<Curriculum> searchCurriculums(
-            Pageable pageable
+    public PageResult<Curriculum> searchCurriculums(
+            PageQuery pageQuery
     ) {
-        return springDataCurriculumRepository
-                .findByDeletedAtIsNullOrderByIdAsc(
-                        pageable
-                );
+        return SpringPageConverter.toPageResult(
+                springDataCurriculumRepository
+                        .findByDeletedAtIsNullOrderByIdAsc(
+                                SpringPageConverter.toPageable(pageQuery)
+                        )
+        );
     }
 }

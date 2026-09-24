@@ -6,6 +6,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +52,12 @@ class CurriculumRepositoryImplTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<Curriculum> page = Page.empty(pageable);
         when(springDataCurriculumRepository.findByDeletedAtIsNullOrderByIdAsc(pageable)).thenReturn(page);
-        assertThat(curriculumRepository.searchCurriculums(pageable)).isSameAs(page);
+
+        PageResult<Curriculum> result = curriculumRepository.searchCurriculums(PageQuery.of(0, 20));
+
+        assertThat(result.content()).isEmpty();
+        assertThat(result.page()).isZero();
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalElements()).isZero();
     }
 }
