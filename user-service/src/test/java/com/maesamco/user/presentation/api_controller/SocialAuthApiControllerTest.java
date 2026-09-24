@@ -2,10 +2,15 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.service.SocialLoginResult;
+import com.maesamco.user.application.service.SignUpResult;
 import com.maesamco.user.application.service.SocialLoginService;
+import com.maesamco.user.application.service.SocialSignUpCommand;
+import com.maesamco.user.application.service.SocialSignUpService;
 import com.maesamco.user.domain.entity.LearningLevel;
 import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.domain.entity.User;
+import com.maesamco.user.domain.entity.UserRole;
+import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
 import com.maesamco.user.global.exception.GlobalExceptionHandler;
@@ -15,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
@@ -28,12 +34,15 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -54,6 +63,9 @@ class SocialAuthApiControllerTest {
 
     @Mock
     private SocialLoginService socialLoginService;
+
+    @Mock
+    private SocialSignUpService socialSignUpService;
 
     private MockMvc mockMvc;
 
@@ -78,6 +90,7 @@ class SocialAuthApiControllerTest {
         SocialAuthApiController controller =
                 new SocialAuthApiController(
                         socialLoginService,
+                        socialSignUpService,
                         refreshTokenCookieFactory,
                         clock
                 );
@@ -507,5 +520,221 @@ class SocialAuthApiControllerTest {
                 socialLoginService,
                 never()
         ).login(any());
+    }
+
+    // ===== Google 소셜 신규 회원가입 완료 (#308) =====
+
+    private static final String SIGNUP_URL =
+            "/api/v1/auth/social/google/signup";
+
+    @Test
+    @DisplayName(
+            "소셜 회원가입을 완료하면 201과 Access Token, Refresh Token Cookie를 반환한다 (#308)"
+    )
+    void googleSignUp_created()
+            throws Exception {
+        // given
+        UUID userId =
+                UUID.randomUUID();
+
+        IssuedTokens issuedTokens =
+                new IssuedTokens(
+                        "access-token",
+                        NOW.plusSeconds(900),
+                        "refresh-token",
+                        NOW.plusSeconds(60L * 60 * 24 * 14)
+                );
+
+        when(
+                socialSignUpService.signUp(any())
+        ).thenReturn(
+                new SignUpResult(
+                        userId,
+                        "구글유저",
+                        UserRole.USER,
+                        UserStatus.ACTIVE,
+                        3,
+                        LearningLevel.BEGINNER,
+                        "access-token",
+                        900,
+                        issuedTokens
+                )
+        );
+
+        String requestBody =
+                """
+                {
+                  "socialSignupToken": "social-signup-token",
+                  "nickname": "  구글유저  ",
+                  "javaExperienceMonths": 3,
+                  "learningLevel": "BEGINNER"
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        post(SIGNUP_URL)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.data.nickname").value("구글유저"))
+                .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+                .andExpect(jsonPath("$.data.issuedTokens").doesNotExist())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.SET_COOKIE,
+                                containsString("refreshToken=refresh-token")
+                        )
+                )
+                .andExpect(
+                        header().string(
+                                HttpHeaders.SET_COOKIE,
+                                containsString("HttpOnly")
+                        )
+                )
+                .andExpect(
+                        content().string(
+                                not(containsString("refresh-token"))
+                        )
+                );
+
+        ArgumentCaptor<SocialSignUpCommand> commandCaptor =
+                ArgumentCaptor.forClass(SocialSignUpCommand.class);
+
+        verify(socialSignUpService)
+                .signUp(commandCaptor.capture());
+
+        SocialSignUpCommand command =
+                commandCaptor.getValue();
+
+        assertThat(command.provider()).isEqualTo(SocialProvider.GOOGLE);
+        assertThat(command.socialSignupToken()).isEqualTo("social-signup-token");
+        assertThat(command.nickname()).isEqualTo("구글유저");
+        assertThat(command.javaExperienceMonths()).isEqualTo(3);
+        assertThat(command.learningLevel()).isEqualTo(LearningLevel.BEGINNER);
+    }
+
+    @Test
+    @DisplayName(
+            "이메일이나 Google 사용자 ID를 요청에 넣으면 알 수 없는 필드로 400을 반환한다 (#308)"
+    )
+    void googleSignUp_rejectsClientSuppliedIdentity()
+            throws Exception {
+        // given
+        String requestBody =
+                """
+                {
+                  "socialSignupToken": "social-signup-token",
+                  "email": "attacker@example.com",
+                  "nickname": "구글유저",
+                  "javaExperienceMonths": 3,
+                  "learningLevel": "BEGINNER"
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        post(SIGNUP_URL)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+        verifyNoInteractions(socialSignUpService);
+    }
+
+    @Test
+    @DisplayName(
+            "입력값 검증에 실패하면 400을 반환하고 서비스를 호출하지 않는다 (#308)"
+    )
+    void googleSignUp_invalidInput()
+            throws Exception {
+        // given — Token 누락, 닉네임 형식 위반, Java 경험 음수
+        String requestBody =
+                """
+                {
+                  "nickname": "구글 유저!",
+                  "javaExperienceMonths": -1,
+                  "learningLevel": "BEGINNER"
+                }
+                """;
+
+        // when & then
+        mockMvc.perform(
+                        post(SIGNUP_URL)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT_VALUE"));
+
+        verifyNoInteractions(socialSignUpService);
+    }
+
+    @Test
+    @DisplayName(
+            "만료·재사용된 socialSignupToken이면 400과 SOCIAL_SIGNUP_TOKEN_INVALID를 반환한다 (#308)"
+    )
+    void googleSignUp_invalidToken()
+            throws Exception {
+        // given
+        when(
+                socialSignUpService.signUp(any())
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.SOCIAL_SIGNUP_TOKEN_INVALID
+                )
+        );
+
+        // when & then
+        mockMvc.perform(
+                        post(SIGNUP_URL)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(validSignUpBody())
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("SOCIAL_SIGNUP_TOKEN_INVALID"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
+    @DisplayName(
+            "이미 가입된 Google 계정이면 409와 SOCIAL_ACCOUNT_ALREADY_LINKED를 반환한다 (#308)"
+    )
+    void googleSignUp_alreadyLinked()
+            throws Exception {
+        // given
+        when(
+                socialSignUpService.signUp(any())
+        ).thenThrow(
+                new BusinessException(
+                        ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED
+                )
+        );
+
+        // when & then
+        mockMvc.perform(
+                        post(SIGNUP_URL)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(validSignUpBody())
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SOCIAL_ACCOUNT_ALREADY_LINKED"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+    }
+
+    private static String validSignUpBody() {
+        return """
+                {
+                  "socialSignupToken": "social-signup-token",
+                  "nickname": "구글유저",
+                  "javaExperienceMonths": 3,
+                  "learningLevel": "BEGINNER"
+                }
+                """;
     }
 }

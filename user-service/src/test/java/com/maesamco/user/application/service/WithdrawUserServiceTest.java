@@ -480,6 +480,43 @@ class WithdrawUserServiceTest {
         );
     }
 
+    @Test
+    @DisplayName("비밀번호가 없는 소셜 계정은 비밀번호 재확인 탈퇴를 할 수 없다 — 소셜 재인증 탈퇴는 후속 이슈 (#308)")
+    void withdraw_socialUserWithoutPassword() {
+        // given
+        User socialUser =
+                User.createSocial(
+                        ENCRYPTED_EMAIL,
+                        EMAIL_LOOKUP_HASH,
+                        "구글유저",
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        when(userRepository.findByIdForUpdate(USER_ID))
+                .thenReturn(Optional.of(socialUser));
+
+        // when & then
+        assertThatThrownBy(
+                () -> withdrawUserService.withdraw(
+                        USER_ID,
+                        new WithdrawUserCommand(CURRENT_PASSWORD)
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.USER_PASSWORD_NOT_SET);
+
+        verifyNoInteractions(passwordHasher, authSessionLogoutAllStore);
+
+        verify(userRepository, never())
+                .save(socialUser);
+    }
+
     private User createActiveUser() {
         return User.create(
                 ENCRYPTED_EMAIL,

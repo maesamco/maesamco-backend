@@ -72,8 +72,11 @@ public class User extends BaseEntity {
 
     /**
      * 단방향 해시 처리된 비밀번호입니다.
+     *
+     * <p>소셜 계정으로만 가입한 사용자는 비밀번호가 없으므로 {@code null}입니다(#308).
+     * 비밀번호 사용 여부는 {@link #hasPassword()}로 확인합니다.</p>
      */
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
     /**
@@ -126,7 +129,7 @@ public class User extends BaseEntity {
         this.id = requireNonNull(id, "사용자 ID는 필수입니다.");
         this.encryptedEmail = requireText(encryptedEmail, "암호화 이메일은 필수입니다.");
         this.emailLookupHash = validateEmailLookupHash(emailLookupHash);
-        this.passwordHash = requireText(passwordHash, "비밀번호 해시는 필수입니다.");
+        this.passwordHash = passwordHash;
         this.nickname = validateNickname(nickname);
         this.role = requireNonNull(role, "사용자 권한은 필수입니다.");
         this.status = requireNonNull(status, "사용자 상태는 필수입니다.");
@@ -158,6 +161,8 @@ public class User extends BaseEntity {
             int javaExperienceMonths,
             LearningLevel learningLevel
     ) {
+        requireText(passwordHash, "비밀번호 해시는 필수입니다.");
+
         return new User(
                 UUID.randomUUID(),
                 encryptedEmail,
@@ -169,6 +174,48 @@ public class User extends BaseEntity {
                 javaExperienceMonths,
                 learningLevel
         );
+    }
+
+    /**
+     * 소셜 계정으로 가입하는 사용자를 생성합니다(#308).
+     *
+     * <p>소셜 사용자는 MAESAMCO 비밀번호가 없으므로 비밀번호 해시 없이 생성합니다.
+     * 이메일/비밀번호 로그인, 비밀번호 변경은 사용할 수 없습니다.</p>
+     *
+     * @param encryptedEmail 암호화된 소셜 인증 이메일
+     * @param emailLookupHash 이메일 조회용 HMAC-SHA256 해시
+     * @param nickname 사용자 닉네임
+     * @param javaExperienceMonths Java 경험 개월 수
+     * @param learningLevel Java 학습 수준
+     * @return 생성된 사용자
+     */
+    public static User createSocial(
+            String encryptedEmail,
+            String emailLookupHash,
+            String nickname,
+            int javaExperienceMonths,
+            LearningLevel learningLevel
+    ) {
+        return new User(
+                UUID.randomUUID(),
+                encryptedEmail,
+                emailLookupHash,
+                null,
+                nickname,
+                UserRole.USER,
+                UserStatus.ACTIVE,
+                javaExperienceMonths,
+                learningLevel
+        );
+    }
+
+    /**
+     * MAESAMCO 비밀번호가 설정된 계정인지 확인합니다.
+     *
+     * <p>소셜 계정으로만 가입한 사용자는 false입니다.</p>
+     */
+    public boolean hasPassword() {
+        return passwordHash != null;
     }
 
     /**

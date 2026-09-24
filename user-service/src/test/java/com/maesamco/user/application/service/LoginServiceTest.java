@@ -491,6 +491,75 @@ class LoginServiceTest {
 
     @Test
     @DisplayName(
+            "비밀번호가 없는 소셜 계정은 사용자 미존재와 같게 "
+                    + "더미 비밀번호 검증 후 INVALID_CREDENTIALS를 반환한다 (#308)"
+    )
+    void login_socialUserWithoutPassword() {
+        // given
+        String normalizedEmail =
+                "learner@example.com";
+
+        String emailLookupHash =
+                "d".repeat(64);
+
+        String rawPassword =
+                "Abcd1234!";
+
+        User socialUser =
+                User.createSocial(
+                        "encrypted-email",
+                        emailLookupHash,
+                        "구글유저",
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        when(emailNormalizer.normalize(normalizedEmail))
+                .thenReturn(normalizedEmail);
+
+        when(emailLookupHasher.hash(normalizedEmail))
+                .thenReturn(emailLookupHash);
+
+        when(
+                userRepository.findByEmailLookupHashForUpdate(
+                        emailLookupHash
+                )
+        ).thenReturn(Optional.of(socialUser));
+
+        // when & then
+        assertThatThrownBy(
+                () -> loginService.login(
+                        new LoginCommand(
+                                normalizedEmail,
+                                rawPassword
+                        )
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
+
+        // null 해시로 비교하지 않고 더미 해시로 동일한 비용을 소모한다.
+        verify(passwordHasher)
+                .matches(
+                        eq(rawPassword),
+                        anyString()
+                );
+
+        verify(tokenIssuer, never())
+                .issueTokens(any(), any(), any());
+
+        assertThat(
+                loginMetricCount("invalid_credentials")
+        ).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName(
             "비밀번호가 일치하지 않으면 "
                     + "INVALID_CREDENTIALS와 실패 메트릭을 기록한다"
     )

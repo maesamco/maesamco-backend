@@ -15,8 +15,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -193,10 +193,10 @@ class AdminProblemControllerTest {
         when(
                 problemService.searchProblemsForAdmin(
                         any(ProblemSearchQuery.class),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(
-                Page.empty()
+                PageResult.empty(PageQuery.of(0, 20))
         );
 
         mockMvc.perform(
@@ -228,7 +228,7 @@ class AdminProblemControllerTest {
         verify(problemService)
                 .searchProblemsForAdmin(
                         queryCaptor.capture(),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
 
         assertThat(
@@ -345,10 +345,10 @@ class AdminProblemControllerTest {
         when(
                 problemService.searchProblemsForAdmin(
                         any(ProblemSearchQuery.class),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(
-                Page.empty()
+                PageResult.empty(PageQuery.of(0, 20))
         );
 
         mockMvc.perform(
@@ -376,7 +376,7 @@ class AdminProblemControllerTest {
         verify(problemService)
                 .searchProblemsForAdmin(
                         queryCaptor.capture(),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
 
         assertThat(

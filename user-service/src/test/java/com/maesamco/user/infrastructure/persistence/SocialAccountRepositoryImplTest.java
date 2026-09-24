@@ -6,6 +6,8 @@ import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.repository.SocialAccountRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
+import com.maesamco.user.global.exception.BusinessException;
+import com.maesamco.user.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,7 +17,6 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -198,8 +199,17 @@ class SocialAccountRepositoryImplTest {
                         )
                 )
         )
+                // 동시 가입 경쟁의 최종 방어선 — DB UNIQUE 위반을 도메인 오류로 변환한다(#308).
                 .isInstanceOf(
-                        DataIntegrityViolationException.class
+                        BusinessException.class
+                )
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED
                 );
     }
 
@@ -233,8 +243,17 @@ class SocialAccountRepositoryImplTest {
                         )
                 )
         )
+                // (user_id, provider) UNIQUE 위반도 도메인 오류로 변환한다(PR #320 리뷰).
                 .isInstanceOf(
-                        DataIntegrityViolationException.class
+                        BusinessException.class
+                )
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED
                 );
     }
 

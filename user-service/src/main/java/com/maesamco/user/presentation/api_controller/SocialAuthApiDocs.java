@@ -1,5 +1,6 @@
 package com.maesamco.user.presentation.api_controller;
 
+import com.maesamco.user.application.service.SignUpResult;
 import com.maesamco.user.application.service.SocialLoginResult;
 import com.maesamco.user.global.response.ErrorResponse;
 import com.maesamco.user.global.response.SuccessResponse;
@@ -99,5 +100,81 @@ public interface SocialAuthApiDocs {
     ResponseEntity<SuccessResponse<SocialLoginResult>>
     googleLogin(
             GoogleSocialLoginRequest request
+    );
+
+    @Operation(
+            summary = "Google 소셜 신규 회원가입 완료",
+            description = """
+                    Google 소셜 로그인에서 SIGNUP_REQUIRED와 함께 받은
+                    socialSignupToken으로 신규 회원가입을 완료합니다.
+
+                    이메일과 Google 사용자 식별자는 요청으로 받지 않고,
+                    Token에 귀속된 Google 인증 정보만 사용합니다.
+                    User 생성과 Google 소셜 계정 연결은 하나의 트랜잭션으로 처리합니다.
+
+                    socialSignupToken은 가입에 성공하면 즉시 소멸되어 재사용할 수 없습니다.
+                    닉네임 중복처럼 입력을 고쳐 재시도할 수 있는 오류에서는 Token이 유지됩니다.
+
+                    가입 완료 후 Access Token과 Refresh Token HttpOnly Cookie를 발급하며,
+                    이후에는 Google 소셜 로그인 API로 로그인합니다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "소셜 회원가입 및 자동 로그인 성공",
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Refresh Token HttpOnly Cookie",
+                            schema = @Schema(
+                                    type = "string"
+                            )
+                    ),
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description =
+                            "INVALID_INPUT_VALUE 또는 "
+                                    + "SOCIAL_SIGNUP_TOKEN_INVALID "
+                                    + "— Token 만료·재사용·위조",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation =
+                                            ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description =
+                            "USER_DUPLICATE_NICKNAME, "
+                                    + "SOCIAL_ACCOUNT_ALREADY_LINKED "
+                                    + "— 이미 가입된 Google 계정, 또는 "
+                                    + "SOCIAL_SIGNUP_EMAIL_ALREADY_EXISTS "
+                                    + "— 이미 다른 방식으로 가입된 이메일",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation =
+                                            ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description =
+                            "SIGNUP_AUTO_LOGIN_FAILED "
+                                    + "— 가입은 완료됐지만 자동 로그인 실패(소셜 로그인으로 다시 로그인)",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation =
+                                            ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<SignUpResult>>
+    googleSignUp(
+            GoogleSocialSignUpRequest request
     );
 }

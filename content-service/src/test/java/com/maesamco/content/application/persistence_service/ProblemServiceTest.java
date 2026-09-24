@@ -1,5 +1,7 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
@@ -23,10 +25,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -146,11 +144,7 @@ class ProblemServiceTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         ProblemSearchCondition condition =
                 query.toCondition();
@@ -158,15 +152,15 @@ class ProblemServiceTest {
         when(
                 problemQueryRepository.searchProblems(
                         any(ProblemSearchCondition.class),
-                        eq(pageable)
+                        eq(pageQuery)
                 )
         ).thenReturn(
-                Page.empty()
+                PageResult.empty(pageQuery)
         );
 
         problemService.searchProblemsForAdmin(
                 query,
-                pageable
+                pageQuery
         );
 
         assertThat(
@@ -184,7 +178,7 @@ class ProblemServiceTest {
         verify(problemQueryRepository)
                 .searchProblems(
                         conditionCaptor.capture(),
-                        eq(pageable)
+                        eq(pageQuery)
                 );
 
         assertThat(
@@ -299,8 +293,8 @@ class ProblemServiceTest {
         ProblemSearchCondition condition =
                 mock(ProblemSearchCondition.class);
 
-        Pageable pageable =
-                PageRequest.of(
+        PageQuery pageQuery =
+                PageQuery.of(
                         0,
                         20
                 );
@@ -315,30 +309,38 @@ class ProblemServiceTest {
 
         when(problemQueryRepository.searchProblems(
                 condition,
-                pageable
+                pageQuery
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(problem),
-                        pageable,
+                        0,
+                        20,
                         1
                 )
         );
 
         // when
-        Page<ProblemSearchResult> result =
+        PageResult<ProblemSearchResult> result =
                 problemService.searchProblems(
                         query,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
+
+        // content만 변환되고 페이징 정보는 그대로 유지된다.
+        assertThat(result.page()).isZero();
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalElements()).isEqualTo(1);
+
+        verify(query).forcePublished();
 
         verify(problemQueryRepository)
                 .searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         verifyNoInteractions(

@@ -129,6 +129,25 @@ public class LoginService {
             );
         }
 
+        /*
+         * 소셜 계정으로만 가입한 사용자는 비밀번호가 없습니다(#308).
+         * 계정 존재 여부나 가입 방식이 드러나지 않도록
+         * 사용자 미존재와 같은 비용·같은 오류로 처리합니다.
+         */
+        if (!user.hasPassword()) {
+            consumePasswordVerificationCost(
+                    command.password()
+            );
+
+            incrementLoginMetric(
+                    LOGIN_RESULT_INVALID_CREDENTIALS
+            );
+
+            throw new BusinessException(
+                    ErrorCode.INVALID_CREDENTIALS
+            );
+        }
+
         validatePassword(
                 command.password(),
                 user.getPasswordHash()
