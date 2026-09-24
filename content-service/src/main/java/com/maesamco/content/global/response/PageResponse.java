@@ -1,6 +1,6 @@
 package com.maesamco.content.global.response;
 
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.springframework.data.domain.Page;
 
 import java.util.List;

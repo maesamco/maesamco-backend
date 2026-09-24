@@ -3,8 +3,8 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.application.persistence_service.ProblemService;
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageQueryFactory;
@@ -18,7 +18,7 @@ import com.maesamco.content.presentation.response.ProblemShortResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -49,7 +49,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 생성된 문제 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(ProblemCreateRequest request) {
         ProblemResult result = problemService.createProblem(request.toCommand());
 
@@ -72,7 +72,7 @@ public class ProblemController implements ProblemApiDocs {
      */
     // 정확한 정보는 관리자만이 조회할 수 있다.
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(UUID problemId) {
         ProblemResult result = problemService.getProblemForAdmin(problemId);
 
@@ -133,20 +133,8 @@ public class ProblemController implements ProblemApiDocs {
         );
     }
 
-    /*
-     * 다중 정렬은
-     * @RequestParam(required = false) Integer page,
-     * @RequestParam(required = false) Integer size,
-     * @RequestParam(required = false) List<String> sort
-     * 로 Controller에서 받고, 요청은
-     * ?page=0
-     * &size=20
-     * &sort=title,asc
-     * &sort=createdAt,desc
-     * 와 같은 식의 예시처럼 받기로 약속한다.
-     * 그리고 List<String> sort의 경우, PageQueryFactory에서 약속한 sort 리스트의 구분자로 파싱해서 SortOrder 목록으로 바꾼다.
-     * 이에 대해 다중 정렬에 대한 구현은 ProblemSearchRepositoryImpl에 미리 해놓았다.
-     * */
+    // 현재 PageQueryFactory는 단일 sort/direction만 파싱한다.
+    // 여러 정렬 조건을 받는 API가 필요해지면 sort 파싱을 별도로 확장한다.
 
     /**
      * 지정한 문제의 정보를 수정합니다.
@@ -162,7 +150,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 수정된 문제 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(UUID problemId, ProblemUpdateRequest request) {
         ProblemResult result = problemService.updateProblem(problemId, request.toCommand());
 
@@ -187,7 +175,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteProblem(UUID problemId, UUID userId) {
         problemService.deleteProblem(problemId, userId);
 

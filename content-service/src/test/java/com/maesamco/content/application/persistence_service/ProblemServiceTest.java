@@ -1,7 +1,7 @@
 package com.maesamco.content.application.persistence_service;
 
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
@@ -128,6 +128,65 @@ class ProblemServiceTest {
 
         assertThat(version.getVersionNo())
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("관리자 문제 검색은 요청한 상태 조건을 강제로 PUBLISHED로 변경하지 않는다")
+    void searchProblemsForAdmin_preservesRequestedStatus() {
+
+        ProblemSearchQuery query =
+                new ProblemSearchQuery(
+                        null,
+                        null,
+                        null,
+                        ProblemStatus.REVIEW_PENDING,
+                        null,
+                        null
+                );
+
+        PageQuery pageQuery = PageQuery.of(0, 20);
+
+        ProblemSearchCondition condition =
+                query.toCondition();
+
+        when(
+                problemQueryRepository.searchProblems(
+                        any(ProblemSearchCondition.class),
+                        eq(pageQuery)
+                )
+        ).thenReturn(
+                PageResult.empty(pageQuery)
+        );
+
+        problemService.searchProblemsForAdmin(
+                query,
+                pageQuery
+        );
+
+        assertThat(
+                query.getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
+
+        ArgumentCaptor<ProblemSearchCondition>
+                conditionCaptor =
+                ArgumentCaptor.forClass(
+                        ProblemSearchCondition.class
+                );
+
+        verify(problemQueryRepository)
+                .searchProblems(
+                        conditionCaptor.capture(),
+                        eq(pageQuery)
+                );
+
+        assertThat(
+                conditionCaptor.getValue()
+                        .getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
     }
 
     @Test

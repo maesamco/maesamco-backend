@@ -13,7 +13,7 @@ public interface LessonRepository {
 
     Optional<Lesson> findById(UUID lessonId);
 
-    long countByUnitId(UUID unitId);
+    int findMaxDisplayOrderByUnitId(UUID unitId);
 
     Page<Lesson> searchLessons(UUID unitId, Pageable pageable);
 }

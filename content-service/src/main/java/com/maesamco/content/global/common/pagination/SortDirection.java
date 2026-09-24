@@ -1,4 +1,4 @@
-package com.maesamco.content.domain.common.pagination;
+package com.maesamco.content.global.common.pagination;
 
 /**
  * 정렬 방향입니다.

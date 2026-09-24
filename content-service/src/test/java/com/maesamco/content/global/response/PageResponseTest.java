@@ -1,6 +1,6 @@
 package com.maesamco.content.global.response;
 
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;

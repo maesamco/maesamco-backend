@@ -1,7 +1,7 @@
 package com.maesamco.content.infrastructure.persistence;
 
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.QProblem;
@@ -42,8 +42,11 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Optional<Problem> findById(UUID problemId) {
-        return springDataProblemRepository.findByIdAndDeletedAtIsNull(problemId);
+    public Optional<Problem> findById(
+            UUID problemId
+    ) {
+        return springDataProblemRepository
+                .findById(problemId);
     }
 
     @Override

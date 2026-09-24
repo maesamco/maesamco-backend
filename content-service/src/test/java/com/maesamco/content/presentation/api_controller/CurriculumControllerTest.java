@@ -62,7 +62,7 @@ class CurriculumControllerTest {
             UUID.randomUUID();
 
     @TestConfiguration
-    @EnableMethodSecurity
+    @EnableMethodSecurity(proxyTargetClass = true)
     static class TestSecurityConfig {
 
         @Bean
@@ -407,8 +407,7 @@ class CurriculumControllerTest {
         Curriculum curriculum =
                 Curriculum.create(
                         title,
-                        language,
-                        displayOrder
+                        language
                 );
 
         ReflectionTestUtils.setField(

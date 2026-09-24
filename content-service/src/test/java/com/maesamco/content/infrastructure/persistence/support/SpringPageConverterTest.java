@@ -1,8 +1,8 @@
 package com.maesamco.content.infrastructure.persistence.support;
 
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
-import com.maesamco.content.domain.common.pagination.SortOrder;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.SortOrder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;

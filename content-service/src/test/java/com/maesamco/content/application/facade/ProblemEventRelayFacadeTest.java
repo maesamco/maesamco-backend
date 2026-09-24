@@ -4,22 +4,26 @@ import com.maesamco.content.application.persistence_service.ProblemEventOutboxPe
 import com.maesamco.content.application.port.EventPublishOutcomeUnknownException;
 import com.maesamco.content.application.port.EventPublisherPort;
 import com.maesamco.content.domain.entity.problem.ProblemEventOutbox;
-import com.maesamco.content.domain.entity.problem.ProblemEventOutboxStatus;
-import com.maesamco.content.domain.repository.problem.ProblemEventOutboxRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.OngoingStubbing;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -35,9 +39,8 @@ class ProblemEventRelayFacadeTest {
     private static final String TOPIC = "problem-published";
     private static final int BATCH_SIZE = 50;
     private static final int MAX_PAYLOAD_BYTES = 100;
-
-    @Mock
-    private ProblemEventOutboxRepository problemEventOutboxRepository;
+    private static final Duration LEASE_DURATION = Duration.ofSeconds(60);
+    private static final long PUBLISH_TIMEOUT_MS = 5_000L;
 
     @Mock
     private ProblemEventOutboxPersistenceService problemEventOutboxPersistenceService;
@@ -49,47 +52,119 @@ class ProblemEventRelayFacadeTest {
 
     @BeforeEach
     void setUp() {
-        problemEventRelayFacade = new ProblemEventRelayFacade(problemEventOutboxRepository, problemEventOutboxPersistenceService, eventPublisherPort);
+        problemEventRelayFacade = createFacade(BATCH_SIZE);
+    }
 
-        ReflectionTestUtils.setField(problemEventRelayFacade, "problemPublishedTopic", TOPIC);
-        ReflectionTestUtils.setField(problemEventRelayFacade, "batchSize", BATCH_SIZE);
-        ReflectionTestUtils.setField(problemEventRelayFacade, "maxPayloadBytes", MAX_PAYLOAD_BYTES);
+    private ProblemEventRelayFacade createFacade(int batchSize) {
+        return new ProblemEventRelayFacade(
+                problemEventOutboxPersistenceService,
+                eventPublisherPort,
+                TOPIC,
+                batchSize,
+                MAX_PAYLOAD_BYTES,
+                LEASE_DURATION.toMillis(),
+                PUBLISH_TIMEOUT_MS
+        );
+    }
+
+    /** claimNext가 주어진 Outbox를 순서대로 반환한 뒤 빈 결과를 반환하도록 설정합니다. */
+    private void givenClaimed(ProblemEventOutbox... outboxes) {
+        OngoingStubbing<Optional<ProblemEventOutbox>> stubbing =
+                when(problemEventOutboxPersistenceService.claimNext(any(UUID.class), eq(LEASE_DURATION)));
+
+        for (ProblemEventOutbox outbox : outboxes) {
+            stubbing = stubbing.thenReturn(Optional.of(outbox));
+        }
+
+        stubbing.thenReturn(Optional.empty());
     }
 
     @Test
-    @DisplayName("발행 가능한 PENDING Outbox가 없으면 이벤트를 발행하지 않는다")
-    void relay_noPollablePendingOutbox_doesNothing() {
+    @DisplayName("선점할 Outbox가 없으면 이벤트를 발행하지 않는다")
+    void relay_noClaimableOutbox_doesNothing() {
         // given
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of());
+        givenClaimed();
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxRepository).findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE);
-        verifyNoInteractions(eventPublisherPort, problemEventOutboxPersistenceService);
+        verify(problemEventOutboxPersistenceService, times(1)).claimNext(any(UUID.class), eq(LEASE_DURATION));
+        verifyNoInteractions(eventPublisherPort);
     }
 
     @Test
-    @DisplayName("Relay는 PENDING 상태의 발행 가능한 Outbox를 설정된 batch size만큼 조회한다")
-    void relay_queriesPollablePendingOutboxesWithBatchSize() {
+    @DisplayName("Relay는 한 번의 폴링에서 batch size를 넘겨 선점하지 않는다")
+    void relay_claimsAtMostBatchSize() {
         // given
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of());
+        ProblemEventRelayFacade smallBatchFacade = createFacade(2);
+        ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
+        ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
+        ProblemEventOutbox third = createOutbox("{\"problemId\":\"third\"}");
+
+        givenClaimed(first, second, third);
+
+        // when
+        smallBatchFacade.relay();
+
+        // then
+        verify(problemEventOutboxPersistenceService, times(2)).claimNext(any(UUID.class), eq(LEASE_DURATION));
+        verify(eventPublisherPort, never()).publish(TOPIC, third.getAggregateId().toString(), third.getPayload());
+    }
+
+    @Test
+    @DisplayName("선점할 때마다 새로운 claimId를 사용한다")
+    void relay_usesNewClaimIdPerClaim() {
+        // given
+        ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
+        givenClaimed(first);
+
+        ArgumentCaptor<UUID> claimIdCaptor = ArgumentCaptor.forClass(UUID.class);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxRepository, times(1)).findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE);
+        verify(problemEventOutboxPersistenceService, times(2)).claimNext(claimIdCaptor.capture(), eq(LEASE_DURATION));
+        assertThat(claimIdCaptor.getAllValues()).doesNotHaveDuplicates();
     }
 
     @Test
-    @DisplayName("발행 가능한 PENDING Outbox 발행에 성공하면 Kafka 발행 후 PUBLISHED 상태로 변경한다")
+    @DisplayName("선점 중 예외가 발생하면 이번 폴링을 중단하고 발행하지 않는다")
+    void relay_claimThrows_stopsPolling() {
+        // given
+        when(problemEventOutboxPersistenceService.claimNext(any(UUID.class), eq(LEASE_DURATION)))
+                .thenThrow(new IllegalStateException("database error"));
+
+        // when
+        problemEventRelayFacade.relay();
+
+        // then
+        verify(problemEventOutboxPersistenceService, times(1)).claimNext(any(UUID.class), eq(LEASE_DURATION));
+        verifyNoInteractions(eventPublisherPort);
+    }
+
+    @Test
+    @DisplayName("lease가 Kafka ACK 대기 시간 + 1초보다 짧으면 Facade 생성에 실패한다")
+    void constructor_leaseShorterThanPublishTimeout_throws() {
+        assertThatThrownBy(() -> new ProblemEventRelayFacade(
+                problemEventOutboxPersistenceService,
+                eventPublisherPort,
+                TOPIC,
+                BATCH_SIZE,
+                MAX_PAYLOAD_BYTES,
+                5_500L,
+                5_000L
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("선점한 Outbox 발행에 성공하면 Kafka 발행 후 PUBLISHED 상태로 변경한다")
     void relay_publishSuccess_marksPublished() {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
@@ -98,11 +173,11 @@ class ProblemEventRelayFacadeTest {
         InOrder inOrder = inOrder(eventPublisherPort, problemEventOutboxPersistenceService);
 
         inOrder.verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
-        inOrder.verify(problemEventOutboxPersistenceService).markPublished(outbox.getId());
+        inOrder.verify(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
 
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     @Test
@@ -112,15 +187,15 @@ class ProblemEventRelayFacadeTest {
         String payload = "a".repeat(MAX_PAYLOAD_BYTES);
         ProblemEventOutbox outbox = createOutbox(payload);
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
         verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), payload);
-        verify(problemEventOutboxPersistenceService).markPublished(outbox.getId());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     @Test
@@ -130,17 +205,17 @@ class ProblemEventRelayFacadeTest {
         String oversizedPayload = "a".repeat(MAX_PAYLOAD_BYTES + 1);
         ProblemEventOutbox outbox = createOutbox(oversizedPayload);
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).markFailed(outbox.getId(), "EVENT_PAYLOAD_TOO_LARGE");
+        verify(problemEventOutboxPersistenceService).markFailed(outbox.getId(), outbox.getClaimId(), "EVENT_PAYLOAD_TOO_LARGE");
         verifyNoInteractions(eventPublisherPort);
-        verify(problemEventOutboxPersistenceService, never()).markPublished(any());
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markPublished(any(), any());
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), any(), anyString());
     }
 
     @Test
@@ -153,7 +228,7 @@ class ProblemEventRelayFacadeTest {
                 new RuntimeException("timeout")
         );
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
         doThrow(exception).when(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
 
         // when
@@ -161,10 +236,10 @@ class ProblemEventRelayFacadeTest {
 
         // then
         verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).markPublished(any());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), outbox.getClaimId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markPublished(any(), any());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     @Test
@@ -173,7 +248,7 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         doThrow(new EventPublishOutcomeUnknownException(
                 "Kafka publish outcome unknown",
@@ -184,8 +259,8 @@ class ProblemEventRelayFacadeTest {
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), outbox.getClaimId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
     }
 
     @Test
@@ -194,7 +269,7 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
         doThrow(new IllegalStateException("Kafka unavailable")).when(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
 
         // when
@@ -202,10 +277,10 @@ class ProblemEventRelayFacadeTest {
 
         // then
         verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
-        verify(problemEventOutboxPersistenceService).recordFailedAttempt(outbox.getId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
-        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).markPublished(any());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService).recordFailedAttempt(outbox.getId(), outbox.getClaimId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
+        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markPublished(any(), any());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     @Test
@@ -214,14 +289,14 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
         doThrow(new UnsupportedOperationException("publish failed")).when(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).recordFailedAttempt(outbox.getId(), "KAFKA_PUBLISH_FAILED:UnsupportedOperationException");
+        verify(problemEventOutboxPersistenceService).recordFailedAttempt(outbox.getId(), outbox.getClaimId(), "KAFKA_PUBLISH_FAILED:UnsupportedOperationException");
     }
 
     @Test
@@ -230,8 +305,8 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
-        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(outbox.getId());
+        givenClaimed(outbox);
+        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
 
         // when
         problemEventRelayFacade.relay();
@@ -240,11 +315,11 @@ class ProblemEventRelayFacadeTest {
         InOrder inOrder = inOrder(eventPublisherPort, problemEventOutboxPersistenceService);
 
         inOrder.verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
-        inOrder.verify(problemEventOutboxPersistenceService).markPublished(outbox.getId());
-        inOrder.verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), "OUTBOX_POST_PUBLISH_FAILURE");
+        inOrder.verify(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
+        inOrder.verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), outbox.getClaimId(), "OUTBOX_POST_PUBLISH_FAILURE");
 
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     @Test
@@ -253,15 +328,15 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
-        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(outbox.getId());
+        givenClaimed(outbox);
+        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), "OUTBOX_POST_PUBLISH_FAILURE");
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(outbox.getId(), outbox.getClaimId(), "OUTBOX_POST_PUBLISH_FAILURE");
     }
 
     @Test
@@ -272,23 +347,23 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
         ProblemEventOutbox third = createOutbox("{\"problemId\":\"third\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second, third));
+        givenClaimed(first, second, third);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
         verify(eventPublisherPort).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(first.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(first.getId(), first.getClaimId());
 
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
 
         verify(eventPublisherPort).publish(TOPIC, third.getAggregateId().toString(), third.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(third.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(third.getId(), third.getClaimId());
 
         verify(eventPublisherPort, times(3)).publish(anyString(), anyString(), anyString());
-        verify(problemEventOutboxPersistenceService, times(3)).markPublished(any());
+        verify(problemEventOutboxPersistenceService, times(3)).markPublished(any(), any());
     }
 
     @Test
@@ -298,17 +373,17 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
+        givenClaimed(first, second);
         doThrow(new IllegalStateException("Kafka unavailable")).when(eventPublisherPort).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
+        verify(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
-        verify(problemEventOutboxPersistenceService, never()).markPublished(first.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
+        verify(problemEventOutboxPersistenceService, never()).markPublished(first.getId(), first.getClaimId());
     }
 
     @Test
@@ -318,7 +393,7 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
+        givenClaimed(first, second);
 
         doThrow(new EventPublishOutcomeUnknownException(
                 "Kafka publish outcome unknown",
@@ -329,9 +404,9 @@ class ProblemEventRelayFacadeTest {
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -341,17 +416,17 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
-        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(first.getId());
+        givenClaimed(first, second);
+        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markPublished(first.getId(), first.getClaimId());
 
         // when
         problemEventRelayFacade.relay();
 
         // then
         verify(eventPublisherPort).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), "OUTBOX_POST_PUBLISH_FAILURE");
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), first.getClaimId(), "OUTBOX_POST_PUBLISH_FAILURE");
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -361,16 +436,16 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("a".repeat(MAX_PAYLOAD_BYTES + 1));
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
+        givenClaimed(first, second);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).markFailed(first.getId(), "EVENT_PAYLOAD_TOO_LARGE");
+        verify(problemEventOutboxPersistenceService).markFailed(first.getId(), first.getClaimId(), "EVENT_PAYLOAD_TOO_LARGE");
         verify(eventPublisherPort, never()).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -380,17 +455,17 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("a".repeat(MAX_PAYLOAD_BYTES + 1));
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
-        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markFailed(first.getId(), "EVENT_PAYLOAD_TOO_LARGE");
+        givenClaimed(first, second);
+        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).markFailed(first.getId(), first.getClaimId(), "EVENT_PAYLOAD_TOO_LARGE");
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).markFailed(first.getId(), "EVENT_PAYLOAD_TOO_LARGE");
+        verify(problemEventOutboxPersistenceService).markFailed(first.getId(), first.getClaimId(), "EVENT_PAYLOAD_TOO_LARGE");
         verify(eventPublisherPort, never()).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -400,17 +475,17 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
+        givenClaimed(first, second);
         doThrow(new IllegalStateException("Kafka unavailable")).when(eventPublisherPort).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
-        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
+        doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
+        verify(problemEventOutboxPersistenceService).recordFailedAttempt(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_FAILED:IllegalStateException");
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -420,7 +495,7 @@ class ProblemEventRelayFacadeTest {
         ProblemEventOutbox first = createOutbox("{\"problemId\":\"first\"}");
         ProblemEventOutbox second = createOutbox("{\"problemId\":\"second\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(first, second));
+        givenClaimed(first, second);
 
         doThrow(new EventPublishOutcomeUnknownException(
                 "Kafka publish outcome unknown",
@@ -428,15 +503,15 @@ class ProblemEventRelayFacadeTest {
         )).when(eventPublisherPort).publish(TOPIC, first.getAggregateId().toString(), first.getPayload());
 
         doThrow(new IllegalStateException("database error")).when(problemEventOutboxPersistenceService)
-                .recordPostPublishFailure(first.getId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+                .recordPostPublishFailure(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
 
         // when
         problemEventRelayFacade.relay();
 
         // then
-        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
+        verify(problemEventOutboxPersistenceService).recordPostPublishFailure(first.getId(), first.getClaimId(), "KAFKA_PUBLISH_OUTCOME_UNKNOWN");
         verify(eventPublisherPort).publish(TOPIC, second.getAggregateId().toString(), second.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(second.getId());
+        verify(problemEventOutboxPersistenceService).markPublished(second.getId(), second.getClaimId());
     }
 
     @Test
@@ -445,7 +520,7 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
@@ -460,7 +535,7 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
@@ -475,17 +550,17 @@ class ProblemEventRelayFacadeTest {
         // given
         ProblemEventOutbox outbox = createOutbox("{\"problemId\":\"test\"}");
 
-        when(problemEventOutboxRepository.findPollableByStatus(ProblemEventOutboxStatus.PENDING, BATCH_SIZE)).thenReturn(List.of(outbox));
+        givenClaimed(outbox);
 
         // when
         problemEventRelayFacade.relay();
 
         // then
         verify(eventPublisherPort).publish(TOPIC, outbox.getAggregateId().toString(), outbox.getPayload());
-        verify(problemEventOutboxPersistenceService).markPublished(outbox.getId());
-        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), anyString());
-        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), anyString());
+        verify(problemEventOutboxPersistenceService).markPublished(outbox.getId(), outbox.getClaimId());
+        verify(problemEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).recordPostPublishFailure(any(), any(), anyString());
+        verify(problemEventOutboxPersistenceService, never()).markFailed(any(), any(), anyString());
     }
 
     private ProblemEventOutbox createOutbox(String payload) {
@@ -498,6 +573,10 @@ class ProblemEventRelayFacadeTest {
         );
 
         ReflectionTestUtils.setField(outbox, "id", UUID.randomUUID());
+
+        // Relay는 선점(claimNext)된 Outbox만 처리하므로 IN_PROGRESS 상태로 준비합니다.
+        Instant now = Instant.now();
+        outbox.claim(UUID.randomUUID(), now, now.plus(LEASE_DURATION));
 
         return outbox;
     }

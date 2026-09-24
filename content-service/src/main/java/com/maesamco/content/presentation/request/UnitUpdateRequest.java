@@ -2,6 +2,7 @@ package com.maesamco.content.presentation.request;
 
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,7 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UnitUpdateRequest {
 
-    /** 유닛 제목 */
     @Pattern(
             regexp = "(?s).*\\S.*",
             message = "유닛 제목은 공백일 수 없습니다."
@@ -21,9 +21,10 @@ public class UnitUpdateRequest {
     )
     private String title;
 
-    /** 프로그래밍 언어 */
     private ProgrammingLanguage language;
 
-    /** 유닛 표시 순서 */
+    @Positive(
+            message = "표시 순서는 양수여야 합니다."
+    )
     private Integer displayOrder;
 }

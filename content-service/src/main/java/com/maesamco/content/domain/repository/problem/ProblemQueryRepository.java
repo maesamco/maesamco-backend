@@ -1,7 +1,7 @@
 package com.maesamco.content.domain.repository.problem;
 
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 
 import java.util.List;

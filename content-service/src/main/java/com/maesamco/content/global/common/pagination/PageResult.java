@@ -1,4 +1,4 @@
-package com.maesamco.content.domain.common.pagination;
+package com.maesamco.content.global.common.pagination;
 
 import java.util.List;
 import java.util.function.Function;

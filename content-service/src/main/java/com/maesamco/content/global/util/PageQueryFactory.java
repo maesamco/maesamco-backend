@@ -1,8 +1,8 @@
 package com.maesamco.content.global.util;
 
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.SortDirection;
-import com.maesamco.content.domain.common.pagination.SortOrder;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.SortDirection;
+import com.maesamco.content.global.common.pagination.SortOrder;
 
 import java.util.List;
 import java.util.Locale;

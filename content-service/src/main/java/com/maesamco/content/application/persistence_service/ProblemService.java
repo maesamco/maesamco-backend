@@ -7,8 +7,8 @@ import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
-import com.maesamco.content.domain.common.pagination.PageQuery;
-import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.problem.ProblemStatus;
@@ -109,6 +109,29 @@ public class ProblemService {
         PageResult<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageQuery);
 
         return problems.map(ProblemSearchResult::from);
+    }
+
+    /**
+     * 관리자 문제 검색
+     *
+     * <p>공개 검색과 달리 PUBLISHED 상태를 강제하지 않습니다.
+     * 관리자가 전달한 problemStatus 조건을 그대로 적용하며,
+     * 상태를 지정하지 않으면 모든 상태의 문제를 조회합니다.</p>
+     */
+    @Transactional(readOnly = true)
+    public PageResult<ProblemSearchResult> searchProblemsForAdmin(
+            ProblemSearchQuery query,
+            PageQuery pageQuery
+    ) {
+        PageResult<Problem> problems =
+                problemQueryRepository.searchProblems(
+                        query.toCondition(),
+                        pageQuery
+                );
+
+        return problems.map(
+                ProblemSearchResult::from
+        );
     }
 
     /** 문제 수정 */

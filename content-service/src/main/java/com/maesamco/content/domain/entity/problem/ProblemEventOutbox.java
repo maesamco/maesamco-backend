@@ -30,6 +30,12 @@ import java.util.UUID;
  *
  * <p>Kafka 발행에 실패하더라도 Outbox는 PENDING 상태로 남으며,
  * 동일한 eventId를 유지한 채 Relay가 다시 발행을 시도합니다.</p>
+ *
+ * <p>다중 인스턴스 환경에서 같은 Outbox가 중복 발행되지 않도록
+ * Relay는 발행 직전에 {@link #claim(UUID, Instant, Instant)}로 행을 선점합니다.
+ * 선점된 행은 IN_PROGRESS 상태가 되며, 발행 결과는 선점을 보유한
+ * Worker(claimId 일치)만 기록할 수 있습니다.
+ * lease가 만료된 IN_PROGRESS 행은 다른 Worker가 재선점할 수 있습니다.</p>
  */
 @Entity
 @Table(
@@ -108,6 +114,12 @@ public class ProblemEventOutbox {
     @Column(name = "last_error", columnDefinition = "text")
     private String lastError;
 
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
+    @Column(name = "claim_id")
+    private UUID claimId;
+
     @Version
     @Column(name = "lock_version", nullable = false)
     private long lockVersion;
@@ -131,6 +143,8 @@ public class ProblemEventOutbox {
         this.publishedAt = null;
         this.nextAttemptAt = null;
         this.lastError = null;
+        this.leaseUntil = null;
+        this.claimId = null;
     }
 
     /**
@@ -171,77 +185,131 @@ public class ProblemEventOutbox {
     }
 
     /**
+     * Relay Worker가 Kafka 발행을 시작하기 전에 Outbox를 선점합니다.
+     *
+     * <p>재시도 시각이 도래한 PENDING 행, 또는 lease가 만료된 IN_PROGRESS 행만
+     * 선점할 수 있습니다. lease가 만료된 행은 이전 Worker가 종료되었거나
+     * 응답하지 않는 것으로 보고 새 claimId로 처리권을 넘겨받습니다.</p>
+     *
+     * @param claimId 이번 발행 시도를 식별하는 선점 ID
+     * @param claimedAt 선점 시각
+     * @param leaseUntil 선점 만료 시각
+     */
+    public void claim(UUID claimId, Instant claimedAt, Instant leaseUntil) {
+        Objects.requireNonNull(claimId, "claimId must not be null");
+        Objects.requireNonNull(claimedAt, "claimedAt must not be null");
+        Objects.requireNonNull(leaseUntil, "leaseUntil must not be null");
+
+        if (!leaseUntil.isAfter(claimedAt)) {
+            throw new IllegalArgumentException(
+                    "leaseUntil must be after claimedAt"
+            );
+        }
+
+        if (!isClaimable(claimedAt)) {
+            throw new IllegalStateException(
+                    "Only due PENDING or lease-expired IN_PROGRESS outbox can be claimed"
+            );
+        }
+
+        this.status = ProblemEventOutboxStatus.IN_PROGRESS;
+        this.claimId = claimId;
+        this.leaseUntil = leaseUntil;
+        this.nextAttemptAt = null;
+    }
+
+    /**
+     * 주어진 claimId가 현재 유효한 선점인지 확인합니다.
+     * lease 만료 후 다른 Worker가 재선점했다면 false입니다.
+     */
+    public boolean isClaimedBy(UUID claimId) {
+        return this.status == ProblemEventOutboxStatus.IN_PROGRESS
+                && claimId != null
+                && claimId.equals(this.claimId);
+    }
+
+    /**
      * Kafka 발행 실패를 기록합니다.
      *
-     * <p>최대 재시도 횟수에 도달하기 전까지는 PENDING 상태를 유지하고,
+     * <p>최대 재시도 횟수에 도달하기 전까지는 PENDING 상태로 되돌리고,
      * 지수 백오프로 다음 재시도 가능 시각을 기록합니다.</p>
      *
+     * @param claimId 현재 선점 ID
      * @param error 외부 노출이 없는 안전한 오류 요약
      * @param maxRetryCount 최대 재시도 횟수
      */
-    public void recordFailure(String error, int maxRetryCount) {
+    public void recordFailure(UUID claimId, String error, int maxRetryCount) {
         if (maxRetryCount < 1) {
             throw new IllegalArgumentException(
                     "maxRetryCount must be greater than 0"
             );
         }
 
-        validatePendingStatus();
+        validateActiveClaim(claimId);
 
         this.retryCount++;
         this.lastError = error;
+        this.publishedAt = null;
+        clearClaim();
 
         if (this.retryCount >= maxRetryCount) {
             this.status = ProblemEventOutboxStatus.FAILED;
-            this.publishedAt = null;
             this.nextAttemptAt = null;
             return;
         }
 
+        this.status = ProblemEventOutboxStatus.PENDING;
         scheduleNextAttempt();
     }
 
     /**
      * 재시도로 복구할 수 없는 Kafka 발행 실패를 기록합니다.
      *
+     * @param claimId 현재 선점 ID
      * @param error 외부 노출이 없는 안전한 오류 요약
      */
-    public void markFailed(String error) {
-        validatePendingStatus();
+    public void markFailed(UUID claimId, String error) {
+        validateActiveClaim(claimId);
 
         this.status = ProblemEventOutboxStatus.FAILED;
         this.retryCount++;
         this.publishedAt = null;
         this.nextAttemptAt = null;
         this.lastError = error;
+        clearClaim();
     }
 
     /**
      * Kafka 발행 성공을 기록합니다.
      *
+     * @param claimId 현재 선점 ID
      * @param publishedAt 실제 Kafka 발행 완료 시각
      */
-    public void markPublished(Instant publishedAt) {
-        validatePendingStatus();
+    public void markPublished(UUID claimId, Instant publishedAt) {
+        validateActiveClaim(claimId);
         Objects.requireNonNull(publishedAt, "publishedAt must not be null");
 
         this.status = ProblemEventOutboxStatus.PUBLISHED;
         this.publishedAt = publishedAt;
         this.nextAttemptAt = null;
         this.lastError = null;
+        clearClaim();
     }
 
     /**
      * Kafka 발행 결과를 확정할 수 없는 실패를 기록합니다.
-     * FAILED 상태로 종료하지 않고 PENDING 상태에서 재시도합니다.
+     * FAILED 상태로 종료하지 않고 PENDING 상태로 되돌려 재시도합니다.
      *
+     * @param claimId 현재 선점 ID
      * @param error 외부 노출이 없는 안전한 오류 요약
      */
-    public void recordPostPublishFailure(String error) {
-        validatePendingStatus();
+    public void recordPostPublishFailure(UUID claimId, String error) {
+        validateActiveClaim(claimId);
 
         this.retryCount++;
         this.lastError = error;
+        this.status = ProblemEventOutboxStatus.PENDING;
+        clearClaim();
         scheduleNextAttempt();
     }
 
@@ -258,14 +326,30 @@ public class ProblemEventOutbox {
         this.nextAttemptAt = Instant.now().plusSeconds(backoffSeconds);
     }
 
+    private boolean isClaimable(Instant claimedAt) {
+        boolean duePending = this.status == ProblemEventOutboxStatus.PENDING
+                && (this.nextAttemptAt == null || !this.nextAttemptAt.isAfter(claimedAt));
+
+        boolean expiredClaim = this.status == ProblemEventOutboxStatus.IN_PROGRESS
+                && this.leaseUntil != null
+                && !this.leaseUntil.isAfter(claimedAt);
+
+        return duePending || expiredClaim;
+    }
+
     /**
-     * 발행 상태 변경은 PENDING 상태의 Outbox에서만 허용합니다.
+     * 발행 결과 기록은 현재 선점을 보유한 Worker만 허용합니다.
      */
-    private void validatePendingStatus() {
-        if (this.status != ProblemEventOutboxStatus.PENDING) {
+    private void validateActiveClaim(UUID claimId) {
+        if (!isClaimedBy(claimId)) {
             throw new IllegalStateException(
-                    "Only PENDING outbox can change publish state"
+                    "Only the worker holding the active claim can change publish state"
             );
         }
+    }
+
+    private void clearClaim() {
+        this.claimId = null;
+        this.leaseUntil = null;
     }
 }

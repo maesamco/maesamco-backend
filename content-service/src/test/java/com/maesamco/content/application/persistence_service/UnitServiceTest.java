@@ -69,8 +69,8 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(2L);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenReturn(2);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
@@ -89,8 +89,8 @@ class UnitServiceTest {
             assertThat(savedUnit.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
             assertThat(savedUnit.getDisplayOrder()).isEqualTo(3);
 
-            verify(curriculumFinder).getById(curriculumId);
-            verify(unitRepository).countByCurriculumId(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
+            verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
         }
@@ -106,8 +106,8 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(0L);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenReturn(0);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
@@ -116,8 +116,8 @@ class UnitServiceTest {
             // then
             InOrder inOrder = inOrder(curriculumFinder, unitRepository);
 
-            inOrder.verify(curriculumFinder).getById(curriculumId);
-            inOrder.verify(unitRepository).countByCurriculumId(curriculumId);
+            inOrder.verify(curriculumFinder).lockById(curriculumId);
+            inOrder.verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             inOrder.verify(unitRepository).save(any(Unit.class));
             inOrder.verifyNoMoreInteractions();
 
@@ -126,7 +126,7 @@ class UnitServiceTest {
 
         @Test
         @DisplayName("기존 Unit 개수에 1을 더한 값을 displayOrder로 사용한다")
-        void createUnit_calculatesDisplayOrderFromCount() {
+        void createUnit_calculatesDisplayOrderFromMax() {
             // given
             UUID curriculumId = UUID.randomUUID();
             UnitCreateRequest request = createRequest(
@@ -135,8 +135,8 @@ class UnitServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(7L);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenReturn(7);
             when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             ArgumentCaptor<Unit> captor = ArgumentCaptor.forClass(Unit.class);
@@ -149,8 +149,8 @@ class UnitServiceTest {
 
             assertThat(captor.getValue().getDisplayOrder()).isEqualTo(8);
 
-            verify(curriculumFinder).getById(curriculumId);
-            verify(unitRepository).countByCurriculumId(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
+            verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
         }
@@ -169,7 +169,7 @@ class UnitServiceTest {
             BusinessException exception = new BusinessException(ErrorCode.CURRICULUM_NOT_FOUND);
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.getById(curriculumId)).thenThrow(exception);
+            when(curriculumFinder.lockById(curriculumId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request))
@@ -178,29 +178,29 @@ class UnitServiceTest {
                             .isEqualTo(ErrorCode.CURRICULUM_NOT_FOUND));
 
             verify(request).getCurriculumId();
-            verify(curriculumFinder).getById(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
             verifyNoInteractions(unitRepository, unitFinder);
             verifyNoMoreInteractions(request, curriculumFinder);
         }
 
         @Test
         @DisplayName("Unit 개수 조회 중 예외가 발생하면 저장하지 않고 그대로 전파한다")
-        void createUnit_countThrowsException_doesNotSave() {
+        void createUnit_findMaxThrowsException_doesNotSave() {
             // given
             UUID curriculumId = UUID.randomUUID();
             UnitCreateRequest request = mock(UnitCreateRequest.class);
-            RuntimeException exception = new RuntimeException("count failure");
+            RuntimeException exception = new RuntimeException("max order failure");
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenThrow(exception);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request)).isSameAs(exception);
 
             verify(request, times(2)).getCurriculumId();
-            verify(curriculumFinder).getById(curriculumId);
-            verify(unitRepository).countByCurriculumId(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
+            verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             verify(unitRepository, never()).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(request, curriculumFinder, unitRepository);
@@ -219,15 +219,15 @@ class UnitServiceTest {
 
             RuntimeException exception = new RuntimeException("save failure");
 
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenReturn(0L);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenReturn(0);
             when(unitRepository.save(any(Unit.class))).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request)).isSameAs(exception);
 
-            verify(curriculumFinder).getById(curriculumId);
-            verify(unitRepository).countByCurriculumId(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
+            verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             verify(unitRepository).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(curriculumFinder, unitRepository);
@@ -241,16 +241,16 @@ class UnitServiceTest {
             UnitCreateRequest request = mock(UnitCreateRequest.class);
 
             when(request.getCurriculumId()).thenReturn(curriculumId);
-            when(curriculumFinder.getById(curriculumId)).thenReturn(mock(Curriculum.class));
-            when(unitRepository.countByCurriculumId(curriculumId)).thenReturn((long) Integer.MAX_VALUE);
+            when(curriculumFinder.lockById(curriculumId)).thenReturn(mock(Curriculum.class));
+            when(unitRepository.findMaxDisplayOrderByCurriculumId(curriculumId)).thenReturn(Integer.MAX_VALUE);
 
             // when & then
             assertThatThrownBy(() -> unitService.createUnit(request))
                     .isInstanceOf(ArithmeticException.class);
 
             verify(request, times(2)).getCurriculumId();
-            verify(curriculumFinder).getById(curriculumId);
-            verify(unitRepository).countByCurriculumId(curriculumId);
+            verify(curriculumFinder).lockById(curriculumId);
+            verify(unitRepository).findMaxDisplayOrderByCurriculumId(curriculumId);
             verify(unitRepository, never()).save(any(Unit.class));
             verifyNoInteractions(unitFinder);
             verifyNoMoreInteractions(request, curriculumFinder, unitRepository);
@@ -496,7 +496,7 @@ class UnitServiceTest {
             verify(unit).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verifyNoInteractions(unitRepository);
         }
 
         @Test
@@ -520,7 +520,7 @@ class UnitServiceTest {
             verify(unit, never()).changeLanguage(any());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verifyNoInteractions(unitRepository);
         }
 
         @Test
@@ -544,7 +544,7 @@ class UnitServiceTest {
             verify(unit, never()).changeTitle(anyString());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verifyNoInteractions(unitRepository);
         }
 
         @Test
@@ -567,7 +567,7 @@ class UnitServiceTest {
             verify(unit, never()).changeLanguage(any());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verifyNoInteractions(unitRepository);
         }
 
         @Test
@@ -588,7 +588,7 @@ class UnitServiceTest {
             verify(unit).changeTitle("수정된 제목");
             verify(unitRepository, never()).save(any(Unit.class));
             verify(unitFinder).getById(unitId);
-            verifyNoInteractions(curriculumFinder);
+
         }
     }
 
