@@ -1,5 +1,8 @@
 package com.maesamco.content.presentation.api_controller;
 
+import com.maesamco.content.domain.common.pagination.PageQuery;
+import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.domain.common.pagination.SortOrder;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.query.ProblemSearchQuery;
@@ -20,9 +23,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -402,7 +402,7 @@ class ProblemControllerTest {
     }
 
     @Test
-    @DisplayName("검색 Request를 Query로 변환하고 Pageable과 함께 서비스에 전달한다")
+    @DisplayName("검색 Request를 Query로, 페이징 파라미터를 PageQuery로 변환해 서비스에 전달하고 기존 PageResponse 스펙으로 응답한다")
     void getProblems_returnsPagedProblems()
             throws Exception {
 
@@ -414,21 +414,16 @@ class ProblemControllerTest {
                         )
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        1,
-                        2
-                );
-
         when(problemService.searchProblems(
                 any(ProblemSearchQuery.class),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(
                                 searchResult
                         ),
-                        pageable,
+                        1,
+                        2,
                         3
                 )
         );
@@ -495,6 +490,14 @@ class ProblemControllerTest {
                         jsonPath(
                                 "$.data.totalElements"
                         ).value(3)
+                )
+                .andExpect(
+                        jsonPath("$.data.totalPages")
+                                .value(2)
+                )
+                .andExpect(
+                        jsonPath("$.data.hasNext")
+                                .value(false)
                 );
 
         ArgumentCaptor<ProblemSearchQuery> queryCaptor =
@@ -502,15 +505,15 @@ class ProblemControllerTest {
                         ProblemSearchQuery.class
                 );
 
-        ArgumentCaptor<Pageable> pageableCaptor =
+        ArgumentCaptor<PageQuery> pageQueryCaptor =
                 ArgumentCaptor.forClass(
-                        Pageable.class
+                        PageQuery.class
                 );
 
         verify(problemService)
                 .searchProblems(
                         queryCaptor.capture(),
-                        pageableCaptor.capture()
+                        pageQueryCaptor.capture()
                 );
 
         ProblemSearchQuery query =
@@ -536,23 +539,22 @@ class ProblemControllerTest {
                         ProblemSource.HUMAN_AUTHORED
                 );
 
-        Pageable capturedPageable =
-                pageableCaptor.getValue();
+        PageQuery capturedPageQuery =
+                pageQueryCaptor.getValue();
 
         assertThat(
-                capturedPageable.getPageNumber()
+                capturedPageQuery.page()
         ).isEqualTo(1);
 
         assertThat(
-                capturedPageable.getPageSize()
+                capturedPageQuery.size()
         ).isEqualTo(2);
 
         assertThat(
-                capturedPageable
-                        .getSort()
-                        .getOrderFor("title")
-                        .isAscending()
-        ).isTrue();
+                capturedPageQuery.sortOrders()
+        ).containsExactly(
+                SortOrder.asc("title")
+        );
     }
 
     @Test

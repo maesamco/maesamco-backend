@@ -1,8 +1,8 @@
 package com.maesamco.content.domain.repository.problem;
 
+import com.maesamco.content.domain.common.pagination.PageQuery;
+import com.maesamco.content.domain.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,9 +12,15 @@ public interface ProblemQueryRepository {
 
     Optional<Problem> findById(UUID problemId);
 
-    Page<Problem> searchProblems(
+    /**
+     * 검색 조건에 해당하는 문제 목록을 페이징하여 조회합니다.
+     *
+     * <p>Persistence Framework에 의존하지 않도록 자체 Pagination 계약({@link PageQuery}, {@link PageResult})을
+     * 사용합니다(#230). 지원하지 않는 정렬 필드는 무시되며, 정렬 조건이 없으면 생성일 내림차순으로 조회합니다.</p>
+     */
+    PageResult<Problem> searchProblems(
             ProblemSearchCondition condition,
-            Pageable pageable
+            PageQuery pageQuery
     );
 
     /**

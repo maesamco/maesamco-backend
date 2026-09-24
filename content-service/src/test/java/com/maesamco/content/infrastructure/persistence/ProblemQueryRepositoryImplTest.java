@@ -1,5 +1,8 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.common.pagination.PageQuery;
+import com.maesamco.content.domain.common.pagination.PageResult;
+import com.maesamco.content.domain.common.pagination.SortOrder;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
@@ -28,14 +31,11 @@ import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -153,24 +153,21 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(4);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -181,7 +178,7 @@ class ProblemQueryRepositoryImplTest {
                         cEasy.getId()
                 );
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
     }
 
@@ -199,24 +196,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getLanguage
                 )
@@ -224,7 +218,7 @@ class ProblemQueryRepositoryImplTest {
                         ProgrammingLanguage.JAVA
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -248,24 +242,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -273,7 +264,7 @@ class ProblemQueryRepositoryImplTest {
                         ProblemDifficulty.EASY
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -297,25 +288,22 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         Problem found =
-                result.getContent()
+                result.content()
                         .get(0);
 
         assertThat(found.getId())
@@ -353,17 +341,14 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
@@ -371,11 +356,11 @@ class ProblemQueryRepositoryImplTest {
          * deletedProblem 역시 HUMAN_AUTHORED이지만
          * soft delete 상태이므로 조회 결과에서 제외된다.
          */
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         assertThat(
-                result.getContent()
+                result.content()
                         .get(0)
                         .getId()
         ).isEqualTo(
@@ -383,7 +368,7 @@ class ProblemQueryRepositoryImplTest {
         );
 
         assertThat(
-                result.getContent()
+                result.content()
                         .get(0)
                         .getSource()
         ).isEqualTo(
@@ -405,24 +390,21 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getProblemStatus
                 )
@@ -430,7 +412,7 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -454,25 +436,22 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         Problem found =
-                result.getContent()
+                result.content()
                         .get(0);
 
         assertThat(found.getId())
@@ -520,24 +499,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .isEmpty();
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isZero();
     }
 
@@ -550,24 +526,21 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .isNotEmpty();
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getType
                 )
@@ -582,26 +555,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsByTitleAscending() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("title")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getTitle
                 )
@@ -619,26 +584,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsDifficultyAscendingByBusinessOrder() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -656,26 +613,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsDifficultyDescendingByBusinessOrder() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.desc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.desc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -693,29 +642,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_appliesMultipleSortConditions() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                ),
-                                Sort.Order.desc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("title"), SortOrder.desc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getTitle,
                         Problem::getDifficulty
@@ -746,44 +684,35 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_unsupportedSort_usesDefaultSort() {
         // given
-        Pageable defaultPageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery defaultPageQuery =
+                PageQuery.of(0, 20);
 
-        Pageable unsupportedPageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                "unknownField"
-                        )
-                );
+        PageQuery unsupportedPageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("unknownField")));
 
         // when
-        Page<Problem> defaultResult =
+        PageResult<Problem> defaultResult =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        defaultPageable
+                        defaultPageQuery
                 );
 
-        Page<Problem> unsupportedResult =
+        PageResult<Problem> unsupportedResult =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        unsupportedPageable
+                        unsupportedPageQuery
                 );
 
         // then
         assertThat(
-                unsupportedResult.getContent()
+                unsupportedResult.content()
         )
                 .extracting(
                         Problem::getId
                 )
                 .containsExactlyElementsOf(
                         defaultResult
-                                .getContent()
+                                .content()
                                 .stream()
                                 .map(
                                         Problem::getId
@@ -798,38 +727,30 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_appliesPagination() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        1,
-                        2,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(1, 2, List.of(SortOrder.asc("title")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getNumber())
+        assertThat(result.page())
                 .isEqualTo(1);
 
-        assertThat(result.getSize())
+        assertThat(result.size())
                 .isEqualTo(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
 
-        assertThat(result.getTotalPages())
+        assertThat(result.totalPages())
                 .isEqualTo(2);
 
         assertThat(result.hasPrevious())
@@ -848,21 +769,18 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -870,7 +788,7 @@ class ProblemQueryRepositoryImplTest {
                         deletedProblem.getId()
                 );
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
     }
 
@@ -908,14 +826,14 @@ class ProblemQueryRepositoryImplTest {
 
         ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
 
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+        PageResult<Problem> result = problemQueryRepository.searchProblems(condition, pageQuery);
 
         // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getId()).isEqualTo(javaEasy.getId());
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).getId()).isEqualTo(javaEasy.getId());
     }
 
     @Test
@@ -927,13 +845,13 @@ class ProblemQueryRepositoryImplTest {
 
         ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
 
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result = problemQueryRepository.searchProblems(condition, pageable);
+        PageResult<Problem> result = problemQueryRepository.searchProblems(condition, pageQuery);
 
         // then
-        assertThat(result.getContent()).isEmpty();
+        assertThat(result.content()).isEmpty();
     }
 
     private ProblemSearchCondition emptyCondition() {
