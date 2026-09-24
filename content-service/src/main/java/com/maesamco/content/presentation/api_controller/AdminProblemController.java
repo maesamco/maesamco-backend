@@ -31,7 +31,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * <p>상태를 지정하지 않으면 ARCHIVED를 포함한 모든 상태를 조회합니다.</p>
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<
             SuccessResponse<
                     PageResponse<AdminProblemSearchItemResponse>
