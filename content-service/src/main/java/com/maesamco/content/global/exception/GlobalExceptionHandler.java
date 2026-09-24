@@ -300,12 +300,28 @@ public class GlobalExceptionHandler {
     }
 
     // 낙관적 락 충돌 발생 시 409 응답
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException e) {
-        log.warn("ObjectOptimisticLockingFailureException: {}", e.getMessage());
+    @ExceptionHandler(
+            ObjectOptimisticLockingFailureException.class
+    )
+    public ResponseEntity<ErrorResponse>
+    handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException e
+    ) {
+        log.warn(
+                "ObjectOptimisticLockingFailureException: {}",
+                e.getMessage()
+        );
 
-        return ResponseEntity.status(ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY.getStatus())
-                .body(ErrorResponse.from(ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY));
+        return ResponseEntity
+                .status(
+                        ErrorCode.RESOURCE_MODIFIED_CONCURRENTLY
+                                .getStatus()
+                )
+                .body(
+                        ErrorResponse.from(
+                                ErrorCode.RESOURCE_MODIFIED_CONCURRENTLY
+                        )
+                );
     }
 
     // 최종 안전망
