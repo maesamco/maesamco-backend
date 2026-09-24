@@ -9,14 +9,12 @@ import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
 import com.maesamco.content.presentation.response.TagResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
@@ -32,8 +30,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/lessons")
-public class LessonController {
+public class LessonController implements LessonApiDocs {
 
     /** 레슨 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final LessonService lessonService;
@@ -47,11 +44,9 @@ public class LessonController {
      * @param request 레슨 생성 요청 정보
      * @return 생성된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<SuccessResponse<LessonCreateResponse>> createLesson(
-            @Valid @RequestBody LessonCreateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<LessonCreateResponse>> createLesson(LessonCreateRequest request) {
         LessonCreateResponse response = lessonService.createLesson(request);
 
         return ResponseEntity
@@ -68,11 +63,9 @@ public class LessonController {
      * @param lessonId 조회할 레슨의 고유 ID
      * @return 조회된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{lessonId}")
-    public ResponseEntity<SuccessResponse<LessonResponse>> getLesson(
-            @PathVariable UUID lessonId
-    ) {
+    public ResponseEntity<SuccessResponse<LessonResponse>> getLesson(UUID lessonId) {
         LessonResponse response = lessonService.getLesson(lessonId);
 
         return ResponseEntity.ok(
@@ -94,13 +87,9 @@ public class LessonController {
      * @param size 한 페이지에 조회할 레슨 개수
      * @return 특정 유닛의 페이징된 레슨 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping
-    public ResponseEntity<SuccessResponse<PageResponse<LessonResponse>>> getLessons(
-            @RequestParam UUID unitId,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
+    public ResponseEntity<SuccessResponse<PageResponse<LessonResponse>>> getLessons(UUID unitId, Integer page, Integer size) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
 
         PageResponse<LessonResponse> response = lessonService.searchLessons(
@@ -125,12 +114,9 @@ public class LessonController {
      * @param request 레슨 수정 요청 정보
      * @return 수정된 레슨 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/{lessonId}")
-    public ResponseEntity<SuccessResponse<LessonResponse>> updateLesson(
-            @PathVariable UUID lessonId,
-            @Valid @RequestBody LessonUpdateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<LessonResponse>> updateLesson(UUID lessonId, LessonUpdateRequest request) {
         LessonResponse response = lessonService.updateLesson(lessonId, request);
 
         return ResponseEntity.ok(
@@ -151,12 +137,9 @@ public class LessonController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{lessonId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteLesson(
-            @PathVariable UUID lessonId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteLesson(UUID lessonId, UUID userId) {
         lessonService.deleteLesson(lessonId, userId);
 
         return ResponseEntity.ok(
@@ -173,11 +156,9 @@ public class LessonController {
      * @param lessonId 조회할 레슨의 고유 ID
      * @return 이 레슨과 연결된 문제들이 다루는 개념 태그 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{lessonId}/concepts")
-    public ResponseEntity<SuccessResponse<List<TagResponse>>> getLessonConcepts(
-            @PathVariable UUID lessonId
-    ) {
+    public ResponseEntity<SuccessResponse<List<TagResponse>>> getLessonConcepts(UUID lessonId) {
         List<TagResponse> response = lessonService.getLessonConcepts(lessonId);
 
         return ResponseEntity.ok(
