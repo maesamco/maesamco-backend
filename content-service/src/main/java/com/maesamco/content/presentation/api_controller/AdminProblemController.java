@@ -31,7 +31,7 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/contents/problems")
-public class AdminProblemController {
+public class AdminProblemController implements AdminProblemApiDocs {
 
     private final ProblemPublicationFacade problemPublicationFacade;
 

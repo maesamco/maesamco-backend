@@ -8,9 +8,6 @@ import com.maesamco.content.global.security.hmac.AllowedInternalCallers;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,17 +21,14 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/internal/v1")
 @AllowedInternalCallers({"coaching-service"})
-public class InternalProblemController {
+public class InternalProblemController implements InternalProblemApiDocs {
 
     private final ProblemInternalService problemInternalService;
 
     /** 내부 서비스용 문제 단건 조회 */
-    @GetMapping("/problems/{problemId}")
-    public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblem(
-            @PathVariable UUID problemId
-    ) {
+    @Override
+    public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblem(UUID problemId) {
         ProblemInternalResult result = problemInternalService.getProblemMetaData(problemId);
 
         return ResponseEntity.ok(
@@ -43,10 +37,8 @@ public class InternalProblemController {
     }
 
     /** 내부 서비스용 문제 버전 단건 조회 — 제출 시점 문제 버전 기준 조회가 필요한 호출자용(이슈 #178) */
-    @GetMapping("/problem-versions/{problemVersionId}")
-    public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblemVersion(
-            @PathVariable UUID problemVersionId
-    ) {
+    @Override
+    public ResponseEntity<SuccessResponse<InternalProblemResponse>> getProblemVersion(UUID problemVersionId) {
         ProblemInternalResult result = problemInternalService.getProblemVersionMetaData(problemVersionId);
 
         return ResponseEntity.ok(
