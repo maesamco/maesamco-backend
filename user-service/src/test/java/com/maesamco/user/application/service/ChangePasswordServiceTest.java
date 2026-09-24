@@ -501,6 +501,43 @@ class ChangePasswordServiceTest {
         );
     }
 
+    @Test
+    @DisplayName("비밀번호가 없는 소셜 계정은 비밀번호를 변경할 수 없다 (#308)")
+    void changePassword_socialUserWithoutPassword() {
+        // given
+        User socialUser =
+                User.createSocial(
+                        ENCRYPTED_EMAIL,
+                        EMAIL_LOOKUP_HASH,
+                        "구글유저",
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(socialUser));
+
+        // when & then
+        assertThatThrownBy(
+                () -> changePasswordService.changePassword(
+                        USER_ID,
+                        new ChangePasswordCommand(CURRENT_PASSWORD, NEW_PASSWORD)
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.USER_PASSWORD_NOT_SET);
+
+        verifyNoInteractions(passwordHasher, authSessionLogoutAllStore);
+
+        verify(userRepository, never())
+                .save(socialUser);
+    }
+
     private User createActiveUser() {
         return User.create(
                 ENCRYPTED_EMAIL,

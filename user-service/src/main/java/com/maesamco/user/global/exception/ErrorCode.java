@@ -55,6 +55,14 @@ public enum ErrorCode {
             HttpStatus.SERVICE_UNAVAILABLE,
             "소셜 로그인 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
     ),
+    SOCIAL_SIGNUP_TOKEN_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "소셜 회원가입 정보가 유효하지 않거나 만료되었습니다. 소셜 로그인을 다시 진행해주세요."
+    ),
+    SOCIAL_ACCOUNT_ALREADY_LINKED(
+            HttpStatus.CONFLICT,
+            "이미 가입된 소셜 계정입니다. 소셜 로그인을 다시 진행해주세요."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(
@@ -72,6 +80,10 @@ public enum ErrorCode {
     USER_CURRENT_PASSWORD_MISMATCH(
             HttpStatus.BAD_REQUEST,
             "현재 비밀번호가 일치하지 않습니다."
+    ),
+    USER_PASSWORD_NOT_SET(
+            HttpStatus.BAD_REQUEST,
+            "비밀번호가 설정되지 않은 소셜 계정입니다."
     ),
     USER_PASSWORD_POLICY_VIOLATION(
             HttpStatus.BAD_REQUEST,

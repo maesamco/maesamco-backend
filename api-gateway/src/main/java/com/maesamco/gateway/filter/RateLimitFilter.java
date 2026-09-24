@@ -102,6 +102,11 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 // 별도 룰로 분리하는 걸 고려할 것.
                 new RuleMatch(null, "/api/v1/auth/email-verifications", 5, Duration.ofMinutes(10)),
                 new RuleMatch(null, "/api/v1/auth/login", 10, Duration.ofMinutes(1)),
+                // 소셜 신규 가입 완료(#308) — 일반 signup과 같은 봇 가입 위협 모델이라 같은 한도.
+                // 아래 "/api/v1/auth/social" prefix 룰보다 먼저 매칭되도록 앞에 둔다(findFirst).
+                new RuleMatch(null, "/api/v1/auth/social/google/signup", 5, Duration.ofMinutes(10)),
+                // 소셜 로그인(#304) — 일반 login과 같은 한도.
+                new RuleMatch(null, "/api/v1/auth/social", 10, Duration.ofMinutes(1)),
                 new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
                 new RuleMatch(null, "/api/v1/submissions", submissionsPerMinute, Duration.ofMinutes(1)),
                 // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.

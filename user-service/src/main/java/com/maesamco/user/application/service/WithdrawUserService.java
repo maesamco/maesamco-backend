@@ -74,6 +74,16 @@ public class WithdrawUserService {
 
         user.assertActive();
 
+        /*
+         * 소셜 계정으로만 가입한 사용자는 비밀번호로 본인 재확인을 할 수 없습니다(#308).
+         * 소셜 재인증 기반 탈퇴는 후속 이슈에서 지원합니다.
+         */
+        if (!user.hasPassword()) {
+            throw new BusinessException(
+                    ErrorCode.USER_PASSWORD_NOT_SET
+            );
+        }
+
         validateCurrentPassword(
                 command.currentPassword(),
                 user.getPasswordHash()
