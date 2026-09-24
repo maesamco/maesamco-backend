@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -115,6 +116,75 @@ class AdminAuthorizationInterceptorTest {
         HandlerMethod handlerMethod = new HandlerMethod(
                 new ClassLevelController(), ClassLevelController.class.getMethod("anyMethod")
         );
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, response, handlerMethod))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    interface SampleApi {
+        void adminOnlyMethod();
+
+        void publicMethod();
+    }
+
+    /** 매핑은 인터페이스에, {@code @RequireAdmin}은 구현체에 있는 #313 이후의 컨트롤러 구조를 흉내낸다. */
+    static class SampleImpl implements SampleApi {
+        @Override
+        @RequireAdmin
+        public void adminOnlyMethod() {
+        }
+
+        @Override
+        public void publicMethod() {
+        }
+    }
+
+    @Test
+    @DisplayName("JDK 동적 프록시로 감싼 컨트롤러여도 구현체의 @RequireAdmin을 찾아 USER를 차단한다(fail-open 방지)")
+    void preHandle_jdkProxy_withoutAdminAuthority_throwsAccessDenied() throws Exception {
+        setAuthentication("ROLE_USER");
+
+        ProxyFactory factory = new ProxyFactory(new SampleImpl());
+        factory.addInterface(SampleApi.class);
+        factory.setProxyTargetClass(false);
+        Object proxy = factory.getProxy();
+
+        assertThat(java.lang.reflect.Proxy.isProxyClass(proxy.getClass())).isTrue();
+
+        // HandlerMethod는 JDK 프록시에서 인터페이스 메서드를 가리킨다 — 이 메서드엔 @RequireAdmin이 없다.
+        HandlerMethod handlerMethod = new HandlerMethod(proxy, SampleApi.class.getMethod("adminOnlyMethod"));
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, response, handlerMethod))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("JDK 동적 프록시 컨트롤러 — ADMIN은 통과하고, @RequireAdmin이 없는 메서드는 그대로 통과한다")
+    void preHandle_jdkProxy_adminAndPublicMethod_returnsTrue() throws Exception {
+        ProxyFactory factory = new ProxyFactory(new SampleImpl());
+        factory.addInterface(SampleApi.class);
+        factory.setProxyTargetClass(false);
+        Object proxy = factory.getProxy();
+
+        setAuthentication("ROLE_ADMIN");
+        assertThat(interceptor.preHandle(request, response,
+                new HandlerMethod(proxy, SampleApi.class.getMethod("adminOnlyMethod")))).isTrue();
+
+        setAuthentication("ROLE_USER");
+        assertThat(interceptor.preHandle(request, response,
+                new HandlerMethod(proxy, SampleApi.class.getMethod("publicMethod")))).isTrue();
+    }
+
+    @Test
+    @DisplayName("CGLIB 프록시 컨트롤러도 @RequireAdmin을 찾아 USER를 차단한다")
+    void preHandle_cglibProxy_withoutAdminAuthority_throwsAccessDenied() throws Exception {
+        setAuthentication("ROLE_USER");
+
+        ProxyFactory factory = new ProxyFactory(new SampleImpl());
+        factory.setProxyTargetClass(true);
+        Object proxy = factory.getProxy();
+
+        HandlerMethod handlerMethod = new HandlerMethod(proxy, SampleImpl.class.getMethod("adminOnlyMethod"));
 
         assertThatThrownBy(() -> interceptor.preHandle(request, response, handlerMethod))
                 .isInstanceOf(AccessDeniedException.class);
