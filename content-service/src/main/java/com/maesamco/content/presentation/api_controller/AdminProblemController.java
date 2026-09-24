@@ -4,16 +4,16 @@ import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.application.persistence_service.ProblemVersionService;
 import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.maesamco.content.presentation.response.AdminProblemSearchItemResponse;
 import com.maesamco.content.presentation.response.ProblemVersionResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,18 +49,18 @@ public class AdminProblemController implements AdminProblemApiDocs {
             String sort,
             String direction
     ) {
-        Pageable pageable =
-                PageableFactory.of(
+        PageQuery pageQuery =
+                PageQueryFactory.of(
                         page,
                         size,
                         sort,
                         direction
                 );
 
-        Page<ProblemSearchResult> results =
+        PageResult<ProblemSearchResult> results =
                 problemService.searchProblemsForAdmin(
                         request.toQuery(),
-                        pageable
+                        pageQuery
                 );
 
         PageResponse<AdminProblemSearchItemResponse> response =
