@@ -56,6 +56,10 @@ public class ProblemUpdateRequest {
     private ProblemType type;
 
     /** 수정할 문제 설명입니다. */
+    @Pattern(
+            regexp = "(?s).*\\S.*",
+            message = "문제 설명은 공백일 수 없습니다."
+    )
     @Size(max = 10_000, message = "문제 설명은 최대 10,000자까지 입력할 수 있습니다.")
     private String description;
 

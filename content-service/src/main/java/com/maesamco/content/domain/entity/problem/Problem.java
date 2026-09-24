@@ -265,6 +265,7 @@ public class Problem extends BaseEntity {
     }
 
     private static void validateSupportedType(ProblemType type) {
+        requireNotNull(type, "문제 유형");
         if (type != ProblemType.CODE) {
             throw new BusinessException(
                     ErrorCode.INVALID_PROBLEM_TYPE

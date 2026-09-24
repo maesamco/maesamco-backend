@@ -428,6 +428,31 @@ class TestCaseServiceTest {
     @Nested
     @DisplayName("updateTestCase")
     class UpdateTestCase {
+        @Test
+        @DisplayName("이슈 #336 — 상위 Problem이 삭제되었으면 수정할 수 없고 TestCase는 변경되지 않는다")
+        void updateTestCase_parentProblemMissing_throwsAndChangesNothing() {
+
+            // given
+            UUID testCaseId = UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
+            TestCase testCase = mock(TestCase.class);
+            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+
+            when(testCase.getProblemId()).thenReturn(problemId);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
+            when(problemFinder.getById(problemId))
+                    .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+            // when & then
+            assertThatThrownBy(() -> testCaseService.updateTestCase(testCaseId, request))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROBLEM_NOT_FOUND));
+
+            verify(testCase, never()).changeInput(any());
+            verify(testCase, never()).changeExpectedOutput(any());
+            verify(testCase, never()).changeTestCaseOrder(anyInt());
+        }
+
 
         @Test
         @DisplayName("input과 expectedOutput이 전달되면 두 값을 모두 수정한다")
@@ -450,7 +475,9 @@ class TestCaseServiceTest {
 
             verify(testCase).changeInput("10 20");
             verify(testCase).changeExpectedOutput("30");
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -471,7 +498,9 @@ class TestCaseServiceTest {
             // then
             verify(testCase).changeInput("새 입력");
             verify(testCase, never()).changeExpectedOutput(any());
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -492,7 +521,9 @@ class TestCaseServiceTest {
             // then
             verify(testCase, never()).changeInput(any());
             verify(testCase).changeExpectedOutput("새 출력");
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -551,7 +582,9 @@ class TestCaseServiceTest {
             assertThat(testCase.getTestCaseOrder()).isEqualTo(1);
 
             verify(testCaseFinder).getById(testCaseId);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -574,7 +607,9 @@ class TestCaseServiceTest {
             verify(testCaseFinder).getById(testCaseId);
             verify(testCase, never()).changeIsPublic(anyBoolean());
             verify(testCase, never()).changeTestCaseOrder(anyInt());
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -594,7 +629,9 @@ class TestCaseServiceTest {
 
             // then
             verify(testCase).changeTestCaseOrder(10);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -656,7 +693,9 @@ class TestCaseServiceTest {
             assertThat(testCase.getTestCaseOrder()).isEqualTo(3);
 
             verify(testCaseFinder).getById(testCaseId);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -690,6 +729,29 @@ class TestCaseServiceTest {
     class DeleteTestCase {
 
         @Test
+        @DisplayName("이슈 #336 — 상위 Problem이 삭제되었으면 삭제할 수 없고 softDelete는 호출되지 않는다")
+        void deleteTestCase_parentProblemMissing_throwsAndDoesNotDelete() {
+
+            // given
+            UUID testCaseId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
+            TestCase testCase = mock(TestCase.class);
+
+            when(testCase.getProblemId()).thenReturn(problemId);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
+            when(problemFinder.getById(problemId))
+                    .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+            // when & then
+            assertThatThrownBy(() -> testCaseService.deleteTestCase(testCaseId, userId))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROBLEM_NOT_FOUND));
+
+            verify(testCase, never()).softDelete(any());
+        }
+
+        @Test
         @DisplayName("테스트케이스 삭제 시 요청 사용자 ID로 softDelete한다")
         void deleteTestCase_success() {
 
@@ -706,7 +768,9 @@ class TestCaseServiceTest {
             // then
             verify(testCaseFinder).getById(testCaseId);
             verify(testCase).softDelete(userId);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
 
         @Test
@@ -725,7 +789,9 @@ class TestCaseServiceTest {
 
             // then
             verify(testCase).softDelete(userId);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verifyNoInteractions(testCaseRepository);
+            verify(problemFinder).getById(any());
+            verifyNoMoreInteractions(problemFinder);
         }
     }
 }

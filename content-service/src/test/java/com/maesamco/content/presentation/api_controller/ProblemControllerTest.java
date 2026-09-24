@@ -1300,4 +1300,53 @@ class ProblemControllerTest {
                 problemService
         );
     }
+
+    @Test
+    @DisplayName(
+            "문제 수정 시 설명이 공백만 있으면 400을 반환한다"
+    )
+    void updateProblem_blankDescription_returns400()
+            throws Exception {
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "description": "   "
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[0].field"
+                        ).value(
+                                "description"
+                        )
+                );
+
+        verifyNoInteractions(
+                problemService
+        );
+    }
 }
