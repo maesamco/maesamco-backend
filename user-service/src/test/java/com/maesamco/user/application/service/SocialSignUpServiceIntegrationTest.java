@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.application.port.ConsumedSocialSignupToken;
 import com.maesamco.user.application.port.EmailLookupHasher;
 import com.maesamco.user.application.port.EmailVerificationSecretHasher;
 import com.maesamco.user.application.port.IssuedTokens;
@@ -46,6 +47,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -349,7 +351,8 @@ class SocialSignUpServiceIntegrationTest {
 
         when(secretHasher.hashSignupToken(RAW_TOKEN)).thenReturn(TOKEN_HASH);
         when(socialSignupTokenStore.find(TOKEN_HASH)).thenReturn(Optional.of(ticket));
-        when(socialSignupTokenStore.consume(TOKEN_HASH)).thenReturn(Optional.of(ticket));
+        when(socialSignupTokenStore.consume(TOKEN_HASH))
+                .thenReturn(Optional.of(new ConsumedSocialSignupToken(ticket, Duration.ofMinutes(5))));
     }
 
     private SocialSignUpCommand command(String nickname) {

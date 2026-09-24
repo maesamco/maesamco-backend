@@ -1,5 +1,6 @@
 package com.maesamco.user.infrastructure.security.social;
 
+import com.maesamco.user.application.port.ConsumedSocialSignupToken;
 import com.maesamco.user.application.port.SocialSignupTicket;
 import com.maesamco.user.application.port.SocialSignupTokenStore;
 import com.maesamco.user.domain.entity.SocialProvider;
@@ -138,14 +139,39 @@ class RedisSocialSignupTokenStoreIntegrationTest {
         socialSignupTokenStore.save(TOKEN_HASH, TICKET, TTL);
 
         // when
-        Optional<SocialSignupTicket> first = socialSignupTokenStore.consume(TOKEN_HASH);
-        Optional<SocialSignupTicket> second = socialSignupTokenStore.consume(TOKEN_HASH);
+        Optional<ConsumedSocialSignupToken> first = socialSignupTokenStore.consume(TOKEN_HASH);
+        Optional<ConsumedSocialSignupToken> second = socialSignupTokenStore.consume(TOKEN_HASH);
 
         // then
-        assertThat(first).contains(TICKET);
+        assertThat(first).map(ConsumedSocialSignupToken::ticket).contains(TICKET);
         assertThat(second).isEmpty();
         assertThat(socialSignupTokenStore.find(TOKEN_HASH)).isEmpty();
         assertThat(redisTemplate.hasKey(KEY)).isFalse();
+    }
+
+    @Test
+    @DisplayName("consume은 소비 시점의 남은 TTL을 함께 반환하고, 그 TTL로 다시 저장하면 원래 만료 시각을 넘지 않는다")
+    void consume_returnsRemainingTtl_forRestore() {
+        // given
+        socialSignupTokenStore.save(TOKEN_HASH, TICKET, TTL);
+
+        // when
+        ConsumedSocialSignupToken consumed =
+                socialSignupTokenStore.consume(TOKEN_HASH).orElseThrow();
+
+        // then
+        assertThat(consumed.hasRemainingTtl()).isTrue();
+        assertThat(consumed.remainingTtl())
+                .isPositive()
+                .isLessThanOrEqualTo(TTL);
+
+        // 복구(재저장) 후에는 다시 조회·소비할 수 있다.
+        socialSignupTokenStore.save(TOKEN_HASH, consumed.ticket(), consumed.remainingTtl());
+
+        assertThat(socialSignupTokenStore.find(TOKEN_HASH)).contains(TICKET);
+        assertThat(redisTemplate.getExpire(KEY, TimeUnit.MILLISECONDS))
+                .isPositive()
+                .isLessThanOrEqualTo(consumed.remainingTtl().toMillis());
     }
 
     @Test
@@ -166,7 +192,7 @@ class RedisSocialSignupTokenStoreIntegrationTest {
         CountDownLatch startLatch = new CountDownLatch(1);
 
         try {
-            List<Future<Optional<SocialSignupTicket>>> futures = new ArrayList<>();
+            List<Future<Optional<ConsumedSocialSignupToken>>> futures = new ArrayList<>();
 
             for (int i = 0; i < threadCount; i++) {
                 futures.add(executorService.submit(() -> {
@@ -179,7 +205,7 @@ class RedisSocialSignupTokenStoreIntegrationTest {
             startLatch.countDown();
 
             int successCount = 0;
-            for (Future<Optional<SocialSignupTicket>> future : futures) {
+            for (Future<Optional<ConsumedSocialSignupToken>> future : futures) {
                 if (future.get(5, TimeUnit.SECONDS).isPresent()) {
                     successCount++;
                 }

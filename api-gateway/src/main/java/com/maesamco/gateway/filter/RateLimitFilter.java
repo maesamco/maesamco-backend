@@ -37,7 +37,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
      * 특정 메서드만 지정하면 그 메서드만 매칭 — 예: 코칭 힌트 생성(POST)만 제한하고
      * 같은 경로 하위의 GET(목록/상세 조회)은 별도로 두고 싶을 때 사용(PR #70 리뷰 반영).
      */
-    private record RuleMatch(HttpMethod method, String prefix, int limit, Duration window) {
+    record RuleMatch(HttpMethod method, String prefix, int limit, Duration window) {
     }
 
     private final List<RuleMatch> rules;
@@ -135,11 +135,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         String path = request.getURI().getPath();
         HttpMethod method = request.getMethod();
 
-        RuleMatch rule = rules.stream()
-                .filter(r -> path.startsWith(r.prefix()))
-                .filter(r -> r.method() == null || r.method() == method)
-                .findFirst()
-                .orElse(null);
+        RuleMatch rule = findRule(path, method);
 
         if (rule == null) {
             return chain.filter(exchange);
@@ -170,6 +166,21 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                     }
                     return chain.filter(exchange);
                 });
+    }
+
+    /**
+     * 요청 경로와 메서드에 적용할 첫 번째 룰을 찾는다(없으면 null).
+     *
+     * ⚠️ prefix(startsWith) + findFirst 방식이라 룰 선언 순서에 의존한다 — 더 구체적인 경로
+     * (예: /api/v1/auth/social/google/signup)가 포괄 prefix(/api/v1/auth/social)보다 앞에 있어야 한다.
+     * 순서가 바뀌면 조용히 느슨한 한도가 적용되므로 RateLimitFilterTest가 이 우선순위를 고정한다(PR #320 리뷰).
+     */
+    RuleMatch findRule(String path, HttpMethod method) {
+        return rules.stream()
+                .filter(r -> path.startsWith(r.prefix()))
+                .filter(r -> r.method() == null || r.method() == method)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

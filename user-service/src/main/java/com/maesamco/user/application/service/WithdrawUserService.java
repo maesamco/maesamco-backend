@@ -76,7 +76,9 @@ public class WithdrawUserService {
 
         /*
          * 소셜 계정으로만 가입한 사용자는 비밀번호로 본인 재확인을 할 수 없습니다(#308).
-         * 소셜 재인증 기반 탈퇴는 후속 이슈에서 지원합니다.
+         *
+         * TODO(#{소셜 재인증 탈퇴 이슈 번호}): 소셜 재인증(Google ID Token 재검증) 기반 탈퇴 지원.
+         *  의도된 임시 처리입니다 — 소셜 가입이 열리는 시점부터 이 분기에 걸리는 사용자가 생깁니다.
          */
         if (!user.hasPassword()) {
             throw new BusinessException(

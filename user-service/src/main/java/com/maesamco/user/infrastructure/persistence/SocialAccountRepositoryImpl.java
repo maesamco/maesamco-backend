@@ -22,6 +22,9 @@ public class SocialAccountRepositoryImpl
     private static final String ACTIVE_PROVIDER_USER_UNIQUE_INDEX =
             "uk_p_social_accounts_active_provider_user";
 
+    private static final String ACTIVE_USER_PROVIDER_UNIQUE_INDEX =
+            "uk_p_social_accounts_active_user_provider";
+
     private final SpringDataSocialAccountRepository
             springDataSocialAccountRepository;
 
@@ -36,8 +39,14 @@ public class SocialAccountRepositoryImpl
     /**
      * 소셜 계정을 저장합니다.
      *
-     * <p>동일 Provider 계정이 동시에 가입되는 경쟁에서는 DB 부분 UNIQUE 인덱스가 최종 방어선이며,
-     * 그 위반은 {@link ErrorCode#SOCIAL_ACCOUNT_ALREADY_LINKED}로 변환합니다(#308).</p>
+     * <p>DB 부분 UNIQUE 인덱스 두 개가 최종 방어선이며, 위반은 모두
+     * {@link ErrorCode#SOCIAL_ACCOUNT_ALREADY_LINKED}로 변환합니다(#308, PR #320 리뷰).</p>
+     *
+     * <ul>
+     *     <li>{@code (provider, provider_user_id)}: 같은 Provider 계정을 여러 사용자에게 연결</li>
+     *     <li>{@code (user_id, provider)}: 한 사용자에게 같은 Provider 계정을 두 개 연결
+     *     (예: 이후 "기존 사용자에게 소셜 계정 추가 연결" 기능에서 재사용할 때)</li>
+     * </ul>
      */
     @Override
     public SocialAccount save(
@@ -47,10 +56,16 @@ public class SocialAccountRepositoryImpl
             return springDataSocialAccountRepository
                     .saveAndFlush(socialAccount);
         } catch (DataIntegrityViolationException exception) {
-            if (DataIntegrityViolations.isUniqueViolation(
-                    exception,
-                    ACTIVE_PROVIDER_USER_UNIQUE_INDEX
-            )) {
+            if (
+                    DataIntegrityViolations.isUniqueViolation(
+                            exception,
+                            ACTIVE_PROVIDER_USER_UNIQUE_INDEX
+                    )
+                            || DataIntegrityViolations.isUniqueViolation(
+                            exception,
+                            ACTIVE_USER_PROVIDER_UNIQUE_INDEX
+                    )
+            ) {
                 throw new BusinessException(
                         ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED
                 );

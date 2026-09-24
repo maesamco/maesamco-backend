@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.application.port.ConsumedSocialSignupToken;
 import com.maesamco.user.application.port.EmailVerificationSecretHasher;
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.RefreshTokenHasher;
@@ -36,9 +37,11 @@ import java.util.UUID;
  *     <li>JWT와 Redis 인증 세션을 발급합니다(자동 로그인).</li>
  * </ol>
  *
- * <p>Redis Token 소비와 DB 저장은 하나의 트랜잭션이 아니므로, 소비 이후 DB 저장이 실패하면
- * 사용자는 소셜 로그인부터 다시 진행해야 합니다. 소셜 로그인은 버튼 한 번으로 새 Token을 받을 수 있어
- * 일반 회원가입(이메일 인증 재진행)보다 복구 비용이 작습니다.</p>
+ * <p>Redis Token 소비와 DB 저장은 하나의 트랜잭션이 아닙니다.
+ * 소비 이후 동시 가입 경쟁으로 닉네임 중복이 나면 사용자는 닉네임만 바꿔 재시도하는 것이 자연스러우므로,
+ * 이 경우에만 소비 시점의 남은 TTL로 Token을 복구합니다(PR #320 리뷰).
+ * 그 밖의 저장 실패(이미 연결된 계정, 이메일 중복 등)는 같은 Token으로 재시도해도 성공할 수 없으므로
+ * 복구하지 않으며, 사용자는 소셜 로그인부터 다시 진행합니다.</p>
  */
 @Slf4j
 @Service
@@ -122,7 +125,7 @@ public class SocialSignUpService {
          *
          * 사전 검증 이후 다른 요청이 같은 Token을 먼저 사용했거나 만료된 경우 여기서 실패합니다.
          */
-        SocialSignupTicket consumedTicket =
+        ConsumedSocialSignupToken consumedToken =
                 socialSignupTokenStore
                         .consume(tokenHash)
                         .orElseThrow(
@@ -130,6 +133,9 @@ public class SocialSignUpService {
                                         ErrorCode.SOCIAL_SIGNUP_TOKEN_INVALID
                                 )
                         );
+
+        SocialSignupTicket consumedTicket =
+                consumedToken.ticket();
 
         if (!consumedTicket.equals(ticket)) {
             throw new BusinessException(
@@ -143,12 +149,33 @@ public class SocialSignUpService {
          * 동일 Google 계정 / 동일 이메일 / 동일 닉네임 동시 가입 경쟁은
          * DB 부분 UNIQUE 인덱스가 최종적으로 막습니다.
          */
-        User savedUser =
-                socialSignUpPersistenceService.saveSocialUser(
-                        user,
-                        consumedTicket.provider(),
-                        consumedTicket.providerUserId()
+        User savedUser;
+
+        try {
+            savedUser =
+                    socialSignUpPersistenceService.saveSocialUser(
+                            user,
+                            consumedTicket.provider(),
+                            consumedTicket.providerUserId()
+                    );
+        } catch (BusinessException exception) {
+            /*
+             * 사전 검증 이후 다른 사용자가 같은 닉네임으로 먼저 가입한 경우입니다.
+             * 응답은 "닉네임 중복"이므로 사용자는 닉네임만 바꿔 재시도합니다.
+             * 그 재시도가 Token 무효로 실패하지 않도록 Token을 복구합니다.
+             */
+            if (
+                    exception.getErrorCode()
+                            == ErrorCode.USER_DUPLICATE_NICKNAME
+            ) {
+                restoreTokenSafely(
+                        tokenHash,
+                        consumedToken
                 );
+            }
+
+            throw exception;
+        }
 
         /*
          * 5. 자동 로그인
@@ -156,6 +183,35 @@ public class SocialSignUpService {
         return issueSession(
                 savedUser
         );
+    }
+
+    /**
+     * 소비한 Token을 소비 시점의 남은 TTL로 다시 저장합니다.
+     *
+     * <p>원래 만료 시각을 넘겨 Token 수명을 늘리지 않습니다.
+     * 복구에 실패해도 원래 오류(닉네임 중복)를 그대로 응답하며,
+     * 이 경우 사용자는 재시도 시 SOCIAL_SIGNUP_TOKEN_INVALID를 받고 소셜 로그인부터 다시 진행합니다.</p>
+     */
+    private void restoreTokenSafely(
+            String tokenHash,
+            ConsumedSocialSignupToken consumedToken
+    ) {
+        if (!consumedToken.hasRemainingTtl()) {
+            return;
+        }
+
+        try {
+            socialSignupTokenStore.save(
+                    tokenHash,
+                    consumedToken.ticket(),
+                    consumedToken.remainingTtl()
+            );
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "닉네임 중복으로 소셜 회원가입 저장이 실패한 뒤 Token 복구에 실패했습니다.",
+                    exception
+            );
+        }
     }
 
     private void validateProvider(

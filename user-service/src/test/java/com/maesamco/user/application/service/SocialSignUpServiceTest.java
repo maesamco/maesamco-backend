@@ -2,6 +2,7 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSession;
 import com.maesamco.user.application.port.AuthSessionStore;
+import com.maesamco.user.application.port.ConsumedSocialSignupToken;
 import com.maesamco.user.application.port.EmailVerificationSecretHasher;
 import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.RefreshTokenHasher;
@@ -24,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -64,6 +66,12 @@ class SocialSignUpServiceTest {
                     EMAIL_LOOKUP_HASH,
                     ENCRYPTED_EMAIL
             );
+
+    private static final Duration REMAINING_TTL =
+            Duration.ofMinutes(7);
+
+    private static final ConsumedSocialSignupToken CONSUMED =
+            new ConsumedSocialSignupToken(TICKET, REMAINING_TTL);
 
     @Mock
     private EmailVerificationSecretHasher secretHasher;
@@ -112,7 +120,7 @@ class SocialSignUpServiceTest {
         givenValidTokenFound();
 
         when(socialSignupTokenStore.consume(TOKEN_HASH))
-                .thenReturn(Optional.of(TICKET));
+                .thenReturn(Optional.of(CONSUMED));
 
         when(
                 socialSignUpPersistenceService.saveSocialUser(
@@ -275,7 +283,7 @@ class SocialSignUpServiceTest {
         givenValidTokenFound();
 
         when(socialSignupTokenStore.consume(TOKEN_HASH))
-                .thenReturn(Optional.of(TICKET));
+                .thenReturn(Optional.of(CONSUMED));
 
         when(
                 socialSignUpPersistenceService.saveSocialUser(
@@ -293,6 +301,104 @@ class SocialSignUpServiceTest {
 
         // when & then
         assertBusinessError(ErrorCode.SIGNUP_AUTO_LOGIN_FAILED);
+    }
+
+    @Test
+    @DisplayName(
+            "Token 소비 후 동시 가입 경쟁으로 닉네임 중복이 나면 남은 TTL로 Token을 복구해 닉네임만 바꿔 재시도할 수 있다 (PR #320 리뷰)"
+    )
+    void signUp_nicknameRaceAfterConsume_restoresToken() {
+        // given
+        givenValidTokenFound();
+
+        when(socialSignupTokenStore.consume(TOKEN_HASH))
+                .thenReturn(Optional.of(CONSUMED));
+
+        when(
+                socialSignUpPersistenceService.saveSocialUser(
+                        any(User.class),
+                        eq(SocialProvider.GOOGLE),
+                        eq(PROVIDER_USER_ID)
+                )
+        ).thenThrow(new BusinessException(ErrorCode.USER_DUPLICATE_NICKNAME));
+
+        // when & then
+        assertBusinessError(ErrorCode.USER_DUPLICATE_NICKNAME);
+
+        // 원래 만료 시각을 넘지 않도록 소비 시점의 남은 TTL로만 복구한다.
+        verify(socialSignupTokenStore).save(TOKEN_HASH, TICKET, REMAINING_TTL);
+        verifyNoInteractions(tokenIssuer, authSessionStore);
+    }
+
+    @Test
+    @DisplayName("Token 복구에 실패해도 원래 오류(닉네임 중복)를 그대로 반환한다")
+    void signUp_nicknameRace_restoreFails_keepsOriginalError() {
+        // given
+        givenValidTokenFound();
+
+        when(socialSignupTokenStore.consume(TOKEN_HASH))
+                .thenReturn(Optional.of(CONSUMED));
+
+        when(
+                socialSignUpPersistenceService.saveSocialUser(
+                        any(User.class),
+                        eq(SocialProvider.GOOGLE),
+                        eq(PROVIDER_USER_ID)
+                )
+        ).thenThrow(new BusinessException(ErrorCode.USER_DUPLICATE_NICKNAME));
+
+        doThrow(new IllegalStateException("redis down"))
+                .when(socialSignupTokenStore)
+                .save(TOKEN_HASH, TICKET, REMAINING_TTL);
+
+        // when & then
+        assertBusinessError(ErrorCode.USER_DUPLICATE_NICKNAME);
+    }
+
+    @Test
+    @DisplayName("재시도해도 성공할 수 없는 저장 실패(이미 연결된 계정)는 Token을 복구하지 않는다")
+    void signUp_alreadyLinkedAfterConsume_doesNotRestoreToken() {
+        // given
+        givenValidTokenFound();
+
+        when(socialSignupTokenStore.consume(TOKEN_HASH))
+                .thenReturn(Optional.of(CONSUMED));
+
+        when(
+                socialSignUpPersistenceService.saveSocialUser(
+                        any(User.class),
+                        eq(SocialProvider.GOOGLE),
+                        eq(PROVIDER_USER_ID)
+                )
+        ).thenThrow(new BusinessException(ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED));
+
+        // when & then
+        assertBusinessError(ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED);
+
+        verify(socialSignupTokenStore, never()).save(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("소비 시점에 남은 TTL을 알 수 없으면 Token을 복구하지 않는다")
+    void signUp_nicknameRace_noRemainingTtl_doesNotRestore() {
+        // given
+        givenValidTokenFound();
+
+        when(socialSignupTokenStore.consume(TOKEN_HASH))
+                .thenReturn(Optional.of(new ConsumedSocialSignupToken(TICKET, Duration.ZERO)));
+
+        when(
+                socialSignUpPersistenceService.saveSocialUser(
+                        any(User.class),
+                        eq(SocialProvider.GOOGLE),
+                        eq(PROVIDER_USER_ID)
+                )
+        ).thenThrow(new BusinessException(ErrorCode.USER_DUPLICATE_NICKNAME));
+
+        // when & then
+        assertBusinessError(ErrorCode.USER_DUPLICATE_NICKNAME);
+
+        verify(socialSignupTokenStore, never()).save(any(), any(), any());
     }
 
     private void givenValidTokenFound() {

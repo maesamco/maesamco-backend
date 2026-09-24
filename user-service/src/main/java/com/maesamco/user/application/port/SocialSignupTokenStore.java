@@ -40,12 +40,14 @@ public interface SocialSignupTokenStore {
     /**
      * Token을 원자적으로 한 번만 소비하고 귀속된 소셜 인증 정보를 반환합니다.
      *
-     * <p>동일 Token으로 동시에 요청해도 하나의 요청만 정보를 받습니다.</p>
+     * <p>동일 Token으로 동시에 요청해도 하나의 요청만 정보를 받습니다.
+     * 소비 시점의 남은 유효시간을 함께 반환하므로, 재시도 가능한 실패에서
+     * 원래 만료 시각 안에서만 {@link #save}로 Token을 복구할 수 있습니다.</p>
      *
      * @param tokenHash 소셜 회원가입 Token 해시
-     * @return 소비에 성공하면 귀속된 정보, 이미 사용됐거나 만료됐으면 empty
+     * @return 소비에 성공하면 귀속 정보와 남은 유효시간, 이미 사용됐거나 만료됐으면 empty
      */
-    Optional<SocialSignupTicket> consume(
+    Optional<ConsumedSocialSignupToken> consume(
             String tokenHash
     );
 }

@@ -1,5 +1,6 @@
 package com.maesamco.user.infrastructure.security.social;
 
+import com.maesamco.user.application.port.ConsumedSocialSignupToken;
 import com.maesamco.user.application.port.SocialSignupTicket;
 import com.maesamco.user.application.port.SocialSignupTokenStore;
 import com.maesamco.user.domain.entity.SocialProvider;
@@ -70,8 +71,9 @@ public class RedisSocialSignupTokenStore
             );
 
     /**
-     * 귀속 정보를 읽고 같은 스크립트 안에서 Token을 삭제합니다.
+     * 귀속 정보와 남은 TTL(ms)을 읽고 같은 스크립트 안에서 Token을 삭제합니다.
      * 동일 Token으로 동시에 요청해도 하나의 요청만 정보를 받습니다.
+     * 반환 순서: provider, providerUserId, emailLookupHash, encryptedEmail, pttl
      */
     @SuppressWarnings("rawtypes")
     private static final DefaultRedisScript<List> CONSUME_SCRIPT =
@@ -90,6 +92,8 @@ public class RedisSocialSignupTokenStore
 
                     local values = redis.call('HMGET', KEYS[1],
                         'provider', 'providerUserId', 'emailLookupHash', 'encryptedEmail')
+
+                    values[5] = redis.call('PTTL', KEYS[1])
 
                     redis.call('DEL', KEYS[1])
 
@@ -162,7 +166,7 @@ public class RedisSocialSignupTokenStore
     }
 
     @Override
-    public Optional<SocialSignupTicket> consume(
+    public Optional<ConsumedSocialSignupToken> consume(
             String tokenHash
     ) {
         requireText(
@@ -170,12 +174,35 @@ public class RedisSocialSignupTokenStore
                 "소셜 회원가입 Token 해시는 필수입니다."
         );
 
-        return toTicket(
+        List<?> values =
                 redisTemplate.execute(
                         CONSUME_SCRIPT,
                         List.of(createKey(tokenHash))
-                )
-        );
+                );
+
+        if (values == null || values.size() != 5) {
+            return Optional.empty();
+        }
+
+        return toTicket(values.subList(0, 4))
+                .map(ticket -> new ConsumedSocialSignupToken(
+                        ticket,
+                        toRemainingTtl(values.get(4))
+                ));
+    }
+
+    /**
+     * PTTL 결과(ms)를 남은 유효시간으로 변환합니다.
+     * TTL이 없거나(-1) Key가 없는(-2) 비정상 상태는 복구하지 않도록 0으로 봅니다.
+     */
+    private static Duration toRemainingTtl(
+            Object pttl
+    ) {
+        if (pttl instanceof Number millis && millis.longValue() > 0) {
+            return Duration.ofMillis(millis.longValue());
+        }
+
+        return Duration.ZERO;
     }
 
     /**

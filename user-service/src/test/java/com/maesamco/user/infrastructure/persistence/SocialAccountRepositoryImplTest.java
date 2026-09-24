@@ -17,7 +17,6 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -244,8 +243,17 @@ class SocialAccountRepositoryImplTest {
                         )
                 )
         )
+                // (user_id, provider) UNIQUE 위반도 도메인 오류로 변환한다(PR #320 리뷰).
                 .isInstanceOf(
-                        DataIntegrityViolationException.class
+                        BusinessException.class
+                )
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(
+                        ErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED
                 );
     }
 
