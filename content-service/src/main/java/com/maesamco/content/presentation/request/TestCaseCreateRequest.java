@@ -20,11 +20,12 @@ public class TestCaseCreateRequest {
     @NotNull
     private Boolean isPublic;
 
+    /** 기존 API 계약 유지를 위해 받지만 생성 시에는 사용하지 않습니다(서버가 그룹의 마지막 순서로 정합니다). */
     @NotNull
     @Positive
     private Integer testCaseOrder;
 
     public TestCaseCreateCommand toCommand() {
-        return new TestCaseCreateCommand(input, expectedOutput, isPublic, testCaseOrder);
+        return new TestCaseCreateCommand(input, expectedOutput, isPublic);
     }
 }
