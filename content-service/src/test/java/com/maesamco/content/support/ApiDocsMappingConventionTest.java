@@ -2,80 +2,162 @@ package com.maesamco.content.support;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@code *ApiDocs} 인터페이스를 구현하는 컨트롤러의 "매핑은 인터페이스에만 둔다" 규칙을 지킨다(#313 리뷰 P4).
+ * {@link ApiDocsConventionChecker}의 규칙을 실제 컨트롤러와 잘못된 구조의 가짜 컨트롤러로 검증한다(#326).
  *
- * <p>Swagger 문서와 요청 매핑({@code @GetMapping} 등)은 {@code *ApiDocs}에 선언하고 구현체는
- * {@code @Override}와 보안 애노테이션만 갖는다. 구현체에 매핑을 다시 붙이면 인터페이스와 이중 정의가 되어
- * 어느 쪽이 실제 경로인지 알 수 없고, 메서드 보안 프록시가 JDK 동적 프록시로 결정되는 설정에서는
- * 구현체의 매핑이 {@code HandlerMethod}에 보이지 않아 라우트가 조용히 사라진다(#313 CI 실패 원인).
- * 지금은 {@code SecurityConfig}가 {@code proxyTargetClass = true}라 동작하지만, 그 설정에 기대지 않고
- * 규칙 자체를 정적으로 확인한다. 스프링 컨텍스트를 띄우지 않으므로 빠르다.</p>
+ * <p>실제 컨트롤러 검사는 "지금 위반이 없다"만 확인하므로, 각 규칙이 정말 위반을 잡는지는
+ * 아래 가짜 컨트롤러(Fixture)로 따로 증명한다. 스프링 컨텍스트를 띄우지 않아 빠르다.</p>
  */
 class ApiDocsMappingConventionTest {
 
     @Test
-    @DisplayName("*ApiDocs를 구현하는 컨트롤러의 핸들러 메서드는 매핑을 인터페이스 메서드에 두고 구현체에는 다시 붙이지 않는다")
-    void controllersImplementingApiDocs_keepMappingsOnInterfaceOnly() {
-        List<String> violations = new ArrayList<>();
-        int checkedControllers = 0;
+    @DisplayName("실제 컨트롤러는 모두 매핑을 *ApiDocs에만 두고 구현을 유지한다")
+    void realControllers_followConvention() {
+        List<Class<?>> controllers = ControllerEndpointScanner.controllerClasses();
 
-        for (Class<?> controller : ControllerEndpointScanner.controllerClasses()) {
-            List<Class<?>> apiDocs = Arrays.stream(controller.getInterfaces())
-                    .filter(type -> type.getSimpleName().endsWith("ApiDocs"))
-                    .toList();
-            if (apiDocs.isEmpty()) {
-                continue;
-            }
-            checkedControllers++;
-
-            // 클래스 레벨 매핑도 인터페이스에만 둔다.
-            if (AnnotatedElementUtils.getMergedAnnotation(controller, RequestMapping.class) != null) {
-                violations.add(controller.getSimpleName() + " — 클래스에 @RequestMapping이 있다 (인터페이스로 옮길 것)");
-            }
-
-            for (Method implMethod : controller.getDeclaredMethods()) {
-                Method docsMethod = findDocsMethod(apiDocs, implMethod);
-                if (docsMethod == null) {
-                    continue;
-                }
-
-                // getMergedAnnotation은 해당 메서드에 직접 붙은 것만 본다(인터페이스는 따라가지 않는다).
-                if (AnnotatedElementUtils.getMergedAnnotation(implMethod, RequestMapping.class) != null) {
-                    violations.add(controller.getSimpleName() + "#" + implMethod.getName()
-                            + " — 구현체 메서드에 매핑이 붙어 있다 (" + docsMethod.getDeclaringClass().getSimpleName() + "로 옮길 것)");
-                }
-                if (AnnotatedElementUtils.findMergedAnnotation(docsMethod, RequestMapping.class) == null) {
-                    violations.add(controller.getSimpleName() + "#" + implMethod.getName()
-                            + " — " + docsMethod.getDeclaringClass().getSimpleName() + " 메서드에 매핑이 없다");
-                }
-            }
-        }
-
-        assertThat(checkedControllers)
-                .as("*ApiDocs를 구현하는 컨트롤러를 하나도 찾지 못했다 — 스캔 대상이 바뀌었는지 확인할 것")
-                .isPositive();
-        assertThat(violations).as("매핑 규칙 위반").isEmpty();
+        assertThat(ApiDocsConventionChecker.check(controllers)).isEmpty();
     }
 
-    private static Method findDocsMethod(List<Class<?>> apiDocs, Method implMethod) {
-        for (Class<?> docs : apiDocs) {
-            try {
-                return docs.getMethod(implMethod.getName(), implMethod.getParameterTypes());
-            } catch (NoSuchMethodException ignored) {
-                // 다음 인터페이스에서 찾는다.
-            }
+    @Test
+    @DisplayName("모든 *ApiDocs 인터페이스는 대응하는 컨트롤러가 구현한다 (구현·파일 이탈 방지)")
+    void everyApiDocs_isImplementedByItsController() {
+        List<Class<?>> controllers = ControllerEndpointScanner.controllerClasses();
+
+        Set<String> implemented = controllers.stream()
+                .flatMap(controller -> java.util.Arrays.stream(controller.getInterfaces()))
+                .map(Class::getSimpleName)
+                .filter(name -> name.endsWith("ApiDocs"))
+                .collect(Collectors.toSet());
+
+        assertThat(implemented)
+                .as("검사 대상 ApiDocs가 하나도 없거나, 스캔 범위가 바뀌었는지 확인할 것")
+                .isNotEmpty();
+
+        Set<String> declared = ControllerEndpointScanner.apiDocsInterfaces().stream()
+                .map(Class::getSimpleName)
+                .collect(Collectors.toSet());
+
+        assertThat(declared)
+                .as("구현하는 컨트롤러가 없는 *ApiDocs가 있다")
+                .isSubsetOf(implemented);
+    }
+
+    @Test
+    @DisplayName("규칙 2 — ApiDocs에 없는 구현체 전용 핸들러를 추가하면 잡는다")
+    void detects_implOnlyHandler() {
+        List<String> violations = ApiDocsConventionChecker.check(List.of(ExtraHandlerController.class));
+
+        assertThat(violations).anyMatch(v -> v.contains("ExtraHandlerController#extra") && v.contains("구현체 메서드에 요청 매핑"));
+    }
+
+    @Test
+    @DisplayName("규칙 2 — 기존 ApiDocs 메서드에 구현체가 매핑을 다시 붙이면 잡는다")
+    void detects_duplicatedMappingOnImpl() {
+        List<String> violations = ApiDocsConventionChecker.check(List.of(DuplicatedMappingController.class));
+
+        assertThat(violations).anyMatch(v -> v.contains("DuplicatedMappingController#hello") && v.contains("구현체 메서드에 요청 매핑"));
+    }
+
+    @Test
+    @DisplayName("규칙 1 — 컨트롤러가 *ApiDocs 구현을 잃으면 잡는다")
+    void detects_lostImplements() {
+        List<String> violations = ApiDocsConventionChecker.check(List.of(DetachedController.class));
+
+        assertThat(violations).anyMatch(v -> v.contains("DetachedController") && v.contains("implements하지 않는다"));
+    }
+
+    @Test
+    @DisplayName("규칙 4 — ApiDocs의 클래스 레벨 @RequestMapping이 사라지면 잡는다")
+    void detects_missingClassLevelMappingOnDocs() {
+        List<String> violations = ApiDocsConventionChecker.check(List.of(NoBasePathController.class));
+
+        assertThat(violations).anyMatch(v -> v.contains("NoBasePathApiDocs") && v.contains("클래스 레벨 @RequestMapping"));
+    }
+
+    @Test
+    @DisplayName("규칙을 지키는 컨트롤러는 위반이 없다")
+    void cleanController_hasNoViolations() {
+        assertThat(ApiDocsConventionChecker.check(List.of(CleanController.class))).isEmpty();
+    }
+
+    // ===== Fixture: 규칙 검증용 가짜 컨트롤러/ApiDocs (이 클래스 안에서만 쓴다) =====
+
+    @RequestMapping("/fixture")
+    interface CleanApiDocs {
+        @GetMapping("/hello")
+        String hello();
+    }
+
+    static class CleanController implements CleanApiDocs {
+        @Override
+        public String hello() {
+            return "hello";
         }
-        return null;
+    }
+
+    @RequestMapping("/fixture")
+    interface ExtraHandlerApiDocs {
+        @GetMapping("/hello")
+        String hello();
+    }
+
+    static class ExtraHandlerController implements ExtraHandlerApiDocs {
+        @Override
+        public String hello() {
+            return "hello";
+        }
+
+        @GetMapping("/extra")
+        public String extra() { // ApiDocs에 선언하지 않은 구현체 전용 핸들러
+            return "extra";
+        }
+    }
+
+    @RequestMapping("/fixture")
+    interface DuplicatedMappingApiDocs {
+        @GetMapping("/hello")
+        String hello();
+    }
+
+    static class DuplicatedMappingController implements DuplicatedMappingApiDocs {
+        @Override
+        @GetMapping("/hello")
+        public String hello() {
+            return "hello";
+        }
+    }
+
+    @RequestMapping("/fixture")
+    interface DetachedApiDocs {
+        @GetMapping("/hello")
+        String hello();
+    }
+
+    static class DetachedController { // implements DetachedApiDocs 를 잃은 상태
+        @GetMapping("/hello")
+        public String hello() {
+            return "hello";
+        }
+    }
+
+    interface NoBasePathApiDocs { // 클래스 레벨 @RequestMapping이 없다
+        @GetMapping("/hello")
+        String hello();
+    }
+
+    static class NoBasePathController implements NoBasePathApiDocs {
+        @Override
+        public String hello() {
+            return "hello";
+        }
     }
 }

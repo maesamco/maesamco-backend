@@ -54,6 +54,28 @@ public final class ControllerEndpointScanner {
                 .collect(Collectors.toList());
     }
 
+
+    /** 클래스패스의 모든 {@code *ApiDocs} 인터페이스를 이름순으로 반환한다. */
+    public static List<Class<?>> apiDocsInterfaces() {
+        ClassPathScanningCandidateComponentProvider provider =
+                new ClassPathScanningCandidateComponentProvider(false) {
+                    @Override
+                    protected boolean isCandidateComponent(
+                            org.springframework.beans.factory.annotation.AnnotatedBeanDefinition beanDefinition
+                    ) {
+                        return beanDefinition.getMetadata().isInterface();
+                    }
+                };
+        provider.addIncludeFilter(new org.springframework.core.type.filter.RegexPatternTypeFilter(
+                java.util.regex.Pattern.compile(".*ApiDocs$")
+        ));
+
+        return provider.findCandidateComponents(BASE_PACKAGE).stream()
+                .map(definition -> load(definition.getBeanClassName()))
+                .sorted(Comparator.comparing(Class::getName))
+                .collect(Collectors.toList());
+    }
+
     public static List<Endpoint> scan() {
         List<Endpoint> endpoints = new ArrayList<>();
 
