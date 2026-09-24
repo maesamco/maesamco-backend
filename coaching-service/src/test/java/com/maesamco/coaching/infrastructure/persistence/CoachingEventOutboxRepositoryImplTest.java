@@ -348,6 +348,11 @@ class CoachingEventOutboxRepositoryImplTest extends AbstractCoachingRepositoryTe
             UUID nextOutboxId = coachingEventOutboxRepository.save(
                     CoachingEventOutbox.create(createCoachingSession(), "CoachingCompleted", payload())).getId();
 
+            // 연속 저장한 두 행의 created_at 순서에 기대지 않고(같은 시각이 될 수 있다) 서로 다른 고정 시각으로 맞춘다.
+            // lockedOutbox가 가장 오래된 행이라 holder 트랜잭션이 이 행을 잠근다.
+            setCreatedAt(lockedOutboxId, Instant.parse("2026-09-17T01:00:00Z"));
+            setCreatedAt(nextOutboxId, Instant.parse("2026-09-17T01:00:01Z"));
+
             List<CoachingEventOutbox> claimed = claimWhileAnotherTransactionHoldsRowLock(
                     () -> coachingEventOutboxRepository.claimPublishable(
                             Instant.now(), Instant.now().plusSeconds(300), UUID.randomUUID(), 1));
@@ -357,5 +362,13 @@ class CoachingEventOutboxRepositoryImplTest extends AbstractCoachingRepositoryTe
         } finally {
             jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
         }
+    }
+
+    private void setCreatedAt(UUID outboxId, Instant createdAt) {
+        jdbcTemplate.update(
+                "UPDATE coaching_schema.p_coaching_event_outboxes SET created_at = ? WHERE id = ?",
+                java.sql.Timestamp.from(createdAt),
+                outboxId
+        );
     }
 }

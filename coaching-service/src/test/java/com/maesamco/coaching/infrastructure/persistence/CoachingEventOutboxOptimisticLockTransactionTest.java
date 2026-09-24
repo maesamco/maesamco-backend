@@ -40,9 +40,13 @@ import static org.mockito.Mockito.doAnswer;
  * rollback-only로 표시돼 catch로 정상 반환해도 커밋 시점에 {@code UnexpectedRollbackException}이
  * 새로 발생했다(이 테스트로 재현·확인). 지금은 catch 없이 예외를 그대로 내보내고 Facade가 처리한다.</p>
  *
- * <p>{@code findById()}와 {@code save()} 사이에 다른 트랜잭션이 끼어드는 상황은, 저장소를
- * 감싸서 {@code findById()} 직후 별도 트랜잭션(REQUIRES_NEW)으로 같은 행의 {@code version}을
- * 올려 재현한다(두 Relay Worker가 같은 행을 거의 동시에 처리하는 실제 시나리오와 동등하다).</p>
+ * <p>{@code findById()}와 {@code save()} 사이에 다른 트랜잭션이 끼어드는 상황은, 저장소를 감싸서
+ * {@code findById()} 직후 별도 트랜잭션(REQUIRES_NEW)으로 같은 행의 {@code version}을 올려 재현한다.
+ * 이 테스트가 보장하는 범위는 "{@code save()} 시점에 낙관적 락 충돌이 결정적으로 발생했을 때 서비스가
+ * 예외를 삼키지 않고 전파하며 {@link UnexpectedRollbackException}이 생기지 않는다"까지다.
+ * 실제 lease 만료 후 다른 Relay가 재선점하는 경합에서는 {@code version}뿐 아니라 {@code claim_id},
+ * {@code lease_until}도 함께 바뀌는데, 그 재선점·fencing 상태 전이 전체를 재현하지는 않는다
+ * (그 부분은 {@code CoachingEventOutboxRepositoryImplTest}의 선점 테스트와 서비스 단위 테스트가 다룬다).</p>
  */
 @Import({CoachingEventOutboxRepositoryImpl.class, CoachingEventOutboxPersistenceService.class})
 class CoachingEventOutboxOptimisticLockTransactionTest extends AbstractCoachingRepositoryTest {
