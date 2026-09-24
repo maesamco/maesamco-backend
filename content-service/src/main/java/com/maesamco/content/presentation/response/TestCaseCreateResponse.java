@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.application.result.TestCaseResult;
 import com.maesamco.content.domain.entity.TestCaseStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,7 +17,7 @@ public class TestCaseCreateResponse {
     private final UUID problemId;
     private final TestCaseStatus testCaseStatus;
 
-    public static TestCaseCreateResponse from(TestCase testCase) {
+    public static TestCaseCreateResponse from(TestCaseResult testCase) {
         return new TestCaseCreateResponse(
                 testCase.getId(),
                 testCase.getProblemId(),

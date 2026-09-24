@@ -2,6 +2,7 @@ package com.maesamco.content.presentation.request;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import com.maesamco.content.application.command.TestCaseCreateCommand;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -22,4 +23,8 @@ public class TestCaseCreateRequest {
     @NotNull
     @Positive
     private Integer testCaseOrder;
+
+    public TestCaseCreateCommand toCommand() {
+        return new TestCaseCreateCommand(input, expectedOutput, isPublic, testCaseOrder);
+    }
 }

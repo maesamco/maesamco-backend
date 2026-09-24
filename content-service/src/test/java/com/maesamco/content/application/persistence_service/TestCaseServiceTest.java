@@ -6,11 +6,11 @@ import com.maesamco.content.domain.entity.TestCase;
 import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TestCaseCreateRequest;
-import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
-import com.maesamco.content.presentation.response.TestCaseCreateResponse;
-import com.maesamco.content.presentation.response.TestCaseResponse;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.application.command.TestCaseCreateCommand;
+import com.maesamco.content.application.command.TestCaseUpdateCommand;
+import com.maesamco.content.application.result.TestCaseResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,10 +20,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -66,7 +62,7 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            TestCaseCreateRequest request = mock(TestCaseCreateRequest.class);
+            TestCaseCreateCommand request = mock(TestCaseCreateCommand.class);
             TestCase savedTestCase = mock(TestCase.class);
 
             when(request.getInput()).thenReturn("1 2");
@@ -76,7 +72,7 @@ class TestCaseServiceTest {
             when(testCaseRepository.save(any(TestCase.class))).thenReturn(savedTestCase);
 
             // when
-            TestCaseCreateResponse result = testCaseService.createTestCase(problemId, request);
+            TestCaseResult result = testCaseService.createTestCase(problemId, request);
 
             // then
             ArgumentCaptor<TestCase> captor = ArgumentCaptor.forClass(TestCase.class);
@@ -104,7 +100,7 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            TestCaseCreateRequest request = mock(TestCaseCreateRequest.class);
+            TestCaseCreateCommand request = mock(TestCaseCreateCommand.class);
             TestCase savedTestCase = mock(TestCase.class);
 
             when(request.getIsPublic()).thenReturn(false);
@@ -128,7 +124,7 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            TestCaseCreateRequest request = mock(TestCaseCreateRequest.class);
+            TestCaseCreateCommand request = mock(TestCaseCreateCommand.class);
             TestCase savedTestCase = mock(TestCase.class);
 
             when(request.getIsPublic()).thenReturn(true);
@@ -166,7 +162,7 @@ class TestCaseServiceTest {
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
-            TestCaseResponse result = testCaseService.getTestCase(testCaseId);
+            TestCaseResult result = testCaseService.getTestCase(testCaseId);
 
             // then
             assertThat(result).isNotNull();
@@ -199,7 +195,7 @@ class TestCaseServiceTest {
             when(testCase.getIsPublic()).thenReturn(true);
 
             // when
-            TestCaseResponse result = testCaseService.getPublicTestCase(testCaseId);
+            TestCaseResult result = testCaseService.getPublicTestCase(testCaseId);
 
             // then
             assertThat(result).isNotNull();
@@ -273,19 +269,19 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(0, 10);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCases(problemId, true, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCases(problemId, true, pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TestCaseResponse> result = testCaseService.searchTestCasesPublic(problemId, pageable);
+            PageResult<TestCaseResult> result = testCaseService.searchTestCasesPublic(problemId, pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
             verify(problemFinder).getById(problemId);
-            verify(testCaseRepository).searchTestCases(problemId, true, pageable);
+            verify(testCaseRepository).searchTestCases(problemId, true, pageQuery);
             verifyNoInteractions(testCaseFinder);
         }
 
@@ -295,18 +291,18 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(1, 20);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(1, 20);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCases(problemId, true, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCases(problemId, true, pageQuery)).thenReturn(page);
 
             // when
-            testCaseService.searchTestCasesPublic(problemId, pageable);
+            testCaseService.searchTestCasesPublic(problemId, pageQuery);
 
             // then
             InOrder inOrder = inOrder(problemFinder, testCaseRepository);
             inOrder.verify(problemFinder).getById(problemId);
-            inOrder.verify(testCaseRepository).searchTestCases(problemId, true, pageable);
+            inOrder.verify(testCaseRepository).searchTestCases(problemId, true, pageQuery);
         }
 
         @Test
@@ -315,16 +311,16 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(2, 15);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(2, 15);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCases(problemId, true, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCases(problemId, true, pageQuery)).thenReturn(page);
 
             // when
-            testCaseService.searchTestCasesPublic(problemId, pageable);
+            testCaseService.searchTestCasesPublic(problemId, pageQuery);
 
             // then
-            verify(testCaseRepository).searchTestCases(eq(problemId), eq(true), same(pageable));
+            verify(testCaseRepository).searchTestCases(eq(problemId), eq(true), same(pageQuery));
         }
     }
 
@@ -342,19 +338,19 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(0, 10);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCasesAll(problemId, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCasesAll(problemId, pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TestCaseResponse> result = testCaseService.searchTestCasesAll(problemId, pageable);
+            PageResult<TestCaseResult> result = testCaseService.searchTestCasesAll(problemId, pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
             verify(problemFinder).getById(problemId);
-            verify(testCaseRepository).searchTestCasesAll(problemId, pageable);
+            verify(testCaseRepository).searchTestCasesAll(problemId, pageQuery);
             verifyNoInteractions(testCaseFinder);
         }
 
@@ -364,18 +360,18 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(1, 20);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(1, 20);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCasesAll(problemId, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCasesAll(problemId, pageQuery)).thenReturn(page);
 
             // when
-            testCaseService.searchTestCasesAll(problemId, pageable);
+            testCaseService.searchTestCasesAll(problemId, pageQuery);
 
             // then
             InOrder inOrder = inOrder(problemFinder, testCaseRepository);
             inOrder.verify(problemFinder).getById(problemId);
-            inOrder.verify(testCaseRepository).searchTestCasesAll(problemId, pageable);
+            inOrder.verify(testCaseRepository).searchTestCasesAll(problemId, pageQuery);
         }
 
         @Test
@@ -384,16 +380,16 @@ class TestCaseServiceTest {
 
             // given
             UUID problemId = UUID.randomUUID();
-            Pageable pageable = PageRequest.of(3, 15);
-            Page<TestCase> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(3, 15);
+            PageResult<TestCase> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(testCaseRepository.searchTestCasesAll(problemId, pageable)).thenReturn(page);
+            when(testCaseRepository.searchTestCasesAll(problemId, pageQuery)).thenReturn(page);
 
             // when
-            testCaseService.searchTestCasesAll(problemId, pageable);
+            testCaseService.searchTestCasesAll(problemId, pageQuery);
 
             // then
-            verify(testCaseRepository).searchTestCasesAll(eq(problemId), same(pageable));
+            verify(testCaseRepository).searchTestCasesAll(eq(problemId), same(pageQuery));
         }
     }
 
@@ -413,14 +409,14 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("10 20");
             when(request.getExpectedOutput()).thenReturn("30");
 
             // when
-            TestCaseResponse result = testCaseService.updateTestCase(testCaseId, request);
+            TestCaseResult result = testCaseService.updateTestCase(testCaseId, request);
 
             // then
             assertThat(result).isNotNull();
@@ -437,7 +433,7 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("새 입력");
@@ -458,7 +454,7 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getExpectedOutput()).thenReturn("새 출력");
@@ -480,7 +476,7 @@ class TestCaseServiceTest {
             UUID testCaseId = UUID.randomUUID();
             UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
@@ -513,14 +509,14 @@ class TestCaseServiceTest {
                     1
             );
 
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getIsPublic()).thenReturn(true);
             when(request.getTestCaseOrder()).thenReturn(null);
 
             // when
-            TestCaseResponse result = testCaseService.updateTestCase(testCaseId, request);
+            TestCaseResult result = testCaseService.updateTestCase(testCaseId, request);
 
             // then
             assertThat(result).isNotNull();
@@ -538,7 +534,7 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getIsPublic()).thenReturn(null);
@@ -561,7 +557,7 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getTestCaseOrder()).thenReturn(10);
@@ -582,7 +578,7 @@ class TestCaseServiceTest {
             UUID testCaseId = UUID.randomUUID();
             UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(testCase.getProblemId()).thenReturn(problemId);
@@ -616,14 +612,14 @@ class TestCaseServiceTest {
                     3
             );
 
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(request.getIsPublic()).thenReturn(null);
             when(request.getTestCaseOrder()).thenReturn(null);
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
-            TestCaseResponse result = testCaseService.updateTestCase(testCaseId, request);
+            TestCaseResult result = testCaseService.updateTestCase(testCaseId, request);
 
             // then
             assertThat(result).isNotNull();
@@ -643,7 +639,7 @@ class TestCaseServiceTest {
             // given
             UUID testCaseId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
-            TestCaseUpdateRequest request = mock(TestCaseUpdateRequest.class);
+            TestCaseUpdateCommand request = mock(TestCaseUpdateCommand.class);
 
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
             when(request.getInput()).thenReturn("수정된 입력");

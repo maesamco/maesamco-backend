@@ -1,9 +1,9 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.TestCase;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.TestCaseStatus;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,9 +23,9 @@ public interface TestCaseRepository {
 
     int findMaxTestCaseOrderByProblemIdAndIsPublic(UUID problemId, boolean isPublic);
 
-    Page<TestCase> searchTestCases(UUID problemId, boolean isPublic, Pageable pageable);
+    PageResult<TestCase> searchTestCases(UUID problemId, boolean isPublic, PageQuery pageQuery);
 
-    Page<TestCase> searchTestCasesAll(UUID problemId, Pageable pageable);
+    PageResult<TestCase> searchTestCasesAll(UUID problemId, PageQuery pageQuery);
 
     List<TestCase> findAllByProblemIdAndTestCaseStatusOrderByIsPublicDescTestCaseOrderAscIdAsc(
             UUID problemId,

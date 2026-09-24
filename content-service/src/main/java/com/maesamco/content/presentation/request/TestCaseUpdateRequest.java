@@ -1,6 +1,7 @@
 package com.maesamco.content.presentation.request;
 
 import jakarta.validation.constraints.Positive;
+import com.maesamco.content.application.command.TestCaseUpdateCommand;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -17,4 +18,8 @@ public class TestCaseUpdateRequest {
 
     @Positive
     private Integer testCaseOrder;
+
+    public TestCaseUpdateCommand toCommand() {
+        return new TestCaseUpdateCommand(input, expectedOutput, isPublic, testCaseOrder);
+    }
 }
