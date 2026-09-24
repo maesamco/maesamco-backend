@@ -34,8 +34,11 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Optional<Problem> findById(UUID problemId) {
-        return springDataProblemRepository.findByIdAndDeletedAtIsNull(problemId);
+    public Optional<Problem> findById(
+            UUID problemId
+    ) {
+        return springDataProblemRepository
+                .findById(problemId);
     }
 
     @Override

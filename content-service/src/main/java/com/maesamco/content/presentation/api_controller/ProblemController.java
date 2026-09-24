@@ -18,7 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -49,7 +49,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 생성된 문제 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(ProblemCreateRequest request) {
         ProblemResult result = problemService.createProblem(request.toCommand());
 
@@ -72,7 +72,7 @@ public class ProblemController implements ProblemApiDocs {
      */
     // 정확한 정보는 관리자만이 조회할 수 있다.
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemResponse>> getProblem(UUID problemId) {
         ProblemResult result = problemService.getProblemForAdmin(problemId);
 
@@ -161,7 +161,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 수정된 문제 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(UUID problemId, ProblemUpdateRequest request) {
         ProblemResult result = problemService.updateProblem(problemId, request.toCommand());
 
@@ -186,7 +186,7 @@ public class ProblemController implements ProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteProblem(UUID problemId, UUID userId) {
         problemService.deleteProblem(problemId, userId);
 

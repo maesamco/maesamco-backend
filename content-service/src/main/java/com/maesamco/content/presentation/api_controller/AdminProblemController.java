@@ -1,10 +1,18 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
+import com.maesamco.content.application.persistence_service.ProblemService;
+import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
+import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.presentation.request.ProblemSearchRequest;
+import com.maesamco.content.presentation.response.AdminProblemSearchItemResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -15,8 +23,50 @@ public class AdminProblemController implements AdminProblemApiDocs {
 
     private final ProblemPublicationFacade problemPublicationFacade;
 
+    private final ProblemService problemService;
 
-    // TODO: GET  /api/v1/admin/problems ( problemStatus 필터 )
+    /**
+     * 관리자가 문제 상태를 포함한 조건으로 문제 목록을 검색합니다.
+     *
+     * <p>상태를 지정하지 않으면 ARCHIVED를 포함한 모든 상태를 조회합니다.</p>
+     */
+    @Override
+    @RequireAdmin
+    public ResponseEntity<
+            SuccessResponse<
+                    PageResponse<AdminProblemSearchItemResponse>
+                    >
+            > searchProblems(
+            ProblemSearchRequest request,
+            Integer page,
+            Integer size,
+            String sort,
+            String direction
+    ) {
+        Pageable pageable =
+                PageableFactory.of(
+                        page,
+                        size,
+                        sort,
+                        direction
+                );
+
+        Page<ProblemSearchResult> results =
+                problemService.searchProblemsForAdmin(
+                        request.toQuery(),
+                        pageable
+                );
+
+        PageResponse<AdminProblemSearchItemResponse> response =
+                PageResponse.from(
+                        results,
+                        AdminProblemSearchItemResponse::from
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(response)
+        );
+    }
 
     /**
      * REVIEW_PENDING 상태의 문제 발행을 승인합니다.
@@ -25,7 +75,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> approvePublication(UUID problemId) {
         // TODO: Facade 방식으로 (관리자가 문제 상태를 PUBLISHED로 변경 -> ProblemVersion 생성/저장 -> 발행 이벤트 기록)
         problemPublicationFacade.approvePublication(problemId);
@@ -48,7 +98,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(UUID problemId) {
         problemPublicationFacade.revertToReviewPendingForRepublish(problemId);
 

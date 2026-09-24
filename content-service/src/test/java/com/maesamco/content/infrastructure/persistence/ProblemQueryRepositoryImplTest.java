@@ -4,14 +4,7 @@ import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.Unit;
-import com.maesamco.content.domain.entity.problem.Problem;
-import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
-import com.maesamco.content.domain.entity.problem.ProblemSource;
-import com.maesamco.content.domain.entity.problem.ProblemStatus;
-import com.maesamco.content.domain.entity.problem.ProblemType;
-import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
-import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
-import com.maesamco.content.domain.entity.problem.TimerPolicy;
+import com.maesamco.content.domain.entity.problem.*;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemSearchCondition;
 import com.maesamco.content.global.config.JpaAuditingConfig;
@@ -20,7 +13,6 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Answers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -40,7 +32,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.mockito.Mockito.mock;
 
 @DataJpaTest(properties = {
         "spring.flyway.enabled=true",
@@ -183,6 +174,40 @@ class ProblemQueryRepositoryImplTest {
 
         assertThat(result.getTotalElements())
                 .isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName(
+            "findById는 @SQLRestriction에 의해 soft delete된 문제를 반환하지 않는다"
+    )
+    void findById_softDeletedProblem_returnsEmpty() {
+
+        assertThat(
+                problemQueryRepository.findById(
+                        deletedProblem.getId()
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "findById는 삭제되지 않은 문제를 정상 조회한다"
+    )
+    void findById_activeProblem_returnsProblem() {
+
+        assertThat(
+                problemQueryRepository.findById(
+                        javaEasy.getId()
+                )
+        )
+                .isPresent()
+                .get()
+                .extracting(
+                        Problem::getId
+                )
+                .isEqualTo(
+                        javaEasy.getId()
+                );
     }
 
     @Test
@@ -878,10 +903,7 @@ class ProblemQueryRepositoryImplTest {
     @DisplayName("이슈 #291 — 레슨 ID 조건으로 문제를 검색한다")
     void searchProblems_filtersByLessonId() {
         // given
-        // ⚠️ 리뷰 반영(P1) — 이 PR이 추가한 fk_p_problems_lesson_id FK 제약 때문에,
-        // 실제로 존재하지 않는 UUID.randomUUID()를 lessonId로 그대로 저장하려고
-        // 하면 ConstraintViolationException이 발생한다(직접 재현 확인). 실제
-        // Curriculum → Unit → Lesson 픽스처를 만들어 그 lesson_id를 사용해야 한다.
+        // FK 제약을 만족하도록 실제 Curriculum → Unit → Lesson 픽스처를 생성한다.
         Curriculum curriculum = Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA, 1);
         entityManager.persist(curriculum);
 
@@ -896,11 +918,7 @@ class ProblemQueryRepositoryImplTest {
 
         UUID targetLessonId = lesson.getId();
 
-        // ⚠️ 리뷰 반영(P1) — setUp()이 끝나며 entityManager.clear()를 호출해
-        // javaEasy는 detached 상태다. detached 엔티티에 changeLessonId()를
-        // 호출해도 JPA 변경 감지가 동작하지 않아 flush()해도 DB에 반영되지
-        // 않는다(직접 재현 확인) — 반드시 관리(managed) 상태로 다시 조회해서
-        // 수정해야 한다.
+        // setUp() 이후 detached 상태이므로 다시 조회해 managed 상태에서 수정한다.
         Problem managedJavaEasy = entityManager.find(Problem.class, javaEasy.getId());
         managedJavaEasy.changeLessonId(targetLessonId);
         entityManager.flush();
@@ -965,54 +983,13 @@ class ProblemQueryRepositoryImplTest {
             ProblemStatus problemStatus,
             UUID lessonId
     ) {
-        return mock(
-                ProblemSearchCondition.class,
-                invocation -> {
-
-                    String methodName =
-                            invocation
-                                    .getMethod()
-                                    .getName();
-
-                    return switch (methodName) {
-
-                        case "language",
-                             "getLanguage" ->
-                                language;
-
-                        case "difficulty",
-                             "getDifficulty" ->
-                                difficulty;
-
-                        /*
-                         * 현재 ProblemType은 CODE만 사용하므로
-                         * 모든 검색 조건에서도 CODE를 반환한다.
-                         */
-                        case "type",
-                             "getType" ->
-                                ProblemType.CODE;
-
-                        case "source",
-                             "getSource" ->
-                                source;
-
-                        case "problemStatus",
-                             "getProblemStatus",
-                             "status",
-                             "getStatus" ->
-                                problemStatus;
-
-                        case "lessonId",
-                             "getLessonId" ->
-                                lessonId;
-
-                        default ->
-                                Answers.RETURNS_DEFAULTS
-                                        .answer(
-                                                invocation
-                                        );
-                    };
-                }
+        return new ProblemSearchCondition(
+                language,
+                difficulty,
+                ProblemType.CODE,
+                source,
+                problemStatus,
+                lessonId
         );
     }
 
