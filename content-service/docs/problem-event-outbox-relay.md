@@ -131,6 +131,6 @@ WHERE id = :outbox_id AND status = 'FAILED';
 
 ## 5. 배포 순서
 
-V18 마이그레이션은 컬럼 추가와 CHECK 제약 교체뿐이며 기존 데이터(IN_PROGRESS 없음)는 그대로 통과합니다.
+V20 마이그레이션은 컬럼 추가와 CHECK 제약 교체뿐이며 기존 데이터(IN_PROGRESS 없음)는 그대로 통과합니다.
 이전 버전 인스턴스는 IN_PROGRESS를 모르므로(선점 없이 PENDING만 조회), **구버전과 신버전 Relay를 섞어서 동시에 켜지 않습니다.**
 롤링 배포 중에는 Relay를 한 인스턴스에서만 켜거나, 모든 인스턴스가 신버전이 된 뒤 Relay를 확장합니다.

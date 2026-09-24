@@ -21,18 +21,18 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
-@DisplayName("V18 ProblemEventOutbox claim/lease Migration 통합 테스트 (#160)")
-class ProblemEventOutboxV18MigrationTest {
+@DisplayName("V20 ProblemEventOutbox claim/lease Migration 통합 테스트 (#160)")
+class ProblemEventOutboxV20MigrationTest {
 
     @Container
     static final PostgreSQLContainer postgres =
             new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
     @Test
-    @DisplayName("V18 마이그레이션은 기존 Outbox 데이터를 유지하고 선점 컬럼, 상태/선점 CHECK 제약, lease 인덱스를 추가한다")
-    void migrateV18_preservesDataAndAddsClaimColumns() throws SQLException {
+    @DisplayName("V20 마이그레이션은 기존 Outbox 데이터를 유지하고 선점 컬럼, 상태/선점 CHECK 제약, lease 인덱스를 추가한다")
+    void migrateV20_preservesDataAndAddsClaimColumns() throws SQLException {
         // given
-        flyway("17").migrate();
+        flyway("19").migrate();
 
         UUID pendingId = UUID.randomUUID();
         UUID publishedId = UUID.randomUUID();
@@ -41,7 +41,7 @@ class ProblemEventOutboxV18MigrationTest {
         insertOutbox(publishedId, "PUBLISHED", "NOW()");
 
         // when
-        assertThatCode(() -> flyway("18").migrate()).doesNotThrowAnyException();
+        assertThatCode(() -> flyway("20").migrate()).doesNotThrowAnyException();
 
         // then: 기존 데이터는 선점 정보 없이 그대로 유지됩니다.
         assertThat(queryString("SELECT status FROM content_schema.p_problem_event_outboxes WHERE id = '" + pendingId + "'"))
