@@ -27,6 +27,10 @@ import java.util.UUID;
 @Table(name = "p_problems")
 public class Problem extends BaseEntity {
 
+    /** {@code title} 컬럼 길이(V1 스키마)와 같습니다. */
+    private static final int TITLE_MAX_LENGTH = 100;
+
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -94,6 +98,15 @@ public class Problem extends BaseEntity {
             ProblemSource source, ProblemStatus problemStatus
     ) {
         validateSupportedType(type);
+        validateTitle(title);
+        requireNotNull(language, "언어");
+        requireNotNull(difficulty, "난이도");
+        validateDescription(description);
+        requireNotNull(runningTimeLimit, "실행 시간 제한");
+        requireNotNull(runningMemoryLimit, "실행 메모리 제한");
+        requireNotNull(timerPolicy, "타이머 정책");
+        requireNotNull(source, "출처");
+        requireNotNull(problemStatus, "문제 상태");
 
         Problem problem = new Problem();
 
@@ -114,19 +127,53 @@ public class Problem extends BaseEntity {
     }
 
     /* problem 값 변경 */
-    public void changeTitle(String newTitle) { this.title = newTitle; }
-    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
-    public void changeDifficulty(ProblemDifficulty newDifficulty) { this.difficulty = newDifficulty; }
+    public void changeTitle(String newTitle) {
+        validateTitle(newTitle);
+        this.title = newTitle;
+    }
+
+    public void changeLanguage(ProgrammingLanguage newLanguage) {
+        requireNotNull(newLanguage, "언어");
+        this.language = newLanguage;
+    }
+
+    public void changeDifficulty(ProblemDifficulty newDifficulty) {
+        requireNotNull(newDifficulty, "난이도");
+        this.difficulty = newDifficulty;
+    }
+
     public void changeType(ProblemType newType) {
         validateSupportedType(newType);
         this.type = newType;
     }
-    public void changeDescription(String newDescription) { this.description = newDescription; }
+
+    public void changeDescription(String newDescription) {
+        validateDescription(newDescription);
+        this.description = newDescription;
+    }
+
+    /** 스타터 코드는 선택 값이므로 null(제거)을 허용합니다. */
     public void changeStarterCode(String newStarterCode) { this.starterCode = newStarterCode; }
-    public void changeRunningTimeLimit(RunningTimeLimit newRunningTimeLimit) { this.runningTimeLimit = newRunningTimeLimit; }
-    public void changeRunningMemoryLimit(RunningMemoryLimit newRunningMemoryLimit) { this.runningMemoryLimit = newRunningMemoryLimit; }
-    public void changeTimerPolicy(TimerPolicy newTimerPolicy) { this.timerPolicy = newTimerPolicy; }
-    public void changeSource(ProblemSource newSource) { this.source = newSource; }
+
+    public void changeRunningTimeLimit(RunningTimeLimit newRunningTimeLimit) {
+        requireNotNull(newRunningTimeLimit, "실행 시간 제한");
+        this.runningTimeLimit = newRunningTimeLimit;
+    }
+
+    public void changeRunningMemoryLimit(RunningMemoryLimit newRunningMemoryLimit) {
+        requireNotNull(newRunningMemoryLimit, "실행 메모리 제한");
+        this.runningMemoryLimit = newRunningMemoryLimit;
+    }
+
+    public void changeTimerPolicy(TimerPolicy newTimerPolicy) {
+        requireNotNull(newTimerPolicy, "타이머 정책");
+        this.timerPolicy = newTimerPolicy;
+    }
+
+    public void changeSource(ProblemSource newSource) {
+        requireNotNull(newSource, "출처");
+        this.source = newSource;
+    }
 
     /**
      * 문제를 특정 레슨에 연결합니다(이슈 #291).
@@ -189,6 +236,32 @@ public class Problem extends BaseEntity {
 
         this.problemStatus = ProblemStatus.PUBLISHED;
         this.currentVersionNo++;
+    }
+
+    /** DB 제약(NOT NULL, length 100)과 같은 기준으로 제목을 검증합니다. */
+    private static void validateTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "문제 제목은 비어 있을 수 없습니다.");
+        }
+        if (title.length() > TITLE_MAX_LENGTH) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "문제 제목은 " + TITLE_MAX_LENGTH + "자 이하여야 합니다."
+            );
+        }
+    }
+
+    /** DB 제약(NOT NULL)과 같은 기준으로 문제 설명을 검증합니다. 길이 상한은 요청 DTO의 정책입니다. */
+    private static void validateDescription(String description) {
+        if (description == null || description.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "문제 설명은 비어 있을 수 없습니다.");
+        }
+    }
+
+    private static void requireNotNull(Object value, String fieldName) {
+        if (value == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, fieldName + "은(는) 필수입니다.");
+        }
     }
 
     private static void validateSupportedType(ProblemType type) {

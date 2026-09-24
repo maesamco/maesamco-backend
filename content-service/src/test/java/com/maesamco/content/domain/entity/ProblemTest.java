@@ -392,6 +392,89 @@ class ProblemTest {
         assertThat(problem.getCurrentVersionNo()).isEqualTo(4);
     }
 
+    // ===== 이슈 #336 — 엔티티 자체 검증 (요청 DTO의 @Valid를 거치지 않는 진입점 방어) =====
+
+    @Test
+    @DisplayName("이슈 #336 — 공백이거나 100자를 넘는 제목으로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeTitle_invalid_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        for (String invalid : new String[]{null, "", "   ", "a".repeat(101)}) {
+            assertThatThrownBy(() -> problem.changeTitle(invalid))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        assertThat(problem.getTitle()).isEqualTo("두 수의 합");
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 정확히 100자인 제목으로는 변경할 수 있다")
+    void changeTitle_maxLength_isAllowed() {
+        Problem problem = createProblem();
+
+        problem.changeTitle("a".repeat(100));
+
+        assertThat(problem.getTitle()).hasSize(100);
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 비어 있는 문제 설명으로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeDescription_blank_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        for (String invalid : new String[]{null, "", "  \n "}) {
+            assertThatThrownBy(() -> problem.changeDescription(invalid))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        assertThat(problem.getDescription()).isEqualTo("두 정수를 입력받아 합을 출력하세요.");
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 필수 enum 필드를 null로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeRequiredEnums_null_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        assertThatThrownBy(() -> problem.changeLanguage(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeDifficulty(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeRunningTimeLimit(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeRunningMemoryLimit(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeTimerPolicy(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeSource(null)).isInstanceOf(BusinessException.class);
+
+        assertThat(problem.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
+        assertThat(problem.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
+        assertThat(problem.getRunningTimeLimit()).isEqualTo(RunningTimeLimit.values()[0]);
+        assertThat(problem.getRunningMemoryLimit()).isEqualTo(RunningMemoryLimit.values()[0]);
+        assertThat(problem.getTimerPolicy()).isEqualTo(TimerPolicy.NOT_APPLY_TIMEPOLICY);
+        assertThat(problem.getSource()).isEqualTo(ProblemSource.HUMAN_AUTHORED);
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 필수 값이 비어 있으면 문제를 생성할 수 없다")
+    void create_invalidRequiredFields_throws() {
+        assertThatThrownBy(() -> Problem.create(
+                " ", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE,
+                "설명", null, RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0],
+                TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT
+        )).isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        assertThatThrownBy(() -> Problem.create(
+                "제목", null, ProblemDifficulty.EASY, ProblemType.CODE,
+                "설명", null, RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0],
+                TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT
+        )).isInstanceOf(BusinessException.class);
+
+        assertThatThrownBy(() -> Problem.create(
+                "제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE,
+                "설명", null, RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0],
+                TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, null
+        )).isInstanceOf(BusinessException.class);
+    }
+
     private Problem createProblem() {
         return Problem.create(
                 "두 수의 합",
