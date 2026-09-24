@@ -156,13 +156,15 @@ class TestCaseServiceTest {
     class GetTestCase {
 
         @Test
-        @DisplayName("테스트케이스 단건 조회 시 TestCaseFinder를 통해 조회한다")
+        @DisplayName("테스트케이스 단건 조회 시 TestCaseFinder로 조회하고 상위 Problem의 활성 상태를 함께 확인한다")
         void getTestCase_success() {
 
             // given
             UUID testCaseId = UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
             TestCase testCase = mock(TestCase.class);
 
+            when(testCase.getProblemId()).thenReturn(problemId);
             when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
 
             // when
@@ -172,8 +174,29 @@ class TestCaseServiceTest {
             assertThat(result).isNotNull();
 
             verify(testCaseFinder).getById(testCaseId);
-            verifyNoInteractions(testCaseRepository, problemFinder);
+            verify(problemFinder).getById(problemId);
+            verifyNoInteractions(testCaseRepository);
             verifyNoMoreInteractions(testCaseFinder);
+        }
+
+        @Test
+        @DisplayName("이슈 #336 — 상위 Problem이 삭제되었거나 없으면 PROBLEM_NOT_FOUND 예외가 발생한다")
+        void getTestCase_parentProblemMissing_throws() {
+
+            // given
+            UUID testCaseId = UUID.randomUUID();
+            UUID problemId = UUID.randomUUID();
+            TestCase testCase = mock(TestCase.class);
+
+            when(testCase.getProblemId()).thenReturn(problemId);
+            when(testCaseFinder.getById(testCaseId)).thenReturn(testCase);
+            when(problemFinder.getById(problemId))
+                    .thenThrow(new BusinessException(ErrorCode.PROBLEM_NOT_FOUND));
+
+            // when & then
+            assertThatThrownBy(() -> testCaseService.getTestCase(testCaseId))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROBLEM_NOT_FOUND));
         }
     }
 

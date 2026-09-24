@@ -58,6 +58,14 @@ public class TestCaseService {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
+        /*
+         * 관리자 경로도 공개 경로(getPublicTestCase)와 목록 조회처럼 상위 Problem의 활성 상태를 확인한다.
+         * 상위 Problem이 삭제된 뒤에는 하위 테스트케이스에 ID로 직접 접근할 수 없어야 한다(이슈 #336).
+         */
+        problemFinder.getById(
+                testCase.getProblemId()
+        );
+
         return TestCaseResponse.from(testCase);
     }
 
