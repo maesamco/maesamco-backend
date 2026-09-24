@@ -429,4 +429,50 @@ class UserTest {
         assertThat(user.getNickname())
                 .isEqualTo("JavaMaster");
     }
+
+    @Test
+    @DisplayName("소셜 사용자는 비밀번호 없이 기본 권한과 활성 상태로 생성된다 (#308)")
+    void createSocialUserWithoutPassword() {
+        // when
+        User user = User.createSocial(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                "구글유저",
+                0,
+                LearningLevel.BEGINNER
+        );
+
+        // then
+        assertThat(user.getId()).isNotNull();
+        assertThat(user.getPasswordHash()).isNull();
+        assertThat(user.hasPassword()).isFalse();
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("일반 사용자는 비밀번호가 있는 계정이며, 비밀번호 해시 없이 생성할 수 없다 (#308)")
+    void createUserStillRequiresPassword() {
+        User user = User.create(
+                ENCRYPTED_EMAIL,
+                EMAIL_LOOKUP_HASH,
+                PASSWORD_HASH,
+                "매삼코",
+                3,
+                LearningLevel.BEGINNER
+        );
+
+        assertThat(user.hasPassword()).isTrue();
+
+        assertThatThrownBy(
+                () -> User.create(
+                        ENCRYPTED_EMAIL,
+                        EMAIL_LOOKUP_HASH,
+                        null,
+                        "매삼코",
+                        3,
+                        LearningLevel.BEGINNER
+                )
+        ).isInstanceOf(BusinessException.class);
+    }
 }
