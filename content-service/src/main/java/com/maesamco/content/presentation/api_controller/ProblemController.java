@@ -3,9 +3,11 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.application.persistence_service.ProblemService;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.request.ProblemCreateRequest;
 import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.maesamco.content.presentation.request.ProblemUpdateRequest;
@@ -14,8 +16,6 @@ import com.maesamco.content.presentation.response.ProblemResponse;
 import com.maesamco.content.presentation.response.ProblemSearchItemResponse;
 import com.maesamco.content.presentation.response.ProblemShortResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
@@ -119,10 +119,11 @@ public class ProblemController implements ProblemApiDocs {
             String sort,
             String direction
     ) {
-        Pageable pageable = PageableFactory.of(page, size, sort, direction);
+        // 잘못된 페이징 파라미터는 기본값으로 보정한다(팀 컨벤션 10절).
+        PageQuery pageQuery = PageQueryFactory.of(page, size, sort, direction);
 
-        // Service에서 Page로 반환한다.
-        Page<ProblemSearchResult> results = problemService.searchProblems(request.toQuery(), pageable);
+        // Service는 Spring Data 타입이 아닌 자체 PageResult로 반환한다(#230).
+        PageResult<ProblemSearchResult> results = problemService.searchProblems(request.toQuery(), pageQuery);
 
         // 페이지 공통 반환 객체 PageResponse로 변환한다.
         PageResponse<ProblemSearchItemResponse> response = PageResponse.from(results, ProblemSearchItemResponse::from);
@@ -132,20 +133,8 @@ public class ProblemController implements ProblemApiDocs {
         );
     }
 
-    /*
-     * 다중 정렬은
-     * @RequestParam(required = false) Integer page,
-     * @RequestParam(required = false) Integer size,
-     * @RequestParam(required = false) List<String> sort
-     * 로 Controller에서 받고, 요청은
-     * ?page=0
-     * &size=20
-     * &sort=title,asc
-     * &sort=createdAt,desc
-     * 와 같은 식의 예시처럼 받기로 약속한다.
-     * 그리고 List<String> sort의 경우, PageableFactory에서 약속한 sort 리스트의 구분자로 파싱해서 Sort.Order로 바꾼다.
-     * 이에 대해 다중 정렬에 대한 구현은 ProblemSearchRepositoryImpl에 미리 해놓았다.
-     * */
+    // 현재 PageQueryFactory는 단일 sort/direction만 파싱한다.
+    // 여러 정렬 조건을 받는 API가 필요해지면 sort 파싱을 별도로 확장한다.
 
     /**
      * 지정한 문제의 정보를 수정합니다.
