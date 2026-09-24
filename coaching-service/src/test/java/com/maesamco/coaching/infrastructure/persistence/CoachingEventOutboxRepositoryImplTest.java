@@ -9,7 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
@@ -22,6 +25,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,6 +67,9 @@ class CoachingEventOutboxRepositoryImplTest extends AbstractCoachingRepositoryTe
 
     @Autowired
     private CoachingEventOutboxRepositoryImpl coachingEventOutboxRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private UUID createCoachingSession() {
         CoachingSession session = CoachingSession.create(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1);
@@ -266,6 +274,87 @@ class CoachingEventOutboxRepositoryImplTest extends AbstractCoachingRepositoryTe
             assertThat(found.getClaimId()).isIn(firstClaimId, secondClaimId);
         } finally {
             executor.shutdownNow();
+            jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
+        }
+    }
+
+    /**
+     * 이슈 #289 — 위 동시 선점 테스트는 두 Worker가 모두 끝난 뒤 "합쳐서 1건"만 확인하므로, SKIP LOCKED가
+     * 일반 {@code FOR UPDATE}(대기)로 바뀌어도 통과한다(뒤 Worker가 앞 트랜잭션의 커밋을 기다렸다가 이미
+     * IN_PROGRESS가 된 행을 보고 빈 결과를 내도 합계는 같다). 여기서는 첫 트랜잭션이 행 잠금을 <b>유지한 채</b>
+     * 대기하는 동안 두 번째 Worker가 기다리지 않고 반환되는지를 확인한다. 두 번째 Worker가 잠금 해제를
+     * 기다린다면 첫 트랜잭션은 두 번째의 결과를 기다리고 있으므로 제한 시간 안에 끝나지 못한다(타임아웃으로 실패).
+     */
+    private <T> T claimWhileAnotherTransactionHoldsRowLock(java.util.function.Supplier<T> secondWorker) throws Exception {
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            // 첫 Worker: 가장 오래된 선점 후보를 잠근 채(커밋하지 않고) 붙잡고 있는다.
+            Future<?> holder = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                springDataCoachingEventOutboxRepository.findClaimableForUpdate(
+                        OutboxStatus.PENDING, OutboxStatus.IN_PROGRESS, Instant.now(), PageRequest.of(0, 1));
+                locked.countDown();
+                try {
+                    releaseFirstTransaction.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertThat(locked.await(5, TimeUnit.SECONDS)).as("첫 트랜잭션이 행 잠금을 잡아야 한다").isTrue();
+
+            Future<T> second = executor.submit(secondWorker::get);
+            try {
+                return second.get(3, TimeUnit.SECONDS); // 잠금이 유지되는 동안 기다리지 않고 반환돼야 한다
+            } catch (TimeoutException e) {
+                throw new AssertionError("두 번째 Worker가 다른 트랜잭션의 행 잠금을 기다렸다 — SKIP LOCKED가 아니라 blocking이다", e);
+            } finally {
+                releaseFirstTransaction.countDown();
+                holder.get(5, TimeUnit.SECONDS);
+            }
+        } finally {
+            releaseFirstTransaction.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("다른 트랜잭션이 유일한 선점 후보 행을 잠그고 있으면 기다리지 않고 빈 결과를 반환한다 (SKIP LOCKED non-blocking)")
+    void claimPublishable_doesNotBlockOnRowLockedByAnotherTransaction() throws Exception {
+        jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
+        try {
+            coachingEventOutboxRepository.save(CoachingEventOutbox.create(createCoachingSession(), "CoachingCompleted", payload()));
+
+            List<CoachingEventOutbox> claimed = claimWhileAnotherTransactionHoldsRowLock(
+                    () -> coachingEventOutboxRepository.claimPublishable(
+                            Instant.now(), Instant.now().plusSeconds(300), UUID.randomUUID(), 1));
+
+            assertThat(claimed).isEmpty();
+        } finally {
+            jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("가장 오래된 행이 다른 트랜잭션에 잠겨 있으면 기다리지 않고 잠기지 않은 다음 행을 선점한다")
+    void claimPublishable_skipsLockedRowAndClaimsNextOne() throws Exception {
+        jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
+        try {
+            UUID lockedOutboxId = coachingEventOutboxRepository.save(
+                    CoachingEventOutbox.create(createCoachingSession(), "CoachingCompleted", payload())).getId();
+            UUID nextOutboxId = coachingEventOutboxRepository.save(
+                    CoachingEventOutbox.create(createCoachingSession(), "CoachingCompleted", payload())).getId();
+
+            List<CoachingEventOutbox> claimed = claimWhileAnotherTransactionHoldsRowLock(
+                    () -> coachingEventOutboxRepository.claimPublishable(
+                            Instant.now(), Instant.now().plusSeconds(300), UUID.randomUUID(), 1));
+
+            assertThat(claimed).singleElement().extracting(CoachingEventOutbox::getId).isEqualTo(nextOutboxId);
+            assertThat(claimed.get(0).getId()).isNotEqualTo(lockedOutboxId);
+        } finally {
             jdbcTemplate.update("DELETE FROM coaching_schema.p_coaching_event_outboxes");
         }
     }
