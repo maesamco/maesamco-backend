@@ -8,6 +8,8 @@ import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.repository.LessonRepository;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
@@ -115,16 +117,50 @@ public class LessonService {
                         && !request.getDisplayOrder()
                         .equals(lesson.getDisplayOrder())
         ) {
-            unitFinder.lockById(
-                    lesson.getUnitId()
-            );
-
-            lesson.changeDisplayOrder(
-                    request.getDisplayOrder()
-            );
+            moveLesson(lesson, request.getDisplayOrder());
         }
 
         return LessonResponse.from(lesson);
+    }
+
+    /**
+     * Lesson을 같은 Unit 안의 목표 자리로 옮기고, 형제 Lesson을 1..N으로 다시 정렬합니다(#324).
+     *
+     * <p>displayOrder는 "옮겨 갈 자리"로 해석합니다. 다른 형제가 쓰고 있는 번호로 옮기면
+     * 그 사이의 형제들이 한 칸씩 밀리거나 당겨집니다.</p>
+     *
+     * <ul>
+     *     <li>부모 Unit을 먼저 잠가 같은 Unit의 생성·순서 변경을 직렬화합니다.</li>
+     *     <li>목표 자리가 1..(활성 형제 수)를 벗어나면 LESSON_DISPLAY_ORDER_OUT_OF_RANGE로 거절합니다.
+     *     트랜잭션이 롤백되므로 같은 요청의 다른 필드 변경도 반영되지 않습니다.</li>
+     *     <li>잠금을 기다리는 사이 Lesson이 삭제됐으면 LESSON_NOT_FOUND로 거절합니다.</li>
+     * </ul>
+     */
+    private void moveLesson(Lesson lesson, int position) {
+
+        unitFinder.lockById(lesson.getUnitId());
+
+        List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
+
+        boolean stillActive = siblings.stream()
+                .anyMatch(sibling -> sibling.getId().equals(lesson.getId()));
+
+        if (!stillActive) {
+            throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+        }
+
+        if (!SiblingDisplayOrders.isInRange(position, siblings.size())) {
+            throw new BusinessException(ErrorCode.LESSON_DISPLAY_ORDER_OUT_OF_RANGE);
+        }
+
+        lessonRepository.reorder(
+                SiblingDisplayOrders.moveTo(
+                        siblings,
+                        Lesson::getId,
+                        lesson.getId(),
+                        position
+                )
+        );
     }
 
     /** 레슨 삭제 */
