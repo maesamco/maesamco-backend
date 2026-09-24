@@ -1,9 +1,9 @@
 package com.maesamco.content.domain.entity;
 
-import tools.jackson.databind.JsonNode;
 import com.maesamco.content.domain.entity.problem.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,37 +23,37 @@ class ProblemVersionSnapshotMapperTest {
         JsonNode snapshot = ProblemVersionSnapshotMapper.toJson(problem);
 
         // then
-        assertThat(snapshot.path("title").asText())
+        assertThat(snapshot.path("title").asString())
                 .isEqualTo("두 수의 합");
 
-        assertThat(snapshot.path("language").asText())
+        assertThat(snapshot.path("language").asString())
                 .isEqualTo("JAVA");
 
-        assertThat(snapshot.path("difficulty").asText())
+        assertThat(snapshot.path("difficulty").asString())
                 .isEqualTo("EASY");
 
-        assertThat(snapshot.path("type").asText())
+        assertThat(snapshot.path("type").asString())
                 .isEqualTo("CODE");
 
-        assertThat(snapshot.path("description").asText())
+        assertThat(snapshot.path("description").asString())
                 .isEqualTo("두 정수를 더한 값을 반환하세요.");
 
-        assertThat(snapshot.path("starterCode").asText())
+        assertThat(snapshot.path("starterCode").asString())
                 .isEqualTo("class Solution {}");
 
-        assertThat(snapshot.path("runningTimeLimit").asText())
+        assertThat(snapshot.path("runningTimeLimit").asString())
                 .isEqualTo("SECOND_1");
 
-        assertThat(snapshot.path("runningMemoryLimit").asText())
+        assertThat(snapshot.path("runningMemoryLimit").asString())
                 .isEqualTo("MB_128");
 
-        assertThat(snapshot.path("timerPolicy").asText())
+        assertThat(snapshot.path("timerPolicy").asString())
                 .isEqualTo("APPLY60");
 
-        assertThat(snapshot.path("source").asText())
+        assertThat(snapshot.path("source").asString())
                 .isEqualTo("HUMAN_AUTHORED");
 
-        assertThat(snapshot.path("problemStatus").asText())
+        assertThat(snapshot.path("problemStatus").asString())
                 .isEqualTo("REVIEW_PENDING");
 
         assertThat(snapshot.has("testCases"))
@@ -94,10 +94,10 @@ class ProblemVersionSnapshotMapperTest {
                 );
 
         // then
-        assertThat(snapshot.path("title").asText())
+        assertThat(snapshot.path("title").asString())
                 .isEqualTo("두 수의 합");
 
-        assertThat(snapshot.path("problemStatus").asText())
+        assertThat(snapshot.path("problemStatus").asString())
                 .isEqualTo("REVIEW_PENDING");
 
         JsonNode testCaseNodes = snapshot.path("testCases");
@@ -110,16 +110,16 @@ class ProblemVersionSnapshotMapperTest {
 
         JsonNode first = testCaseNodes.get(0);
 
-        assertThat(first.path("testCaseId").asText())
+        assertThat(first.path("testCaseId").asString())
                 .isEqualTo(firstTestCaseId.toString());
 
         assertThat(first.path("isPublic").asBoolean())
                 .isTrue();
 
-        assertThat(first.path("input").asText())
+        assertThat(first.path("input").asString())
                 .isEqualTo("1 2");
 
-        assertThat(first.path("expectedOutput").asText())
+        assertThat(first.path("expectedOutput").asString())
                 .isEqualTo("3");
 
         assertThat(first.path("displayOrder").asInt())
@@ -127,16 +127,16 @@ class ProblemVersionSnapshotMapperTest {
 
         JsonNode second = testCaseNodes.get(1);
 
-        assertThat(second.path("testCaseId").asText())
+        assertThat(second.path("testCaseId").asString())
                 .isEqualTo(secondTestCaseId.toString());
 
         assertThat(second.path("isPublic").asBoolean())
                 .isFalse();
 
-        assertThat(second.path("input").asText())
+        assertThat(second.path("input").asString())
                 .isEqualTo("10 20");
 
-        assertThat(second.path("expectedOutput").asText())
+        assertThat(second.path("expectedOutput").asString())
                 .isEqualTo("30");
 
         assertThat(second.path("displayOrder").asInt())

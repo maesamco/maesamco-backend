@@ -1,10 +1,10 @@
 package com.maesamco.content.domain.entity.problem;
 
+import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
-import com.maesamco.content.domain.entity.ProgrammingLanguage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,24 +41,24 @@ public final class ProblemVersionSnapshotMapper {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
 
         RunningTimeLimit runningTimeLimit = RunningTimeLimit.valueOf(
-                snapshot.path("runningTimeLimit").asText()
+                snapshot.path("runningTimeLimit").asString()
         );
 
         RunningMemoryLimit runningMemoryLimit = RunningMemoryLimit.valueOf(
-                snapshot.path("runningMemoryLimit").asText()
+                snapshot.path("runningMemoryLimit").asString()
         );
 
         return new ProblemVersionSnapshot(
-                snapshot.path("title").asText(),
-                ProgrammingLanguage.valueOf(snapshot.path("language").asText()),
-                ProblemDifficulty.valueOf(snapshot.path("difficulty").asText()),
-                ProblemType.valueOf(snapshot.path("type").asText()),
-                snapshot.path("description").asText(),
+                snapshot.path("title").asString(),
+                ProgrammingLanguage.valueOf(snapshot.path("language").asString()),
+                ProblemDifficulty.valueOf(snapshot.path("difficulty").asString()),
+                ProblemType.valueOf(snapshot.path("type").asString()),
+                snapshot.path("description").asString(),
                 getNullableText(snapshot, "starterCode"),
                 runningTimeLimit.getSeconds(),
                 runningMemoryLimit.getMegabytes(),
-                TimerPolicy.valueOf(snapshot.path("timerPolicy").asText()),
-                ProblemSource.valueOf(snapshot.path("source").asText()),
+                TimerPolicy.valueOf(snapshot.path("timerPolicy").asString()),
+                ProblemSource.valueOf(snapshot.path("source").asString()),
                 toTestCaseItems(snapshot.path("testCases"))
         );
     }
@@ -111,7 +111,7 @@ public final class ProblemVersionSnapshotMapper {
         for (JsonNode testCaseNode : testCaseNodes) {
             testCases.add(
                     new ProblemVersionTestCaseItem(
-                            UUID.fromString(testCaseNode.path("testCaseId").asText()),
+                            UUID.fromString(testCaseNode.path("testCaseId").asString()),
                             testCaseNode.path("isPublic").asBoolean(),
                             getNullableText(testCaseNode, "input"),
                             getNullableText(testCaseNode, "expectedOutput"),
@@ -126,6 +126,6 @@ public final class ProblemVersionSnapshotMapper {
     private static String getNullableText(JsonNode node, String fieldName) {
         JsonNode value = node.get(fieldName);
 
-        return (value == null || value.isNull()) ? null : value.asText();
+        return (value == null || value.isNull()) ? null : value.asString();
     }
 }

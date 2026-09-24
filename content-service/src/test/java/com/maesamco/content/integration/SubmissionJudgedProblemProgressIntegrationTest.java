@@ -1,6 +1,5 @@
 package com.maesamco.content.integration;
 
-import tools.jackson.databind.node.JsonNodeFactory;
 import com.maesamco.content.application.command_service.ProblemProgressCommandService;
 import com.maesamco.content.application.finder.ProblemProgressFinder;
 import com.maesamco.content.application.finder_service.ProblemFinderService;
@@ -39,6 +38,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 import java.time.Instant;
 import java.util.List;

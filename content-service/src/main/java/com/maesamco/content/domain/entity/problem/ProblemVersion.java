@@ -1,6 +1,5 @@
 package com.maesamco.content.domain.entity.problem;
 
-import tools.jackson.databind.JsonNode;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -15,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
 import java.util.List;
