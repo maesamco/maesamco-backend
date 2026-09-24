@@ -1,10 +1,10 @@
 package com.maesamco.content.domain.repository.problem;
 
 import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,9 +35,9 @@ public interface ProblemTagRepository {
             UUID tagId
     );
 
-    Page<Tag> searchTagsByProblemId(
+    PageResult<Tag> searchTagsByProblemId(
             UUID problemId,
-            Pageable pageable
+            PageQuery pageQuery
     );
 
     List<Tag> findAllTagsByProblemId(

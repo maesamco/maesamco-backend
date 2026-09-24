@@ -9,8 +9,9 @@ import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.application.result.TagResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,9 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -49,7 +47,7 @@ class ProblemTagServiceTest {
     void searchProblemTags_success() {
         // given
         UUID problemId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         Problem problem = mock(Problem.class);
 
@@ -61,14 +59,14 @@ class ProblemTagServiceTest {
 
         when(problemTagRepository.searchTagsByProblemId(
                 problemId,
-                pageable
-        )).thenReturn(Page.empty(pageable));
+                pageQuery
+        )).thenReturn(PageResult.empty(pageQuery));
 
         // when
-        PageResponse<TagResponse> result =
+        PageResult<TagResult> result =
                 problemTagService.searchProblemTags(
                         problemId,
-                        pageable
+                        pageQuery
                 );
 
         // then
@@ -78,7 +76,7 @@ class ProblemTagServiceTest {
 
         verify(problemFinder).getById(problemId);
         verify(problemTagRepository)
-                .searchTagsByProblemId(problemId, pageable);
+                .searchTagsByProblemId(problemId, pageQuery);
     }
 
     @Test
@@ -86,7 +84,7 @@ class ProblemTagServiceTest {
     void searchProblemTags_notPublished_throwsException() {
         // given
         UUID problemId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         Problem problem = mock(Problem.class);
 
@@ -100,7 +98,7 @@ class ProblemTagServiceTest {
         assertThatThrownBy(
                 () -> problemTagService.searchProblemTags(
                         problemId,
-                        pageable
+                        pageQuery
                 )
         )
                 .isInstanceOf(BusinessException.class)

@@ -160,7 +160,9 @@ public class LessonController implements LessonApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<List<TagResponse>>> getLessonConcepts(UUID lessonId) {
-        List<TagResponse> response = lessonService.getLessonConcepts(lessonId);
+        List<TagResponse> response = lessonService.getLessonConcepts(lessonId).stream()
+                .map(TagResponse::from)
+                .toList();
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)

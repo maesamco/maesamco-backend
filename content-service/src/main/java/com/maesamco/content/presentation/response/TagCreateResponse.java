@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.application.result.TagResult;
 import com.maesamco.content.domain.entity.TagAttribute;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,7 +17,7 @@ public class TagCreateResponse {
     private final String name;
     private final TagAttribute attribute;
 
-    public static TagCreateResponse from(Tag tag) {
+    public static TagCreateResponse from(TagResult tag) {
         return new TagCreateResponse(
                 tag.getId(),
                 tag.getName(),

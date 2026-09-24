@@ -7,11 +7,11 @@ import com.maesamco.content.domain.repository.TagRepository;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TagCreateRequest;
-import com.maesamco.content.presentation.request.TagUpdateRequest;
-import com.maesamco.content.presentation.response.TagCreateResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.application.command.TagCreateCommand;
+import com.maesamco.content.application.command.TagUpdateCommand;
+import com.maesamco.content.application.result.TagResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,10 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -66,7 +62,7 @@ class TagServiceTest {
         void createTag_success() {
 
             // given
-            TagCreateRequest request = mock(TagCreateRequest.class);
+            TagCreateCommand request = mock(TagCreateCommand.class);
             Tag savedTag = mock(Tag.class);
 
             when(request.getName()).thenReturn("자료구조");
@@ -75,7 +71,7 @@ class TagServiceTest {
             when(tagRepository.save(any(Tag.class))).thenReturn(savedTag);
 
             // when
-            TagCreateResponse result = tagService.createTag(request);
+            TagResult result = tagService.createTag(request);
 
             // then
             ArgumentCaptor<Tag> captor = ArgumentCaptor.forClass(Tag.class);
@@ -98,7 +94,7 @@ class TagServiceTest {
         void createTag_duplicateName_throwsTagNameAlreadyExists() {
 
             // given
-            TagCreateRequest request = mock(TagCreateRequest.class);
+            TagCreateCommand request = mock(TagCreateCommand.class);
 
             when(request.getName()).thenReturn("자료구조");
             when(tagRepository.existsByName("자료구조")).thenReturn(true);
@@ -122,7 +118,7 @@ class TagServiceTest {
         void createTag_checksDuplicateBeforeSave() {
 
             // given
-            TagCreateRequest request = mock(TagCreateRequest.class);
+            TagCreateCommand request = mock(TagCreateCommand.class);
             Tag savedTag = mock(Tag.class);
 
             when(request.getName()).thenReturn("그래프");
@@ -153,20 +149,20 @@ class TagServiceTest {
         void searchTags_success() {
 
             // given
-            Pageable pageable = PageRequest.of(0, 10);
+            PageQuery pageQuery = PageQuery.of(0, 10);
             Tag first = mock(Tag.class);
             Tag second = mock(Tag.class);
-            Page<Tag> page = new PageImpl<>(List.of(first, second), pageable, 2);
+            PageResult<Tag> page = new PageResult<>(List.of(first, second), pageQuery.page(), pageQuery.size(), 2);
 
-            when(tagRepository.searchTags(pageable)).thenReturn(page);
+            when(tagRepository.searchTags(pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TagResponse> result = tagService.searchTags(pageable);
+            PageResult<TagResult> result = tagService.searchTags(pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
-            verify(tagRepository).searchTags(pageable);
+            verify(tagRepository).searchTags(pageQuery);
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -176,18 +172,18 @@ class TagServiceTest {
         void searchTags_emptyPage_success() {
 
             // given
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<Tag> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(0, 10);
+            PageResult<Tag> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(tagRepository.searchTags(pageable)).thenReturn(page);
+            when(tagRepository.searchTags(pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TagResponse> result = tagService.searchTags(pageable);
+            PageResult<TagResult> result = tagService.searchTags(pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
-            verify(tagRepository).searchTags(pageable);
+            verify(tagRepository).searchTags(pageQuery);
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -197,16 +193,16 @@ class TagServiceTest {
         void searchTags_passesExactPageable() {
 
             // given
-            Pageable pageable = PageRequest.of(2, 20);
-            Page<Tag> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(2, 20);
+            PageResult<Tag> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(tagRepository.searchTags(pageable)).thenReturn(page);
+            when(tagRepository.searchTags(pageQuery)).thenReturn(page);
 
             // when
-            tagService.searchTags(pageable);
+            tagService.searchTags(pageQuery);
 
             // then
-            verify(tagRepository).searchTags(same(pageable));
+            verify(tagRepository).searchTags(same(pageQuery));
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -226,21 +222,21 @@ class TagServiceTest {
 
             // given
             TagAttribute attribute = TagAttribute.CONCEPT;
-            Pageable pageable = PageRequest.of(0, 10);
+            PageQuery pageQuery = PageQuery.of(0, 10);
 
             Tag first = mock(Tag.class);
             Tag second = mock(Tag.class);
-            Page<Tag> page = new PageImpl<>(List.of(first, second), pageable, 2);
+            PageResult<Tag> page = new PageResult<>(List.of(first, second), pageQuery.page(), pageQuery.size(), 2);
 
-            when(tagRepository.searchTagsByAttribute(attribute, pageable)).thenReturn(page);
+            when(tagRepository.searchTagsByAttribute(attribute, pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TagResponse> result = tagService.searchTagsByAttribute(attribute, pageable);
+            PageResult<TagResult> result = tagService.searchTagsByAttribute(attribute, pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
-            verify(tagRepository).searchTagsByAttribute(attribute, pageable);
+            verify(tagRepository).searchTagsByAttribute(attribute, pageQuery);
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -251,18 +247,18 @@ class TagServiceTest {
 
             // given
             TagAttribute attribute = TagAttribute.CONCEPT;
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<Tag> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(0, 10);
+            PageResult<Tag> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(tagRepository.searchTagsByAttribute(attribute, pageable)).thenReturn(page);
+            when(tagRepository.searchTagsByAttribute(attribute, pageQuery)).thenReturn(page);
 
             // when
-            PageResponse<TagResponse> result = tagService.searchTagsByAttribute(attribute, pageable);
+            PageResult<TagResult> result = tagService.searchTagsByAttribute(attribute, pageQuery);
 
             // then
             assertThat(result).isNotNull();
 
-            verify(tagRepository).searchTagsByAttribute(attribute, pageable);
+            verify(tagRepository).searchTagsByAttribute(attribute, pageQuery);
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -273,16 +269,16 @@ class TagServiceTest {
 
             // given
             TagAttribute attribute = TagAttribute.CONCEPT;
-            Pageable pageable = PageRequest.of(3, 15);
-            Page<Tag> page = new PageImpl<>(List.of(), pageable, 0);
+            PageQuery pageQuery = PageQuery.of(3, 15);
+            PageResult<Tag> page = new PageResult<>(List.of(), pageQuery.page(), pageQuery.size(), 0);
 
-            when(tagRepository.searchTagsByAttribute(attribute, pageable)).thenReturn(page);
+            when(tagRepository.searchTagsByAttribute(attribute, pageQuery)).thenReturn(page);
 
             // when
-            tagService.searchTagsByAttribute(attribute, pageable);
+            tagService.searchTagsByAttribute(attribute, pageQuery);
 
             // then
-            verify(tagRepository).searchTagsByAttribute(eq(attribute), same(pageable));
+            verify(tagRepository).searchTagsByAttribute(eq(attribute), same(pageQuery));
             verifyNoInteractions(tagFinder, problemTagRepository);
             verifyNoMoreInteractions(tagRepository);
         }
@@ -304,7 +300,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
@@ -330,7 +326,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
@@ -356,7 +352,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(request.getName()).thenReturn(null);
@@ -378,7 +374,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(request.getName()).thenReturn(null);
@@ -402,7 +398,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("자료구조");
@@ -428,7 +424,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
@@ -458,7 +454,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");
@@ -481,7 +477,7 @@ class TagServiceTest {
             // given
             UUID tagId = UUID.randomUUID();
             Tag tag = mock(Tag.class);
-            TagUpdateRequest request = mock(TagUpdateRequest.class);
+            TagUpdateCommand request = mock(TagUpdateCommand.class);
 
             when(tagFinder.getById(tagId)).thenReturn(tag);
             when(tag.getName()).thenReturn("기존 이름");

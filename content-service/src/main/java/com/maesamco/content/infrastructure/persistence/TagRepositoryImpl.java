@@ -3,9 +3,10 @@ package com.maesamco.content.infrastructure.persistence;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.repository.TagRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -40,20 +41,24 @@ public class TagRepositoryImpl implements TagRepository {
     }
 
     @Override
-    public Page<Tag> searchTags(Pageable pageable) {
-        return springDataTagRepository
-                .findAllByOrderByCreatedAtDescIdDesc(pageable);
+    public PageResult<Tag> searchTags(PageQuery pageQuery) {
+        return SpringPageConverter.toPageResult(
+                springDataTagRepository
+                        .findAllByOrderByCreatedAtDescIdDesc(SpringPageConverter.toPageable(pageQuery))
+        );
     }
 
     @Override
-    public Page<Tag> searchTagsByAttribute(
+    public PageResult<Tag> searchTagsByAttribute(
             TagAttribute attribute,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
-        return springDataTagRepository
-                .findByAttributeOrderByCreatedAtDescIdDesc(
-                        attribute,
-                        pageable
-                );
+        return SpringPageConverter.toPageResult(
+                springDataTagRepository
+                        .findByAttributeOrderByCreatedAtDescIdDesc(
+                                attribute,
+                                SpringPageConverter.toPageable(pageQuery)
+                        )
+        );
     }
 }

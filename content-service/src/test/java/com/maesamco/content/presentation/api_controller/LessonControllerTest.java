@@ -10,7 +10,7 @@ import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.application.result.TagResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -253,7 +253,7 @@ class LessonControllerTest {
         Tag stackTag = Tag.create("스택", TagAttribute.CONCEPT);
 
         when(lessonService.getLessonConcepts(lessonId))
-                .thenReturn(List.of(TagResponse.from(stackTag)));
+                .thenReturn(List.of(TagResult.from(stackTag)));
 
         // when & then
         mockMvc.perform(

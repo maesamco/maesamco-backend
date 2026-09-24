@@ -1,12 +1,14 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.ProblemTagService;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.response.TagResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
@@ -40,13 +42,15 @@ public class ProblemTagController implements ProblemTagApiDocs {
             Integer page,
             Integer size
     ) {
-        Pageable pageable = PageableFactory.of(page, size, null, null);
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResponse<TagResponse> response =
+        PageResult<TagResult> result =
                 problemTagService.searchProblemTags(
                         problemId,
-                        pageable
+                        pageQuery
                 );
+
+        PageResponse<TagResponse> response = PageResponse.from(result, TagResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
