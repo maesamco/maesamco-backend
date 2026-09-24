@@ -10,12 +10,12 @@
 
 {$EC2_ELASTIC_IP_DASHED}.nip.io {
     # api-gateway는 이제 외부에 직접 노출하지 않고, Caddy를 통해서만 접근한다
-    reverse_proxy api-gateway:8080
-
-    # 실제 클라이언트 IP를 Gateway의 Rate Limit(remoteAddress 기반)이
-    # 여전히 정확히 볼 수 있도록 표준 헤더를 그대로 전달한다.
-    header_up X-Forwarded-Proto {scheme}
-    header_up X-Forwarded-For {remote_host}
+    # ⚠️ header_up은 reverse_proxy 블록 "안에" 중첩돼야 하는 서브디렉티브다
+    # (바깥에 나란히 쓰면 "unrecognized directive"로 실패 — 실제 배포로 발견).
+    reverse_proxy api-gateway:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For {remote_host}
+    }
 }
 
 # 혹시 HTTP(80)로 직접 오는 요청은 자동으로 HTTPS로 리다이렉트(Caddy 기본 동작,
