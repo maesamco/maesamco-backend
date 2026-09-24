@@ -23,71 +23,152 @@ import java.util.UUID;
 public class UnitService {
 
     private final UnitRepository unitRepository;
+
     private final UnitFinder unitFinder;
+
     private final CurriculumFinder curriculumFinder;
 
-    /** 유닛 생성 */
     @Transactional(rollbackFor = Exception.class)
-    public UnitCreateResponse createUnit(UnitCreateRequest request) {
-
-        // 상위 커리큘럼 존재 여부 확인
-        curriculumFinder.getById(request.getCurriculumId());
-
-        int displayOrder = Math.toIntExact(
-                unitRepository.countByCurriculumId(request.getCurriculumId()) + 1
+    public UnitCreateResponse createUnit(
+            UnitCreateRequest request
+    ) {
+        /*
+         * 동일 Curriculum 아래에서 동시에 Unit을 생성하면
+         * 같은 displayOrder가 계산될 수 있으므로 부모를 먼저 잠근다.
+         */
+        curriculumFinder.lockById(
+                request.getCurriculumId()
         );
 
-        Unit unit = Unit.create(
-                request.getCurriculumId(),
-                request.getTitle(),
-                request.getLanguage(),
-                displayOrder
+        int displayOrder =
+                Math.addExact(
+                        unitRepository
+                                .findMaxDisplayOrderByCurriculumId(
+                                        request.getCurriculumId()
+                                ),
+                        1
+                );
+
+        Unit unit =
+                Unit.create(
+                        request.getCurriculumId(),
+                        request.getTitle(),
+                        request.getLanguage(),
+                        displayOrder
+                );
+
+        Unit savedUnit =
+                unitRepository.save(
+                        unit
+                );
+
+        return UnitCreateResponse.from(
+                savedUnit
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public UnitResponse getUnit(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<UnitResponse> searchUnits(
+            UUID curriculumId,
+            Pageable pageable
+    ) {
+        curriculumFinder.getById(
+                curriculumId
         );
 
-        Unit savedUnit = unitRepository.save(unit);
+        Page<Unit> units =
+                unitRepository.searchUnits(
+                        curriculumId,
+                        pageable
+                );
 
-        return UnitCreateResponse.from(savedUnit);
+        return PageResponse.from(
+                units,
+                UnitResponse::from
+        );
     }
 
-    /** 유닛 단건 조회 */
-    @Transactional(readOnly = true)
-    public UnitResponse getUnit(UUID unitId) {
-
-        Unit unit = unitFinder.getById(unitId);
-
-        return UnitResponse.from(unit);
-    }
-
-    /** 특정 커리큘럼 유닛 목록 조회 */
-    @Transactional(readOnly = true)
-    public PageResponse<UnitResponse> searchUnits(UUID curriculumId, Pageable pageable) {
-
-        // 존재하지 않는 커리큘럼에 대한 조회 방지
-        curriculumFinder.getById(curriculumId);
-
-        Page<Unit> units = unitRepository.searchUnits(curriculumId, pageable);
-
-        return PageResponse.from(units, UnitResponse::from);
-    }
-
-    /** 유닛 수정 */
     @Transactional(rollbackFor = Exception.class)
-    public UnitResponse updateUnit(UUID unitId, UnitUpdateRequest request) {
+    public UnitResponse updateUnit(
+            UUID unitId,
+            UnitUpdateRequest request
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
 
-        Unit unit = unitFinder.getById(unitId);
+        /*
+         * 형제 Unit의 displayOrder와 경쟁할 수 있으므로
+         * 실제 순서 변경 요청인 경우 부모 Curriculum을 잠근다.
+         */
+        if (
+                request.getDisplayOrder() != null
+                        && !request.getDisplayOrder()
+                        .equals(
+                                unit.getDisplayOrder()
+                        )
+        ) {
+            curriculumFinder.lockById(
+                    unit.getCurriculumId()
+            );
+        }
 
-        if (request.getTitle() != null) { unit.changeTitle(request.getTitle()); }
-        if (request.getLanguage() != null) { unit.changeLanguage(request.getLanguage()); }
+        if (request.getTitle() != null) {
+            unit.changeTitle(
+                    request.getTitle()
+            );
+        }
 
-        return UnitResponse.from(unit);
+        if (request.getLanguage() != null) {
+            unit.changeLanguage(
+                    request.getLanguage()
+            );
+        }
+
+        if (
+                request.getDisplayOrder() != null
+                        && !request.getDisplayOrder()
+                        .equals(
+                                unit.getDisplayOrder()
+                        )
+        ) {
+            unit.changeDisplayOrder(
+                    request.getDisplayOrder()
+            );
+        }
+
+        return UnitResponse.from(
+                unit
+        );
     }
 
-    /** 유닛 삭제 */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteUnit(UUID unitId, UUID userId) {
+    public void deleteUnit(
+            UUID unitId,
+            UUID userId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
 
-        Unit unit = unitFinder.getById(unitId);
-
-        unit.softDelete(userId);
+        unit.softDelete(
+                userId
+        );
     }
 }

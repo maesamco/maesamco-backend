@@ -4,6 +4,7 @@ import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.maesamco.content.presentation.response.AdminProblemSearchItemResponse;
+import com.maesamco.content.presentation.response.ProblemVersionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
 import java.util.UUID;
 
 @Controller
@@ -49,6 +51,40 @@ public interface AdminProblemApiDocs {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String direction
+    );
+
+    @GetMapping("/{problemId}/versions")
+    @Operation(
+            summary = "문제 버전 이력 조회",
+            description = "특정 문제의 전체 버전 이력을 최신 버전부터 조회합니다. ADMIN 권한이 필요합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "문제 버전 이력 조회 성공"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
+            @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "PROBLEM_NOT_FOUND — 문제를 찾을 수 없음")
+    })
+    ResponseEntity<SuccessResponse<List<ProblemVersionResponse>>> getProblemVersions(
+            @Parameter(description = "조회할 문제 ID")
+            @PathVariable UUID problemId
+    );
+
+    @GetMapping("/{problemId}/versions/{versionNo}")
+    @Operation(
+            summary = "문제 특정 버전 조회",
+            description = "특정 문제의 버전 번호에 해당하는 스냅샷을 조회합니다. ADMIN 권한이 필요합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "문제 특정 버전 조회 성공"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
+            @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "PROBLEM_NOT_FOUND — 문제를 찾을 수 없음")
+    })
+    ResponseEntity<SuccessResponse<ProblemVersionResponse>> getProblemVersion(
+            @Parameter(description = "조회할 문제 ID")
+            @PathVariable UUID problemId,
+            @Parameter(description = "조회할 문제 버전 번호")
+            @PathVariable Integer versionNo
     );
 
     @PostMapping("/{problemId}/approve")

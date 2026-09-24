@@ -12,31 +12,47 @@ import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class CurriculumRepositoryImpl implements CurriculumRepository {
+public class CurriculumRepositoryImpl
+        implements CurriculumRepository {
 
-    private final SpringDataCurriculumRepository springDataCurriculumRepository;
+    private final SpringDataCurriculumRepository
+            springDataCurriculumRepository;
 
     @Override
-    public Curriculum save(Curriculum curriculum) {
+    public Curriculum save(
+            Curriculum curriculum
+    ) {
         return springDataCurriculumRepository
                 .save(curriculum);
     }
 
     @Override
-    public Optional<Curriculum> findById(UUID curriculumId) {
+    public Optional<Curriculum> findById(
+            UUID curriculumId
+    ) {
         return springDataCurriculumRepository
-                .findByIdAndDeletedAtIsNull(curriculumId);
+                .findByIdAndDeletedAtIsNull(
+                        curriculumId
+                );
     }
 
     @Override
-    public long count() {
+    public Optional<Curriculum> findByIdForUpdate(
+            UUID curriculumId
+    ) {
         return springDataCurriculumRepository
-                .countByDeletedAtIsNull();
+                .findByIdForUpdate(
+                        curriculumId
+                );
     }
 
     @Override
-    public Page<Curriculum> searchCurriculums(Pageable pageable) {
+    public Page<Curriculum> searchCurriculums(
+            Pageable pageable
+    ) {
         return springDataCurriculumRepository
-                .findByDeletedAtIsNullOrderByDisplayOrderAscIdAsc(pageable);
+                .findByDeletedAtIsNullOrderByIdAsc(
+                        pageable
+                );
     }
 }

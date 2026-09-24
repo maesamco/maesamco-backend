@@ -9,11 +9,19 @@ import java.util.UUID;
 
 public interface CurriculumRepository {
 
-    Curriculum save(Curriculum curriculum);
+    Curriculum save(
+            Curriculum curriculum
+    );
 
-    Optional<Curriculum> findById(UUID curriculumId);
+    Optional<Curriculum> findById(
+            UUID curriculumId
+    );
 
-    long count();
+    Optional<Curriculum> findByIdForUpdate(
+            UUID curriculumId
+    );
 
-    Page<Curriculum> searchCurriculums(Pageable pageable);
+    Page<Curriculum> searchCurriculums(
+            Pageable pageable
+    );
 }

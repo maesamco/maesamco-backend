@@ -13,7 +13,12 @@ public interface UnitRepository {
 
     Optional<Unit> findById(UUID unitId);
 
-    long countByCurriculumId(UUID curriculumId);
+    Optional<Unit> findByIdForUpdate(UUID unitId);
 
-    Page<Unit> searchUnits(UUID curriculumId, Pageable pageable);
+    int findMaxDisplayOrderByCurriculumId(UUID curriculumId);
+
+    Page<Unit> searchUnits(
+            UUID curriculumId,
+            Pageable pageable
+    );
 }

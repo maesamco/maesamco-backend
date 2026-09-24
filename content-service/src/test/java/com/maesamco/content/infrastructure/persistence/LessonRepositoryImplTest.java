@@ -80,11 +80,7 @@ class LessonRepositoryImplTest {
     @BeforeEach
     void setUp() {
         Curriculum curriculum =
-                Curriculum.create(
-                        "Java 기본 과정",
-                        ProgrammingLanguage.JAVA,
-                        1
-                );
+                Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA);
 
         entityManager.persist(
                 curriculum
@@ -374,8 +370,8 @@ class LessonRepositoryImplTest {
         entityManager.clear();
 
         // when
-        long count =
-                lessonRepository.countByUnitId(
+        int count =
+                lessonRepository.findMaxDisplayOrderByUnitId(
                         unitId
                 );
 
@@ -420,8 +416,8 @@ class LessonRepositoryImplTest {
         entityManager.clear();
 
         // when
-        long count =
-                lessonRepository.countByUnitId(
+        int count =
+                lessonRepository.findMaxDisplayOrderByUnitId(
                         unitId
                 );
 

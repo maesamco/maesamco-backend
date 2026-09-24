@@ -29,9 +29,9 @@ public class LessonRepositoryImpl implements LessonRepository {
     }
 
     @Override
-    public long countByUnitId(UUID unitId) {
+    public int findMaxDisplayOrderByUnitId(UUID unitId) {
         return springDataLessonRepository
-                .countByUnitIdAndDeletedAtIsNull(unitId);
+                .findMaxDisplayOrderByUnitId(unitId);
     }
 
     @Override
