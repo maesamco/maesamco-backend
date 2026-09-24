@@ -8,5 +8,12 @@ import java.util.UUID;
 public interface CurriculumFinder {
 
     /** ID로 커리큘럼을 조회합니다. */
-    Curriculum getById(UUID curriculumId);
+    Curriculum getById(
+            UUID curriculumId
+    );
+
+    /** 동시성 제어가 필요한 경우 비관적 락으로 조회합니다. */
+    Curriculum lockById(
+            UUID curriculumId
+    );
 }

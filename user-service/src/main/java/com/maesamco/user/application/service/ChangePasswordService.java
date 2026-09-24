@@ -63,6 +63,15 @@ public class ChangePasswordService {
 
         user.assertActive();
 
+        /*
+         * 소셜 계정으로만 가입한 사용자는 변경할 비밀번호가 없습니다(#308).
+         */
+        if (!user.hasPassword()) {
+            throw new BusinessException(
+                    ErrorCode.USER_PASSWORD_NOT_SET
+            );
+        }
+
         validateCurrentPassword(
                 command.currentPassword(),
                 user.getPasswordHash()

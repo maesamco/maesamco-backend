@@ -85,4 +85,23 @@ class SchedulingConfigTest {
                     ).isEqualTo(2);
                 });
     }
+
+    @Test
+    @DisplayName("Outbox 선점 시간이 Kafka ACK 대기 시간보다 충분히 길지 않으면 기동에 실패한다")
+    void relayFailsToStart_whenLeaseIsNotLongerThanPublishTimeout() {
+        contextRunner
+                .withPropertyValues(
+                        "outbox.problem-published.relay.enabled=true",
+                        "outbox.problem-published.relay.fixed-delay-ms=60000",
+                        "outbox.problem-published.relay.publish-timeout-ms=5000",
+                        "outbox.problem-published.relay.lease-duration-ms=5000",
+                        "spring.kafka.topic.problem-published=problem-published"
+                )
+                .run(context -> assertThat(context)
+                        .hasFailed()
+                        .getFailure()
+                        .rootCause()
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("lease-duration-ms"));
+    }
 }

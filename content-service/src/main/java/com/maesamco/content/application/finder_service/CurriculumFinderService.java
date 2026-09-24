@@ -14,16 +14,40 @@ import java.util.UUID;
 /** 커리큘럼 조회 서비스 */
 @Service
 @RequiredArgsConstructor
-public class CurriculumFinderService implements CurriculumFinder {
+public class CurriculumFinderService
+        implements CurriculumFinder {
 
     private final CurriculumRepository curriculumRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public Curriculum getById(UUID curriculumId) {
-        return curriculumRepository.findById(curriculumId)
+    public Curriculum getById(
+            UUID curriculumId
+    ) {
+        return curriculumRepository
+                .findById(
+                        curriculumId
+                )
                 .orElseThrow(
-                        () -> new BusinessException(ErrorCode.CURRICULUM_NOT_FOUND)
+                        () -> new BusinessException(
+                                ErrorCode.CURRICULUM_NOT_FOUND
+                        )
+                );
+    }
+
+    @Override
+    @Transactional
+    public Curriculum lockById(
+            UUID curriculumId
+    ) {
+        return curriculumRepository
+                .findByIdForUpdate(
+                        curriculumId
+                )
+                .orElseThrow(
+                        () -> new BusinessException(
+                                ErrorCode.CURRICULUM_NOT_FOUND
+                        )
                 );
     }
 }

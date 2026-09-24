@@ -5,6 +5,7 @@ import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.entity.problem.*;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,7 +27,14 @@ import java.util.UUID;
 public class ProblemUpdateRequest {
 
     /** 수정할 문제 제목입니다. */
-    @Size(max = 100)
+    @Pattern(
+            regexp = "(?s).*\\S.*",
+            message = "문제 제목은 공백일 수 없습니다."
+    )
+    @Size(
+            max = 100,
+            message = "문제 제목은 100자 이하여야 합니다."
+    )
     private String title;
 
     /** 관리자가 조회했을 당시의 JPA 낙관적 락 버전입니다. */

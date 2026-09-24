@@ -4,6 +4,8 @@ import com.maesamco.user.application.service.SocialLoginCommand;
 import com.maesamco.user.application.service.SocialLoginResult;
 import com.maesamco.user.application.service.SocialLoginService;
 import com.maesamco.user.application.service.SocialLoginStatus;
+import com.maesamco.user.application.service.SignUpResult;
+import com.maesamco.user.application.service.SocialSignUpService;
 import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
@@ -12,6 +14,7 @@ import com.maesamco.user.presentation.support.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +38,8 @@ public class SocialAuthApiController
         implements SocialAuthApiDocs {
 
     private final SocialLoginService socialLoginService;
+
+    private final SocialSignUpService socialSignUpService;
 
     private final RefreshTokenCookieFactory
             refreshTokenCookieFactory;
@@ -97,6 +102,47 @@ public class SocialAuthApiController
 
         return ResponseEntity
                 .ok()
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        refreshTokenCookie.toString()
+                )
+                .body(
+                        SuccessResponse.success(
+                                result
+                        )
+                );
+    }
+
+    /**
+     * Google 소셜 로그인에서 SIGNUP_REQUIRED를 받은 신규 사용자의 회원가입을 완료합니다(#308).
+     *
+     * <p>socialSignupToken에 귀속된 Google 인증 정보로 User와 SocialAccount를 생성하고,
+     * 일반 회원가입과 동일하게 자동 로그인(Access Token + Refresh Token Cookie)을 처리합니다.</p>
+     *
+     * <p>가입이 완료된 사용자는 이후 {@code POST /google}에서 AUTHENTICATED로 로그인합니다.</p>
+     */
+    @Override
+    @PostMapping("/google/signup")
+    public ResponseEntity<
+            SuccessResponse<SignUpResult>
+            > googleSignUp(
+            @Valid
+            @RequestBody
+            GoogleSocialSignUpRequest request
+    ) {
+        SignUpResult result =
+                socialSignUpService.signUp(
+                        request.toCommand()
+                );
+
+        var refreshTokenCookie =
+                refreshTokenCookieFactory.create(
+                        result.issuedTokens(),
+                        clock
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
                 .header(
                         HttpHeaders.SET_COOKIE,
                         refreshTokenCookie.toString()

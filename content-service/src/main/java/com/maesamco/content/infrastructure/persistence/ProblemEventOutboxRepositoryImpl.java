@@ -29,13 +29,11 @@ public class ProblemEventOutboxRepositoryImpl implements ProblemEventOutboxRepos
     }
 
     @Override
-    public List<ProblemEventOutbox> findPollableByStatus(
-            ProblemEventOutboxStatus status,
-            int limit
-    ) {
-        return springDataProblemEventOutboxRepository.findPollableByStatus(
-                status,
-                Instant.now(),
+    public List<ProblemEventOutbox> findClaimableForUpdate(Instant now, int limit) {
+        return springDataProblemEventOutboxRepository.findClaimableForUpdate(
+                ProblemEventOutboxStatus.PENDING,
+                ProblemEventOutboxStatus.IN_PROGRESS,
+                now,
                 PageRequest.of(0, limit)
         );
     }

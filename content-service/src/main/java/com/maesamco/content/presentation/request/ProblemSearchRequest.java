@@ -18,8 +18,8 @@ import java.util.UUID;
  * <p>각 검색 조건은 선택적으로 전달할 수 있으며,
  * 여러 조건이 함께 전달되면 조합하여 문제 목록을 조회합니다.</p>
  *
- * <p>페이징 및 정렬 조건은 {@code PageableFactory}를 통해
- * Spring Data JPA의 Pageable 객체로 변환하여 사용합니다.</p>
+ * <p>페이징 및 정렬 조건은 {@code PageQueryFactory}를 통해
+ * 자체 Pagination 계약인 {@code PageQuery}로 변환하여 사용합니다.</p>
  */
 @Getter
 @Setter

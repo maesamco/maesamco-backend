@@ -102,6 +102,12 @@ outbox:
       # Kafka ACK를 기다리는 최대 시간입니다.
       publish-timeout-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
 
+      # 다중 인스턴스 중복 발행 방지를 위한 Outbox 선점(lease) 유지 시간입니다.
+      # 처리 중인 인스턴스가 종료되면 이 시간이 지난 뒤 다른 인스턴스가 재선점합니다.
+      # 한 건의 Kafka ACK 대기 시간 + 상태 저장 시간을 충분히 넘도록 설정합니다.
+      # (publish-timeout-ms + 1000ms 이상이어야 하며, 그렇지 않으면 기동 시 실패합니다.)
+      lease-duration-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_LEASE_DURATION_MS:60000}
+
       # Kafka 발행 전 허용할 직렬화 payload의 최대 UTF-8 바이트 크기입니다.
       max-payload-bytes: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_MAX_PAYLOAD_BYTES:900000}
 

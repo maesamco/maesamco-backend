@@ -4,6 +4,7 @@ import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.CurriculumService;
 import com.maesamco.content.application.persistence_service.LessonService;
 import com.maesamco.content.application.persistence_service.ProblemService;
+import com.maesamco.content.application.persistence_service.ProblemVersionService;
 import com.maesamco.content.application.persistence_service.ProblemTagService;
 import com.maesamco.content.application.persistence_service.TagService;
 import com.maesamco.content.application.persistence_service.TestCaseService;
@@ -87,6 +88,8 @@ class RequireAdminEnforcementTest {
     private LessonService lessonService;
     @MockitoBean
     private ProblemService problemService;
+    @MockitoBean
+    private ProblemVersionService problemVersionService;
     @MockitoBean
     private ProblemTagService problemTagService;
     @MockitoBean

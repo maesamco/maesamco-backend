@@ -83,8 +83,8 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenReturn(2L);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenReturn(2);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
@@ -105,8 +105,8 @@ class LessonServiceTest {
             assertThat(savedLesson.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
             assertThat(savedLesson.getDisplayOrder()).isEqualTo(3);
 
-            verify(unitFinder).getById(unitId);
-            verify(lessonRepository).countByUnitId(unitId);
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
         }
@@ -124,8 +124,8 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenReturn(0L);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenReturn(0);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // when
@@ -133,8 +133,8 @@ class LessonServiceTest {
 
             // then
             InOrder inOrder = inOrder(unitFinder, lessonRepository);
-            inOrder.verify(unitFinder).getById(unitId);
-            inOrder.verify(lessonRepository).countByUnitId(unitId);
+            inOrder.verify(unitFinder).lockById(unitId);
+            inOrder.verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             inOrder.verify(lessonRepository).save(any(Lesson.class));
             inOrder.verifyNoMoreInteractions();
 
@@ -143,7 +143,7 @@ class LessonServiceTest {
 
         @Test
         @DisplayName("기존 Lesson 개수에 1을 더한 값을 displayOrder로 사용한다")
-        void createLesson_calculatesDisplayOrderFromCount() {
+        void createLesson_calculatesDisplayOrderFromMax() {
             // given
             UUID unitId = UUID.randomUUID();
             LessonCreateRequest request = createRequest(
@@ -154,8 +154,8 @@ class LessonServiceTest {
                     ProgrammingLanguage.JAVA
             );
 
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenReturn(7L);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenReturn(7);
             when(lessonRepository.save(any(Lesson.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             ArgumentCaptor<Lesson> captor = ArgumentCaptor.forClass(Lesson.class);
@@ -167,8 +167,8 @@ class LessonServiceTest {
             verify(lessonRepository).save(captor.capture());
             assertThat(captor.getValue().getDisplayOrder()).isEqualTo(8);
 
-            verify(unitFinder).getById(unitId);
-            verify(lessonRepository).countByUnitId(unitId);
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
         }
@@ -187,7 +187,7 @@ class LessonServiceTest {
             BusinessException exception = new BusinessException(ErrorCode.UNIT_NOT_FOUND);
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.getById(unitId)).thenThrow(exception);
+            when(unitFinder.lockById(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request))
@@ -196,29 +196,29 @@ class LessonServiceTest {
                             .isEqualTo(ErrorCode.UNIT_NOT_FOUND));
 
             verify(request).getUnitId();
-            verify(unitFinder).getById(unitId);
+            verify(unitFinder).lockById(unitId);
             verifyNoInteractions(lessonRepository, lessonFinder);
             verifyNoMoreInteractions(request, unitFinder);
         }
 
         @Test
         @DisplayName("Lesson 개수 조회 중 예외가 발생하면 저장하지 않고 그대로 전파한다")
-        void createLesson_countThrowsException_doesNotSave() {
+        void createLesson_findMaxThrowsException_doesNotSave() {
             // given
             UUID unitId = UUID.randomUUID();
             LessonCreateRequest request = mock(LessonCreateRequest.class);
-            RuntimeException exception = new RuntimeException("count failure");
+            RuntimeException exception = new RuntimeException("max order failure");
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenThrow(exception);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request)).isSameAs(exception);
 
             verify(request, times(2)).getUnitId();
-            verify(unitFinder).getById(unitId);
-            verify(lessonRepository).countByUnitId(unitId);
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             verify(lessonRepository, never()).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(request, unitFinder, lessonRepository);
@@ -239,15 +239,15 @@ class LessonServiceTest {
 
             RuntimeException exception = new RuntimeException("save failure");
 
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenReturn(0L);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenReturn(0);
             when(lessonRepository.save(any(Lesson.class))).thenThrow(exception);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request)).isSameAs(exception);
 
-            verify(unitFinder).getById(unitId);
-            verify(lessonRepository).countByUnitId(unitId);
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             verify(lessonRepository).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(unitFinder, lessonRepository);
@@ -261,16 +261,16 @@ class LessonServiceTest {
             LessonCreateRequest request = mock(LessonCreateRequest.class);
 
             when(request.getUnitId()).thenReturn(unitId);
-            when(unitFinder.getById(unitId)).thenReturn(mock(Unit.class));
-            when(lessonRepository.countByUnitId(unitId)).thenReturn((long) Integer.MAX_VALUE);
+            when(unitFinder.lockById(unitId)).thenReturn(mock(Unit.class));
+            when(lessonRepository.findMaxDisplayOrderByUnitId(unitId)).thenReturn(Integer.MAX_VALUE);
 
             // when & then
             assertThatThrownBy(() -> lessonService.createLesson(request))
                     .isInstanceOf(ArithmeticException.class);
 
             verify(request, times(2)).getUnitId();
-            verify(unitFinder).getById(unitId);
-            verify(lessonRepository).countByUnitId(unitId);
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).findMaxDisplayOrderByUnitId(unitId);
             verify(lessonRepository, never()).save(any(Lesson.class));
             verifyNoInteractions(lessonFinder);
             verifyNoMoreInteractions(request, unitFinder, lessonRepository);
@@ -297,7 +297,7 @@ class LessonServiceTest {
             assertThat(result).isNotNull();
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
             verifyNoMoreInteractions(lessonFinder);
         }
 
@@ -314,7 +314,7 @@ class LessonServiceTest {
             assertThatThrownBy(() -> lessonService.getLesson(lessonId)).isSameAs(exception);
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
             verifyNoMoreInteractions(lessonFinder);
         }
     }
@@ -497,9 +497,10 @@ class LessonServiceTest {
             verify(lesson).changeContent("수정된 내용");
             verify(lesson).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(lesson).changeDisplayOrder(10);
+            verify(unitFinder).lockById(lesson.getUnitId());
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
         }
 
         @Test
@@ -526,7 +527,7 @@ class LessonServiceTest {
             verify(lesson, never()).changeLanguage(any());
             verify(lesson, never()).changeDisplayOrder(anyInt());
 
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
         }
 
         @Test
@@ -622,6 +623,7 @@ class LessonServiceTest {
             assertThat(lesson.getDisplayOrder()).isEqualTo(5);
 
             verify(lesson).changeDisplayOrder(5);
+            verify(unitFinder).lockById(lesson.getUnitId());
             verify(lesson, never()).changeTitle(anyString());
             verify(lesson, never()).changeDescription(anyString());
             verify(lesson, never()).changeContent(anyString());
@@ -652,7 +654,7 @@ class LessonServiceTest {
             verify(lesson, never()).changeDisplayOrder(anyInt());
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
         }
     }
 
@@ -703,7 +705,7 @@ class LessonServiceTest {
             assertThat(lesson.isDeleted()).isTrue();
             assertThat(lesson.getDeletedBy()).isEqualTo(userId);
 
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
         }
 
         @Test
@@ -721,7 +723,7 @@ class LessonServiceTest {
                     .isSameAs(exception);
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository, unitFinder);
+            verifyNoInteractions(lessonRepository);
         }
     }
 

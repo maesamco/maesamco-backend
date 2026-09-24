@@ -7,6 +7,8 @@ import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.problem.ProblemStatus;
@@ -16,8 +18,6 @@ import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -98,15 +98,15 @@ public class ProblemService {
 
     /** 문제 검색 */
     @Transactional(readOnly = true)
-    public Page<ProblemSearchResult> searchProblems(
+    public PageResult<ProblemSearchResult> searchProblems(
             ProblemSearchQuery query,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
 
         // 공개 문제 목록에서는 클라이언트가 요청한 상태와 관계없이 PUBLISHED 상태의 문제만 조회한다.
         query.forcePublished();
 
-        Page<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageable);
+        PageResult<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageQuery);
 
         return problems.map(ProblemSearchResult::from);
     }
@@ -119,14 +119,14 @@ public class ProblemService {
      * 상태를 지정하지 않으면 모든 상태의 문제를 조회합니다.</p>
      */
     @Transactional(readOnly = true)
-    public Page<ProblemSearchResult> searchProblemsForAdmin(
+    public PageResult<ProblemSearchResult> searchProblemsForAdmin(
             ProblemSearchQuery query,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
-        Page<Problem> problems =
+        PageResult<Problem> problems =
                 problemQueryRepository.searchProblems(
                         query.toCondition(),
-                        pageable
+                        pageQuery
                 );
 
         return problems.map(

@@ -12,28 +12,56 @@ import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class UnitRepositoryImpl implements UnitRepository {
+public class UnitRepositoryImpl
+        implements UnitRepository {
 
-    private final SpringDataUnitRepository springDataUnitRepository;
+    private final SpringDataUnitRepository
+            springDataUnitRepository;
 
     @Override
-    public Unit save(Unit unit) {
-        return springDataUnitRepository.save(unit);
+    public Unit save(
+            Unit unit
+    ) {
+        return springDataUnitRepository.save(
+                unit
+        );
     }
 
     @Override
-    public Optional<Unit> findById(UUID unitId) {
-        return springDataUnitRepository.findByIdAndDeletedAtIsNull(unitId);
-    }
-
-    @Override
-    public long countByCurriculumId(UUID curriculumId) {
+    public Optional<Unit> findById(
+            UUID unitId
+    ) {
         return springDataUnitRepository
-                .countByCurriculumIdAndDeletedAtIsNull(curriculumId);
+                .findByIdAndDeletedAtIsNull(
+                        unitId
+                );
     }
 
     @Override
-    public Page<Unit> searchUnits(UUID curriculumId, Pageable pageable) {
+    public Optional<Unit> findByIdForUpdate(
+            UUID unitId
+    ) {
+        return springDataUnitRepository
+                .findByIdForUpdate(
+                        unitId
+                );
+    }
+
+    @Override
+    public int findMaxDisplayOrderByCurriculumId(
+            UUID curriculumId
+    ) {
+        return springDataUnitRepository
+                .findMaxDisplayOrderByCurriculumId(
+                        curriculumId
+                );
+    }
+
+    @Override
+    public Page<Unit> searchUnits(
+            UUID curriculumId,
+            Pageable pageable
+    ) {
         return springDataUnitRepository
                 .findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
                         curriculumId,
