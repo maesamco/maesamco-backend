@@ -9,6 +9,8 @@ import com.maesamco.user.global.util.DataIntegrityViolations;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -98,5 +100,32 @@ public class SocialAccountRepositoryImpl
                         userId,
                         provider
                 );
+    }
+
+    @Override
+    public int softDeleteAllByUserId(
+            UUID userId,
+            UUID deletedBy,
+            Instant deletedAt
+    ) {
+        List<SocialAccount> socialAccounts =
+                springDataSocialAccountRepository.findAllByUserId(
+                        userId
+                );
+
+        socialAccounts.forEach(
+                socialAccount -> socialAccount.softDelete(
+                        deletedBy,
+                        deletedAt
+                )
+        );
+
+        if (!socialAccounts.isEmpty()) {
+            springDataSocialAccountRepository.saveAllAndFlush(
+                    socialAccounts
+            );
+        }
+
+        return socialAccounts.size();
     }
 }

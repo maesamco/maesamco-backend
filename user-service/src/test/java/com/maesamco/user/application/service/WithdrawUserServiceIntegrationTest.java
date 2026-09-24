@@ -4,13 +4,17 @@ import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
 import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.domain.entity.LearningLevel;
+import com.maesamco.user.domain.entity.SocialAccount;
+import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
+import com.maesamco.user.domain.repository.SocialAccountRepository;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.config.JpaAuditingConfig;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import com.maesamco.user.infrastructure.persistence.SocialAccountRepositoryImpl;
 import com.maesamco.user.infrastructure.persistence.UserInterestConceptRepositoryImpl;
 import com.maesamco.user.infrastructure.persistence.UserRepositoryImpl;
 import org.junit.jupiter.api.DisplayName;
@@ -67,6 +71,7 @@ import static org.mockito.Mockito.when;
         JpaAuditingConfig.class,
         UserRepositoryImpl.class,
         UserInterestConceptRepositoryImpl.class,
+        SocialAccountRepositoryImpl.class,
         WithdrawUserService.class,
         UpdateMyProfileService.class
 })
@@ -123,8 +128,17 @@ class WithdrawUserServiceIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private SocialAccountRepository socialAccountRepository;
+
     @MockitoBean
     private PasswordHasher passwordHasher;
+
+    /**
+     * Google ID Token 검증은 SocialReauthenticatorTest에서 다루므로 여기서는 통과시킵니다(#328).
+     */
+    @MockitoBean
+    private SocialReauthenticator socialReauthenticator;
 
     @MockitoBean
     private EmailCipher emailCipher;
@@ -821,6 +835,96 @@ class WithdrawUserServiceIntegrationTest {
                         user.getId()
                 )
         ).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "소셜 회원이 Google 재인증으로 탈퇴하면 사용자와 소셜 계정이 논리 삭제되고, "
+                    + "같은 Google 계정을 새 사용자에게 다시 연결(재가입)할 수 있다 (#328)"
+    )
+    void socialWithdraw_thenSameGoogleAccountCanSignUpAgain() {
+        // given
+        String googleSub = "google-sub-withdraw";
+
+        User socialUser =
+                userRepository.save(
+                        User.createSocial(
+                                "encrypted-email",
+                                "s".repeat(64),
+                                "소셜탈퇴사용자",
+                                3,
+                                LearningLevel.BEGINNER
+                        )
+                );
+
+        socialAccountRepository.save(
+                SocialAccount.create(
+                        socialUser.getId(),
+                        SocialProvider.GOOGLE,
+                        googleSub
+                )
+        );
+
+        stubInvalidatedAt();
+
+        // when
+        withdrawUserService.withdraw(
+                socialUser.getId(),
+                new WithdrawUserCommand(null, "google-id-token")
+        );
+
+        // then — 사용자와 소셜 계정 연결이 모두 논리 삭제된다.
+        assertThat(userRepository.findById(socialUser.getId())).isEmpty();
+        assertThat(
+                socialAccountRepository.findByProviderAndProviderUserId(
+                        SocialProvider.GOOGLE,
+                        googleSub
+                )
+        ).isEmpty();
+
+        Long deletedSocialAccounts =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM user_schema.p_social_accounts
+                        WHERE user_id = ?
+                          AND deleted_at IS NOT NULL
+                        """,
+                        Long.class,
+                        socialUser.getId()
+                );
+
+        assertThat(deletedSocialAccounts).isEqualTo(1L);
+
+        // then — 같은 Google 계정으로 다시 가입(새 User + SocialAccount 연결)할 수 있다.
+        User rejoinedUser =
+                userRepository.save(
+                        User.createSocial(
+                                "encrypted-email",
+                                "s".repeat(64),
+                                "재가입사용자",
+                                0,
+                                LearningLevel.BEGINNER
+                        )
+                );
+
+        socialAccountRepository.save(
+                SocialAccount.create(
+                        rejoinedUser.getId(),
+                        SocialProvider.GOOGLE,
+                        googleSub
+                )
+        );
+
+        assertThat(
+                socialAccountRepository
+                        .findByProviderAndProviderUserId(SocialProvider.GOOGLE, googleSub)
+                        .orElseThrow()
+                        .getUserId()
+        ).isEqualTo(rejoinedUser.getId());
+
+        verify(socialReauthenticator)
+                .verifyOwnership(socialUser.getId(), SocialProvider.GOOGLE, "google-id-token");
     }
 
     private User saveUser(

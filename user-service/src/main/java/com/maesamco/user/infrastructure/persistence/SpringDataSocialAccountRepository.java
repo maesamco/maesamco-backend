@@ -4,6 +4,7 @@ import com.maesamco.user.domain.entity.SocialAccount;
 import com.maesamco.user.domain.entity.SocialProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,5 +22,9 @@ public interface SpringDataSocialAccountRepository
     boolean existsByUserIdAndProvider(
             UUID userId,
             SocialProvider provider
+    );
+
+    List<SocialAccount> findAllByUserId(
+            UUID userId
     );
 }

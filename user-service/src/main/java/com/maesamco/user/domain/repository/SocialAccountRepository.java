@@ -3,6 +3,7 @@ package com.maesamco.user.domain.repository;
 import com.maesamco.user.domain.entity.SocialAccount;
 import com.maesamco.user.domain.entity.SocialProvider;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,5 +31,22 @@ public interface SocialAccountRepository {
     boolean existsByUserIdAndProvider(
             UUID userId,
             SocialProvider provider
+    );
+
+    /**
+     * 사용자에게 연결된 모든 소셜 계정을 논리 삭제합니다(#328 회원 탈퇴).
+     *
+     * <p>부분 UNIQUE 인덱스가 {@code deleted_at IS NULL}인 행만 대상으로 하므로,
+     * 논리 삭제 후에는 같은 Provider 계정으로 다시 가입할 수 있습니다.</p>
+     *
+     * @param userId 탈퇴하는 사용자 식별자
+     * @param deletedBy 삭제 행위자
+     * @param deletedAt 삭제 시각
+     * @return 논리 삭제한 소셜 계정 수
+     */
+    int softDeleteAllByUserId(
+            UUID userId,
+            UUID deletedBy,
+            Instant deletedAt
     );
 }

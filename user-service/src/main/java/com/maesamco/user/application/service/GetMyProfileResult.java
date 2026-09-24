@@ -85,7 +85,15 @@ public record GetMyProfileResult(
                 example = "2026-09-15T01:00:00Z",
                 requiredMode = Schema.RequiredMode.REQUIRED
         )
-        Instant createdAt
+        Instant createdAt,
+
+        @Schema(
+                description = "MAESAMCO 비밀번호 설정 여부. false면 소셜로만 가입한 계정으로, "
+                        + "비밀번호 변경을 사용할 수 없고 회원 탈퇴 시 Google 재인증(googleIdToken)을 보내야 합니다.",
+                example = "true",
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
+        boolean hasPassword
 ) {
 
     /**
@@ -145,7 +153,8 @@ public record GetMyProfileResult(
                 user.getStatus(),
                 user.getLearningLevel(),
                 user.getJavaExperienceMonths(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                user.hasPassword()
         );
     }
 
@@ -163,6 +172,7 @@ public record GetMyProfileResult(
                 + ", learningLevel=" + learningLevel
                 + ", javaExperienceMonths=" + javaExperienceMonths
                 + ", createdAt=" + createdAt
+                + ", hasPassword=" + hasPassword
                 + "]";
     }
 }

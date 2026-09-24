@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,7 +70,7 @@ public class SocialLoginService {
             Clock clock
     ) {
         this.identityVerifiers =
-                createVerifierMap(identityVerifiers);
+                SocialIdentityVerifiers.toMap(identityVerifiers);
 
         this.socialAccountRepository =
                 socialAccountRepository;
@@ -292,46 +291,5 @@ public class SocialLoginService {
                     ErrorCode.SOCIAL_EMAIL_NOT_VERIFIED
             );
         }
-    }
-
-    /**
-     * Spring이 주입한 Provider별 Verifier를
-     * 빠르게 조회할 수 있는 Map으로 변환합니다.
-     */
-    private static Map<
-            SocialProvider,
-            SocialIdentityVerifier
-            > createVerifierMap(
-            List<SocialIdentityVerifier> verifiers
-    ) {
-        EnumMap<
-                SocialProvider,
-                SocialIdentityVerifier
-                > verifierMap =
-                new EnumMap<>(
-                        SocialProvider.class
-                );
-
-        for (
-                SocialIdentityVerifier verifier
-                : verifiers
-        ) {
-            SocialIdentityVerifier previous =
-                    verifierMap.put(
-                            verifier.provider(),
-                            verifier
-                    );
-
-            if (previous != null) {
-                throw new IllegalStateException(
-                        "동일한 Social Provider의 Verifier가 중복 등록되었습니다: "
-                                + verifier.provider()
-                );
-            }
-        }
-
-        return Map.copyOf(
-                verifierMap
-        );
     }
 }
