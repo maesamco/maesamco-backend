@@ -34,7 +34,6 @@ import org.testcontainers.utility.DockerImageName;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * 이슈 #307 — {@code findTagsByProblemId}에 {@code PageableFactory}가 만든 기본 정렬(createdAt desc)이
@@ -102,12 +101,10 @@ class SpringDataProblemTagRepositorySortIntegrationTest {
 
         Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        // when / then
-        assertThatCode(() -> springDataProblemTagRepository.findTagsByProblemId(problemId, pageable))
-                .doesNotThrowAnyException();
-
+        // when — 예외 없이 조회되는 것 자체가 이슈 #307의 회귀 검증이다.
         Page<Tag> result = springDataProblemTagRepository.findTagsByProblemId(problemId, pageable);
 
+        // then
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent())
                 .extracting(Tag::getId)
