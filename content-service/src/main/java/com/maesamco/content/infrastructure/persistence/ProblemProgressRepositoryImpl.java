@@ -3,9 +3,10 @@ package com.maesamco.content.infrastructure.persistence;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -43,14 +44,18 @@ public class ProblemProgressRepositoryImpl implements ProblemProgressRepository 
     }
 
     @Override
-    public Page<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, Pageable pageable) {
-        return springDataProblemProgressRepository
-                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+    public PageResult<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, PageQuery pageQuery) {
+        return SpringPageConverter.toPageResult(
+                springDataProblemProgressRepository
+                        .findByUserIdOrderByCreatedAtDescIdDesc(userId, SpringPageConverter.toPageable(pageQuery))
+        );
     }
 
     @Override
-    public Page<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, Pageable pageable) {
-        return springDataProblemProgressRepository
-                .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus, pageable);
+    public PageResult<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, PageQuery pageQuery) {
+        return SpringPageConverter.toPageResult(
+                springDataProblemProgressRepository
+                        .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(userId, progressStatus, SpringPageConverter.toPageable(pageQuery))
+        );
     }
 }

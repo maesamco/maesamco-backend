@@ -14,9 +14,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -112,22 +111,20 @@ class ProblemProgressControllerTest {
                 Instant.parse("2026-09-20T01:00:00Z")
         );
 
-        Pageable pageable = PageRequest.of(
-                1,
-                2
-        );
+        PageQuery pageQuery = PageQuery.of(1, 2);
 
         when(problemProgressService.getProblemProgresses(
                 eq(userId),
                 isNull(),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(
                                 firstProgress,
                                 secondProgress
                         ),
-                        pageable,
+                        pageQuery.page(),
+                        pageQuery.size(),
                         5
                 )
         );
@@ -209,9 +206,9 @@ class ProblemProgressControllerTest {
                                 .value(true)
                 );
 
-        ArgumentCaptor<Pageable> pageableCaptor =
+        ArgumentCaptor<PageQuery> pageableCaptor =
                 ArgumentCaptor.forClass(
-                        Pageable.class
+                        PageQuery.class
                 );
 
         verify(problemProgressService)
@@ -221,15 +218,15 @@ class ProblemProgressControllerTest {
                         pageableCaptor.capture()
                 );
 
-        Pageable capturedPageable =
+        PageQuery capturedPageable =
                 pageableCaptor.getValue();
 
         assertThat(
-                capturedPageable.getPageNumber()
+                capturedPageable.page()
         ).isEqualTo(1);
 
         assertThat(
-                capturedPageable.getPageSize()
+                capturedPageable.size()
         ).isEqualTo(2);
     }
 
@@ -244,21 +241,19 @@ class ProblemProgressControllerTest {
                 Instant.parse("2026-09-21T01:00:00Z")
         );
 
-        Pageable pageable = PageRequest.of(
-                0,
-                10
-        );
+        PageQuery pageQuery = PageQuery.of(0, 10);
 
         when(problemProgressService.getProblemProgresses(
                 eq(userId),
                 eq(ProblemProgressStatus.WRONG),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(
                                 problemProgress
                         ),
-                        pageable,
+                        pageQuery.page(),
+                        pageQuery.size(),
                         1
                 )
         );
@@ -312,9 +307,9 @@ class ProblemProgressControllerTest {
                                 )
                 );
 
-        ArgumentCaptor<Pageable> pageableCaptor =
+        ArgumentCaptor<PageQuery> pageableCaptor =
                 ArgumentCaptor.forClass(
-                        Pageable.class
+                        PageQuery.class
                 );
 
         verify(problemProgressService)
@@ -324,15 +319,15 @@ class ProblemProgressControllerTest {
                         pageableCaptor.capture()
                 );
 
-        Pageable capturedPageable =
+        PageQuery capturedPageable =
                 pageableCaptor.getValue();
 
         assertThat(
-                capturedPageable.getPageNumber()
+                capturedPageable.page()
         ).isZero();
 
         assertThat(
-                capturedPageable.getPageSize()
+                capturedPageable.size()
         ).isEqualTo(10);
     }
 
@@ -353,22 +348,19 @@ class ProblemProgressControllerTest {
                         judgedAt
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         when(problemProgressService.getProblemProgresses(
                 eq(userId),
                 eq(ProblemProgressStatus.CORRECT),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(
                                 problemProgress
                         ),
-                        pageable,
+                        pageQuery.page(),
+                        pageQuery.size(),
                         1
                 )
         );
@@ -420,7 +412,7 @@ class ProblemProgressControllerTest {
                 .getProblemProgresses(
                         eq(userId),
                         eq(ProblemProgressStatus.CORRECT),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
     }
 
@@ -430,20 +422,17 @@ class ProblemProgressControllerTest {
             throws Exception {
 
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         when(problemProgressService.getProblemProgresses(
                 eq(userId),
                 isNull(),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(),
-                        pageable,
+                        pageQuery.page(),
+                        pageQuery.size(),
                         0
                 )
         );
@@ -465,9 +454,9 @@ class ProblemProgressControllerTest {
                                 .value(true)
                 );
 
-        ArgumentCaptor<Pageable> pageableCaptor =
+        ArgumentCaptor<PageQuery> pageableCaptor =
                 ArgumentCaptor.forClass(
-                        Pageable.class
+                        PageQuery.class
                 );
 
         verify(problemProgressService)
@@ -477,15 +466,15 @@ class ProblemProgressControllerTest {
                         pageableCaptor.capture()
                 );
 
-        Pageable capturedPageable =
+        PageQuery capturedPageable =
                 pageableCaptor.getValue();
 
         assertThat(
-                capturedPageable.getPageNumber()
+                capturedPageable.page()
         ).isZero();
 
         assertThat(
-                capturedPageable.getPageSize()
+                capturedPageable.size()
         ).isEqualTo(20);
     }
 
@@ -495,20 +484,17 @@ class ProblemProgressControllerTest {
             throws Exception {
 
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         when(problemProgressService.getProblemProgresses(
                 eq(userId),
                 isNull(),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(),
-                        pageable,
+                        pageQuery.page(),
+                        pageQuery.size(),
                         0
                 )
         );
