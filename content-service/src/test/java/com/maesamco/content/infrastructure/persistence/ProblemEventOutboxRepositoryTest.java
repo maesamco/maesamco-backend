@@ -46,6 +46,8 @@ class ProblemEventOutboxRepositoryTest {
         postgres.start();
     }
 
+    private static final UUID CLAIM_ID = UUID.randomUUID();
+
     @Autowired
     private EntityManager entityManager;
 
@@ -145,8 +147,8 @@ class ProblemEventOutboxRepositoryTest {
     }
 
     @Test
-    @DisplayName("polling 조회는 PENDING 상태의 Outbox만 반환한다")
-    void findPollableByStatus_returnsOnlyPendingOutboxes() {
+    @DisplayName("선점 후보 조회는 PUBLISHED/FAILED Outbox를 반환하지 않는다")
+    void findClaimableForUpdate_returnsOnlyPendingOutboxes() {
         // given
         Instant baseTime = Instant.parse("2026-09-21T00:00:00Z");
 
@@ -154,7 +156,9 @@ class ProblemEventOutboxRepositoryTest {
         ProblemEventOutbox published = createOutbox(baseTime.plusSeconds(1));
         ProblemEventOutbox failed = createOutbox(baseTime.plusSeconds(2));
 
-        published.markPublished(baseTime.plusSeconds(10));
+        claim(published);
+
+        published.markPublished(CLAIM_ID, baseTime.plusSeconds(10));
 
         problemEventOutboxRepository.save(pending);
         problemEventOutboxRepository.save(published);
@@ -172,10 +176,7 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId)
@@ -186,8 +187,55 @@ class ProblemEventOutboxRepositoryTest {
     }
 
     @Test
-    @DisplayName("nextAttemptAt이 null인 PENDING Outbox는 polling 대상에 포함된다")
-    void findPollableByStatus_nextAttemptAtNull_isIncluded() {
+    @DisplayName("lease가 남아있는 IN_PROGRESS Outbox는 제외하고, lease가 만료된 IN_PROGRESS Outbox는 재선점 후보에 포함한다")
+    void findClaimableForUpdate_inProgress_includesOnlyExpiredLease() {
+        // given
+        Instant baseTime = Instant.parse("2026-09-21T00:00:00Z");
+
+        ProblemEventOutbox activeLease = createOutbox(baseTime);
+        ProblemEventOutbox expiredLease = createOutbox(baseTime.plusSeconds(1));
+
+        Instant now = Instant.now();
+        activeLease.claim(UUID.randomUUID(), now, now.plusSeconds(300));
+        expiredLease.claim(UUID.randomUUID(), now.minusSeconds(120), now.minusSeconds(60));
+
+        problemEventOutboxRepository.save(activeLease);
+        problemEventOutboxRepository.save(expiredLease);
+
+        entityManager.flush();
+
+        UUID activeLeaseId = activeLease.getId();
+        UUID expiredLeaseId = expiredLease.getId();
+
+        entityManager.clear();
+
+        // when
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
+
+        // then
+        assertThat(found).extracting(ProblemEventOutbox::getId)
+                .containsExactly(expiredLeaseId)
+                .doesNotContain(activeLeaseId);
+    }
+
+    @Test
+    @DisplayName("IN_PROGRESS 상태에서 claimId나 leaseUntil이 없으면 CHECK 제약으로 차단된다")
+    void inProgressWithoutClaim_violatesCheckConstraint() {
+        // given
+        ProblemEventOutbox outbox = createOutbox(Instant.parse("2026-09-21T00:00:00Z"));
+        problemEventOutboxRepository.save(outbox);
+        entityManager.flush();
+
+        // when & then
+        assertThatThrownBy(() -> {
+            setStatus(outbox.getId(), ProblemEventOutboxStatus.IN_PROGRESS);
+            entityManager.flush();
+        }).rootCause().hasMessageContaining("chk_problem_event_outboxes_claim");
+    }
+
+    @Test
+    @DisplayName("nextAttemptAt이 null인 PENDING Outbox는 선점 후보에 포함된다")
+    void findClaimableForUpdate_nextAttemptAtNull_isIncluded() {
         // given
         ProblemEventOutbox outbox = createOutbox(Instant.parse("2026-09-21T00:00:00Z"));
 
@@ -201,18 +249,15 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId).contains(outboxId);
     }
 
     @Test
-    @DisplayName("nextAttemptAt이 현재 시각보다 과거이면 polling 대상에 포함된다")
-    void findPollableByStatus_nextAttemptAtBeforeNow_isIncluded() {
+    @DisplayName("nextAttemptAt이 현재 시각보다 과거이면 선점 후보에 포함된다")
+    void findClaimableForUpdate_nextAttemptAtBeforeNow_isIncluded() {
         // given
         ProblemEventOutbox outbox = createOutbox(Instant.parse("2026-09-21T00:00:00Z"));
 
@@ -227,18 +272,15 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId).contains(outboxId);
     }
 
     @Test
-    @DisplayName("nextAttemptAt이 현재 시각과 같으면 polling 대상에 포함된다")
-    void findPollableByStatus_nextAttemptAtEqualsNow_isIncluded() {
+    @DisplayName("nextAttemptAt이 현재 시각과 같으면 선점 후보에 포함된다")
+    void findClaimableForUpdate_nextAttemptAtEqualsNow_isIncluded() {
         // given
         ProblemEventOutbox outbox = createOutbox(Instant.parse("2026-09-21T00:00:00Z"));
 
@@ -253,18 +295,15 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId).contains(outboxId);
     }
 
     @Test
-    @DisplayName("nextAttemptAt이 현재 시각보다 미래이면 polling 대상에서 제외된다")
-    void findPollableByStatus_nextAttemptAtAfterNow_isExcluded() {
+    @DisplayName("nextAttemptAt이 현재 시각보다 미래이면 선점 후보에서 제외된다")
+    void findClaimableForUpdate_nextAttemptAtAfterNow_isExcluded() {
         // given
         ProblemEventOutbox outbox = createOutbox(Instant.parse("2026-09-21T00:00:00Z"));
 
@@ -279,18 +318,15 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId).doesNotContain(outboxId);
     }
 
     @Test
-    @DisplayName("polling 조회는 nextAttemptAt이 null이거나 현재 시각 이하인 Outbox만 반환한다")
-    void findPollableByStatus_filtersByNextAttemptAt() {
+    @DisplayName("선점 후보 조회는 nextAttemptAt이 null이거나 현재 시각 이하인 Outbox만 반환한다")
+    void findClaimableForUpdate_filtersByNextAttemptAt() {
         // given
         Instant baseTime = Instant.parse("2026-09-21T00:00:00Z");
 
@@ -315,10 +351,7 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).extracting(ProblemEventOutbox::getId)
@@ -327,8 +360,8 @@ class ProblemEventOutboxRepositoryTest {
     }
 
     @Test
-    @DisplayName("polling 조회는 occurredAt ASC, id ASC 순서로 안정적으로 정렬한다")
-    void findPollableByStatus_ordersByOccurredAtAndId() {
+    @DisplayName("선점 후보 조회는 occurredAt ASC, id ASC 순서로 안정적으로 정렬한다")
+    void findClaimableForUpdate_ordersByOccurredAtAndId() {
         // given
         Instant baseTime = Instant.parse("2026-09-21T00:00:00Z");
 
@@ -353,10 +386,7 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                10
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 10);
 
         // then
         assertThat(found).hasSize(3);
@@ -365,8 +395,8 @@ class ProblemEventOutboxRepositoryTest {
     }
 
     @Test
-    @DisplayName("polling 조회는 지정한 batch limit만큼만 반환한다")
-    void findPollableByStatus_appliesBatchLimit() {
+    @DisplayName("선점 후보 조회는 지정한 batch limit만큼만 반환한다")
+    void findClaimableForUpdate_appliesBatchLimit() {
         // given
         Instant baseTime = Instant.parse("2026-09-21T00:00:00Z");
 
@@ -387,10 +417,7 @@ class ProblemEventOutboxRepositoryTest {
         entityManager.clear();
 
         // when
-        List<ProblemEventOutbox> found = problemEventOutboxRepository.findPollableByStatus(
-                ProblemEventOutboxStatus.PENDING,
-                2
-        );
+        List<ProblemEventOutbox> found = problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 2);
 
         // then
         assertThat(found).hasSize(2);
@@ -439,7 +466,8 @@ class ProblemEventOutboxRepositoryTest {
         ProblemEventOutbox found = problemEventOutboxRepository.findById(outboxId).orElseThrow();
 
         // when
-        found.markPublished(occurredAt.plusSeconds(10));
+        claim(found);
+        found.markPublished(CLAIM_ID, occurredAt.plusSeconds(10));
 
         problemEventOutboxRepository.save(found);
 
@@ -479,7 +507,9 @@ class ProblemEventOutboxRepositoryTest {
 
         assertThat(readLockVersion(outboxId)).isZero();
 
-        first.markPublished(occurredAt.plusSeconds(10));
+        claim(first);
+
+        first.markPublished(CLAIM_ID, occurredAt.plusSeconds(10));
 
         problemEventOutboxRepository.save(first);
 
@@ -488,13 +518,20 @@ class ProblemEventOutboxRepositoryTest {
 
         assertThat(readLockVersion(outboxId)).isEqualTo(1L);
 
-        second.markPublished(occurredAt.plusSeconds(20));
+        claim(second);
+
+        second.markPublished(CLAIM_ID, occurredAt.plusSeconds(20));
 
         // when & then
         assertThatThrownBy(() -> {
             problemEventOutboxRepository.save(second);
             entityManager.flush();
         }).isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    private void claim(ProblemEventOutbox outbox) {
+        Instant now = Instant.now();
+        outbox.claim(CLAIM_ID, now, now.plusSeconds(60));
     }
 
     private ProblemEventOutbox createOutbox(Instant occurredAt) {

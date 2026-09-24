@@ -21,15 +21,22 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +72,8 @@ class ProblemEventOutboxRelayIntegrationTest {
     private static final String TOPIC = "problem-published";
     private static final int BATCH_SIZE = 10;
     private static final int MAX_PAYLOAD_BYTES = 10_000;
+    private static final long LEASE_DURATION_MS = 60_000L;
+    private static final long PUBLISH_TIMEOUT_MS = 5_000L;
 
     @ServiceConnection
     static final PostgreSQLContainer postgres =
@@ -83,6 +92,9 @@ class ProblemEventOutboxRelayIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     private EventPublisherPort eventPublisherPort;
     private ProblemEventRelayFacade problemEventRelayFacade;
 
@@ -92,15 +104,7 @@ class ProblemEventOutboxRelayIntegrationTest {
 
         eventPublisherPort = mock(EventPublisherPort.class);
 
-        problemEventRelayFacade = new ProblemEventRelayFacade(
-                problemEventOutboxRepository,
-                problemEventOutboxPersistenceService,
-                eventPublisherPort
-        );
-
-        ReflectionTestUtils.setField(problemEventRelayFacade, "problemPublishedTopic", TOPIC);
-        ReflectionTestUtils.setField(problemEventRelayFacade, "batchSize", BATCH_SIZE);
-        ReflectionTestUtils.setField(problemEventRelayFacade, "maxPayloadBytes", MAX_PAYLOAD_BYTES);
+        problemEventRelayFacade = createRelay();
     }
 
     @Test
@@ -137,7 +141,10 @@ class ProblemEventOutboxRelayIntegrationTest {
         assertThat(after.status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
         assertThat(after.publishedAt()).isNotNull();
         assertThat(after.retryCount()).isZero();
-        assertThat(after.lockVersion()).isEqualTo(before.lockVersion() + 1);
+        // 선점(+1)과 PUBLISHED 기록(+1)으로 두 번 갱신됩니다.
+        assertThat(after.lockVersion()).isEqualTo(before.lockVersion() + 2);
+        assertThat(after.claimId()).isNull();
+        assertThat(after.leaseUntil()).isNull();
     }
 
     @Test
@@ -165,7 +172,7 @@ class ProblemEventOutboxRelayIntegrationTest {
     }
 
     @Test
-    @DisplayName("Kafka 발행이 실패하면 PENDING 상태를 유지하고 retryCount와 nextAttemptAt을 갱신한다")
+    @DisplayName("Kafka 발행이 실패하면 PENDING 상태로 되돌리고 retryCount와 nextAttemptAt을 갱신한다")
     void relay_publishFailure_updatesRetryBackoff() {
         // given
         ProblemEventOutbox outbox = savePendingOutbox();
@@ -194,77 +201,288 @@ class ProblemEventOutboxRelayIntegrationTest {
         assertThat(state.nextAttemptAt()).isAfter(before);
         assertThat(state.publishedAt()).isNull();
         assertThat(state.lastError()).isEqualTo("KAFKA_PUBLISH_FAILED:IllegalStateException");
-        assertThat(state.lockVersion()).isEqualTo(1L);
+        // 선점(+1)과 실패 기록(+1)으로 두 번 갱신되며, 선점은 해제됩니다.
+        assertThat(state.lockVersion()).isEqualTo(2L);
+        assertThat(state.claimId()).isNull();
+        assertThat(state.leaseUntil()).isNull();
     }
 
-    // TODO: 다중 인스턴스에서 같은 Outbox를 동시에 claim해서 중복 발행되는 문제에 대한 처리 구현 및 테스토 코드 작성
-//    @Test
-//    @DisplayName("두 worker가 동시에 같은 Outbox를 relay해도 Kafka 발행은 한 번만 수행한다")
-//    void relay_concurrently_sameOutbox_publishesOnlyOnce() throws Exception {
-//        // given
-//        ProblemEventOutbox outbox = savePendingOutbox();
-//        UUID outboxId = outbox.getId();
-//
-//        AtomicInteger publishCount = new AtomicInteger();
-//        CountDownLatch startLatch = new CountDownLatch(1);
-//        CountDownLatch firstPublishEntered = new CountDownLatch(1);
-//        CountDownLatch releaseFirstPublish = new CountDownLatch(1);
-//
-//        doAnswer(invocation -> {
-//            int currentCount = publishCount.incrementAndGet();
-//
-//            if (currentCount == 1) {
-//                firstPublishEntered.countDown();
-//                releaseFirstPublish.await(2, TimeUnit.SECONDS);
-//            }
-//
-//            return null;
-//        }).when(eventPublisherPort).publish(anyString(), anyString(), anyString());
-//
-//        ExecutorService executorService = Executors.newFixedThreadPool(2);
-//
-//        try {
-//            Future<?> firstWorker = executorService.submit(() -> {
-//                startLatch.await();
-//                problemEventRelayFacade.relay();
-//                return null;
-//            });
-//
-//            Future<?> secondWorker = executorService.submit(() -> {
-//                startLatch.await();
-//                problemEventRelayFacade.relay();
-//                return null;
-//            });
-//
-//            // when
-//            startLatch.countDown();
-//
-//            assertThat(firstPublishEntered.await(2, TimeUnit.SECONDS)).isTrue();
-//
-//            Thread.sleep(300);
-//            releaseFirstPublish.countDown();
-//
-//            firstWorker.get(5, TimeUnit.SECONDS);
-//            secondWorker.get(5, TimeUnit.SECONDS);
-//
-//            // then
-//            OutboxState state = readOutbox(outboxId);
-//
-//            assertThat(publishCount.get()).isEqualTo(1);
-//            assertThat(state.status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
-//
-//            verify(eventPublisherPort, times(1)).publish(
-//                    eq(TOPIC),
-//                    eq(outbox.getAggregateId().toString()),
-//                    anyString()
-//            );
-//        } finally {
-//            releaseFirstPublish.countDown();
-//            executorService.shutdownNow();
-//        }
-//    }
+    @Test
+    @DisplayName("두 Relay 인스턴스가 동시에 같은 Outbox를 relay해도 Kafka 발행은 한 번만 수행한다")
+    void relay_concurrently_sameOutbox_publishesOnlyOnce() throws Exception {
+        // given
+        ProblemEventOutbox outbox = savePendingOutbox();
+        UUID outboxId = outbox.getId();
+
+        ProblemEventRelayFacade instanceA = createRelay();
+        ProblemEventRelayFacade instanceB = createRelay();
+
+        AtomicInteger publishCount = new AtomicInteger();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch firstPublishEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirstPublish = new CountDownLatch(1);
+
+        // 첫 번째 발행을 Kafka ACK 대기 중인 것처럼 붙잡아 두고, 그동안 다른 인스턴스가 relay하도록 합니다.
+        doAnswer(invocation -> {
+            int currentCount = publishCount.incrementAndGet();
+
+            if (currentCount == 1) {
+                firstPublishEntered.countDown();
+                releaseFirstPublish.await(5, TimeUnit.SECONDS);
+            }
+
+            return null;
+        }).when(eventPublisherPort).publish(anyString(), anyString(), anyString());
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> firstWorker = executorService.submit(() -> {
+                startLatch.await();
+                instanceA.relay();
+                return null;
+            });
+
+            Future<?> secondWorker = executorService.submit(() -> {
+                startLatch.await();
+                instanceB.relay();
+                return null;
+            });
+
+            // when
+            startLatch.countDown();
+
+            assertThat(firstPublishEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+            // 첫 번째 발행이 ACK 대기 중인 동안 나머지 인스턴스의 relay가 끝나기를 기다립니다.
+            Thread.sleep(300);
+            releaseFirstPublish.countDown();
+
+            firstWorker.get(10, TimeUnit.SECONDS);
+            secondWorker.get(10, TimeUnit.SECONDS);
+
+            // then
+            OutboxState state = readOutbox(outboxId);
+
+            assertThat(publishCount.get()).isEqualTo(1);
+            assertThat(state.status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+            assertThat(state.claimId()).isNull();
+            assertThat(state.leaseUntil()).isNull();
+
+            verify(eventPublisherPort, times(1)).publish(
+                    eq(TOPIC),
+                    eq(outbox.getAggregateId().toString()),
+                    anyString()
+            );
+        } finally {
+            releaseFirstPublish.countDown();
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("여러 Relay 인스턴스가 동시에 여러 Outbox를 처리해도 각 Outbox는 정확히 한 번씩 발행된다")
+    void relay_multipleInstances_manyOutboxes_eachPublishedExactlyOnce() throws Exception {
+        // given
+        int outboxCount = 30;
+        int instanceCount = 3;
+
+        List<UUID> aggregateIds = new ArrayList<>();
+        for (int i = 0; i < outboxCount; i++) {
+            aggregateIds.add(savePendingOutbox().getAggregateId());
+        }
+
+        Map<String, AtomicInteger> publishCountByKey = new ConcurrentHashMap<>();
+
+        doAnswer(invocation -> {
+            String key = invocation.getArgument(1);
+            publishCountByKey.computeIfAbsent(key, ignored -> new AtomicInteger()).incrementAndGet();
+            Thread.sleep(5);
+            return null;
+        }).when(eventPublisherPort).publish(anyString(), anyString(), anyString());
+
+        ExecutorService executorService = Executors.newFixedThreadPool(instanceCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+
+        try {
+            List<Future<?>> workers = new ArrayList<>();
+            for (int i = 0; i < instanceCount; i++) {
+                ProblemEventRelayFacade instance = createRelay();
+                workers.add(executorService.submit(() -> {
+                    startLatch.await();
+                    instance.relay();
+                    return null;
+                }));
+            }
+
+            // when
+            startLatch.countDown();
+            for (Future<?> worker : workers) {
+                worker.get(30, TimeUnit.SECONDS);
+            }
+
+            // then
+            assertThat(publishCountByKey).hasSize(outboxCount);
+            assertThat(publishCountByKey.values())
+                    .allSatisfy(count -> assertThat(count.get()).isEqualTo(1));
+            assertThat(aggregateIds)
+                    .allSatisfy(id -> assertThat(publishCountByKey).containsKey(id.toString()));
+
+            Integer publishedCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM content_schema.p_problem_event_outboxes WHERE status = 'PUBLISHED'",
+                    Integer.class
+            );
+            assertThat(publishedCount).isEqualTo(outboxCount);
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("다른 트랜잭션이 선점 중(행 잠금)인 Outbox는 대기하지 않고 건너뛴다 (FOR UPDATE SKIP LOCKED)")
+    void claimNext_rowLockedByOtherTransaction_skipsWithoutBlocking() throws Exception {
+        // given
+        ProblemEventOutbox locked = savePendingOutbox(Instant.parse("2026-09-23T00:00:00Z"));
+        ProblemEventOutbox free = savePendingOutbox(Instant.parse("2026-09-23T00:00:01Z"));
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        CountDownLatch lockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+
+        try {
+            // 인스턴스 A: 가장 오래된 Outbox 행을 잠근 채 트랜잭션을 유지합니다.
+            Future<?> lockHolder = executorService.submit(() -> transactionTemplate.executeWithoutResult(status -> {
+                List<ProblemEventOutbox> rows =
+                        problemEventOutboxRepository.findClaimableForUpdate(Instant.now(), 1);
+                assertThat(rows).extracting(ProblemEventOutbox::getId).containsExactly(locked.getId());
+                lockAcquired.countDown();
+                try {
+                    releaseLock.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+
+            assertThat(lockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
+
+            // when: 인스턴스 B가 선점을 시도합니다.
+            long startedAt = System.nanoTime();
+            Optional<ProblemEventOutbox> claimed = problemEventOutboxPersistenceService.claimNext(
+                    UUID.randomUUID(),
+                    Duration.ofMillis(LEASE_DURATION_MS)
+            );
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+            releaseLock.countDown();
+            lockHolder.get(10, TimeUnit.SECONDS);
+
+            // then: 잠긴 행을 기다리지 않고 다음 행을 선점합니다.
+            assertThat(claimed).isPresent();
+            assertThat(claimed.get().getId()).isEqualTo(free.getId());
+            assertThat(elapsedMillis).isLessThan(2_000L);
+            assertThat(readOutbox(locked.getId()).status()).isEqualTo(ProblemEventOutboxStatus.PENDING);
+            assertThat(readOutbox(free.getId()).status()).isEqualTo(ProblemEventOutboxStatus.IN_PROGRESS);
+        } finally {
+            releaseLock.countDown();
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("선점한 인스턴스가 종료되어도 lease 만료 후 다른 인스턴스가 재선점해 발행하므로 이벤트가 유실되지 않는다")
+    void relay_crashedInstance_leaseExpires_otherInstancePublishes() {
+        // given: 인스턴스 A가 선점한 뒤 결과를 기록하지 못하고 종료되었다고 가정합니다.
+        ProblemEventOutbox outbox = savePendingOutbox();
+        UUID outboxId = outbox.getId();
+        UUID crashedClaimId = UUID.randomUUID();
+
+        problemEventOutboxPersistenceService.claimNext(crashedClaimId, Duration.ofMillis(LEASE_DURATION_MS));
+
+        // lease가 남아있는 동안에는 다른 인스턴스가 가져가지 않습니다.
+        createRelay().relay();
+        verifyNoInteractions(eventPublisherPort);
+        assertThat(readOutbox(outboxId).claimId()).isEqualTo(crashedClaimId);
+
+        expireLease(outboxId);
+
+        // when: 인스턴스 B가 relay합니다.
+        createRelay().relay();
+
+        // then
+        OutboxState state = readOutbox(outboxId);
+
+        verify(eventPublisherPort, times(1)).publish(
+                eq(TOPIC),
+                eq(outbox.getAggregateId().toString()),
+                anyString()
+        );
+        assertThat(state.status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+        assertThat(state.claimId()).isNull();
+    }
+
+    @Test
+    @DisplayName("lease 만료로 재선점된 뒤 도착한 이전 Worker의 결과는 claimId 불일치로 무시된다 (fencing)")
+    void staleWorkerResult_afterReclaim_isIgnored() {
+        // given
+        ProblemEventOutbox outbox = savePendingOutbox();
+        UUID outboxId = outbox.getId();
+        UUID staleClaimId = UUID.randomUUID();
+        UUID newClaimId = UUID.randomUUID();
+
+        problemEventOutboxPersistenceService.claimNext(staleClaimId, Duration.ofMillis(LEASE_DURATION_MS));
+        expireLease(outboxId);
+        problemEventOutboxPersistenceService.claimNext(newClaimId, Duration.ofMillis(LEASE_DURATION_MS));
+
+        // when: 이전 Worker가 늦게 실패/성공 결과를 기록하려 합니다.
+        boolean staleFailure = problemEventOutboxPersistenceService.recordFailedAttempt(
+                outboxId, staleClaimId, "KAFKA_PUBLISH_FAILED:IllegalStateException"
+        );
+        boolean stalePublished = problemEventOutboxPersistenceService.markPublished(outboxId, staleClaimId);
+
+        // then
+        OutboxState state = readOutbox(outboxId);
+
+        assertThat(staleFailure).isFalse();
+        assertThat(stalePublished).isFalse();
+        assertThat(state.status()).isEqualTo(ProblemEventOutboxStatus.IN_PROGRESS);
+        assertThat(state.claimId()).isEqualTo(newClaimId);
+        assertThat(state.retryCount()).isZero();
+
+        // 현재 선점자는 정상적으로 결과를 기록합니다.
+        assertThat(problemEventOutboxPersistenceService.markPublished(outboxId, newClaimId)).isTrue();
+        assertThat(readOutbox(outboxId).status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);
+    }
+
+    private ProblemEventRelayFacade createRelay() {
+        return new ProblemEventRelayFacade(
+                problemEventOutboxPersistenceService,
+                eventPublisherPort,
+                TOPIC,
+                BATCH_SIZE,
+                MAX_PAYLOAD_BYTES,
+                LEASE_DURATION_MS,
+                PUBLISH_TIMEOUT_MS
+        );
+    }
+
+    private void expireLease(UUID outboxId) {
+        jdbcTemplate.update(
+                """
+                UPDATE content_schema.p_problem_event_outboxes
+                SET lease_until = CURRENT_TIMESTAMP - INTERVAL '1 second'
+                WHERE id = ?
+                """,
+                outboxId
+        );
+    }
 
     private ProblemEventOutbox savePendingOutbox() {
+        return savePendingOutbox(Instant.parse("2026-09-23T00:00:00Z"));
+    }
+
+    private ProblemEventOutbox savePendingOutbox(Instant occurredAt) {
         UUID eventId = UUID.randomUUID();
         UUID problemId = UUID.randomUUID();
         UUID problemVersionId = UUID.randomUUID();
@@ -274,7 +492,7 @@ class ProblemEventOutboxRelayIntegrationTest {
                 problemId,
                 1,
                 createPayload(eventId, problemId, problemVersionId),
-                Instant.parse("2026-09-23T00:00:00Z")
+                occurredAt
         );
 
         return problemEventOutboxRepository.save(outbox);
@@ -310,13 +528,16 @@ class ProblemEventOutboxRelayIntegrationTest {
                        next_attempt_at,
                        published_at,
                        last_error,
-                       lock_version
+                       lock_version,
+                       claim_id,
+                       lease_until
                 FROM content_schema.p_problem_event_outboxes
                 WHERE id = ?
                 """,
                 (rs, rowNum) -> {
                     OffsetDateTime nextAttemptAt = rs.getObject("next_attempt_at", OffsetDateTime.class);
                     OffsetDateTime publishedAt = rs.getObject("published_at", OffsetDateTime.class);
+                    OffsetDateTime leaseUntil = rs.getObject("lease_until", OffsetDateTime.class);
 
                     return new OutboxState(
                             ProblemEventOutboxStatus.valueOf(rs.getString("status")),
@@ -324,7 +545,9 @@ class ProblemEventOutboxRelayIntegrationTest {
                             nextAttemptAt == null ? null : nextAttemptAt.toInstant(),
                             publishedAt == null ? null : publishedAt.toInstant(),
                             rs.getString("last_error"),
-                            rs.getLong("lock_version")
+                            rs.getLong("lock_version"),
+                            rs.getObject("claim_id", UUID.class),
+                            leaseUntil == null ? null : leaseUntil.toInstant()
                     );
                 },
                 outboxId
@@ -357,7 +580,9 @@ class ProblemEventOutboxRelayIntegrationTest {
             Instant nextAttemptAt,
             Instant publishedAt,
             String lastError,
-            long lockVersion
+            long lockVersion,
+            UUID claimId,
+            Instant leaseUntil
     ) {
     }
 }
