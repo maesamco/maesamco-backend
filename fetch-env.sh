@@ -113,7 +113,22 @@ echo "EUREKA_URL=http://eureka-server:8761/eureka/" >> "$TMP_ENV"
 
 # ===== Grafana Alerting =====
 write SLACK_WEBHOOK_URL
-write GRAFANA_ROOT_URL
+GRAFANA_ROOT_URL_VALUE=$(get_param GRAFANA_ROOT_URL)
+echo "GRAFANA_ROOT_URL=$GRAFANA_ROOT_URL_VALUE" >> "$TMP_ENV"
+
+# ===== 이슈 #310 — Caddy용 nip.io 도메인 =====
+# GRAFANA_ROOT_URL(예: http://54.180.36.179:4000)에서 IP만 뽑아내
+# nip.io 서브도메인 형식(점 -> 하이픈)으로 변환한다. 새 Parameter Store
+# 값을 따로 추가하지 않고 기존 값에서 파생시켜, 배포자가 IP를 두 군데
+# 따로 관리하다 서로 어긋나는 실수를 원천 차단한다.
+EC2_IP=$(echo "$GRAFANA_ROOT_URL_VALUE" | sed -E 's#https?://##; s#:.*##')
+if [ -z "$EC2_IP" ]; then
+    echo "❌ GRAFANA_ROOT_URL에서 IP를 추출하지 못했습니다: $GRAFANA_ROOT_URL_VALUE" >&2
+    rm -f "$TMP_ENV"
+    exit 1
+fi
+EC2_IP_DASHED=$(echo "$EC2_IP" | tr '.' '-')
+echo "EC2_ELASTIC_IP_DASHED=$EC2_IP_DASHED" >> "$TMP_ENV"
 
 # ===== Rate Limit =====
 echo "RATE_LIMIT_SUBMISSIONS_PER_MIN=" >> "$TMP_ENV"

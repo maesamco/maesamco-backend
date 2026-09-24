@@ -181,8 +181,14 @@ services:
       dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # ⚠️ 이슈 #310 — 예전엔 8080을 호스트에 직접 노출해서 평문 HTTP로만
+    # 접근 가능했음(Refresh Token 쿠키의 Secure 속성이 평문 HTTP에서
+    # 브라우저가 전송을 거부해 refresh가 항상 401이었던 원인). 이제
+    # Caddy가 TLS를 종단하고 내부적으로만 이 포트를 호출하므로, 호스트에
+    # 더 이상 직접 노출하지 않는다(같은 docker 네트워크 안에서
+    # "api-gateway:8080"으로 Caddy가 접근).
+    expose:
+      - "8080"
     environment:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
@@ -195,10 +201,39 @@ services:
       RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
       # 배포 시 Gateway 앞에 신뢰 가능한 리버스 프록시를 두게 되면 그 IP를 콤마로 구분해 채운다.
       # 비워두면(기본값) Forwarded 헤더를 아무도 신뢰하지 않아 항상 안전하다.
+      # ⚠️ 이슈 #310 — Caddy를 앞단에 뒀으므로 이제 채워야 함. docker-compose
+      # 내부 네트워크(bridge)의 caddy 컨테이너 IP는 재시작마다 바뀔 수 있어,
+      # 컨테이너 이름 기반이 아니라 실제로는 이 네트워크의 서브넷 CIDR
+      # 전체(예: 172.20.0.0/16, docker network inspect로 확인)를 넣는 게
+      # 안전하다. 최초 배포 후 실제 값 확인해서 .env에 채워 넣을 것.
       RATE_LIMIT_TRUSTED_PROXY_IPS: ${RATE_LIMIT_TRUSTED_PROXY_IPS:-}
     depends_on:
       - eureka-server
       - redis
+
+  # ⚠️ 이슈 #310 — TLS 종단 담당. 도메인이 없어 nip.io(EC2 Elastic IP를 그대로
+  # 가리키는 무료 와일드카드 DNS)로 Let's Encrypt 인증서를 자동 발급·갱신한다.
+  # 이제 외부에서 이 서비스가 유일한 진입점이며(80/443), api-gateway는
+  # 더 이상 호스트에 직접 노출되지 않는다.
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # fetch-env.sh가 SSM의 EC2_ELASTIC_IP 값(점(.) 포함)을 받아 하이픈으로
+      # 바꿔서 채운다 — nip.io 서브도메인은 라벨 하나여야 해서 점을 못 씀.
+      EC2_ELASTIC_IP_DASHED: ${EC2_ELASTIC_IP_DASHED}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 인증서를 컨테이너 재시작 후에도 유지 — 없으면 재시작마다 Let's Encrypt에
+      # 재발급을 요청하게 되어 Rate Limit(주당 발급 한도)에 걸릴 위험이 있다.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api-gateway
 
   user-service:
     build:
@@ -347,3 +382,5 @@ volumes:
   kafka-data:
   judge0-data:
   grafana-data:
+  caddy-data:
+  caddy-config:
