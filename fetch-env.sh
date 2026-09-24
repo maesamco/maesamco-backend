@@ -135,12 +135,12 @@ echo "RATE_LIMIT_SUBMISSIONS_PER_MIN=" >> "$TMP_ENV"
 # ⚠️ 리뷰 반영(P1) — 예전엔 빈 값으로 썼다가 배포자가 수동으로 채워 넣는
 # 방식이었는데, 이 스크립트가 재배포마다 .env를 통째로 새로 만들기 때문에
 # 수동으로 채운 값이 다음 배포에서 그대로 사라지는 문제가 있었다(실제로
-# 재현·확인됨). docker-compose.prod.yml에서 caddy에 고정 IP(172.28.0.10)를
+# 재현·확인됨). docker-compose.prod.yml에서 caddy에 고정 IP(172.28.255.10)를
 # 부여했으므로, 그 값과 정확히 일치하는 값을 매번 자동으로 쓴다 — CIDR이
 # 아니라 정확한 IP 하나인 이유는 RateLimitFilter가 정확 일치(contains)만
 # 지원하기 때문(CIDR 지원은 별도 이슈로 분리, 게이트웨이 코드 변경 필요).
 # docker-compose.prod.yml의 caddy ipv4_address를 바꾸면 이 값도 반드시 같이 바꿀 것.
-echo "RATE_LIMIT_TRUSTED_PROXY_IPS=172.28.0.10" >> "$TMP_ENV"
+echo "RATE_LIMIT_TRUSTED_PROXY_IPS=172.28.255.10" >> "$TMP_ENV"
 
 # ===== 이슈 #310 리뷰 반영(P2) — Refresh Token 쿠키 SameSite/CORS =====
 # 예전엔 이 두 값을 이 스크립트가 전혀 관리하지 않아서, docker-compose.prod.yml의
