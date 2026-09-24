@@ -38,12 +38,20 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public LessonCreateResponse createLesson(LessonCreateRequest request) {
 
-        // 상위 유닛 존재 여부 확인
-        unitFinder.getById(request.getUnitId());
+        /*
+         * 동일 Unit 아래에서 동시에 Lesson을 생성하면 같은 displayOrder가
+         * 계산될 수 있으므로 부모 Unit을 먼저 비관적 락으로 조회합니다.
+         */
+        unitFinder.lockById(request.getUnitId());
 
-        int displayOrder = Math.toIntExact(
-                lessonRepository.countByUnitId(request.getUnitId()) + 1
-        );
+        int displayOrder =
+                Math.addExact(
+                        lessonRepository
+                                .findMaxDisplayOrderByUnitId(
+                                        request.getUnitId()
+                                ),
+                        1
+                );
 
         Lesson lesson = Lesson.create(
                 request.getUnitId(),
@@ -102,8 +110,18 @@ public class LessonService {
             lesson.changeLanguage(request.getLanguage());
         }
 
-        if (request.getDisplayOrder() != null) {
-            lesson.changeDisplayOrder(request.getDisplayOrder());
+        if (
+                request.getDisplayOrder() != null
+                        && !request.getDisplayOrder()
+                        .equals(lesson.getDisplayOrder())
+        ) {
+            unitFinder.lockById(
+                    lesson.getUnitId()
+            );
+
+            lesson.changeDisplayOrder(
+                    request.getDisplayOrder()
+            );
         }
 
         return LessonResponse.from(lesson);

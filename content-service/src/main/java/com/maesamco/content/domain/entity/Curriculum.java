@@ -1,7 +1,12 @@
 package com.maesamco.content.domain.entity;
 
 import com.maesamco.content.global.common.BaseEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,35 +22,62 @@ public class Curriculum extends BaseEntity {
     /** 커리큘럼 식별자 */
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "curriculum_id", updatable = false, nullable = false)
+    @Column(
+            name = "curriculum_id",
+            updatable = false,
+            nullable = false
+    )
     private UUID id;
 
     /** 커리큘럼 제목 */
-    @Column(name = "title", length = 100, nullable = false)
+    @Column(
+            name = "title",
+            length = 100,
+            nullable = false
+    )
     private String title;
 
     /** 프로그래밍 언어 */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "language", length = 20, nullable = false)
+    @Column(
+            name = "language",
+            length = 20,
+            nullable = false
+    )
+    @jakarta.persistence.Enumerated(
+            jakarta.persistence.EnumType.STRING
+    )
     private ProgrammingLanguage language;
 
-    /** 커리큘럼 표시 순서 */
-    @Column(name = "display_order", nullable = false)
-    private Integer displayOrder;
-
-    private Curriculum(String title, ProgrammingLanguage language, Integer displayOrder) {
+    private Curriculum(
+            String title,
+            ProgrammingLanguage language
+    ) {
         this.title = title;
         this.language = language;
-        this.displayOrder = displayOrder;
     }
 
     /** 커리큘럼 생성 */
-    public static Curriculum create(String title, ProgrammingLanguage language, Integer displayOrder) {
-        return new Curriculum(title, language, displayOrder);
+    public static Curriculum create(
+            String title,
+            ProgrammingLanguage language
+    ) {
+        return new Curriculum(
+                title,
+                language
+        );
     }
 
-    /** 커리큘럼 수정 */
-    public void changeTitle(String newTitle) { this.title = newTitle; }
-    public void changeLanguage(ProgrammingLanguage newLanguage) { this.language = newLanguage; }
-    // public void changeDisplayOrder(Integer newDisplayOrder) { this.displayOrder = newDisplayOrder; }
+    /** 커리큘럼 제목 수정 */
+    public void changeTitle(
+            String newTitle
+    ) {
+        this.title = newTitle;
+    }
+
+    /** 커리큘럼 언어 수정 */
+    public void changeLanguage(
+            ProgrammingLanguage newLanguage
+    ) {
+        this.language = newLanguage;
+    }
 }

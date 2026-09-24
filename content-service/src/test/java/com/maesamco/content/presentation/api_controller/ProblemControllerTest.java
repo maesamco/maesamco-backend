@@ -1248,4 +1248,57 @@ class ProblemControllerTest {
 
         return problem;
     }
+
+    @Test
+    @DisplayName(
+            "문제 수정 시 제목이 공백만 있으면 400을 반환한다"
+    )
+    void updateProblem_blankTitle_returns400()
+            throws Exception {
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "title": "   "
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[0].field"
+                        ).value(
+                                "title"
+                        )
+                );
+
+        verifyNoInteractions(
+                problemService
+        );
+    }
 }

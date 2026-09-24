@@ -407,8 +407,7 @@ class CurriculumControllerTest {
         Curriculum curriculum =
                 Curriculum.create(
                         title,
-                        language,
-                        displayOrder
+                        language
                 );
 
         ReflectionTestUtils.setField(

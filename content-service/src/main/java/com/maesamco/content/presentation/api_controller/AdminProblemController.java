@@ -2,12 +2,15 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.ProblemService;
+import com.maesamco.content.application.persistence_service.ProblemVersionService;
 import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.util.PageableFactory;
 import com.maesamco.content.presentation.request.ProblemSearchRequest;
 import com.maesamco.content.presentation.response.AdminProblemSearchItemResponse;
+import com.maesamco.content.presentation.response.ProblemVersionResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,6 +36,8 @@ public class AdminProblemController {
     private final ProblemPublicationFacade problemPublicationFacade;
 
     private final ProblemService problemService;
+
+    private final ProblemVersionService problemVersionService;
 
     /**
      * 관리자가 문제 상태를 포함한 조건으로 문제 목록을 검색합니다.
@@ -82,6 +88,67 @@ public class AdminProblemController {
         return ResponseEntity.ok(
                 SuccessResponse.success(
                         response
+                )
+        );
+    }
+
+    /**
+     * 특정 문제의 전체 버전 이력을 조회합니다.
+     *
+     * <p>ProblemVersion 스냅샷에는 비공개 테스트케이스가
+     * 포함될 수 있으므로 ADMIN만 접근할 수 있습니다.</p>
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{problemId}/versions")
+    public ResponseEntity<
+            SuccessResponse<List<ProblemVersionResponse>>
+            > getProblemVersions(
+            @PathVariable
+            UUID problemId
+    ) {
+        List<ProblemVersionResponse> response =
+                problemVersionService
+                        .getProblemVersions(
+                                problemId
+                        )
+                        .stream()
+                        .map(
+                                ProblemVersionResponse::from
+                        )
+                        .toList();
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        response
+                )
+        );
+    }
+
+    /**
+     * 특정 문제의 특정 버전을 조회합니다.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{problemId}/versions/{versionNo}")
+    public ResponseEntity<
+            SuccessResponse<ProblemVersionResponse>
+            > getProblemVersion(
+            @PathVariable
+            UUID problemId,
+            @PathVariable
+            Integer versionNo
+    ) {
+        ProblemVersion problemVersion =
+                problemVersionService
+                        .getProblemVersion(
+                                problemId,
+                                versionNo
+                        );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        ProblemVersionResponse.from(
+                                problemVersion
+                        )
                 )
         );
     }

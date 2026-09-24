@@ -904,7 +904,7 @@ class ProblemQueryRepositoryImplTest {
     void searchProblems_filtersByLessonId() {
         // given
         // FK 제약을 만족하도록 실제 Curriculum → Unit → Lesson 픽스처를 생성한다.
-        Curriculum curriculum = Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA, 1);
+        Curriculum curriculum = Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA);
         entityManager.persist(curriculum);
 
         Unit unit = Unit.create(curriculum.getId(), "자료구조", ProgrammingLanguage.JAVA, 1);
