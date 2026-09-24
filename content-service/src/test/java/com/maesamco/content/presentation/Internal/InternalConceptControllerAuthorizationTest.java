@@ -22,6 +22,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import tools.jackson.databind.json.JsonMapper;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -42,6 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @DisplayName("InternalConceptController 내부 서비스 호출 권한 테스트")
 class InternalConceptControllerAuthorizationTest {
+
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private static final String ALLOWED_CALLER = "user-service";
     private static final String ALLOWED_SECRET = "test-secret-user-to-content";
@@ -118,7 +121,7 @@ class InternalConceptControllerAuthorizationTest {
             // given
             UUID conceptId = UUID.randomUUID();
             String path = "/internal/v1/concepts/validate";
-            String body = "{\"conceptIds\":[\"" + conceptId + "\"]}";
+            String body = JSON_MAPPER.writeValueAsString(Map.of("conceptIds", List.of(conceptId)));
 
             ConceptValidationInternalResult result =
                     new ConceptValidationInternalResult(true, List.of(conceptId), List.of());
@@ -156,7 +159,7 @@ class InternalConceptControllerAuthorizationTest {
             // given
             UUID conceptId = UUID.randomUUID();
             String path = "/internal/v1/concepts/validate";
-            String body = "{\"conceptIds\":[\"" + conceptId + "\"]}";
+            String body = JSON_MAPPER.writeValueAsString(Map.of("conceptIds", List.of(conceptId)));
 
             HmacHeaders headers =
                     createValidHeaders(DISALLOWED_CALLER, DISALLOWED_SECRET, "POST", path, body);

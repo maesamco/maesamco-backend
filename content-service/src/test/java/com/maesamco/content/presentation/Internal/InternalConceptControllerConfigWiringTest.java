@@ -12,8 +12,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.BDDMockito.given;
@@ -35,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InternalConceptControllerConfigWiringTest {
 
     private static final String URL = "/internal/v1/concepts/validate";
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
+
     private static final String ALLOWED_CALLER = "user-service";
     private static final String DISALLOWED_CALLER = "coaching-service";
 
@@ -59,7 +63,7 @@ class InternalConceptControllerConfigWiringTest {
                         post(URL)
                                 .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER)
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"conceptIds\":[\"" + conceptId + "\"]}")
+                                .content(JSON_MAPPER.writeValueAsString(Map.of("conceptIds", List.of(conceptId))))
                 )
                 .andExpect(status().isOk());
     }
@@ -76,7 +80,7 @@ class InternalConceptControllerConfigWiringTest {
                         post(URL)
                                 .header(InternalCallHeaders.SERVICE, DISALLOWED_CALLER)
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"conceptIds\":[\"" + conceptId + "\"]}")
+                                .content(JSON_MAPPER.writeValueAsString(Map.of("conceptIds", List.of(conceptId))))
                 )
                 .andExpect(status().isForbidden());
     }

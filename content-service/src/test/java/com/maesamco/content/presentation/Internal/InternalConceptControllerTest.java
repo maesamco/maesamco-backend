@@ -14,8 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.UUID;
 
@@ -40,6 +42,8 @@ class InternalConceptControllerTest {
 
     // InternalCallerAuthorizationInterceptor를 통과할 수 있는 허용된 내부 서비스명을 사용한다.
     private static final String ALLOWED_CALLER = "user-service";
+
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     @Autowired
     private MockMvc mockMvc;
@@ -166,14 +170,7 @@ class InternalConceptControllerTest {
     }
 
     private static String ids(Object... conceptIds) {
-        StringBuilder json = new StringBuilder("{\"conceptIds\":[");
-        for (int i = 0; i < conceptIds.length; i++) {
-            if (i > 0) {
-                json.append(",");
-            }
-            json.append("\"").append(conceptIds[i]).append("\"");
-        }
-        return json.append("]}").toString();
+        return JSON_MAPPER.writeValueAsString(Map.of("conceptIds", List.of(conceptIds)));
     }
 
     private MockHttpServletRequestBuilder internalPost(String json) {
