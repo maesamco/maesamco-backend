@@ -8,15 +8,13 @@ import com.maesamco.content.presentation.request.TestCaseCreateRequest;
 import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
 import com.maesamco.content.presentation.response.TestCaseCreateResponse;
 import com.maesamco.content.presentation.response.TestCaseResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -31,8 +29,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1")
-public class TestCaseController {
+public class TestCaseController implements TestCaseApiDocs {
 
     /** 테스트케이스 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final TestCaseService testCaseService;
@@ -47,11 +44,11 @@ public class TestCaseController {
      * @param request 테스트케이스 생성 요청 정보
      * @return 생성된 테스트케이스 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/contents/problems/{problemId}/test-cases")
     public ResponseEntity<SuccessResponse<TestCaseCreateResponse>> createTestCase(
-            @PathVariable UUID problemId,
-            @Valid @RequestBody TestCaseCreateRequest request
+            UUID problemId,
+            TestCaseCreateRequest request
     ) {
         TestCaseCreateResponse response = testCaseService.createTestCase(problemId, request);
 
@@ -66,9 +63,9 @@ public class TestCaseController {
      * @param testCaseId 조회할 테스트케이스의 고유 ID
      * @return 조회된 테스트케이스 정보를 포함한 성공 응답
      */
-    @GetMapping("/contents/test-cases/{testCaseId}")
+    @Override
     public ResponseEntity<SuccessResponse<TestCaseResponse>> getTestCase(
-            @PathVariable UUID testCaseId,
+            UUID testCaseId,
             Authentication authentication
     ) {
         TestCaseResponse response = null;
@@ -95,11 +92,11 @@ public class TestCaseController {
      * @param size 한 페이지에 조회할 테스트케이스 개수
      * @return 특정 문제의 페이징된 테스트케이스 목록
      */
-    @GetMapping("/contents/problems/{problemId}/test-cases")
+    @Override
     public ResponseEntity<SuccessResponse<PageResponse<TestCaseResponse>>> getTestCases(
-            @PathVariable UUID problemId,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size,
+            UUID problemId,
+            Integer page,
+            Integer size,
             Authentication authentication
     ) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
@@ -107,8 +104,7 @@ public class TestCaseController {
         PageResponse<TestCaseResponse> response = null;
         if (isAdmin(authentication)) {
             response = testCaseService.searchTestCasesAll(problemId, pageable); // ADMIN
-        }
-        else {
+        } else {
             response = testCaseService.searchTestCasesPublic(problemId, pageable); // 비로그인, 로그인을 했지만 ADMIN이 아닌 사용자
         }
 
@@ -127,11 +123,11 @@ public class TestCaseController {
      * @param request 테스트케이스 수정 요청 정보
      * @return 수정된 테스트케이스 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/contents/test-cases/{testCaseId}")
     public ResponseEntity<SuccessResponse<TestCaseResponse>> updateTestCase(
-            @PathVariable UUID testCaseId,
-            @Valid @RequestBody TestCaseUpdateRequest request
+            UUID testCaseId,
+            TestCaseUpdateRequest request
     ) {
         TestCaseResponse response = testCaseService.updateTestCase(testCaseId, request);
 
@@ -150,12 +146,9 @@ public class TestCaseController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/contents/test-cases/{testCaseId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteTestCase(
-            @PathVariable UUID testCaseId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteTestCase(UUID testCaseId, UUID userId) {
         testCaseService.deleteTestCase(testCaseId, userId);
 
         return ResponseEntity.ok(

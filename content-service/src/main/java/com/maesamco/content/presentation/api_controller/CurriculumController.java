@@ -8,14 +8,12 @@ import com.maesamco.content.presentation.request.CurriculumCreateRequest;
 import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
 import com.maesamco.content.presentation.response.CurriculumCreateResponse;
 import com.maesamco.content.presentation.response.CurriculumResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
@@ -30,8 +28,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/curriculums")
-public class CurriculumController {
+public class CurriculumController implements CurriculumApiDocs {
 
     /** 커리큘럼 생성, 조회, 수정, 삭제 비즈니스 로직을 담당하는 서비스입니다. */
     private final CurriculumService curriculumService;
@@ -45,11 +42,9 @@ public class CurriculumController {
      * @param request 커리큘럼 생성 요청 정보
      * @return 생성된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(
-            @Valid @RequestBody CurriculumCreateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(CurriculumCreateRequest request) {
         CurriculumCreateResponse response = curriculumService.createCurriculum(request);
 
         return ResponseEntity
@@ -66,11 +61,9 @@ public class CurriculumController {
      * @param curriculumId 조회할 커리큘럼의 고유 ID
      * @return 조회된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping("/{curriculumId}")
-    public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(
-            @PathVariable UUID curriculumId
-    ) {
+    public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(UUID curriculumId) {
         CurriculumResponse response = curriculumService.getCurriculum(curriculumId);
 
         return ResponseEntity.ok(
@@ -91,12 +84,9 @@ public class CurriculumController {
      * @param size 한 페이지에 조회할 커리큘럼 개수
      * @return 페이징된 커리큘럼 목록
      */
+    @Override
     @PreAuthorize("isAuthenticated()")
-    @GetMapping
-    public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
+    public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(Integer page, Integer size) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
 
         PageResponse<CurriculumResponse> response = curriculumService.searchCurriculums(pageable);
@@ -118,12 +108,9 @@ public class CurriculumController {
      * @param request 커리큘럼 수정 요청 정보
      * @return 수정된 커리큘럼 정보를 포함한 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @PatchMapping("/{curriculumId}")
-    public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(
-            @PathVariable UUID curriculumId,
-            @Valid @RequestBody CurriculumUpdateRequest request
-    ) {
+    public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(UUID curriculumId, CurriculumUpdateRequest request) {
         CurriculumResponse response = curriculumService.updateCurriculum(curriculumId, request);
 
         return ResponseEntity.ok(
@@ -144,12 +131,9 @@ public class CurriculumController {
      * @param userId 삭제를 요청한 사용자의 고유 ID
      * @return 응답 데이터가 없는 성공 응답
      */
+    @Override
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{curriculumId}")
-    public ResponseEntity<SuccessResponse<Void>> deleteCurriculum(
-            @PathVariable UUID curriculumId,
-            @AuthenticationPrincipal UUID userId
-    ) {
+    public ResponseEntity<SuccessResponse<Void>> deleteCurriculum(UUID curriculumId, UUID userId) {
         curriculumService.deleteCurriculum(curriculumId, userId);
 
         return ResponseEntity.ok(
@@ -157,3 +141,20 @@ public class CurriculumController {
         );
     }
 }
+
+/**
+ * 1. Java 컴파일
+ *    ↓
+ * 2. Spring 애플리케이션 실행
+ *    ↓
+ * 3. Spring이 @RestController / @Controller Bean 탐색
+ *    ↓
+ * 4. @PreAuthorize 때문에 AOP Proxy 생성
+ *    ↓
+ * 5. 인터페이스를 구현하고 있으면 JDK Proxy가 만들어질 수 있음
+ *    ↓
+ * 6. Spring MVC가 그 Proxy를 Controller로 탐지
+ *    ↓
+ * 7. @RequestMapping / @GetMapping 등을 읽어서 Handler 등록
+ *
+ * */
