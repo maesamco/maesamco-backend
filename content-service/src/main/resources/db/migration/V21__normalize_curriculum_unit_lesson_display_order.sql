@@ -1,5 +1,5 @@
 -- ============================================================
--- V20: Curriculum / Unit / Lesson display_order 정책 정리
+-- V21: Curriculum / Unit / Lesson display_order 정책 정리
 -- ============================================================
 --
 -- Curriculum
