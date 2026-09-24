@@ -5,7 +5,6 @@ import com.maesamco.coaching.domain.entity.OutboxStatus;
 import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,8 +40,15 @@ import java.util.UUID;
  *     같은 행을 PENDING으로 읽으면 막지 못한다. {@code CoachingEventOutbox}에 낙관적 락
  *     (`@Version`)을 추가하고, `CoachingEventOutboxRepositoryImpl.save()`가
  *     `saveAndFlush()`로 즉시 flush하게 만들어서, 나중에 flush되는 트랜잭션이
- *     `ObjectOptimisticLockingFailureException`을 이 메서드 안에서 바로 받게 했다 — status
- *     체크로 걸러지는 경우와 동일하게 "다른 Relay가 이미 처리함"으로 보고 무시한다.
+ *     `ObjectOptimisticLockingFailureException`을 받게 했다.
+ *     이슈 #288 — 처음에는 이 예외를 각 메서드 안에서 catch해 "다른 Relay가 먼저 처리함"으로
+ *     무시했으나, 안쪽 `save()`(Spring Data 트랜잭션 advice)에서 예외가 나가면 바깥
+ *     `@Transactional`이 이미 rollback-only로 표시돼, catch로 정상 반환해도 커밋 시점에
+ *     `UnexpectedRollbackException`이 새로 발생했다(실제 PostgreSQL 통합 테스트로 재현).
+ *     그래서 catch를 제거하고 예외를 그대로 내보낸다 — `claimId` 확인이 1차 방어, `@Version`이
+ *     2차 방어이며, 던져진 예외는 Facade가 잡아 처리한다(`markPublished()`는
+ *     `recordPostPublishFailure()`로 넘어가지만 이미 `claimId`가 바뀌었으면 no-op, 나머지는
+ *     `relay()` 바깥 catch에서 로그만 남기고 다음 항목으로 진행). 데이터는 덮어써지지 않는다.
  * (4) `recordPostPublishFailure()`의 무한 재시도가 Relay의 oldest-first LIMIT 100 폴링과
  *     결합되면 head-of-line blocking을 일으킬 수 있어, 실패마다
  *     {@code CoachingEventOutbox.scheduleNextAttempt()}로 지수 백오프 시각을 기록한다.
@@ -83,13 +89,7 @@ public class CoachingEventOutboxPersistenceService {
 
         freshOutbox.incrementAttemptCount();
         freshOutbox.markPublished();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            // 이 조회~저장 사이에 다른 Relay 인스턴스가 먼저 종료 처리했다 — status 체크로
-            // 걸러지는 경우와 동일하게 멱등하게 무시한다(PR #123 재검토 2차).
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행 자체가 실패했을 때 호출 — 이벤트가 아직 전달되지 않았으므로, 상한 소진 시
@@ -111,23 +111,14 @@ public class CoachingEventOutboxPersistenceService {
 
         if (freshOutbox.getAttemptCount() >= MAX_RELAY_ATTEMPTS) {
             freshOutbox.markFailed();
-            try {
-                coachingEventOutboxRepository.save(freshOutbox);
-            } catch (ObjectOptimisticLockingFailureException e) {
-                log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-                return;
-            }
+            coachingEventOutboxRepository.save(freshOutbox);
             log.error("[Coaching] Outbox 재시도 상한({}) 도달 — FAILED 처리, User Service에 CoachingCompleted가 "
                             + "발행되지 않아 XP/스트릭 반영이 누락됩니다. 수동 확인 필요. outboxId={}, eventType={}",
                     MAX_RELAY_ATTEMPTS, freshOutbox.getId(), freshOutbox.getEventType());
             return;
         }
         freshOutbox.scheduleNextAttempt();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행은 성공했으나, markPublished()의 DB 후처리(완료 표시)가 실패했을 때 호출.
@@ -151,12 +142,7 @@ public class CoachingEventOutboxPersistenceService {
 
         freshOutbox.incrementAttemptCount();
         freshOutbox.scheduleNextAttempt();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-            return;
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
         log.error("[Coaching] Kafka 발행은 성공했지만 완료 표시(DB 후처리)가 반복 실패 중입니다 — "
                         + "이벤트가 이미 전달됐을 수 있어 FAILED로 종료하지 않고 계속 재시도합니다. "
                         + "attemptCount={}, outboxId={}",
