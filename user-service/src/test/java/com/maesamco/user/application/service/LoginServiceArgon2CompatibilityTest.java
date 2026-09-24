@@ -77,11 +77,13 @@ class LoginServiceArgon2CompatibilityTest {
                         emailLookupHasher,
                         passwordHasher,
                         userRepository,
-                        tokenIssuer,
-                        refreshTokenHasher,
-                        authSessionStore,
-                        meterRegistry,
-                        clock
+                        new AuthSessionIssuer(
+                                tokenIssuer,
+                                refreshTokenHasher,
+                                authSessionStore,
+                                clock
+                        ),
+                        meterRegistry
                 );
     }
 
