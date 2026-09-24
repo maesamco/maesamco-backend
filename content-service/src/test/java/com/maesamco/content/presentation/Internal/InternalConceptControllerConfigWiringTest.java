@@ -4,7 +4,6 @@ import com.maesamco.content.application.persistence_service.ConceptValidationInt
 import com.maesamco.content.application.result.ConceptValidationInternalResult;
 import com.maesamco.content.global.security.hmac.InternalCallHeaders;
 import com.maesamco.content.presentation.internal_controller.InternalConceptController;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.BDDMockito.given;
@@ -43,9 +41,6 @@ class InternalConceptControllerConfigWiringTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockitoBean
     private ConceptValidationInternalService conceptValidationInternalService;
 
@@ -64,7 +59,7 @@ class InternalConceptControllerConfigWiringTest {
                         post(URL)
                                 .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER)
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(Map.of("conceptIds", List.of(conceptId))))
+                                .content("{\"conceptIds\":[\"" + conceptId + "\"]}")
                 )
                 .andExpect(status().isOk());
     }
@@ -81,7 +76,7 @@ class InternalConceptControllerConfigWiringTest {
                         post(URL)
                                 .header(InternalCallHeaders.SERVICE, DISALLOWED_CALLER)
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(Map.of("conceptIds", List.of(conceptId))))
+                                .content("{\"conceptIds\":[\"" + conceptId + "\"]}")
                 )
                 .andExpect(status().isForbidden());
     }

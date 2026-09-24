@@ -9,7 +9,6 @@ import com.maesamco.content.global.security.hmac.InternalCallHeaders;
 import com.maesamco.content.global.security.hmac.InternalCallerAuthorizationInterceptor;
 import com.maesamco.content.global.security.hmac.InternalServiceKeyProperties;
 import com.maesamco.content.presentation.internal_controller.InternalConceptController;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,8 +52,6 @@ class InternalConceptControllerAuthorizationTest {
     private static GenericContainer<?> redisContainer;
     private static LettuceConnectionFactory connectionFactory;
     private static StringRedisTemplate redisTemplate;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private MockMvc mockMvc;
     private ConceptValidationInternalService conceptValidationInternalService;
@@ -121,7 +118,7 @@ class InternalConceptControllerAuthorizationTest {
             // given
             UUID conceptId = UUID.randomUUID();
             String path = "/internal/v1/concepts/validate";
-            String body = objectMapper.writeValueAsString(Map.of("conceptIds", List.of(conceptId)));
+            String body = "{\"conceptIds\":[\"" + conceptId + "\"]}";
 
             ConceptValidationInternalResult result =
                     new ConceptValidationInternalResult(true, List.of(conceptId), List.of());
@@ -159,7 +156,7 @@ class InternalConceptControllerAuthorizationTest {
             // given
             UUID conceptId = UUID.randomUUID();
             String path = "/internal/v1/concepts/validate";
-            String body = objectMapper.writeValueAsString(Map.of("conceptIds", List.of(conceptId)));
+            String body = "{\"conceptIds\":[\"" + conceptId + "\"]}";
 
             HmacHeaders headers =
                     createValidHeaders(DISALLOWED_CALLER, DISALLOWED_SECRET, "POST", path, body);

@@ -6,12 +6,8 @@ import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.global.security.hmac.AllowedInternalCallers;
 import com.maesamco.content.presentation.request.ConceptValidationRequest;
 import com.maesamco.content.presentation.response.ConceptValidationResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -22,16 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/internal/v1")
 @AllowedInternalCallers({"user-service"})
-public class InternalConceptController {
+public class InternalConceptController implements InternalConceptApiDocs {
 
     private final ConceptValidationInternalService conceptValidationInternalService;
 
     /** 내부 서비스용 개념 ID 목록 일괄 검증 */
-    @PostMapping("/concepts/validate")
+    @Override
     public ResponseEntity<SuccessResponse<ConceptValidationResponse>> validateConcepts(
-            @Valid @RequestBody ConceptValidationRequest request
+            ConceptValidationRequest request
     ) {
         ConceptValidationInternalResult result =
                 conceptValidationInternalService.validate(request.conceptIds());

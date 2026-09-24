@@ -4,7 +4,6 @@ import com.maesamco.content.application.persistence_service.ConceptValidationInt
 import com.maesamco.content.application.result.ConceptValidationInternalResult;
 import com.maesamco.content.global.security.hmac.InternalCallHeaders;
 import com.maesamco.content.presentation.internal_controller.InternalConceptController;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.List;
-import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -45,9 +44,6 @@ class InternalConceptControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockitoBean
     private ConceptValidationInternalService conceptValidationInternalService;
 
@@ -70,7 +66,7 @@ class InternalConceptControllerTest {
                     .thenReturn(result);
 
             // when & then
-            mockMvc.perform(internalPost(Map.of("conceptIds", List.of(id1, id2))))
+            mockMvc.perform(internalPost(ids(id1, id2)))
                     .andExpect(status().isOk())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.success").value(true))
@@ -98,7 +94,7 @@ class InternalConceptControllerTest {
                     .thenReturn(result);
 
             // when & then
-            mockMvc.perform(internalPost(Map.of("conceptIds", List.of(validId, invalidId))))
+            mockMvc.perform(internalPost(ids(validId, invalidId)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.valid").value(false))
                     .andExpect(jsonPath("$.data.validConceptIds[0]").value(validId.toString()))
@@ -110,7 +106,7 @@ class InternalConceptControllerTest {
         void validateConcepts_emptyConceptIds_returns400() throws Exception {
 
             // when & then
-            mockMvc.perform(internalPost(Map.of("conceptIds", List.of())))
+            mockMvc.perform(internalPost(ids()))
                     .andExpect(status().isBadRequest());
 
             verifyNoInteractions(conceptValidationInternalService);
@@ -121,7 +117,37 @@ class InternalConceptControllerTest {
         void validateConcepts_missingField_returns400() throws Exception {
 
             // when & then
-            mockMvc.perform(internalPost(Map.of()))
+            mockMvc.perform(internalPost("{}"))
+                    .andExpect(status().isBadRequest());
+
+            verifyNoInteractions(conceptValidationInternalService);
+        }
+
+        @Test
+        @DisplayName("conceptIds가 상한(100개)이면 정상 처리한다")
+        void validateConcepts_atUpperBound_returns200() throws Exception {
+
+            // given
+            List<UUID> hundred = IntStream.range(0, 100).mapToObj(i -> UUID.randomUUID()).toList();
+
+            when(conceptValidationInternalService.validate(hundred))
+                    .thenReturn(new ConceptValidationInternalResult(true, hundred, List.of()));
+
+            // when & then
+            mockMvc.perform(internalPost(ids(hundred.toArray())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.valid").value(true));
+        }
+
+        @Test
+        @DisplayName("conceptIds가 상한(100개)을 넘으면 400을 반환하고 서비스를 호출하지 않는다")
+        void validateConcepts_overUpperBound_returns400() throws Exception {
+
+            // given
+            Object[] overLimit = IntStream.range(0, 101).mapToObj(i -> UUID.randomUUID()).toArray();
+
+            // when & then
+            mockMvc.perform(internalPost(ids(overLimit)))
                     .andExpect(status().isBadRequest());
 
             verifyNoInteractions(conceptValidationInternalService);
@@ -132,17 +158,28 @@ class InternalConceptControllerTest {
         void validateConcepts_invalidUuidElement_returns400() throws Exception {
 
             // when & then
-            mockMvc.perform(internalPost(Map.of("conceptIds", List.of("not-a-uuid"))))
+            mockMvc.perform(internalPost(ids("not-a-uuid")))
                     .andExpect(status().isBadRequest());
 
             verifyNoInteractions(conceptValidationInternalService);
         }
     }
 
-    private MockHttpServletRequestBuilder internalPost(Map<String, ?> body) throws Exception {
+    private static String ids(Object... conceptIds) {
+        StringBuilder json = new StringBuilder("{\"conceptIds\":[");
+        for (int i = 0; i < conceptIds.length; i++) {
+            if (i > 0) {
+                json.append(",");
+            }
+            json.append("\"").append(conceptIds[i]).append("\"");
+        }
+        return json.append("]}").toString();
+    }
+
+    private MockHttpServletRequestBuilder internalPost(String json) {
         return post(URL)
                 .header(InternalCallHeaders.SERVICE, ALLOWED_CALLER)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(body));
+                .content(json);
     }
 }
