@@ -1,6 +1,6 @@
 package com.maesamco.content.integration;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.JsonNodeFactory;
 import com.maesamco.content.application.command_service.ProblemProgressCommandService;
 import com.maesamco.content.application.finder.ProblemProgressFinder;
 import com.maesamco.content.application.finder_service.ProblemFinderService;

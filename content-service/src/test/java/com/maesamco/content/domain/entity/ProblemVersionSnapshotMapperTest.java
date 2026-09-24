@@ -1,6 +1,6 @@
 package com.maesamco.content.domain.entity;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.maesamco.content.domain.entity.problem.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

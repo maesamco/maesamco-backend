@@ -1,6 +1,6 @@
 package com.maesamco.content.domain.entity.problem;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import jakarta.persistence.Column;

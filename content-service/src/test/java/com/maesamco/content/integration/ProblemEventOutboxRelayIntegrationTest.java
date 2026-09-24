@@ -1,6 +1,6 @@
 package com.maesamco.content.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.maesamco.content.application.facade.ProblemEventRelayFacade;
 import com.maesamco.content.application.persistence_service.ProblemEventOutboxPersistenceService;
 import com.maesamco.content.application.port.EventPublisherPort;
@@ -128,7 +128,7 @@ class ProblemEventOutboxRelayIntegrationTest {
                 payloadCaptor.capture()
         );
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        JsonMapper objectMapper = JsonMapper.builder().build();
 
         assertThat(objectMapper.readTree(payloadCaptor.getValue()))
                 .isEqualTo(objectMapper.readTree(outbox.getPayload()));

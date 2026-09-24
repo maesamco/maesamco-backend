@@ -34,6 +34,10 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+        type:
+          # Jackson 2/3이 클래스패스에 공존하면 Hibernate는 기본으로 Jackson 2 FormatMapper를 고른다.
+          # JSONB 필드(ProblemVersion.problemSnapshot 등)가 Jackson 3 JsonNode이므로 명시한다.
+          json_format_mapper: org.hibernate.type.format.jackson.Jackson3JsonFormatMapper
   data:
     redis:
       host: ${REDIS_HOST:localhost}
