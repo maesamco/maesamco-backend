@@ -111,6 +111,10 @@ internal:
   hmac:
     keys:
       coaching-service: ${HMAC_KEY_COACHING_TO_CONTENT}
+      # 이슈 #309 — user-service의 ContentServiceFeignClient가 POST /internal/v1/concepts/validate
+      # 호출에 사용하는 발신 키(HMAC_KEY_USER_TO_CONTENT)와 같은 값이어야 한다. docker-compose(local/prod)
+      # 양쪽에 이미 user-service/content-service 블록 모두로 전달되도록 구성돼 있다.
+      user-service: ${HMAC_KEY_USER_TO_CONTENT}
     outbound:
       user-service: ${HMAC_KEY_CONTENT_TO_USER}
 

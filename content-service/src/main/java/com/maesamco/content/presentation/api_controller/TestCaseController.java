@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,7 +45,7 @@ public class TestCaseController implements TestCaseApiDocs {
      * @return 생성된 테스트케이스 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<TestCaseCreateResponse>> createTestCase(
             UUID problemId,
             TestCaseCreateRequest request
@@ -124,7 +124,7 @@ public class TestCaseController implements TestCaseApiDocs {
      * @return 수정된 테스트케이스 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<TestCaseResponse>> updateTestCase(
             UUID testCaseId,
             TestCaseUpdateRequest request
@@ -147,7 +147,7 @@ public class TestCaseController implements TestCaseApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteTestCase(UUID testCaseId, UUID userId) {
         testCaseService.deleteTestCase(testCaseId, userId);
 

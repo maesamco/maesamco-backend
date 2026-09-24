@@ -72,7 +72,7 @@ class ProblemControllerTest {
             UUID.randomUUID();
 
     @TestConfiguration
-    @EnableMethodSecurity
+    @EnableMethodSecurity(proxyTargetClass = true)
     static class TestSecurityConfig {
 
         @Bean
@@ -127,7 +127,7 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName(
-            "문제 수정 중 실제 낙관적 락 충돌이 발생하면 HTTP 409와 범용 에러코드를 반환한다"
+            "문제 수정 중 전달된 낙관적 락 예외를 전역 핸들러가 HTTP 409와 범용 에러코드로 변환한다"
     )
     void updateProblem_optimisticLockConflict_returns409()
             throws Exception {
@@ -181,7 +181,7 @@ class ProblemControllerTest {
 
     @Test
     @DisplayName(
-            "문제 삭제 중 실제 낙관적 락 충돌이 발생하면 HTTP 409와 범용 에러코드를 반환한다"
+            "문제 삭제 중 전달된 낙관적 락 예외를 전역 핸들러가 HTTP 409와 범용 에러코드로 변환한다"
     )
     void deleteProblem_optimisticLockConflict_returns409()
             throws Exception {

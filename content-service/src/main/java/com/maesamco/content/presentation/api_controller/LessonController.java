@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,7 +46,7 @@ public class LessonController implements LessonApiDocs {
      * @return 생성된 레슨 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<LessonCreateResponse>> createLesson(LessonCreateRequest request) {
         LessonCreateResponse response = lessonService.createLesson(request);
 
@@ -115,7 +116,7 @@ public class LessonController implements LessonApiDocs {
      * @return 수정된 레슨 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<LessonResponse>> updateLesson(UUID lessonId, LessonUpdateRequest request) {
         LessonResponse response = lessonService.updateLesson(lessonId, request);
 
@@ -138,7 +139,7 @@ public class LessonController implements LessonApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteLesson(UUID lessonId, UUID userId) {
         lessonService.deleteLesson(lessonId, userId);
 

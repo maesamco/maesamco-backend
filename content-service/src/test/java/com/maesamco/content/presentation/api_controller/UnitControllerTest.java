@@ -58,7 +58,7 @@ class UnitControllerTest {
     private final UUID userId = UUID.randomUUID();
 
     @TestConfiguration
-    @EnableMethodSecurity
+    @EnableMethodSecurity(proxyTargetClass = true)
     static class TestSecurityConfig {
 
         @Bean
@@ -186,6 +186,31 @@ class UnitControllerTest {
                                 .with(asUser(userId))
                                 .contentType("application/json")
                                 .content(json)
+                )
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(unitService);
+    }
+
+    @Test
+    @DisplayName("이슈 #311 — ADMIN이 아닌 사용자가 검증 실패하는(필수 필드 누락) 바디로 요청해도 400이 아니라 403을 반환한다")
+    void createUnit_nonAdmin_withInvalidBody_returns403NotBadRequest() throws Exception {
+
+        // given — language 필드가 빠진, 그 자체로 @Valid 검증에 실패하는 바디.
+        String invalidJson = """
+            {
+                "curriculumId": "%s",
+                "title": "Java 기본 문법",
+                "displayOrder": 1
+            }
+            """.formatted(curriculumId);
+
+        // when & then — 검증 실패(400)보다 권한 검사(403)가 항상 먼저 응답돼야 한다.
+        mockMvc.perform(
+                        post("/api/v1/contents/units")
+                                .with(asUser(userId))
+                                .contentType("application/json")
+                                .content(invalidJson)
                 )
                 .andExpect(status().isForbidden());
 

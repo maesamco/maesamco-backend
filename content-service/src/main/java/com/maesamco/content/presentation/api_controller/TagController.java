@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -34,7 +34,7 @@ public class TagController implements TagApiDocs {
      * 태그를 생성합니다.
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
             TagCreateRequest request
     ) {
@@ -75,7 +75,7 @@ public class TagController implements TagApiDocs {
      * 태그 정보를 수정합니다.
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> updateTag(UUID tagId, TagUpdateRequest request) {
         tagService.updateTag(tagId, request);
 
@@ -92,7 +92,7 @@ public class TagController implements TagApiDocs {
      * @return 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteTag(UUID tagId, UUID userId) {
         tagService.deleteTag(tagId, userId);
 

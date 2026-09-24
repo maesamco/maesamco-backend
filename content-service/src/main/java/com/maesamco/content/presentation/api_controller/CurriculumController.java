@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,7 +44,7 @@ public class CurriculumController implements CurriculumApiDocs {
      * @return 생성된 커리큘럼 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(CurriculumCreateRequest request) {
         CurriculumCreateResponse response = curriculumService.createCurriculum(request);
 
@@ -109,7 +110,7 @@ public class CurriculumController implements CurriculumApiDocs {
      * @return 수정된 커리큘럼 정보를 포함한 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(UUID curriculumId, CurriculumUpdateRequest request) {
         CurriculumResponse response = curriculumService.updateCurriculum(curriculumId, request);
 
@@ -132,7 +133,7 @@ public class CurriculumController implements CurriculumApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> deleteCurriculum(UUID curriculumId, UUID userId) {
         curriculumService.deleteCurriculum(curriculumId, userId);
 

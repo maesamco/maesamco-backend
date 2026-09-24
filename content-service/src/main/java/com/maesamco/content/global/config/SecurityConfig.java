@@ -25,7 +25,7 @@ import java.util.Base64;
  * (게이트웨이 및 인증 보안 설계 1절 — 인증/인가 책임 분리 원칙).
  */
 @Configuration
-@EnableMethodSecurity
+@EnableMethodSecurity(proxyTargetClass = true)
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 

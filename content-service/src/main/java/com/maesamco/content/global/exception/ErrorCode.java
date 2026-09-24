@@ -22,6 +22,7 @@ public enum ErrorCode {
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
+    // 엔티티에 종속되지 않은 JPA 낙관적 락 충돌에 사용합니다.
     RESOURCE_MODIFIED_CONCURRENTLY(
             HttpStatus.CONFLICT,
             "리소스가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."
@@ -58,6 +59,7 @@ public enum ErrorCode {
 
     /* Problem */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),
+    // 문제 수정 요청의 클라이언트 lockVersion 불일치에 사용합니다.
     PROBLEM_MODIFIED_CONCURRENTLY(HttpStatus.CONFLICT, "문제가 다른 요청에 의해 수정되었습니다. 최신 정보를 조회한 후 다시 시도해주세요."),
     STARTER_CODE_NOT_INITIALIZED(HttpStatus.BAD_REQUEST, "problem.starterCode의 JsonNullable 객체가 초기화되어야 합니다."),
     INVALID_PROBLEM_TYPE(HttpStatus.BAD_REQUEST, "현재 문제 도메인은 CODE 유형만 지원합니다."),

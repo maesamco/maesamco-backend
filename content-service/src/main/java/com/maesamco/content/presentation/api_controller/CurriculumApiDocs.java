@@ -40,7 +40,6 @@ public interface CurriculumApiDocs {
     @Operation(
             summary = "커리큘럼 생성",
             description = "새로운 커리큘럼을 생성합니다. "
-                    + "생성된 커리큘럼의 displayOrder는 현재 커리큘럼 수를 기준으로 다음 순서가 자동으로 지정됩니다. "
                     + "ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
@@ -73,7 +72,7 @@ public interface CurriculumApiDocs {
     @Operation(
             summary = "커리큘럼 목록 조회",
             description = "삭제되지 않은 커리큘럼 목록을 페이징하여 조회합니다. "
-                    + "커리큘럼은 displayOrder 기준 오름차순으로 정렬됩니다. "
+                    + "커리큘럼은 ID 기준 오름차순으로 정렬됩니다. "
                     + "page와 size를 생략하면 기본 페이징 값이 적용됩니다."
     )
     @ApiResponses({
@@ -111,7 +110,7 @@ public interface CurriculumApiDocs {
     @Operation(
             summary = "커리큘럼 수정",
             description = "커리큘럼 ID를 기준으로 커리큘럼 정보를 수정합니다. "
-                    + "요청에 포함된 값만 변경하며 displayOrder는 수정 대상에 포함되지 않습니다. "
+                    + "요청에 포함된 값만 변경합니다. "
                     + "ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
