@@ -59,7 +59,7 @@ class AdminProblemControllerTest {
     private final UUID userId = UUID.randomUUID();
 
     @TestConfiguration
-    @EnableMethodSecurity
+    @EnableMethodSecurity(proxyTargetClass = true)
     static class TestSecurityConfig {
 
         @Bean

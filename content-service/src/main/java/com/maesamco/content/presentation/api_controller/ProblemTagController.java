@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -61,7 +61,7 @@ public class ProblemTagController implements ProblemTagApiDocs {
      * @return 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> addTagToProblem(UUID problemId, UUID tagId) {
         problemTagService.addTagToProblem(problemId, tagId);
 
@@ -78,7 +78,7 @@ public class ProblemTagController implements ProblemTagApiDocs {
      * @return 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(UUID problemId, UUID tagId) {
         problemTagService.removeTagFromProblem(problemId, tagId);
 

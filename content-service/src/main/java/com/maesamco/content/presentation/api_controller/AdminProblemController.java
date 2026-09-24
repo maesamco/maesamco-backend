@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -31,7 +31,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * <p>상태를 지정하지 않으면 ARCHIVED를 포함한 모든 상태를 조회합니다.</p>
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<
             SuccessResponse<
                     PageResponse<AdminProblemSearchItemResponse>
@@ -75,7 +75,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> approvePublication(UUID problemId) {
         // TODO: Facade 방식으로 (관리자가 문제 상태를 PUBLISHED로 변경 -> ProblemVersion 생성/저장 -> 발행 이벤트 기록)
         problemPublicationFacade.approvePublication(problemId);
@@ -98,7 +98,7 @@ public class AdminProblemController implements AdminProblemApiDocs {
      * @return 응답 데이터가 없는 성공 응답
      */
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> revertToReviewPendingForRepublish(UUID problemId) {
         problemPublicationFacade.revertToReviewPendingForRepublish(problemId);
 
