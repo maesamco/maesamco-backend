@@ -1,8 +1,16 @@
 package com.maesamco.content.infrastructure.dailyquiz.adapter;
 
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserLookupException;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.SuccessResponse;
+import feign.FeignException;
+import feign.Request;
+import feign.Response;
+import feign.RetryableException;
+import feign.codec.DecodeException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,7 +18,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,16 +75,16 @@ class UserFeignAdapterTest {
     }
 
     @Test
-    @DisplayName("공통 응답이 null이면 서비스 간 통신 오류로 처리한다")
+    @DisplayName("특정 사용자의 공통 응답이 null이면 사용자별 조회 오류로 처리한다")
     void getInterestConceptIds_rejectsNullResponse() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId)).thenReturn(null);
 
-        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
+        assertUserLookupError(() -> adapter.getInterestConceptIds(userId));
     }
 
     @Test
-    @DisplayName("실패 공통 응답이면 서비스 간 통신 오류로 처리한다")
+    @DisplayName("특정 사용자의 실패 공통 응답이면 사용자별 조회 오류로 처리한다")
     void getInterestConceptIds_rejectsUnsuccessfulResponse() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId))
@@ -81,17 +93,54 @@ class UserFeignAdapterTest {
                         new UserInterestConceptResponse(List.of(UUID.randomUUID()))
                 ));
 
-        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
+        assertUserLookupError(() -> adapter.getInterestConceptIds(userId));
     }
 
     @Test
-    @DisplayName("응답 data가 없으면 서비스 간 통신 오류로 처리한다")
+    @DisplayName("특정 사용자의 응답 data가 없으면 사용자별 조회 오류로 처리한다")
     void getInterestConceptIds_rejectsMissingData() {
         UUID userId = UUID.randomUUID();
         when(feignClient.getUser(userId))
                 .thenReturn(new SuccessResponse<>(true, null));
 
-        assertFeignClientError(() -> adapter.getInterestConceptIds(userId));
+        assertUserLookupError(() -> adapter.getInterestConceptIds(userId));
+    }
+
+    @Test
+    @DisplayName("사용자별 404 및 응답 디코딩 오류는 사용자별 조회 오류로 분류한다")
+    void getInterestConceptIdsFallback_isolatesUserResponseFailures() {
+        UUID userId = UUID.randomUUID();
+
+        assertUserLookupError(() -> adapter.getInterestConceptIdsFallback(userId, feignError(404)));
+        assertUserLookupError(() -> adapter.getInterestConceptIdsFallback(
+                userId, new DecodeException(200, "invalid response", request())));
+    }
+
+    @Test
+    @DisplayName("개별 사용자 응답 타임아웃은 사용자별 조회 오류로 분류한다")
+    void getInterestConceptIdsFallback_isolatesUserTimeout() {
+        UUID userId = UUID.randomUUID();
+        RetryableException timeout = new RetryableException(
+                -1, "Read timed out", Request.HttpMethod.GET,
+                new SocketTimeoutException("Read timed out"), (Long) null, request());
+
+        assertUserLookupError(() -> adapter.getInterestConceptIdsFallback(userId, timeout));
+    }
+
+    @Test
+    @DisplayName("서버 및 인증 오류와 서킷 오픈은 공통 장애로 유지한다")
+    void getInterestConceptIdsFallback_keepsSharedFailuresRetryable() {
+        UUID userId = UUID.randomUUID();
+
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(userId, feignError(503)));
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(userId, feignError(401)));
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(userId, feignError(429)));
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(userId,
+                new RetryableException(-1, "connection refused", Request.HttpMethod.GET,
+                        new ConnectException("connection refused"), (Long) null, request())));
+        assertFeignClientError(() -> adapter.getInterestConceptIdsFallback(userId,
+                CallNotPermittedException.createCallNotPermittedException(
+                        CircuitBreaker.ofDefaults("user-service"))));
     }
 
     @Test
@@ -124,6 +173,24 @@ class UserFeignAdapterTest {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR)
                 );
+    }
+
+    private void assertUserLookupError(ThrowingCall call) {
+        assertThatThrownBy(call::invoke).isInstanceOf(DailyQuizUserLookupException.class);
+    }
+
+    private FeignException feignError(int status) {
+        return FeignException.errorStatus("getUser", Response.builder()
+                .status(status)
+                .reason("error")
+                .request(request())
+                .build());
+    }
+
+    private Request request() {
+        return Request.create(Request.HttpMethod.GET,
+                "http://user-service/internal/v1/users/" + UUID.randomUUID(),
+                Map.of(), null, StandardCharsets.UTF_8);
     }
 
     @FunctionalInterface

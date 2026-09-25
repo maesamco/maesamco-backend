@@ -1,6 +1,7 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserLookupException;
 import com.maesamco.content.application.dailyquiz.facade.DailyQuizSetGenerationFacade;
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizConceptCandidateQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
@@ -49,6 +50,20 @@ class DailyQuizUserGenerationServiceTest {
         UUID userId = UUID.randomUUID();
         LocalDate attemptDate = LocalDate.of(2026, 9, 25);
         BusinessException cause = new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        when(candidateQueryService.get(any())).thenThrow(cause);
+
+        assertThatThrownBy(() -> service.generate(userId, attemptDate))
+                .isInstanceOf(DailyQuizUserProcessingException.class)
+                .hasCause(cause);
+        verifyNoInteractions(setGenerationFacade);
+    }
+
+    @Test
+    void 사용자별_관심_개념_조회_오류는_사용자_단위_예외로_분류한다() {
+        UUID userId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        DailyQuizUserLookupException cause =
+                new DailyQuizUserLookupException("invalid user response");
         when(candidateQueryService.get(any())).thenThrow(cause);
 
         assertThatThrownBy(() -> service.generate(userId, attemptDate))

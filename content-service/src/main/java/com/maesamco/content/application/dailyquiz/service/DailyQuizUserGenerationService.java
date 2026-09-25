@@ -1,6 +1,7 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSetGenerationCommand;
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserLookupException;
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
 import com.maesamco.content.application.dailyquiz.facade.DailyQuizSetGenerationFacade;
 import com.maesamco.content.application.dailyquiz.query.DailyQuizConceptCandidatesGetQuery;
@@ -45,6 +46,8 @@ public class DailyQuizUserGenerationService {
                 if (exception.getErrorCode() != ErrorCode.INVALID_INPUT_VALUE) {
                     throw exception;
                 }
+                throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
+            } catch (DailyQuizUserLookupException exception) {
                 throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
             }
 

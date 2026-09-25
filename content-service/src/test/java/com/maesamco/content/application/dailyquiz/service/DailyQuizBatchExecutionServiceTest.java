@@ -1,14 +1,25 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserLookupException;
+import com.maesamco.content.application.dailyquiz.facade.DailyQuizSetGenerationFacade;
+import com.maesamco.content.application.dailyquiz.port.ConceptLookupPort;
 import com.maesamco.content.application.dailyquiz.port.DailyQuizTargetUserPort;
+import com.maesamco.content.application.dailyquiz.port.ProblemProgressConceptPort;
+import com.maesamco.content.application.dailyquiz.query_service.DailyQuizConceptCandidateQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizTargetUserPage;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.global.response.SuccessResponse;
+import com.maesamco.content.infrastructure.dailyquiz.adapter.UserFeignAdapter;
+import com.maesamco.content.infrastructure.dailyquiz.adapter.UserInterestConceptResponse;
+import com.maesamco.content.infrastructure.dailyquiz.adapter.UserServiceFeignClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -60,6 +71,61 @@ class DailyQuizBatchExecutionServiceTest {
         service.execute(attemptDate, 100);
 
         verify(userGenerationService).generate(secondUser, attemptDate);
+    }
+
+    @Test
+    void 첫_사용자의_관심_개념_응답_오류에도_다음_사용자를_처리한다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID firstUser = UUID.randomUUID();
+        UUID secondUser = UUID.randomUUID();
+        when(targetUserPort.getTargetUsers(null, 100))
+                .thenReturn(new DailyQuizTargetUserPage(List.of(firstUser, secondUser), null, false));
+        when(userGenerationService.generate(firstUser, attemptDate))
+                .thenThrow(new DailyQuizUserProcessingException(firstUser, attemptDate,
+                        new DailyQuizUserLookupException("invalid user response")));
+        when(userGenerationService.generate(secondUser, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 3));
+
+        service.execute(attemptDate, 100);
+
+        verify(userGenerationService).generate(secondUser, attemptDate);
+    }
+
+    @Test
+    void 첫_사용자의_잘못된_Feign_응답_후_두번째_사용자의_세트를_생성한다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID firstUser = UUID.randomUUID();
+        UUID secondUser = UUID.randomUUID();
+        UUID conceptId = UUID.randomUUID();
+        when(targetUserPort.getTargetUsers(null, 100))
+                .thenReturn(new DailyQuizTargetUserPage(List.of(firstUser, secondUser), null, false));
+
+        UserServiceFeignClient feignClient = mock(UserServiceFeignClient.class);
+        when(feignClient.getUser(firstUser)).thenReturn(null);
+        when(feignClient.getUser(secondUser))
+                .thenReturn(SuccessResponse.success(
+                        new UserInterestConceptResponse(List.of(conceptId))));
+        ConceptLookupPort conceptLookupPort = mock(ConceptLookupPort.class);
+        when(conceptLookupPort.getConceptTags(List.of(conceptId))).thenReturn(List.of("Java"));
+        DailyQuizSetGenerationFacade setGenerationFacade = mock(DailyQuizSetGenerationFacade.class);
+        when(setGenerationFacade.generate(any()))
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 3));
+
+        DailyQuizConceptCandidateQueryService candidateQueryService =
+                new DailyQuizConceptCandidateQueryService(
+                        mock(ProblemProgressConceptPort.class),
+                        new UserFeignAdapter(feignClient),
+                        conceptLookupPort,
+                        Clock.systemUTC());
+        DailyQuizUserGenerationService realUserGenerationService =
+                new DailyQuizUserGenerationService(candidateQueryService,
+                        setGenerationFacade, mock(DailyQuizAttemptRepository.class));
+
+        new DailyQuizBatchExecutionService(targetUserPort, realUserGenerationService)
+                .execute(attemptDate, 100);
+
+        verify(feignClient).getUser(secondUser);
+        verify(setGenerationFacade).generate(any());
     }
 
     @Test
