@@ -129,6 +129,8 @@ daily-quiz:
     cron: "${DAILY_QUIZ_BATCH_CRON:0 0 3 * * *}"
     zone: ${DAILY_QUIZ_BATCH_ZONE:Asia/Seoul}
     chunk-size: ${DAILY_QUIZ_BATCH_CHUNK_SIZE:100}
+    max-retries: ${DAILY_QUIZ_BATCH_MAX_RETRIES:2}
+    retry-delay-ms: ${DAILY_QUIZ_BATCH_RETRY_DELAY_MS:300000}
 
 eureka:
   client:

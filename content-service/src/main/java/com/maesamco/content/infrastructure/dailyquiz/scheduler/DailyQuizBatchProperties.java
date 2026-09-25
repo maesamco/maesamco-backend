@@ -21,7 +21,11 @@ public record DailyQuizBatchProperties(
         // 실행 및 퀴즈 날짜 기준 timezone
         String zone,
         // 한 번에 조회할 사용자 수
-        int chunkSize
+        int chunkSize,
+        // 최초 실행 실패 후 추가 재시도 횟수
+        int maxRetries,
+        // 재시도 사이의 대기 시간
+        long retryDelayMs
 ) {
     public DailyQuizBatchProperties {
         if (cron == null || cron.isBlank()) {
@@ -54,6 +58,13 @@ public record DailyQuizBatchProperties(
                     "Daily Quiz 배치 chunk size는 %d 이하여야 합니다."
                             .formatted(MAX_BATCH_CHUNK_SIZE)
             );
+        }
+
+        if (maxRetries < 0 || maxRetries > 5) {
+            throw invalidInput("Daily Quiz 배치 최대 재시도 횟수는 0 이상 5 이하여야 합니다.");
+        }
+        if (retryDelayMs < 1_000 || retryDelayMs > 3_600_000) {
+            throw invalidInput("Daily Quiz 배치 재시도 간격은 1초 이상 1시간 이하여야 합니다.");
         }
     }
 

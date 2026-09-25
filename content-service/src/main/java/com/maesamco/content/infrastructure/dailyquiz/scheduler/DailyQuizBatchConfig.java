@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * daily-quiz.batch 설정을 DailyQuizBatchProperties에 바인딩하고
@@ -21,5 +23,14 @@ public class DailyQuizBatchConfig {
     @Bean
     public Clock dailyQuizClock(DailyQuizBatchProperties properties) {
         return Clock.system(properties.zoneId());
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService dailyQuizBatchRetryExecutor() {
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "daily-quiz-batch-retry");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 }
