@@ -772,9 +772,12 @@ class UnitServiceTest {
             // given
             UUID unitId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Unit unit = spy(createUnitEntity(UUID.randomUUID()));
+            Unit unit = createUnitEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(unit, "id", unitId);
+            unit = spy(unit);
 
             when(unitFinder.getById(unitId)).thenReturn(unit);
+            when(unitRepository.findActiveSiblings(unit.getCurriculumId())).thenReturn(List.of(unit));
 
             // when
             unitService.deleteUnit(unitId, userId);
@@ -786,7 +789,8 @@ class UnitServiceTest {
             assertThat(unit.isDeleted()).isTrue();
             assertThat(unit.getDeletedBy()).isEqualTo(userId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verify(curriculumFinder).lockById(unit.getCurriculumId());
+            verify(unitRepository).reorder(List.of());
         }
 
         @Test
@@ -795,9 +799,12 @@ class UnitServiceTest {
             // given
             UUID unitId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Unit unit = spy(createUnitEntity(UUID.randomUUID()));
+            Unit unit = createUnitEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(unit, "id", unitId);
+            unit = spy(unit);
 
             when(unitFinder.getById(unitId)).thenReturn(unit);
+            when(unitRepository.findActiveSiblings(unit.getCurriculumId())).thenReturn(List.of(unit));
 
             // when
             unitService.deleteUnit(unitId, userId);
@@ -806,7 +813,8 @@ class UnitServiceTest {
             verify(unitFinder).getById(unitId);
             verify(unit).softDelete(userId);
             verify(unitRepository, never()).save(any(Unit.class));
-            verifyNoInteractions(curriculumFinder);
+            verify(curriculumFinder).lockById(unit.getCurriculumId());
+            verify(unitRepository).reorder(List.of());
         }
 
         @Test

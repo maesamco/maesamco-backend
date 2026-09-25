@@ -787,9 +787,12 @@ class LessonServiceTest {
             // given
             UUID lessonId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Lesson lesson = spy(createLessonEntity(UUID.randomUUID()));
+            Lesson lesson = createLessonEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(lesson, "id", lessonId);
+            lesson = spy(lesson);
 
             when(lessonFinder.getById(lessonId)).thenReturn(lesson);
+            when(lessonRepository.findActiveSiblings(lesson.getUnitId())).thenReturn(List.of(lesson));
 
             // when
             lessonService.deleteLesson(lessonId, userId);
@@ -801,7 +804,8 @@ class LessonServiceTest {
             assertThat(lesson.isDeleted()).isTrue();
             assertThat(lesson.getDeletedBy()).isEqualTo(userId);
 
-            verifyNoInteractions(lessonRepository);
+            verify(unitFinder).lockById(lesson.getUnitId());
+            verify(lessonRepository).reorder(List.of());
         }
 
         @Test

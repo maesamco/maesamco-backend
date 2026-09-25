@@ -210,8 +210,18 @@ public class UnitService {
                         unitId
                 );
 
+        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
+        curriculumFinder.lockById(unit.getCurriculumId());
+        List<Unit> siblings = unitRepository.findActiveSiblings(unit.getCurriculumId());
+        if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(unitId))) {
+            throw new BusinessException(ErrorCode.UNIT_NOT_FOUND);
+        }
+
         unit.softDelete(
                 userId
         );
+        unitRepository.reorder(siblings.stream()
+                .filter(sibling -> !sibling.getId().equals(unitId))
+                .toList());
     }
 }

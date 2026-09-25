@@ -169,7 +169,17 @@ public class LessonService {
 
         Lesson lesson = lessonFinder.getById(lessonId);
 
+        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
+        unitFinder.lockById(lesson.getUnitId());
+        List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
+        if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(lessonId))) {
+            throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+        }
+
         lesson.softDelete(userId);
+        lessonRepository.reorder(siblings.stream()
+                .filter(sibling -> !sibling.getId().equals(lessonId))
+                .toList());
     }
 
     /**

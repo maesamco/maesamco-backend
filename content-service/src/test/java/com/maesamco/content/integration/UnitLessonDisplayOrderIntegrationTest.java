@@ -182,6 +182,29 @@ class UnitLessonDisplayOrderIntegrationTest {
     class MoveUnit {
 
         @Test
+        @DisplayName("Unit 삭제 직후 활성 번호를 압축하고, 응답 번호를 옮길 자리로 사용할 수 있다")
+        void deleteUnit_compactsOrdersBeforeNextMoveAndCreate() {
+            UUID curriculumId = createCurriculum();
+            List<UUID> units = createUnits(curriculumId, 4);
+
+            unitService.deleteUnit(units.get(1), UUID.randomUUID());
+
+            assertThat(activeUnitIdsInOrder(curriculumId))
+                    .containsExactly(units.get(0), units.get(2), units.get(3));
+            assertThat(activeUnitOrders(curriculumId)).containsExactly(1, 2, 3);
+            assertThat(displayOrderOf("p_units", "unit_id", units.get(1))).isEqualTo(2);
+
+            // D의 응답 번호 3을 그대로 사용하면 A가 D 뒤로 이동한다.
+            unitService.updateUnit(units.get(0), unitDisplayOrderRequest(3));
+            assertThat(activeUnitIdsInOrder(curriculumId))
+                    .containsExactly(units.get(2), units.get(3), units.get(0));
+            assertThat(activeUnitOrders(curriculumId)).containsExactly(1, 2, 3);
+
+            createUnit(curriculumId, "새 유닛");
+            assertThat(activeUnitOrders(curriculumId)).containsExactly(1, 2, 3, 4);
+        }
+
+        @Test
         @DisplayName("다른 Unit이 쓰고 있는 번호로 옮기면 사이의 Unit이 한 칸씩 밀려 1..N으로 저장된다")
         void moveUnit_toOccupiedOrder_shiftsSiblings() {
             // given — [A1 B2 C3 D4 E5]
@@ -279,6 +302,28 @@ class UnitLessonDisplayOrderIntegrationTest {
     @Nested
     @DisplayName("Lesson 순서 변경")
     class MoveLesson {
+
+        @Test
+        @DisplayName("Lesson 삭제 직후 활성 번호를 압축하고, 응답 번호를 옮길 자리로 사용할 수 있다")
+        void deleteLesson_compactsOrdersBeforeNextMoveAndCreate() {
+            UUID unitId = createUnit(createCurriculum(), "레슨 부모 유닛");
+            List<UUID> lessons = createLessons(unitId, 4);
+
+            lessonService.deleteLesson(lessons.get(1), UUID.randomUUID());
+
+            assertThat(activeLessonIdsInOrder(unitId))
+                    .containsExactly(lessons.get(0), lessons.get(2), lessons.get(3));
+            assertThat(activeLessonOrders(unitId)).containsExactly(1, 2, 3);
+            assertThat(displayOrderOf("p_lessons", "lesson_id", lessons.get(1))).isEqualTo(2);
+
+            lessonService.updateLesson(lessons.get(0), lessonDisplayOrderRequest(3));
+            assertThat(activeLessonIdsInOrder(unitId))
+                    .containsExactly(lessons.get(2), lessons.get(3), lessons.get(0));
+            assertThat(activeLessonOrders(unitId)).containsExactly(1, 2, 3);
+
+            lessonService.createLesson(lessonCreateRequest(unitId, "새 레슨"));
+            assertThat(activeLessonOrders(unitId)).containsExactly(1, 2, 3, 4);
+        }
 
         @Test
         @DisplayName("다른 Lesson이 쓰고 있는 번호로 옮기면 사이의 Lesson이 한 칸씩 밀려 1..N으로 저장된다")
