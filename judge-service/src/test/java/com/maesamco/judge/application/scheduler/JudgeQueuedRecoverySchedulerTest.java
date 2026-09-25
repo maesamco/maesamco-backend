@@ -47,6 +47,7 @@ class JudgeQueuedRecoverySchedulerTest {
     void setUp() {
         ReflectionTestUtils.setField(scheduler, "staleSeconds", 60L);
         ReflectionTestUtils.setField(scheduler, "batchSize", 50);
+        ReflectionTestUtils.setField(scheduler, "maxRunSeconds", 20L);
     }
 
     private Submission queuedSubmission(UUID id) {
@@ -99,6 +100,22 @@ class JudgeQueuedRecoverySchedulerTest {
         scheduler.recoverStalledQueuedSubmissions();
 
         verify(judgeExecutionFacade, never()).execute(any());
+    }
+
+    @Test
+    @DisplayName("한 주기 시간 상한을 넘기면 남은 제출은 다음 주기로 넘기되 최소 1건은 처리한다")
+    void stopsAfterTimeBudgetButAlwaysProcessesAtLeastOne() {
+        ReflectionTestUtils.setField(scheduler, "maxRunSeconds", 0L);
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+                any(), any(Instant.class), any(Pageable.class)))
+                .willReturn(List.of(queuedSubmission(first), queuedSubmission(second)));
+
+        scheduler.recoverStalledQueuedSubmissions();
+
+        verify(judgeExecutionFacade).execute(first);
+        verify(judgeExecutionFacade, never()).execute(second);
     }
 
     @Test

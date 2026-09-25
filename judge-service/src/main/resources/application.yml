@@ -115,4 +115,5 @@ judge:
     enabled: ${JUDGE_QUEUED_RECOVERY_ENABLED:true}
     fixed-delay-ms: 30000
     stale-seconds: 60
-    batch-size: 50
+    batch-size: 10
+    max-run-seconds: 20

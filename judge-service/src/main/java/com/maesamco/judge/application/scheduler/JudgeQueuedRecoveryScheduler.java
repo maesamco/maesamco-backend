@@ -13,6 +13,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -46,8 +47,17 @@ public class JudgeQueuedRecoveryScheduler {
     @Value("${judge.queued-recovery.stale-seconds:60}")
     private long staleSeconds;
 
-    @Value("${judge.queued-recovery.batch-size:50}")
+    /**
+     * 한 주기에 다시 집는 최대 건수. 복구는 Judge0 호출까지 스케줄러 스레드에서 동기 실행하는데, judge-service의
+     * 스케줄러 풀(크기 2)은 Outbox 릴레이·결과 폴링·재시도 스케줄러와 함께 쓴다. 정체 제출이 많을 때 한 주기가
+     * 오래 걸려 릴레이가 굶지 않도록 작게 잡는다(나머지는 다음 주기에 이어서 처리).
+     */
+    @Value("${judge.queued-recovery.batch-size:10}")
     private int batchSize;
+
+    /** 한 주기에서 복구에 쓸 수 있는 최대 시간. 이 시간을 넘기면 남은 제출은 다음 주기로 넘긴다(최소 1건은 처리). */
+    @Value("${judge.queued-recovery.max-run-seconds:20}")
+    private long maxRunSeconds;
 
     @Scheduled(fixedDelayString = "${judge.queued-recovery.fixed-delay-ms:30000}")
     public void recoverStalledQueuedSubmissions() {
@@ -55,7 +65,14 @@ public class JudgeQueuedRecoveryScheduler {
         List<Submission> stalled = submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
                 SubmissionStatus.QUEUED, threshold, PageRequest.of(0, batchSize));
 
+        long deadlineNanos = System.nanoTime() + Duration.ofSeconds(maxRunSeconds).toNanos();
+        boolean first = true;
         for (Submission submission : stalled) {
+            if (!first && System.nanoTime() >= deadlineNanos) {
+                log.info("[Judge] QUEUED 복구가 한 주기 시간 상한({}초)에 도달해 남은 제출은 다음 주기로 넘긴다.", maxRunSeconds);
+                break;
+            }
+            first = false;
             log.warn("[Judge] QUEUED에 {}초 넘게 머문 제출을 다시 채점한다. submissionId={}",
                     staleSeconds, submission.getId());
             try {
