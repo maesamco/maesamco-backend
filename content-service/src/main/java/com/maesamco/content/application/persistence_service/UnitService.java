@@ -267,4 +267,44 @@ public class UnitService {
                 .filter(sibling -> !sibling.getId().equals(unitId))
                 .toList());
     }
+
+    /**
+     * 유닛을 학습자에게 공개합니다(#359). 이미 공개 상태면 그대로 둡니다.
+     * 상위 커리큘럼이 비공개면 공개해도 학습자에게는 보이지 않습니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UnitResponse publishUnit(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
+
+        unit.publish();
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    /**
+     * 유닛을 학습자 조회에서 내립니다(#359). 이미 비공개 상태면 그대로 둡니다.
+     * 하위 레슨의 상태값은 바꾸지 않고 학습자 조회 시점에 함께 숨겨집니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UnitResponse unpublishUnit(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
+
+        unit.unpublish();
+
+        return UnitResponse.from(
+                unit
+        );
+    }
 }

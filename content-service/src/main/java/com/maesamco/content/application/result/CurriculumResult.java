@@ -1,5 +1,6 @@
 package com.maesamco.content.application.result;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import lombok.AccessLevel;
@@ -17,11 +18,15 @@ public class CurriculumResult {
     private final ProgrammingLanguage language;
     private final String title;
 
+    /** 공개 상태 (#359) */
+    private final ContentStatus status;
+
     public static CurriculumResult from(Curriculum curriculum) {
         return new CurriculumResult(
                 curriculum.getId(),
                 curriculum.getLanguage(),
-                curriculum.getTitle()
+                curriculum.getTitle(),
+                curriculum.getStatus()
         );
     }
 }

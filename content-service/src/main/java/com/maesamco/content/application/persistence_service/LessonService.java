@@ -254,4 +254,29 @@ public class LessonService {
                 .map(TagResult::from)
                 .toList();
     }
+
+    /**
+     * 레슨을 학습자에게 공개합니다(#359). 이미 공개 상태면 그대로 둡니다.
+     * 상위 유닛·커리큘럼이 비공개면 공개해도 학습자에게는 보이지 않습니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public LessonResponse publishLesson(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getById(lessonId);
+
+        lesson.publish();
+
+        return LessonResponse.from(lesson);
+    }
+
+    /** 레슨을 학습자 조회에서 내립니다(#359). 이미 비공개 상태면 그대로 둡니다. */
+    @Transactional(rollbackFor = Exception.class)
+    public LessonResponse unpublishLesson(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getById(lessonId);
+
+        lesson.unpublish();
+
+        return LessonResponse.from(lesson);
+    }
 }

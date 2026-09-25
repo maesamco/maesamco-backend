@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.response;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.application.result.CurriculumResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import lombok.AccessLevel;
@@ -19,13 +20,17 @@ public class CurriculumResponse {
 
     private final String title;
 
+    /** 공개 상태 (#359). 학습자 조회에서는 항상 PUBLISHED입니다. */
+    private final ContentStatus status;
+
     public static CurriculumResponse from(
             CurriculumResult curriculum
     ) {
         return new CurriculumResponse(
                 curriculum.getId(),
                 curriculum.getLanguage(),
-                curriculum.getTitle()
+                curriculum.getTitle(),
+                curriculum.getStatus()
         );
     }
 }

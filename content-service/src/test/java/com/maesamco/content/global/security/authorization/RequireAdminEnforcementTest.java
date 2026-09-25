@@ -10,6 +10,7 @@ import com.maesamco.content.application.persistence_service.TagService;
 import com.maesamco.content.application.persistence_service.TestCaseService;
 import com.maesamco.content.application.persistence_service.UnitService;
 import com.maesamco.content.global.config.SecurityConfig;
+import com.maesamco.content.presentation.api_controller.AdminContentController;
 import com.maesamco.content.presentation.api_controller.AdminProblemController;
 import com.maesamco.content.presentation.api_controller.CurriculumController;
 import com.maesamco.content.presentation.api_controller.LessonController;
@@ -54,6 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 먼저 동작하는지(400이 아니라 403)도 함께 확인한다.</p>
  */
 @WebMvcTest(controllers = {
+        AdminContentController.class,
         AdminProblemController.class,
         CurriculumController.class,
         LessonController.class,
@@ -67,6 +69,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RequireAdminEnforcementTest {
 
     private static final Set<Class<?>> COVERED_CONTROLLERS = Set.of(
+            AdminContentController.class,
             AdminProblemController.class,
             CurriculumController.class,
             LessonController.class,

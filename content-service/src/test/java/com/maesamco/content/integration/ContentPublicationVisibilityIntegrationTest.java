@@ -240,6 +240,55 @@ class ContentPublicationVisibilityIntegrationTest {
         assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> lessons.getLessonForUser(ids.lessonId()));
     }
 
+    @Test
+    @DisplayName("관리자가 커리큘럼·유닛·레슨을 차례로 공개하면 학습자에게 보이고, 같은 전환을 반복해도 성공하며, 비공개하면 다시 숨겨진다")
+    void adminPublishAndUnpublishControlUserVisibility() {
+        // given
+        Hierarchy ids = createHierarchy(false, false, false);
+
+        // when: 레슨만 공개 — 상위가 비공개라 아직 보이지 않는다
+        assertThat(lessons.publishLesson(ids.lessonId()).getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        flushAndClear();
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> lessons.getLessonForUser(ids.lessonId()));
+
+        // when: 상위까지 공개(같은 공개를 두 번 호출해도 성공)
+        assertThat(curriculums.publishCurriculum(ids.curriculumId()).getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        assertThat(curriculums.publishCurriculum(ids.curriculumId()).getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        assertThat(units.publishUnit(ids.unitId()).getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        flushAndClear();
+
+        // then
+        assertThat(lessons.getLessonForUser(ids.lessonId()).getId()).isEqualTo(ids.lessonId());
+
+        // when: 레슨 비공개(두 번 호출해도 성공)
+        assertThat(lessons.unpublishLesson(ids.lessonId()).getStatus()).isEqualTo(ContentStatus.DRAFT);
+        assertThat(lessons.unpublishLesson(ids.lessonId()).getStatus()).isEqualTo(ContentStatus.DRAFT);
+        flushAndClear();
+
+        // then: 학습자에게는 숨겨지고 관리자 조회에는 DRAFT로 보인다
+        assertError(ErrorCode.LESSON_NOT_FOUND, () -> lessons.getLessonForUser(ids.lessonId()));
+        assertThat(lessons.getLesson(ids.lessonId()).getStatus()).isEqualTo(ContentStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("상위 커리큘럼이 삭제된 유닛·레슨은 공개 상태를 바꿀 수 없다")
+    void cannotChangeStatusUnderDeletedParent() {
+        // given
+        Hierarchy ids = createHierarchy(true, false, false);
+        curriculums.deleteCurriculum(ids.curriculumId(), UUID.randomUUID());
+        flushAndClear();
+
+        // when & then
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> curriculums.publishCurriculum(ids.curriculumId()));
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> units.publishUnit(ids.unitId()));
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> lessons.publishLesson(ids.lessonId()));
+    }
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
+    }
+
     private Hierarchy createHierarchy(boolean curriculumPublished, boolean unitPublished, boolean lessonPublished) {
         Curriculum curriculum = Curriculum.create("Java", ProgrammingLanguage.JAVA);
         if (curriculumPublished) {
