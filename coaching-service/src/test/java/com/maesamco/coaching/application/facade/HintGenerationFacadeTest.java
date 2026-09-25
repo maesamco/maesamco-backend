@@ -665,4 +665,71 @@ class HintGenerationFacadeTest {
         assertThat(result.created()).isTrue();
         verify(contentServicePort, org.mockito.Mockito.times(1)).getProblemVersion(problemVersionId);
     }
+
+    @Test
+    void 이슈352_같은_시도로_이미_힌트를_받았다면_새로_생성하지_않고_그_힌트를_그대로_반환한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 2));
+        CoachingSession existingSession = persistedSession(2);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint firstAttemptHint = Hint.create(existingSession.getId(), 1, "1단계", 1);
+        Hint thisAttemptHint = Hint.create(existingSession.getId(), 2, "2단계", 2);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of(firstAttemptHint, thisAttemptHint));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.hint()).isSameAs(thisAttemptHint);
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintRepository, never()).save(any());
+    }
+
+    @Test
+    void 이슈352_새_오답_제출이면_다음_단계를_생성하고_발급된_시도_번호를_기록한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 3));
+        CoachingSession existingSession = persistedSession(3);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint stage1 = Hint.create(existingSession.getId(), 1, "1단계", 2);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of(stage1));
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("2단계 힌트", "claude-sonnet-5", 10));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.hint().getStage()).isEqualTo(2);
+        assertThat(result.hint().getAttemptNo()).isEqualTo(3);
+    }
+
+    @Test
+    void 이슈352_시도_번호가_기록되지_않은_이전_힌트는_새_힌트_발급을_막지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 2));
+        CoachingSession existingSession = persistedSession(2);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint legacyHint = Hint.create(existingSession.getId(), 1, "1단계");
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of(legacyHint));
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("2단계 힌트", "claude-sonnet-5", 10));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.hint().getStage()).isEqualTo(2);
+        assertThat(result.hint().getAttemptNo()).isEqualTo(2);
+    }
+
+    @Test
+    void 이슈352_같은_시도의_반복_요청은_취약_개념_발생_횟수를_중복으로_올리지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint thisAttemptHint = Hint.create(existingSession.getId(), 3, "3단계", 8);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of(thisAttemptHint));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.skipAvailable()).isTrue();
+        verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
+    }
 }

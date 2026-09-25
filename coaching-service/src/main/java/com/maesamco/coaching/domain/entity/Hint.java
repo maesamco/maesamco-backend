@@ -72,6 +72,13 @@ public class Hint {
     @Column(name = "content", updatable = false, nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /**
+     * 이 힌트가 발급된 제출의 시도 번호(이슈 #352). 같은 시도로 다시 요청했을 때 새 힌트를 만들지 않고
+     * 그 시도의 힌트를 돌려주기 위해 기록한다. 이 값이 생기기 전에 만든 힌트는 null이다.
+     */
+    @Column(name = "attempt_no", updatable = false)
+    private Integer attemptNo;
+
     /*
      * created_at이 실제로 TIMESTAMPTZ 컬럼으로 생성되는지는
      * TimestamptzColumnRegressionTest(이슈 #218)가 검증한다.
@@ -81,17 +88,24 @@ public class Hint {
     private Instant createdAt;
 
     @Builder
-    private Hint(UUID coachingSessionId, int stage, String content) {
+    private Hint(UUID coachingSessionId, int stage, String content, Integer attemptNo) {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
         this.stage = requireValidStage(stage);
         this.content = Validate.requireText(content, "힌트 본문");
+        this.attemptNo = attemptNo;
     }
 
     public static Hint create(UUID coachingSessionId, int stage, String content) {
+        return create(coachingSessionId, stage, content, null);
+    }
+
+    /** 발급된 제출의 시도 번호를 함께 기록한다(이슈 #352). */
+    public static Hint create(UUID coachingSessionId, int stage, String content, Integer attemptNo) {
         return Hint.builder()
                 .coachingSessionId(coachingSessionId)
                 .stage(stage)
                 .content(content)
+                .attemptNo(attemptNo)
                 .build();
     }
 

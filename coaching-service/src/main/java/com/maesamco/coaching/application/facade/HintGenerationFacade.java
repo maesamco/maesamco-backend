@@ -133,6 +133,18 @@ public class HintGenerationFacade {
 
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
+        // 이슈 #352 — 힌트는 오답 제출(시도)당 1개다. "오답 1 → 힌트 1 → 재도전 → 오답 2 → 힌트 2" 흐름이 의도인데,
+        // 같은 오답 코드로 힌트를 연속으로 요청하면 같은 코드에 대해 힌트가 계속 새로 생성돼 UX가 나빠지고
+        // (힌트가 한 번에 소진됨) 요청마다 LLM 호출 비용이 든다. 이 시도로 이미 받은 힌트가 있으면 새로 만들지 않고
+        // 그 힌트를 그대로 돌려준다(created=false → 200). 취약 개념 기록(아래)보다 먼저 확인해서, 같은 시도의
+        // 반복 요청이 발생 횟수를 중복으로 올리지 않게 한다. 이 값이 도입되기 전에 만든 힌트(attempt_no NULL)는
+        // 시도를 알 수 없으므로 판단에서 제외한다.
+        List<Hint> hintsBeforeRequest = hintRepository.findByCoachingSessionId(session.getId());
+        Optional<Hint> hintForThisAttempt = findHintForAttempt(hintsBeforeRequest, submission.attemptNo());
+        if (hintForThisAttempt.isPresent()) {
+            return new HintGenerationResult(session.getId(), hintForThisAttempt.get(), skipAvailable, false);
+        }
+
         // 서비스 요약 [4]-1절 확정 — attemptNo >= 8인 힌트 요청이 들어올 때마다(최초 1회가
         // 아니라 매번) 문제의 개념 태그로 WeakConcept를 기록한다(신규면 생성, 있으면
         // recordOccurrence()로 발견 횟수만 갱신 — WeakConceptPersistenceService,
@@ -152,7 +164,7 @@ public class HintGenerationFacade {
             cachedProblem = recordWeakConceptsForSkip(session, submission);
         }
 
-        List<Hint> existingHints = hintRepository.findByCoachingSessionId(session.getId());
+        List<Hint> existingHints = hintsBeforeRequest;
         int maxStage = existingHints.stream().mapToInt(Hint::getStage).max().orElse(0);
 
         if (maxStage >= MAX_STAGE) {
@@ -160,6 +172,13 @@ public class HintGenerationFacade {
         }
 
         return generateNextStageHint(session, submission, maxStage + 1, skipAvailable, cachedProblem);
+    }
+
+    /** 이 시도(attemptNo)로 이미 발급된 힌트를 찾는다. 시도 번호가 기록되지 않은 이전 힌트는 무시한다. */
+    private static Optional<Hint> findHintForAttempt(List<Hint> hints, int attemptNo) {
+        return hints.stream()
+                .filter(h -> h.getAttemptNo() != null && h.getAttemptNo() == attemptNo)
+                .findFirst();
     }
 
     private Optional<ProblemSnapshot> recordWeakConceptsForSkip(CoachingSession session, SubmissionSnapshot submission) {
@@ -201,9 +220,15 @@ public class HintGenerationFacade {
             if (alreadyGenerated.isPresent()) {
                 return new HintGenerationResult(session.getId(), alreadyGenerated.get(), skipAvailable, false);
             }
+            // 이슈 #352 — 락을 얻기 전에 같은 시도의 다른 요청이 힌트를 만들었을 수 있다.
+            Optional<Hint> generatedForThisAttempt = findHintForAttempt(freshHints, submission.attemptNo());
+            if (generatedForThisAttempt.isPresent()) {
+                return new HintGenerationResult(session.getId(), generatedForThisAttempt.get(), skipAvailable, false);
+            }
 
             Hint hint = Hint.create(session.getId(), nextStage,
-                    generateHintContent(session, submission, nextStage, freshHints, cachedProblem));
+                    generateHintContent(session, submission, nextStage, freshHints, cachedProblem),
+                    submission.attemptNo());
             try {
                 Hint savedHint = hintRepository.save(hint);
                 return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);

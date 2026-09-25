@@ -76,4 +76,12 @@ class HintTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }
+
+    @Test
+    void 이슈352_발급된_시도_번호를_함께_기록하고_기록하지_않으면_null이다() {
+        UUID sessionId = UUID.randomUUID();
+
+        assertThat(Hint.create(sessionId, 1, "힌트", 3).getAttemptNo()).isEqualTo(3);
+        assertThat(Hint.create(sessionId, 1, "힌트").getAttemptNo()).isNull();
+    }
 }
