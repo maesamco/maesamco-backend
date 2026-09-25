@@ -47,7 +47,7 @@ class JudgeQueuedRecoverySchedulerTest {
     void setUp() {
         ReflectionTestUtils.setField(scheduler, "staleSeconds", 60L);
         ReflectionTestUtils.setField(scheduler, "batchSize", 50);
-        ReflectionTestUtils.setField(scheduler, "maxRunSeconds", 20L);
+        ReflectionTestUtils.setField(scheduler, "softBudgetSeconds", 20L);
     }
 
     private Submission queuedSubmission(UUID id) {
@@ -64,7 +64,7 @@ class JudgeQueuedRecoverySchedulerTest {
     void reExecutesEveryStalledQueuedSubmission() {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
-        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 eq(SubmissionStatus.QUEUED), any(Instant.class), any(Pageable.class)))
                 .willReturn(List.of(queuedSubmission(first), queuedSubmission(second)));
 
@@ -77,14 +77,14 @@ class JudgeQueuedRecoverySchedulerTest {
     @Test
     @DisplayName("설정한 정체 기준 시간(초)보다 오래된 제출만 조회하고 batchSize만큼 가져온다")
     void queriesOnlySubmissionsOlderThanStaleThreshold() {
-        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 any(), any(Instant.class), any(Pageable.class))).willReturn(List.of());
         Instant before = Instant.now();
 
         scheduler.recoverStalledQueuedSubmissions();
 
         ArgumentCaptor<Instant> threshold = ArgumentCaptor.forClass(Instant.class);
-        verify(submissionRepository).findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        verify(submissionRepository).findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 eq(SubmissionStatus.QUEUED), threshold.capture(), eq(PageRequest.of(0, 50)));
         // threshold = 호출 시각 - 60초
         assertThat(threshold.getValue()).isBetween(
@@ -94,7 +94,7 @@ class JudgeQueuedRecoverySchedulerTest {
     @Test
     @DisplayName("정체된 제출이 없으면 아무것도 실행하지 않는다")
     void doesNothingWhenNothingIsStalled() {
-        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 any(), any(Instant.class), any(Pageable.class))).willReturn(List.of());
 
         scheduler.recoverStalledQueuedSubmissions();
@@ -103,12 +103,12 @@ class JudgeQueuedRecoverySchedulerTest {
     }
 
     @Test
-    @DisplayName("한 주기 시간 상한을 넘기면 남은 제출은 다음 주기로 넘기되 최소 1건은 처리한다")
+    @DisplayName("한 주기 소프트 시간 예산을 넘기면 남은 제출은 새로 시작하지 않고 다음 주기로 넘기되 최소 1건은 처리한다")
     void stopsAfterTimeBudgetButAlwaysProcessesAtLeastOne() {
-        ReflectionTestUtils.setField(scheduler, "maxRunSeconds", 0L);
+        ReflectionTestUtils.setField(scheduler, "softBudgetSeconds", 0L);
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
-        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 any(), any(Instant.class), any(Pageable.class)))
                 .willReturn(List.of(queuedSubmission(first), queuedSubmission(second)));
 
@@ -124,7 +124,7 @@ class JudgeQueuedRecoverySchedulerTest {
         UUID conflicted = UUID.randomUUID();
         UUID broken = UUID.randomUUID();
         UUID healthy = UUID.randomUUID();
-        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        given(submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 any(), any(Instant.class), any(Pageable.class)))
                 .willReturn(List.of(
                         queuedSubmission(conflicted), queuedSubmission(broken), queuedSubmission(healthy)));

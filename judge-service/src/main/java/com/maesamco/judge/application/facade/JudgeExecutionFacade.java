@@ -48,15 +48,20 @@ public class JudgeExecutionFacade {
             // 재시도해도 계속 충돌하면 여기서 정상 종료하지 않는다 — 정상 종료하면 Kafka 메시지가 소비 완료로
             // 처리돼 재전달되지 않고 제출이 QUEUED에 영구히 남는다(이슈 #350). 예외를 컨테이너의 에러
             // 핸들러(재시도 후 DLT)로 넘긴다.
-            log.warn("[Judge] RUNNING 전이가 낙관적 락 충돌로 {}회 모두 실패 — 재전달을 위해 예외를 전파. submissionId={}",
-                    MARK_RUNNING_MAX_ATTEMPTS, submissionId);
+            log.warn("[Judge] RUNNING 전이가 낙관적 락 충돌로 재시도를 마쳤지만 실패 — 재전달을 위해 예외를 전파. submissionId={}",
+                    submissionId);
             throw e;
-        } catch (Exception e) {
-            // RUNNING 전이가 커밋된 적이 없으므로 상태를 건드리지 않고 종료한다.
-            // QUEUED는 메시지 재전달이, RETRY_WAIT는 스케줄러가 알아서 다시 집어간다.
-            log.error("[Judge] RUNNING 전이 단계 실패 — 상태 변경 없이 종료. submissionId={}", submissionId, e);
+        } catch (BusinessException e) {
+            // SUBMISSION_NOT_FOUND, 이미 종료 상태로 전이돼 RUNNING이 될 수 없는 경우처럼 다시 받아도 결과가
+            // 달라지지 않는 도메인 오류만 정상 종료한다. RUNNING 전이가 커밋된 적이 없으므로 상태는 건드리지 않는다.
+            log.error("[Judge] RUNNING 전이 불가(재시도해도 결과가 같은 도메인 오류) — 상태 변경 없이 종료. submissionId={}, errorCode={}",
+                    submissionId, e.getErrorCode(), e);
             return;
         }
+        // 그 밖의 예외(일시적 DB 오류, 커넥션 풀 고갈, 트랜잭션 예외 등)는 잡지 않고 그대로 전파한다.
+        // 여기서 정상 종료하면 Kafka 메시지가 소비 완료로 처리돼 재전달되지 않고, 제출이 QUEUED(또는
+        // 릴레이 후처리까지 실패했다면 PENDING)에 남는다 — 복구 스케줄러는 QUEUED만 집으므로 PENDING은 복구되지도 않는다.
+        // 예외를 컨테이너의 에러 핸들러(재시도 후 DLT)로 넘겨 재전달되게 한다.
 
         if (markedRunning.isEmpty()) {
             return;
@@ -177,16 +182,25 @@ public class JudgeExecutionFacade {
                 }
                 log.info("[Judge] RUNNING 전이가 낙관적 락 충돌 — 최신 상태로 재시도. attempt={}/{}, submissionId={}",
                         attempt, MARK_RUNNING_MAX_ATTEMPTS, submissionId);
-                sleep(MARK_RUNNING_BACKOFF_MS * attempt);
+                if (!sleep(MARK_RUNNING_BACKOFF_MS * attempt)) {
+                    // 종료/취소 신호(interrupt)를 받았다 — 더 재시도하지 않고 충돌 예외를 전파해 메시지가
+                    // 재전달되게 한다(다음 인스턴스가 이어받는다).
+                    log.warn("[Judge] RUNNING 전이 재시도 대기 중 인터럽트 — 재시도를 중단하고 예외를 전파. submissionId={}",
+                            submissionId);
+                    throw e;
+                }
             }
         }
     }
 
-    private void sleep(long millis) {
+    /** @return 끝까지 대기했으면 true, 인터럽트로 중단됐으면 false(인터럽트 플래그는 복구해 둔다) */
+    private boolean sleep(long millis) {
         try {
             Thread.sleep(millis);
+            return true;
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 

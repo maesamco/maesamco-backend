@@ -35,9 +35,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     List<Submission> findByStatusOrderBySubmittedAtAsc(SubmissionStatus status, Pageable pageable);
 
     /**
-     * QUEUED 정체 복구 스케줄러가 쓰는 조회 — 마지막 갱신이 threshold보다 오래된 것을 오래된 제출부터(#350).
+     * QUEUED 정체 복구 스케줄러가 쓰는 조회 — 마지막 갱신이 threshold보다 오래된 것을, 가장 오래 정체된 제출(updatedAt)부터 (#350).
+     * updatedAt이 같으면 먼저 제출된 순이다. 판정 기준(updatedAt)과 정렬 기준을 맞춰야 batch/시간 budget에 걸려도
+     * 오래 정체된 제출이 밀려나지 않는다.
      */
-    List<Submission> findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+    List<Submission> findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
             SubmissionStatus status, Instant threshold, Pageable pageable);
 
     @Query(value = "select new com.maesamco.judge.application.result.SubmissionSummaryResult("

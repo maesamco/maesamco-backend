@@ -68,28 +68,66 @@ class SubmissionRepositoryStalledQueuedIntegrationTest {
                 .executeUpdate());
     }
 
+    private void setSubmittedAt(UUID id, Instant submittedAt) {
+        transactionTemplate.executeWithoutResult(status -> entityManager
+                .createNativeQuery("update judge_schema.p_submissions set submitted_at = :at where id = :id")
+                .setParameter("at", submittedAt)
+                .setParameter("id", id)
+                .executeUpdate());
+    }
+
     @Test
-    @DisplayName("QUEUED이면서 기준 시각보다 오래 갱신되지 않은 제출만, 오래된 제출부터 조회한다")
-    void findsOnlyStaleQueuedSubmissionsOldestFirst() {
+    @DisplayName("QUEUED이면서 기준 시각보다 오래 갱신되지 않은 제출만 조회한다")
+    void findsOnlyStaleQueuedSubmissions() {
         Instant now = Instant.now();
-        Submission staleOlder = saveQueued("stale-older-" + UUID.randomUUID());
-        Submission staleNewer = saveQueued("stale-newer-" + UUID.randomUUID());
+        Submission stale = saveQueued("stale-" + UUID.randomUUID());
         Submission fresh = saveQueued("fresh-" + UUID.randomUUID());
         Submission pending = submissionRepository.saveAndFlush(Submission.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "public class Main {}", SubmissionLanguage.JAVA17, "pending-" + UUID.randomUUID()));
-        setUpdatedAt(staleOlder.getId(), now.minusSeconds(600));
-        setUpdatedAt(staleNewer.getId(), now.minusSeconds(300));
+        setUpdatedAt(stale.getId(), now.minusSeconds(600));
         setUpdatedAt(fresh.getId(), now);
         setUpdatedAt(pending.getId(), now.minusSeconds(600));
         entityManager.clear();
 
-        List<Submission> stalled = submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
-                SubmissionStatus.QUEUED, now.minusSeconds(60), PageRequest.of(0, 50));
+        List<UUID> ids = submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
+                        SubmissionStatus.QUEUED, now.minusSeconds(60), PageRequest.of(0, 50))
+                .stream().map(Submission::getId).toList();
 
-        List<UUID> ids = stalled.stream().map(Submission::getId).toList();
-        assertThat(ids).contains(staleOlder.getId(), staleNewer.getId());
+        assertThat(ids).contains(stale.getId());
         assertThat(ids).doesNotContain(fresh.getId(), pending.getId());
-        assertThat(ids.indexOf(staleOlder.getId())).isLessThan(ids.indexOf(staleNewer.getId()));
+    }
+
+    @Test
+    @DisplayName("정렬은 판정 기준인 updatedAt(가장 오래 정체된 순)이 우선이고, 같으면 submittedAt 순이다")
+    void ordersByUpdatedAtThenSubmittedAt() {
+        Instant now = Instant.now();
+        // submittedAt과 updatedAt의 순서를 일부러 반대로 만든다 — 정렬 기준이 무엇인지 구분되게.
+        Submission submittedFirstButRecentlyUpdated = saveQueued("a-" + UUID.randomUUID());
+        Submission submittedLastButStalledLongest = saveQueued("b-" + UUID.randomUUID());
+        Submission tieEarlierSubmitted = saveQueued("c-" + UUID.randomUUID());
+        Submission tieLaterSubmitted = saveQueued("d-" + UUID.randomUUID());
+        setSubmittedAt(submittedFirstButRecentlyUpdated.getId(), now.minusSeconds(9000));
+        setSubmittedAt(submittedLastButStalledLongest.getId(), now.minusSeconds(1000));
+        setSubmittedAt(tieEarlierSubmitted.getId(), now.minusSeconds(8000));
+        setSubmittedAt(tieLaterSubmitted.getId(), now.minusSeconds(7000));
+        setUpdatedAt(submittedFirstButRecentlyUpdated.getId(), now.minusSeconds(200));
+        setUpdatedAt(submittedLastButStalledLongest.getId(), now.minusSeconds(900));
+        setUpdatedAt(tieEarlierSubmitted.getId(), now.minusSeconds(500));
+        setUpdatedAt(tieLaterSubmitted.getId(), now.minusSeconds(500));
+        entityManager.clear();
+
+        List<UUID> ids = submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
+                        SubmissionStatus.QUEUED, now.minusSeconds(60), PageRequest.of(0, 50))
+                .stream().map(Submission::getId).toList();
+
+        List<UUID> ours = ids.stream().filter(id -> List.of(
+                submittedFirstButRecentlyUpdated.getId(), submittedLastButStalledLongest.getId(),
+                tieEarlierSubmitted.getId(), tieLaterSubmitted.getId()).contains(id)).toList();
+        assertThat(ours).containsExactly(
+                submittedLastButStalledLongest.getId(),
+                tieEarlierSubmitted.getId(),
+                tieLaterSubmitted.getId(),
+                submittedFirstButRecentlyUpdated.getId());
     }
 }

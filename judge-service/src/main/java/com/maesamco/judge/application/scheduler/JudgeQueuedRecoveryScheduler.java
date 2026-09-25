@@ -55,21 +55,25 @@ public class JudgeQueuedRecoveryScheduler {
     @Value("${judge.queued-recovery.batch-size:10}")
     private int batchSize;
 
-    /** 한 주기에서 복구에 쓸 수 있는 최대 시간. 이 시간을 넘기면 남은 제출은 다음 주기로 넘긴다(최소 1건은 처리). */
-    @Value("${judge.queued-recovery.max-run-seconds:20}")
-    private long maxRunSeconds;
+    /**
+     * 한 주기의 <b>소프트</b> 시간 예산(초). 각 제출을 시작하기 전에만 확인해서, 예산을 넘기면 남은 제출은 새로 시작하지 않고
+     * 다음 주기로 넘긴다(최소 1건은 처리). 이미 시작한 {@code execute()} 한 건은 중단하지 못하므로 hard timeout이 아니다 —
+     * 한 건이 예산보다 오래 걸리면 그만큼 스케줄러 스레드를 점유한다(최악의 경우 예산 + 한 건의 실행 시간).
+     */
+    @Value("${judge.queued-recovery.soft-budget-seconds:20}")
+    private long softBudgetSeconds;
 
     @Scheduled(fixedDelayString = "${judge.queued-recovery.fixed-delay-ms:30000}")
     public void recoverStalledQueuedSubmissions() {
         Instant threshold = Instant.now().minusSeconds(staleSeconds);
-        List<Submission> stalled = submissionRepository.findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+        List<Submission> stalled = submissionRepository.findByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscSubmittedAtAsc(
                 SubmissionStatus.QUEUED, threshold, PageRequest.of(0, batchSize));
 
-        long deadlineNanos = System.nanoTime() + Duration.ofSeconds(maxRunSeconds).toNanos();
+        long deadlineNanos = System.nanoTime() + Duration.ofSeconds(softBudgetSeconds).toNanos();
         boolean first = true;
         for (Submission submission : stalled) {
             if (!first && System.nanoTime() >= deadlineNanos) {
-                log.info("[Judge] QUEUED 복구가 한 주기 시간 상한({}초)에 도달해 남은 제출은 다음 주기로 넘긴다.", maxRunSeconds);
+                log.info("[Judge] QUEUED 복구가 한 주기 시간 예산({}초)을 넘겨 남은 제출은 다음 주기로 넘긴다.", softBudgetSeconds);
                 break;
             }
             first = false;

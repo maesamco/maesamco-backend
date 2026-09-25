@@ -116,4 +116,4 @@ judge:
     fixed-delay-ms: 30000
     stale-seconds: 60
     batch-size: 10
-    max-run-seconds: 20
+    soft-budget-seconds: 20

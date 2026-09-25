@@ -178,18 +178,40 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
-        @DisplayName("markRunningIfNeeded이 예상치 못한 예외를 던져도 상태를 건드린 적이 없으므로 "
-                + "재시도/실패 처리를 하지 않고 조용히 종료한다")
-        void doesNothingWhenMarkRunningIfNeededThrowsUnexpectedException() {
+        @DisplayName("markRunningIfNeeded이 일시적 DB 오류 같은 일반 예외를 던지면 정상 종료하지 않고 전파해 Kafka가 재전달하게 한다")
+        void propagatesTransientExceptionFromMarkRunning() {
             UUID submissionId = UUID.randomUUID();
             given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
                     .willThrow(new RuntimeException("DB 연결 순단"));
 
-            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> judgeExecutionFacade.execute(submissionId))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DB 연결 순단");
 
             verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
             verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
             verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
+        }
+
+        @Test
+        @DisplayName("낙관적 락 재시도 대기 중 인터럽트를 받으면 더 재시도하지 않고 예외를 전파하며 인터럽트 플래그를 유지한다")
+        void stopsRetryingWhenInterrupted() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            com.maesamco.judge.domain.entity.Submission.class, submissionId));
+
+            Thread.currentThread().interrupt();
+            try {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> judgeExecutionFacade.execute(submissionId))
+                        .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+                assertThat(Thread.currentThread().isInterrupted()).isTrue();
+            } finally {
+                Thread.interrupted(); // 다른 테스트에 플래그가 새지 않게 정리
+            }
+
+            // 첫 시도에서 충돌 → 대기 중 인터럽트로 즉시 중단 — 3회까지 가지 않는다.
+            verify(judgeExecutionPersistenceService, times(1)).markRunningIfNeeded(submissionId);
         }
 
         @Test
