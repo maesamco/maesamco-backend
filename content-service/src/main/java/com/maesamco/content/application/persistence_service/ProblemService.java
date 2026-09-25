@@ -4,6 +4,7 @@ import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.finder.ProblemFinder;
+import com.maesamco.content.application.finder.LessonFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
@@ -34,6 +35,7 @@ public class ProblemService {
 
     private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
+    private final LessonFinder lessonFinder;
     private final ProblemPublicationFacade problemPublicationFacade;
 
     /** 문제 생성 */
@@ -55,6 +57,7 @@ public class ProblemService {
 
         // 이슈 #291 — 생성 시점에 바로 레슨에 연결할 수도 있다(선택 사항).
         if (command.getLessonId() != null) {
+            validateLessonForNewLink(command.getLessonId());
             problem.changeLessonId(command.getLessonId());
         }
 
@@ -200,6 +203,9 @@ public class ProblemService {
         }
         // 들어왔는데 null인 경우 -> 레슨 연결 해제 / 안 들어와서 null인 경우 -> 안 바꿈 (이슈 #291)
         if (command.getLessonId().isDefined()) {
+            if (command.getLessonId().getValue() != null) {
+                validateLessonForNewLink(command.getLessonId().getValue());
+            }
             problem.changeLessonId(command.getLessonId().getValue());
         }
 
@@ -238,6 +244,21 @@ public class ProblemService {
         }
 
         return ProblemResult.from(problem);
+    }
+
+    /** 새 연결만 확인한다. 이미 연결된 문제가 레슨 삭제 후 남는 것은 허용한다. */
+    private void validateLessonForNewLink(UUID lessonId) {
+        try {
+            lessonFinder.getById(lessonId);
+        } catch (BusinessException exception) {
+            ErrorCode errorCode = exception.getErrorCode();
+            if (errorCode == ErrorCode.LESSON_NOT_FOUND
+                    || errorCode == ErrorCode.UNIT_NOT_FOUND
+                    || errorCode == ErrorCode.CURRICULUM_NOT_FOUND) {
+                throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+            }
+            throw exception;
+        }
     }
 
     /** 문제 삭제 */
