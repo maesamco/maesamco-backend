@@ -6,6 +6,8 @@ import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.QueryTimeoutException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -184,6 +186,42 @@ class DailyQuizBatchSchedulerTest {
                 executionService, properties, clock, retryExecutor
         );
         doThrow(new DataAccessResourceFailureException("database unavailable"))
+                .when(executionService).execute(LocalDate.of(2026, 9, 23), 100);
+
+        scheduler.run();
+
+        verify(retryExecutor).schedule(any(Runnable.class), eq(300_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void DB_무결성_오류는_전체_배치를_재시도하지_않는다() {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                retryExecutor
+        );
+        doThrow(new DataIntegrityViolationException("not-null violation"))
+                .when(executionService).execute(LocalDate.of(2026, 9, 23), 100);
+
+        scheduler.run();
+
+        verifyNoInteractions(retryExecutor);
+    }
+
+    @Test
+    void 일시적_DB_오류는_전체_배치를_재시도한다() {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                retryExecutor
+        );
+        doThrow(new QueryTimeoutException("query timeout"))
                 .when(executionService).execute(LocalDate.of(2026, 9, 23), 100);
 
         scheduler.run();

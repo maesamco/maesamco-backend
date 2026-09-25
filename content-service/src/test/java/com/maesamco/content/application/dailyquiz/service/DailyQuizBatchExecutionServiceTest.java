@@ -7,6 +7,7 @@ import com.maesamco.content.application.dailyquiz.result.DailyQuizTargetUserPage
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -40,6 +41,24 @@ class DailyQuizBatchExecutionServiceTest {
         service.execute(attemptDate, 100);
 
         verify(userGenerationService).generate(firstUser, attemptDate);
+        verify(userGenerationService).generate(secondUser, attemptDate);
+    }
+
+    @Test
+    void 첫_사용자의_DB_무결성_오류에도_다음_사용자를_처리한다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID firstUser = UUID.randomUUID();
+        UUID secondUser = UUID.randomUUID();
+        when(targetUserPort.getTargetUsers(null, 100))
+                .thenReturn(new DailyQuizTargetUserPage(List.of(firstUser, secondUser), null, false));
+        when(userGenerationService.generate(firstUser, attemptDate))
+                .thenThrow(new DailyQuizUserProcessingException(firstUser, attemptDate,
+                        new DataIntegrityViolationException("check violation")));
+        when(userGenerationService.generate(secondUser, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 3));
+
+        service.execute(attemptDate, 100);
+
         verify(userGenerationService).generate(secondUser, attemptDate);
     }
 

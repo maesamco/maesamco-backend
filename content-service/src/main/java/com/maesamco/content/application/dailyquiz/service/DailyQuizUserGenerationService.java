@@ -11,6 +11,7 @@ import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptReposito
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -28,34 +29,34 @@ public class DailyQuizUserGenerationService {
     private final DailyQuizAttemptRepository attemptRepository;
 
     public DailyQuizSetGenerationResult generate(UUID userId, LocalDate attemptDate) {
-        // userId와 attemptDate로 DailyQuizConceptCandidatesGetQuery를 생성합니다.
-        DailyQuizConceptCandidatesGetQuery query =
-                DailyQuizConceptCandidatesGetQuery.from(userId, attemptDate);
-
-        // 재실행 시 이미 생성된 세트는 외부 개념 조회와 문항 확보 전에 건너뜁니다.
-        if (attemptRepository.existsByUserIdAndAttemptDate(userId, attemptDate)) {
-            return DailyQuizSetGenerationResult.alreadyExists();
-        }
-
-        // 특정 사용자의 개념 후보 데이터가 도메인 계약을 위반하면 사용자 단위 예외로 변환합니다.
-        DailyQuizConceptCandidates conceptCandidates;
         try {
-            conceptCandidates = conceptCandidateQueryService.get(query);
-        } catch (BusinessException exception) {
-            if (exception.getErrorCode() != ErrorCode.INVALID_INPUT_VALUE) {
-                throw exception;
+            DailyQuizConceptCandidatesGetQuery query =
+                    DailyQuizConceptCandidatesGetQuery.from(userId, attemptDate);
+
+            // 재실행 시 이미 생성된 세트는 외부 개념 조회와 문항 확보 전에 건너뜁니다.
+            if (attemptRepository.existsByUserIdAndAttemptDate(userId, attemptDate)) {
+                return DailyQuizSetGenerationResult.alreadyExists();
             }
+
+            DailyQuizConceptCandidates conceptCandidates;
+            try {
+                conceptCandidates = conceptCandidateQueryService.get(query);
+            } catch (BusinessException exception) {
+                if (exception.getErrorCode() != ErrorCode.INVALID_INPUT_VALUE) {
+                    throw exception;
+                }
+                throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
+            }
+
+            DailyQuizSetGenerationCommand command = DailyQuizSetGenerationCommand.from(
+                    userId,
+                    attemptDate,
+                    conceptCandidates
+            );
+
+            return setGenerationFacade.generate(command);
+        } catch (DataIntegrityViolationException exception) {
             throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
         }
-
-        // 사용자 ID, 날짜, 개념 후보로 DailyQuizSetGenerationCommand를 생성합니다.
-        DailyQuizSetGenerationCommand command = DailyQuizSetGenerationCommand.from(
-                userId,
-                attemptDate,
-                conceptCandidates
-        );
-
-        // setGenerationFacade를 호출하고 생성 결과를 반환합니다.
-        return setGenerationFacade.generate(command);
     }
 }

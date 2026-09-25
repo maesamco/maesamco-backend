@@ -5,7 +5,9 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.RecoverableDataAccessException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -69,7 +71,9 @@ public class DailyQuizBatchScheduler {
         if (exception instanceof BusinessException businessException) {
             return businessException.getErrorCode() == ErrorCode.FEIGN_CLIENT_ERROR;
         }
-        return exception instanceof DataAccessException;
+        return exception instanceof DataAccessResourceFailureException
+                || exception instanceof TransientDataAccessException
+                || exception instanceof RecoverableDataAccessException;
     }
 
     private void scheduleAttempt(LocalDate attemptDate, int retryCount) {
