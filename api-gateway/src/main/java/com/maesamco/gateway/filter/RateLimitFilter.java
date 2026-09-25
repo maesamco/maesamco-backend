@@ -71,6 +71,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     public RateLimitFilter(
             ReactiveRedisTemplate<String, Long> redisTemplate,
             @Value("${rate-limit.submissions.per-minute:30}") int submissionsPerMinute,
+            @Value("${rate-limit.submissions.read-per-minute:300}") int submissionReadsPerMinute,
             @Value("${rate-limit.trusted-proxy-ips:}") List<String> trustedProxyIps) {
         this.redisTemplate = redisTemplate;
         this.trustedProxyIps = trustedProxyIps;
@@ -108,7 +109,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 // 소셜 로그인(#304) — 일반 login과 같은 한도.
                 new RuleMatch(null, "/api/v1/auth/social", 10, Duration.ofMinutes(1)),
                 new RuleMatch(null, "/api/v1/auth/password-reset", 5, Duration.ofMinutes(10)),
-                new RuleMatch(null, "/api/v1/submissions", submissionsPerMinute, Duration.ofMinutes(1)),
+                // 제출(POST)만 남용 방어 한도(기본 분당 30회)를 적용한다. 채점 결과 조회(GET /{id})와 이력 조회
+                // (GET /me)는 프론트가 채점이 끝날 때까지 폴링하는 읽기라 같은 카운터에 묶으면 정상 사용에서도
+                // 429가 나고, 한도가 소진되면 새 제출(POST)까지 막힌다(이슈 #349). 조회는 메서드가 달라 카운터
+                // 키가 분리되고(rate-limit:GET:…), 폴링과 같은 공인 IP(NAT) 사용자를 감안해 넉넉한 한도를 둔다.
+                new RuleMatch(HttpMethod.POST, "/api/v1/submissions", submissionsPerMinute, Duration.ofMinutes(1)),
+                new RuleMatch(HttpMethod.GET, "/api/v1/submissions", submissionReadsPerMinute, Duration.ofMinutes(1)),
                 // 힌트 생성은 LLM 호출 비용이 있는 액션이라 로그인과 같은 급으로 취급.
                 // GET(목록/상세 조회)은 LLM 비용이 없어 이 룰에서 의도적으로 제외(method=POST만 매칭).
                 // prefix가 "/api/v1/coaching/submissions"라 startsWith로 매칭되는

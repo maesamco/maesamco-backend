@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class RateLimitFilterTest {
 
     private final RateLimitFilter filter =
-            new RateLimitFilter(null, 30, List.of());
+            new RateLimitFilter(null, 30, 300, List.of());
 
     @Test
     void socialSignup_usesSignupRule_notSocialLoginPrefixRule() {
@@ -62,5 +63,39 @@ class RateLimitFilterTest {
         // 코칭 제출 룰은 POST만 제한하고 GET 조회는 제외한다.
         assertNotNull(filter.findRule("/api/v1/coaching/submissions", HttpMethod.POST));
         assertNull(filter.findRule("/api/v1/coaching/submissions", HttpMethod.GET));
+    }
+
+    @Test
+    void submissionCreate_isLimitedSeparatelyFromReads() {
+        // 제출(POST)은 분당 30회 남용 방어 한도를 유지한다.
+        RateLimitFilter.RuleMatch create = filter.findRule("/api/v1/submissions", HttpMethod.POST);
+
+        assertNotNull(create);
+        assertEquals(HttpMethod.POST, create.method());
+        assertEquals(30, create.limit());
+        assertEquals(Duration.ofMinutes(1), create.window());
+    }
+
+    @Test
+    void submissionReads_useSeparateGenerousRule_soPollingDoesNotBlockNewSubmissions() {
+        // 채점 결과 조회(폴링)와 이력 조회는 제출과 다른 룰(다른 카운터 키)이어야 하고 한도가 더 넉넉해야 한다(#349).
+        RateLimitFilter.RuleMatch create = filter.findRule("/api/v1/submissions", HttpMethod.POST);
+        RateLimitFilter.RuleMatch result = filter.findRule(
+                "/api/v1/submissions/694cb77d-3dbc-49cd-82e3-01473afcc42a", HttpMethod.GET);
+        RateLimitFilter.RuleMatch history = filter.findRule("/api/v1/submissions/me", HttpMethod.GET);
+
+        assertNotNull(result);
+        assertNotNull(history);
+        assertEquals(HttpMethod.GET, result.method());
+        assertEquals(HttpMethod.GET, history.method());
+        assertEquals(300, result.limit());
+        assertEquals(Duration.ofMinutes(1), result.window());
+        // 카운터 키는 "rate-limit:{메서드}:{prefix}:{식별자}"이므로 메서드가 다르면 카운터가 분리된다.
+        assertNotEquals(create.method(), result.method());
+    }
+
+    @Test
+    void submissionRules_doNotAffectOtherMethods() {
+        assertNull(filter.findRule("/api/v1/submissions/some-id", HttpMethod.DELETE));
     }
 }
