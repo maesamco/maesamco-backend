@@ -26,7 +26,7 @@ public interface HintApiDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "새 힌트 생성"),
-            @ApiResponse(responseCode = "200", description = "이미 존재하는 단계의 힌트를 그대로 반환"),
+            @ApiResponse(responseCode = "200", description = "새 힌트를 만들지 않고 기존 힌트를 그대로 반환 — 이 제출(시도)로 이미 힌트를 받았거나(이슈 #352), 이미 4단계까지 받은 경우"),
             @ApiResponse(responseCode = "403", description = "HINT_NOT_ALLOWED — 본인 제출이 오답 상태가 아님"),
             @ApiResponse(responseCode = "404", description = "SUBMISSION_NOT_FOUND — 제출이 없거나 본인 소유가 아님"),
             @ApiResponse(responseCode = "409", description = "COACHING_SESSION_ALREADY_COMPLETED(이미 완료된 코칭 세션이라 새 힌트를 생성할 수 없음), "

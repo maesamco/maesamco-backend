@@ -732,4 +732,24 @@ class HintGenerationFacadeTest {
         assertThat(result.skipAvailable()).isTrue();
         verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
     }
+
+    @Test
+    void 이슈352_락을_얻는_사이_같은_시도의_힌트가_만들어졌다면_새로_생성하지_않고_그_힌트를_반환한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 2));
+        CoachingSession existingSession = persistedSession(2);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        // 처음 조회(락 전)에는 힌트가 없고, 락을 얻은 뒤 다시 조회하면 다른 요청이 이 시도로 이미 만들어 둔 힌트가 보인다.
+        // stage를 다음 단계(1)와 다르게(3) 둬서, stage 중복 검사가 아니라 시도 번호 검사가 동작해야만 통과한다.
+        Hint createdByConcurrentRequest = Hint.create(existingSession.getId(), 3, "동시 요청이 만든 힌트", 2);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(createdByConcurrentRequest));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.hint()).isSameAs(createdByConcurrentRequest);
+        verify(aiModelPort, never()).generate(any(), any());
+        verify(hintRepository, never()).save(any());
+    }
 }
