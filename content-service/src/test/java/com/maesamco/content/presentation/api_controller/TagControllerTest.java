@@ -8,20 +8,15 @@ import com.maesamco.content.application.command.TagUpdateCommand;
 import com.maesamco.content.application.result.TagResult;
 import com.maesamco.content.global.common.pagination.PageQuery;
 import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TagController.class)
-@Import(TagControllerTest.TestSecurityConfig.class)
+@Import(TestSecurityConfig.class)
 class TagControllerTest {
 
     @Autowired
@@ -52,24 +47,6 @@ class TagControllerTest {
     private final UUID tagId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity(proxyTargetClass = true)
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(

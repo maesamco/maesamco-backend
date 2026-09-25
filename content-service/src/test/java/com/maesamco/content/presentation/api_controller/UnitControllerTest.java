@@ -8,23 +8,18 @@ import com.maesamco.content.presentation.request.UnitCreateRequest;
 import com.maesamco.content.presentation.request.UnitUpdateRequest;
 import com.maesamco.content.presentation.response.UnitCreateResponse;
 import com.maesamco.content.presentation.response.UnitResponse;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UnitController.class)
-@Import(UnitControllerTest.TestSecurityConfig.class)
+@Import(TestSecurityConfig.class)
 class UnitControllerTest {
 
     @Autowired
@@ -56,24 +51,6 @@ class UnitControllerTest {
     private final UUID curriculumId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity(proxyTargetClass = true)
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(

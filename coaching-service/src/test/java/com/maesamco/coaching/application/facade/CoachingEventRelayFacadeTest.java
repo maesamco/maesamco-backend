@@ -5,6 +5,10 @@ import com.maesamco.coaching.application.port.EventPublishOutcomeUnknownExceptio
 import com.maesamco.coaching.application.port.EventPublisherPort;
 import com.maesamco.coaching.domain.entity.CoachingEventOutbox;
 import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -12,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -20,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -74,6 +81,20 @@ class CoachingEventRelayFacadeTest {
     // 방식에서, 매 회 한 건씩(limit=1) 새 lease로 선점하는 방식으로 바뀌었다. 이 스텁도
     // 그에 맞춰 claimPublishable() 호출마다 순서대로 하나씩 내주고, 소진되면 빈 리스트를
     // 반환해 relay()의 반복 루프가 멈추게 한다.
+    private ListAppender<ILoggingEvent> attachLogAppender() {
+        Logger logger = (Logger) LoggerFactory.getLogger(CoachingEventRelayFacade.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    private void detachLogAppender(ListAppender<ILoggingEvent> appender) {
+        Logger logger = (Logger) LoggerFactory.getLogger(CoachingEventRelayFacade.class);
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
     private void stubClaimable(CoachingEventOutbox... outboxes) {
         Iterator<CoachingEventOutbox> iterator = List.of(outboxes).iterator();
         given(coachingEventOutboxRepository.claimPublishable(any(Instant.class), any(Instant.class), any(UUID.class), eq(1)))
@@ -155,6 +176,54 @@ class CoachingEventRelayFacadeTest {
             verify(coachingEventOutboxPersistenceService).recordPostPublishFailure(eq(outbox.getId()), any(UUID.class));
             verify(coachingEventOutboxPersistenceService, never()).recordFailedAttempt(any(), any());
             verify(coachingEventOutboxPersistenceService, never()).markPublished(any(), any());
+        }
+
+        @Test
+        @DisplayName("이슈 #288 — markPublished가 낙관적 락 충돌로 실패해도 recordPostPublishFailure로 넘기고 ERROR가 아니라 WARN으로 남긴다")
+        void logsOptimisticLockLossOnMarkPublishedAsWarn() {
+            CoachingEventOutbox outbox = pendingOutbox();
+            stubClaimable(outbox);
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outbox.getId()))
+                    .given(coachingEventOutboxPersistenceService).markPublished(eq(outbox.getId()), any(UUID.class));
+
+            ListAppender<ILoggingEvent> appender = attachLogAppender();
+            try {
+                coachingEventRelayFacade.relay();
+            } finally {
+                detachLogAppender(appender);
+            }
+
+            verify(coachingEventOutboxPersistenceService).recordPostPublishFailure(eq(outbox.getId()), any(UUID.class));
+            assertThat(appender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+            assertThat(appender.list).anyMatch(event -> event.getLevel() == Level.WARN
+                    && event.getFormattedMessage().contains("낙관적 락 충돌"));
+        }
+
+        @Test
+        @DisplayName("이슈 #288 — 결과 기록이 낙관적 락 충돌로 relay 밖까지 전파돼도 ERROR가 아니라 WARN으로 남기고 나머지 배치를 계속 처리한다")
+        void logsOptimisticLockLossPropagatedToRelayAsWarn() {
+            CoachingEventOutbox brokenOutbox = pendingOutbox();
+            CoachingEventOutbox healthyOutbox = pendingOutbox();
+            stubClaimable(brokenOutbox, healthyOutbox);
+
+            willThrow(new IllegalStateException("Kafka 발행 실패"))
+                    .given(eventPublisherPort).publish(eq(TOPIC), eq(brokenOutbox.getAggregateId().toString()), anyString());
+            willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, brokenOutbox.getId()))
+                    .given(coachingEventOutboxPersistenceService).recordFailedAttempt(eq(brokenOutbox.getId()), any(UUID.class));
+
+            ListAppender<ILoggingEvent> appender = attachLogAppender();
+            try {
+                coachingEventRelayFacade.relay();
+            } finally {
+                detachLogAppender(appender);
+            }
+
+            verify(coachingEventOutboxPersistenceService).markPublished(eq(healthyOutbox.getId()), any(UUID.class));
+            // relayOne 안의 "발행 실패" 로그(ERROR)는 원인이 Kafka 실패라 그대로이고, 낙관적 락 충돌 자체는 WARN이다.
+            assertThat(appender.list).anyMatch(event -> event.getLevel() == Level.WARN
+                    && event.getFormattedMessage().contains("낙관적 락 충돌"));
+            assertThat(appender.list).noneMatch(event -> event.getLevel() == Level.ERROR
+                    && event.getFormattedMessage().contains("예상치 못한 예외"));
         }
 
         @Test

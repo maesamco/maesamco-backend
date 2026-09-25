@@ -16,12 +16,12 @@ import com.maesamco.user.domain.entity.UserRole;
 import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -82,8 +82,30 @@ class SignUpServiceTest {
     @Mock
     private Clock clock;
 
-    @InjectMocks
     private SignUpService signUpService;
+
+    /**
+     * 세션 발급은 실제 {@link AuthSessionIssuer}에 위임하고,
+     * 그 아래 포트(TokenIssuer, RefreshTokenHasher, AuthSessionStore, Clock)만 Mock으로 둡니다(#339).
+     */
+    @BeforeEach
+    void setUp() {
+        signUpService = new SignUpService(
+                emailNormalizer,
+                emailCipher,
+                emailLookupHasher,
+                passwordHasher,
+                signUpPersistenceService,
+                new AuthSessionIssuer(
+                        tokenIssuer,
+                        refreshTokenHasher,
+                        authSessionStore,
+                        clock
+                ),
+                emailVerificationSecretHasher,
+                emailVerificationStore
+        );
+    }
 
     @Test
     @DisplayName(

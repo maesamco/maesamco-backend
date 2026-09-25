@@ -1,13 +1,8 @@
 package com.maesamco.user.application.service;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionStore;
 import com.maesamco.user.application.port.EmailLookupHasher;
-import com.maesamco.user.application.port.IssuedTokens;
-import com.maesamco.user.application.port.RefreshTokenHasher;
 import com.maesamco.user.application.port.SocialIdentityVerifier;
 import com.maesamco.user.application.port.SocialSignupTokenIssuer;
-import com.maesamco.user.application.port.TokenIssuer;
 import com.maesamco.user.application.port.VerifiedSocialIdentity;
 import com.maesamco.user.domain.entity.SocialAccount;
 import com.maesamco.user.domain.entity.SocialProvider;
@@ -16,17 +11,12 @@ import com.maesamco.user.domain.repository.SocialAccountRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
-import com.maesamco.user.global.security.TokenExpirationCalculator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * 소셜 인증 결과를 MAESAMCO 계정과 연결하여
@@ -53,10 +43,7 @@ public class SocialLoginService {
     private final EmailNormalizer emailNormalizer;
     private final EmailLookupHasher emailLookupHasher;
     private final SocialSignupTokenIssuer socialSignupTokenIssuer;
-    private final TokenIssuer tokenIssuer;
-    private final RefreshTokenHasher refreshTokenHasher;
-    private final AuthSessionStore authSessionStore;
-    private final Clock clock;
+    private final AuthSessionIssuer authSessionIssuer;
 
     public SocialLoginService(
             List<SocialIdentityVerifier> identityVerifiers,
@@ -65,13 +52,10 @@ public class SocialLoginService {
             EmailNormalizer emailNormalizer,
             EmailLookupHasher emailLookupHasher,
             SocialSignupTokenIssuer socialSignupTokenIssuer,
-            TokenIssuer tokenIssuer,
-            RefreshTokenHasher refreshTokenHasher,
-            AuthSessionStore authSessionStore,
-            Clock clock
+            AuthSessionIssuer authSessionIssuer
     ) {
         this.identityVerifiers =
-                createVerifierMap(identityVerifiers);
+                SocialIdentityVerifiers.toMap(identityVerifiers);
 
         this.socialAccountRepository =
                 socialAccountRepository;
@@ -83,14 +67,8 @@ public class SocialLoginService {
                 emailLookupHasher;
         this.socialSignupTokenIssuer =
                 socialSignupTokenIssuer;
-        this.tokenIssuer =
-                tokenIssuer;
-        this.refreshTokenHasher =
-                refreshTokenHasher;
-        this.authSessionStore =
-                authSessionStore;
-        this.clock =
-                clock;
+        this.authSessionIssuer =
+                authSessionIssuer;
     }
 
     /**
@@ -217,55 +195,17 @@ public class SocialLoginService {
 
         user.assertActive();
 
-        UUID sessionId =
-                UUID.randomUUID();
-
-        UUID familyId =
-                UUID.randomUUID();
-
-        Instant sessionStartedAt =
-                clock.instant();
-
-        IssuedTokens issuedTokens =
-                tokenIssuer.issueTokens(
-                        user.getId(),
-                        user.getRole(),
-                        sessionId
-                );
-
-        String refreshTokenHash =
-                refreshTokenHasher.hash(
-                        issuedTokens.refreshToken()
-                );
-
-        AuthSession authSession =
-                new AuthSession(
-                        sessionId,
-                        familyId,
-                        user.getId(),
-                        refreshTokenHash,
-                        sessionStartedAt,
-                        issuedTokens.refreshTokenExpiresAt()
-                );
-
-        authSessionStore.save(
-                authSession
-        );
-
-        Instant now =
-                clock.instant();
-
-        long accessTokenExpiresIn =
-                TokenExpirationCalculator.remainingSeconds(
-                        now,
-                        issuedTokens.accessTokenExpiresAt()
+        IssuedAuthSession authSession =
+                authSessionIssuer.issue(
+                        user,
+                        AuthSessionPurpose.SOCIAL_LOGIN
                 );
 
         return SocialLoginResult.authenticated(
                 provider,
                 user,
-                issuedTokens,
-                accessTokenExpiresIn
+                authSession.issuedTokens(),
+                authSession.accessTokenExpiresIn()
         );
     }
 
@@ -292,46 +232,5 @@ public class SocialLoginService {
                     ErrorCode.SOCIAL_EMAIL_NOT_VERIFIED
             );
         }
-    }
-
-    /**
-     * Spring이 주입한 Provider별 Verifier를
-     * 빠르게 조회할 수 있는 Map으로 변환합니다.
-     */
-    private static Map<
-            SocialProvider,
-            SocialIdentityVerifier
-            > createVerifierMap(
-            List<SocialIdentityVerifier> verifiers
-    ) {
-        EnumMap<
-                SocialProvider,
-                SocialIdentityVerifier
-                > verifierMap =
-                new EnumMap<>(
-                        SocialProvider.class
-                );
-
-        for (
-                SocialIdentityVerifier verifier
-                : verifiers
-        ) {
-            SocialIdentityVerifier previous =
-                    verifierMap.put(
-                            verifier.provider(),
-                            verifier
-                    );
-
-            if (previous != null) {
-                throw new IllegalStateException(
-                        "동일한 Social Provider의 Verifier가 중복 등록되었습니다: "
-                                + verifier.provider()
-                );
-            }
-        }
-
-        return Map.copyOf(
-                verifierMap
-        );
     }
 }
