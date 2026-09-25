@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -54,5 +55,31 @@ class DailyQuizBatchExecutionServiceTest {
 
         assertThatThrownBy(() -> service.execute(attemptDate, 100)).isSameAs(failure);
         verify(userGenerationService, never()).generate(secondUser, attemptDate);
+    }
+
+    @Test
+    void 대상_사용자_페이지_조회_실패를_정상_종료로_숨기지_않는다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        BusinessException failure = new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR);
+        when(targetUserPort.getTargetUsers(null, 100)).thenThrow(failure);
+
+        assertThatThrownBy(() -> service.execute(attemptDate, 100)).isSameAs(failure);
+        verifyNoInteractions(userGenerationService);
+    }
+
+    @Test
+    void 대상_사용자_cursor가_순환하면_배치를_실패시킨다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID userId = UUID.randomUUID();
+        DailyQuizTargetUserPage repeatedPage =
+                new DailyQuizTargetUserPage(List.of(userId), userId, true);
+        when(targetUserPort.getTargetUsers(null, 100)).thenReturn(repeatedPage);
+        when(targetUserPort.getTargetUsers(userId, 100)).thenReturn(repeatedPage);
+        when(userGenerationService.generate(userId, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.alreadyExists());
+
+        assertThatThrownBy(() -> service.execute(attemptDate, 100))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR));
     }
 }

@@ -53,19 +53,7 @@ public class DailyQuizBatchExecutionService {
 
         // cursor와 chunkSize로 대상 사용자 페이지를 반복 조회합니다.
         while (true) {
-            DailyQuizTargetUserPage page;
-
-            try {
-                page = targetUserPort.getTargetUsers(cursor, chunkSize);
-            } catch (RuntimeException exception) {
-                log.error(
-                        "Daily Quiz 대상 사용자 페이지 조회 실패. attemptDate={}, cursor={}",
-                        attemptDate,
-                        cursor,
-                        exception
-                );
-                return;
-            }
+            DailyQuizTargetUserPage page = targetUserPort.getTargetUsers(cursor, chunkSize);
 
             // 현재 페이지의 사용자들을 순차 처리합니다.
             // 사용자 한 명의 생성이 실패해도 오류를 기록하고 다음 사용자를 계속 처리합니다.
@@ -105,14 +93,12 @@ public class DailyQuizBatchExecutionService {
             UUID nextCursor = page.nextCursor();
 
             if (!visitedCursors.add(nextCursor)) {
-                log.error(
-                        "Daily Quiz 대상 사용자 cursor가 순환하여 배치를 종료합니다. "
-                                + "attemptDate={}, currentCursor={}, nextCursor={}",
-                        attemptDate,
-                        cursor,
-                        nextCursor
+                throw new BusinessException(
+                        ErrorCode.FEIGN_CLIENT_ERROR,
+                        ("Daily Quiz 대상 사용자 cursor가 순환했습니다. "
+                                + "attemptDate=%s, currentCursor=%s, nextCursor=%s")
+                                .formatted(attemptDate, cursor, nextCursor)
                 );
-                return;
             }
 
             cursor = nextCursor;

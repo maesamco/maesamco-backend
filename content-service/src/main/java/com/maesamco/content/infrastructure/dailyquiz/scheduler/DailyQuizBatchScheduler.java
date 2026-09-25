@@ -34,9 +34,10 @@ public class DailyQuizBatchScheduler {
             return;
         }
 
+        LocalDate attemptDate = null;
         try {
             // 설정된 timezone을 기준으로 attemptDate를 계산합니다.
-            LocalDate attemptDate = LocalDate.now(dailyQuizClock);
+            attemptDate = LocalDate.now(dailyQuizClock);
 
             // attemptDate와 chunkSize를 전달해 배치 실행 서비스를 호출합니다.
             log.info(
@@ -47,7 +48,7 @@ public class DailyQuizBatchScheduler {
             batchExecutionService.execute(attemptDate, properties.chunkSize());
             log.info("Daily Quiz 배치를 종료했습니다. attemptDate={}", attemptDate);
         } catch (RuntimeException exception) {
-            log.error("Daily Quiz 배치 실행 중 오류가 발생했습니다.", exception);
+            log.error("Daily Quiz 배치 실행에 실패했습니다. attemptDate={}", attemptDate, exception);
         } finally {
             // 성공 또는 실패와 관계없이 실행 상태를 반드시 해제합니다.
             running.set(false);
