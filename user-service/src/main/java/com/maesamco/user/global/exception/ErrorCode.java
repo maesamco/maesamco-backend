@@ -63,6 +63,18 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 가입된 소셜 계정입니다. 소셜 로그인을 다시 진행해주세요."
     ),
+    /*
+     * 로그인된 상태에서의 재인증 실패는 401이 아니라 400으로 응답합니다(#328).
+     * 401은 클라이언트가 Access Token 만료로 해석해 재발급·재시도 루프에 빠질 수 있습니다.
+     */
+    SOCIAL_REAUTH_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "소셜 계정 재인증에 실패했습니다. 다시 인증해주세요."
+    ),
+    SOCIAL_REAUTH_ACCOUNT_MISMATCH(
+            HttpStatus.FORBIDDEN,
+            "가입할 때 사용한 소셜 계정으로 다시 인증해주세요."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(

@@ -2,7 +2,9 @@ package com.maesamco.user.application.service;
 
 import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
 import com.maesamco.user.application.port.PasswordHasher;
+import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.domain.entity.User;
+import com.maesamco.user.domain.repository.SocialAccountRepository;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -19,8 +21,16 @@ import java.util.UUID;
 /**
  * 로그인 사용자의 회원 탈퇴를 처리합니다.
  *
- * <p>현재 비밀번호를 확인한 뒤 사용자와 관심 개념을 논리 삭제하고,
+ * <p>본인 확인 뒤 사용자, 관심 개념, 소셜 계정 연결을 논리 삭제하고,
  * 기존에 발급된 모든 인증 세션을 무효화합니다.</p>
+ *
+ * <p>본인 확인 수단은 계정 종류에 따라 다릅니다(#328).</p>
+ * <ul>
+ *     <li>비밀번호가 있는 계정: 현재 비밀번호</li>
+ *     <li>비밀번호 없이 소셜로 가입한 계정: Google 재인증(ID Token의 sub가 연결된 SocialAccount와 일치)</li>
+ * </ul>
+ *
+ * <p>소셜 계정 연결도 논리 삭제하므로, 탈퇴 후 같은 Google 계정으로 다시 가입할 수 있습니다.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -29,7 +39,9 @@ public class WithdrawUserService {
     private final UserRepository userRepository;
     private final UserInterestConceptRepository
             interestConceptRepository;
+    private final SocialAccountRepository socialAccountRepository;
     private final PasswordHasher passwordHasher;
+    private final SocialReauthenticator socialReauthenticator;
     private final AuthSessionLogoutAllStore
             authSessionLogoutAllStore;
     private final Clock clock;
@@ -63,6 +75,19 @@ public class WithdrawUserService {
                 "회원 탈퇴 명령은 필수입니다."
         );
 
+        /*
+         * Google 재인증은 외부 Provider 검증을 포함하므로
+         * 사용자 행 잠금을 잡기 전에 수행합니다(UpdateMyInterestsService와 같은 원칙).
+         * 재인증은 ID Token의 sub가 이 사용자의 SocialAccount인지만 확인하므로 User 조회가 필요 없습니다.
+         */
+        if (command.usesGoogleReauth()) {
+            socialReauthenticator.verifyOwnership(
+                    userId,
+                    SocialProvider.GOOGLE,
+                    command.googleIdToken()
+            );
+        }
+
         User user =
                 userRepository.findByIdForUpdate(
                         userId
@@ -74,27 +99,37 @@ public class WithdrawUserService {
 
         user.assertActive();
 
-        /*
-         * 소셜 계정으로만 가입한 사용자는 비밀번호로 본인 재확인을 할 수 없습니다(#308).
-         *
-         * TODO(#328): 소셜 재인증(Google ID Token 재검증) 기반 탈퇴 지원.
-         *  의도된 임시 처리입니다 — 소셜 가입이 열리는 시점부터 이 분기에 걸리는 사용자가 생깁니다.
-         */
-        if (!user.hasPassword()) {
-            throw new BusinessException(
-                    ErrorCode.USER_PASSWORD_NOT_SET
+        if (!command.usesGoogleReauth()) {
+            /*
+             * 소셜 계정으로만 가입한 사용자는 비밀번호가 없으므로
+             * Google 재인증으로 탈퇴해야 합니다(#328).
+             */
+            if (!user.hasPassword()) {
+                throw new BusinessException(
+                        ErrorCode.USER_PASSWORD_NOT_SET
+                );
+            }
+
+            validateCurrentPassword(
+                    command.currentPassword(),
+                    user.getPasswordHash()
             );
         }
-
-        validateCurrentPassword(
-                command.currentPassword(),
-                user.getPasswordHash()
-        );
 
         Instant withdrawnAt =
                 clock.instant();
 
         interestConceptRepository.softDeleteAllByUserId(
+                userId,
+                userId,
+                withdrawnAt
+        );
+
+        /*
+         * 소셜 계정 연결을 함께 논리 삭제합니다.
+         * 활성 행만 대상으로 하는 부분 UNIQUE 인덱스 덕분에 같은 Google 계정으로 재가입할 수 있습니다.
+         */
+        socialAccountRepository.softDeleteAllByUserId(
                 userId,
                 userId,
                 withdrawnAt

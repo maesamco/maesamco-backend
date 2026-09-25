@@ -3,8 +3,10 @@ package com.maesamco.user.application.service;
 import com.maesamco.user.application.port.AuthSessionLogoutAllStore;
 import com.maesamco.user.application.port.PasswordHasher;
 import com.maesamco.user.domain.entity.LearningLevel;
+import com.maesamco.user.domain.entity.SocialProvider;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserInterestConcept;
+import com.maesamco.user.domain.repository.SocialAccountRepository;
 import com.maesamco.user.domain.repository.UserInterestConceptRepository;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
@@ -81,7 +83,13 @@ class WithdrawUserServiceTest {
             interestConceptRepository;
 
     @Mock
+    private SocialAccountRepository socialAccountRepository;
+
+    @Mock
     private PasswordHasher passwordHasher;
+
+    @Mock
+    private SocialReauthenticator socialReauthenticator;
 
     @Mock
     private AuthSessionLogoutAllStore
@@ -173,6 +181,17 @@ class WithdrawUserServiceTest {
 
         order.verify(userRepository)
                 .save(user);
+
+        // 비밀번호로 확인했으므로 소셜 재인증은 하지 않는다.
+        verifyNoInteractions(socialReauthenticator);
+
+        // 연결된 소셜 계정이 없어도 일괄 논리 삭제를 호출한다(없으면 0건).
+        verify(socialAccountRepository)
+                .softDeleteAllByUserId(
+                        USER_ID,
+                        USER_ID,
+                        INVALIDATED_AT
+                );
 
         order.verify(authSessionLogoutAllStore)
                 .logoutAll(
@@ -481,7 +500,7 @@ class WithdrawUserServiceTest {
     }
 
     @Test
-    @DisplayName("비밀번호가 없는 소셜 계정은 비밀번호 재확인 탈퇴를 할 수 없다 — 소셜 재인증 탈퇴는 후속 이슈 (#308)")
+    @DisplayName("비밀번호가 없는 소셜 계정이 비밀번호로 탈퇴를 요청하면 USER_PASSWORD_NOT_SET (Google 재인증으로 탈퇴해야 한다)")
     void withdraw_socialUserWithoutPassword() {
         // given
         User socialUser =
@@ -515,6 +534,96 @@ class WithdrawUserServiceTest {
 
         verify(userRepository, never())
                 .save(socialUser);
+    }
+
+    @Test
+    @DisplayName(
+            "소셜 회원은 Google 재인증 후 사용자·관심 개념·소셜 계정을 논리 삭제하고 모든 세션을 무효화한다 (#328)"
+    )
+    void withdraw_socialUserWithGoogleReauth() {
+        // given
+        User socialUser =
+                User.createSocial(
+                        ENCRYPTED_EMAIL,
+                        EMAIL_LOOKUP_HASH,
+                        "구글유저",
+                        3,
+                        LearningLevel.BEGINNER
+                );
+
+        when(userRepository.findByIdForUpdate(USER_ID))
+                .thenReturn(Optional.of(socialUser));
+
+        when(clock.instant())
+                .thenReturn(INVALIDATED_AT);
+
+        // when
+        withdrawUserService.withdraw(
+                USER_ID,
+                new WithdrawUserCommand(null, "google-id-token")
+        );
+
+        // then
+        assertThat(socialUser.isDeleted()).isTrue();
+
+        // 외부 Provider 검증은 사용자 행 잠금 전에 끝낸다.
+        InOrder order =
+                inOrder(
+                        socialReauthenticator,
+                        userRepository,
+                        socialAccountRepository,
+                        authSessionLogoutAllStore
+                );
+
+        order.verify(socialReauthenticator)
+                .verifyOwnership(USER_ID, SocialProvider.GOOGLE, "google-id-token");
+
+        order.verify(userRepository)
+                .findByIdForUpdate(USER_ID);
+
+        order.verify(socialAccountRepository)
+                .softDeleteAllByUserId(USER_ID, USER_ID, INVALIDATED_AT);
+
+        order.verify(userRepository)
+                .save(socialUser);
+
+        order.verify(authSessionLogoutAllStore)
+                .logoutAll(USER_ID, INVALIDATED_AT);
+
+        verifyNoInteractions(passwordHasher);
+    }
+
+    @Test
+    @DisplayName(
+            "Google 재인증에 실패하면 사용자 행을 잠그지 않고 아무것도 삭제하지 않는다 (#328)"
+    )
+    void withdraw_googleReauthFails_changesNothing() {
+        // given
+        doThrow(new BusinessException(ErrorCode.SOCIAL_REAUTH_ACCOUNT_MISMATCH))
+                .when(socialReauthenticator)
+                .verifyOwnership(USER_ID, SocialProvider.GOOGLE, "other-google-id-token");
+
+        // when & then
+        assertThatThrownBy(
+                () -> withdrawUserService.withdraw(
+                        USER_ID,
+                        new WithdrawUserCommand(null, "other-google-id-token")
+                )
+        )
+                .isInstanceOf(BusinessException.class)
+                .extracting(
+                        exception ->
+                                ((BusinessException) exception)
+                                        .getErrorCode()
+                )
+                .isEqualTo(ErrorCode.SOCIAL_REAUTH_ACCOUNT_MISMATCH);
+
+        verifyNoInteractions(
+                userRepository,
+                interestConceptRepository,
+                socialAccountRepository,
+                authSessionLogoutAllStore
+        );
     }
 
     private User createActiveUser() {
