@@ -105,6 +105,49 @@ public class UnitService {
         );
     }
 
+    /**
+     * 학습자용 유닛 단건 조회입니다(#359).
+     * 유닛 또는 상위 커리큘럼이 공개(PUBLISHED)되지 않았으면 삭제된 것과 같이 NOT_FOUND로 응답합니다.
+     */
+    @Transactional(readOnly = true)
+    public UnitResponse getUnitForUser(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getPublishedById(
+                        unitId
+                );
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    /**
+     * 학습자용 유닛 목록 조회입니다(#359).
+     * 상위 커리큘럼이 공개 상태일 때만 조회하며, 공개(PUBLISHED)된 유닛만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<UnitResponse> searchUnitsForUser(
+            UUID curriculumId,
+            Pageable pageable
+    ) {
+        curriculumFinder.getPublishedById(
+                curriculumId
+        );
+
+        Page<Unit> units =
+                unitRepository.searchPublishedUnits(
+                        curriculumId,
+                        pageable
+                );
+
+        return PageResponse.from(
+                units,
+                UnitResponse::from
+        );
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public UnitResponse updateUnit(
             UUID unitId,

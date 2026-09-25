@@ -34,4 +34,13 @@ public interface UnitRepository {
      * 목록은 같은 Curriculum의 활성 Unit 전체여야 합니다.
      */
     void reorder(List<Unit> unitsInOrder);
+
+    /**
+     * 같은 Curriculum의 공개(PUBLISHED) Unit 목록을 조회합니다(#359).
+     * 상위 Curriculum의 공개 여부는 호출하는 쪽에서 먼저 확인합니다.
+     */
+    Page<Unit> searchPublishedUnits(
+            UUID curriculumId,
+            Pageable pageable
+    );
 }

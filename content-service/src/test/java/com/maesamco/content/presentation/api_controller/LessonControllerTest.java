@@ -190,7 +190,7 @@ class LessonControllerTest {
                 1
         );
 
-        when(lessonService.getLesson(lessonId))
+        when(lessonService.getLessonForUser(lessonId))
                 .thenReturn(
                         LessonResponse.from(lesson)
                 );
@@ -219,7 +219,7 @@ class LessonControllerTest {
                 );
 
         verify(lessonService)
-                .getLesson(lessonId);
+                .getLessonForUser(lessonId);
     }
 
     @Test
@@ -229,7 +229,7 @@ class LessonControllerTest {
         // given
         Tag stackTag = Tag.create("스택", TagAttribute.CONCEPT);
 
-        when(lessonService.getLessonConcepts(lessonId))
+        when(lessonService.getLessonConceptsForUser(lessonId))
                 .thenReturn(List.of(TagResult.from(stackTag)));
 
         // when & then
@@ -246,7 +246,7 @@ class LessonControllerTest {
                 .andExpect(jsonPath("$.data[0].name").value("스택"));
 
         verify(lessonService)
-                .getLessonConcepts(lessonId);
+                .getLessonConceptsForUser(lessonId);
     }
 
     @Test
@@ -276,7 +276,7 @@ class LessonControllerTest {
                 );
 
         when(
-                lessonService.searchLessons(
+                lessonService.searchLessonsForUser(
                         eq(unitId),
                         any(Pageable.class)
                 )
@@ -318,7 +318,7 @@ class LessonControllerTest {
                 );
 
         verify(lessonService)
-                .searchLessons(
+                .searchLessonsForUser(
                         eq(unitId),
                         captor.capture()
                 );

@@ -90,6 +90,32 @@ public class LessonService {
         return PageResponse.from(lessons, LessonResponse::from);
     }
 
+    /**
+     * 학습자용 레슨 단건 조회입니다(#359).
+     * 레슨·유닛·커리큘럼 중 공개(PUBLISHED)되지 않은 항목이 있으면 삭제된 것과 같이 NOT_FOUND로 응답합니다.
+     */
+    @Transactional(readOnly = true)
+    public LessonResponse getLessonForUser(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getPublishedById(lessonId);
+
+        return LessonResponse.from(lesson);
+    }
+
+    /**
+     * 학습자용 레슨 목록 조회입니다(#359).
+     * 상위 유닛·커리큘럼이 모두 공개 상태일 때만 조회하며, 공개(PUBLISHED)된 레슨만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<LessonResponse> searchLessonsForUser(UUID unitId, Pageable pageable) {
+
+        unitFinder.getPublishedById(unitId);
+
+        Page<Lesson> lessons = lessonRepository.searchPublishedLessons(unitId, pageable);
+
+        return PageResponse.from(lessons, LessonResponse::from);
+    }
+
     /** 레슨 수정 */
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse updateLesson(UUID lessonId, LessonUpdateRequest request) {
@@ -197,6 +223,23 @@ public class LessonService {
 
         // 존재하지 않는 레슨에 대한 조회 방지
         lessonFinder.getById(lessonId);
+
+        return findLessonConcepts(lessonId);
+    }
+
+    /**
+     * 학습자용 레슨 개념 조회입니다(#359).
+     * 레슨·유닛·커리큘럼이 모두 공개(PUBLISHED) 상태일 때만 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<TagResult> getLessonConceptsForUser(UUID lessonId) {
+
+        lessonFinder.getPublishedById(lessonId);
+
+        return findLessonConcepts(lessonId);
+    }
+
+    private List<TagResult> findLessonConcepts(UUID lessonId) {
 
         List<UUID> problemIds = problemQueryRepository.findProblemIdsByLessonId(lessonId);
 

@@ -24,4 +24,9 @@ public interface CurriculumRepository {
     PageResult<Curriculum> searchCurriculums(
             PageQuery pageQuery
     );
+
+    /** 학습자에게 공개된(PUBLISHED) 커리큘럼 목록을 조회합니다(#359). */
+    PageResult<Curriculum> searchPublishedCurriculums(
+            PageQuery pageQuery
+    );
 }

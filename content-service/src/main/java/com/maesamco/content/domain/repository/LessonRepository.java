@@ -29,4 +29,10 @@ public interface LessonRepository {
      * 목록은 같은 Unit의 활성 Lesson 전체여야 합니다.
      */
     void reorder(List<Lesson> lessonsInOrder);
+
+    /**
+     * 같은 Unit의 공개(PUBLISHED) Lesson 목록을 조회합니다(#359).
+     * 상위 Unit/Curriculum의 공개 여부는 호출하는 쪽에서 먼저 확인합니다.
+     */
+    Page<Lesson> searchPublishedLessons(UUID unitId, Pageable pageable);
 }

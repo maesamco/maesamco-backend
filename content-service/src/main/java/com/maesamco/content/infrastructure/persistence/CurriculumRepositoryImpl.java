@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.repository.CurriculumRepository;
 import com.maesamco.content.global.common.pagination.PageQuery;
@@ -54,6 +55,19 @@ public class CurriculumRepositoryImpl
         return SpringPageConverter.toPageResult(
                 springDataCurriculumRepository
                         .findByDeletedAtIsNullOrderByIdAsc(
+                                SpringPageConverter.toPageable(pageQuery)
+                        )
+        );
+    }
+
+    @Override
+    public PageResult<Curriculum> searchPublishedCurriculums(
+            PageQuery pageQuery
+    ) {
+        return SpringPageConverter.toPageResult(
+                springDataCurriculumRepository
+                        .findByStatusAndDeletedAtIsNullOrderByIdAsc(
+                                ContentStatus.PUBLISHED,
                                 SpringPageConverter.toPageable(pageQuery)
                         )
         );

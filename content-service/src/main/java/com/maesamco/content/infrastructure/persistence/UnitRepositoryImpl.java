@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.repository.UnitRepository;
 import lombok.RequiredArgsConstructor;
@@ -89,5 +90,18 @@ public class UnitRepositoryImpl
                 Unit::changeDisplayOrder,
                 springDataUnitRepository::flush
         );
+    }
+
+    @Override
+    public Page<Unit> searchPublishedUnits(
+            UUID curriculumId,
+            Pageable pageable
+    ) {
+        return springDataUnitRepository
+                .findByCurriculumIdAndStatusAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+                        curriculumId,
+                        ContentStatus.PUBLISHED,
+                        pageable
+                );
     }
 }

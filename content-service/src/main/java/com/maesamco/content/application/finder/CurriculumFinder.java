@@ -16,4 +16,12 @@ public interface CurriculumFinder {
     Curriculum lockById(
             UUID curriculumId
     );
+
+    /**
+     * 학습자 조회용으로 커리큘럼을 조회합니다(#359).
+     * 삭제됐거나 공개(PUBLISHED)되지 않았으면 CURRICULUM_NOT_FOUND입니다.
+     */
+    Curriculum getPublishedById(
+            UUID curriculumId
+    );
 }

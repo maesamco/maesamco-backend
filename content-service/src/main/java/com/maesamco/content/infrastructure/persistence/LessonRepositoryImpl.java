@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.repository.LessonRepository;
 import lombok.RequiredArgsConstructor;
@@ -57,5 +58,15 @@ public class LessonRepositoryImpl implements LessonRepository {
                 Lesson::changeDisplayOrder,
                 springDataLessonRepository::flush
         );
+    }
+
+    @Override
+    public Page<Lesson> searchPublishedLessons(UUID unitId, Pageable pageable) {
+        return springDataLessonRepository
+                .findByUnitIdAndStatusAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+                        unitId,
+                        ContentStatus.PUBLISHED,
+                        pageable
+                );
     }
 }

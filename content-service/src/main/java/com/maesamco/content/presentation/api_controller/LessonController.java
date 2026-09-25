@@ -67,7 +67,7 @@ public class LessonController implements LessonApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<LessonResponse>> getLesson(UUID lessonId) {
-        LessonResponse response = lessonService.getLesson(lessonId);
+        LessonResponse response = lessonService.getLessonForUser(lessonId);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -93,7 +93,7 @@ public class LessonController implements LessonApiDocs {
     public ResponseEntity<SuccessResponse<PageResponse<LessonResponse>>> getLessons(UUID unitId, Integer page, Integer size) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
 
-        PageResponse<LessonResponse> response = lessonService.searchLessons(
+        PageResponse<LessonResponse> response = lessonService.searchLessonsForUser(
                 unitId,
                 pageable
         );
@@ -160,7 +160,7 @@ public class LessonController implements LessonApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<List<TagResponse>>> getLessonConcepts(UUID lessonId) {
-        List<TagResponse> response = lessonService.getLessonConcepts(lessonId).stream()
+        List<TagResponse> response = lessonService.getLessonConceptsForUser(lessonId).stream()
                 .map(TagResponse::from)
                 .toList();
 
