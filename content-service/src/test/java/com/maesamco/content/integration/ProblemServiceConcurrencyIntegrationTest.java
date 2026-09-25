@@ -3,6 +3,7 @@ package com.maesamco.content.integration;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
+import com.maesamco.content.application.finder.LessonFinder;
 import com.maesamco.content.application.finder_service.ProblemFinderService;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.application.result.ProblemResult;
@@ -487,6 +488,11 @@ class ProblemServiceConcurrencyIntegrationTest {
             proxyBeanMethods = false
     )
     static class TestConfig {
+
+        @Bean
+        LessonFinder lessonFinder() {
+            return Mockito.mock(LessonFinder.class);
+        }
 
         @Bean
         @Primary
