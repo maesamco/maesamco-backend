@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>[매삼코] 이메일 인증 코드</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    body { margin: 0; padding: 0; width: 100% !important; }
+    img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+    /* 다크용 로고는 기본으로 숨기고, 다크 모드를 지원하는 클라이언트에서만 라이트용과 바꿔 보여준다. */
+    .logo-dark { display: none; max-height: 0; overflow: hidden; mso-hide: all; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg-page { background-color: #0b0f1c !important; }
+      .bg-card { background-color: #151b2e !important; border-color: #2a3350 !important; }
+      .bg-code { background-color: #1e2745 !important; border-color: #34426e !important; }
+      .text-title { color: #f2f5ff !important; }
+      .text-body { color: #c3cbe2 !important; }
+      .text-muted { color: #8b96b6 !important; }
+      .text-code { color: #9dbeff !important; }
+      .rule { border-color: #2a3350 !important; }
+      .logo-light { display: none !important; max-height: 0 !important; overflow: hidden !important; mso-hide: all !important; }
+      .logo-dark { display: block !important; max-height: none !important; overflow: visible !important; mso-hide: none !important; }
+    }
+
+    @media only screen and (max-width: 480px) {
+      .container { width: 100% !important; }
+      .px { padding-left: 22px !important; padding-right: 22px !important; }
+      .code { font-size: 30px !important; letter-spacing: 6px !important; }
+    }
+  </style>
+</head>
+<body class="bg-page" style="margin:0;padding:0;background-color:#eef2fb;">
+  <!-- 받은편지함 미리보기 문구 -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+    매삼코 인증 코드 {{CODE}} — 가입 화면에 입력해 주세요.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="bg-page" bgcolor="#eef2fb" style="background-color:#eef2fb;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" class="container bg-card" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff"
+               style="width:560px;max-width:560px;background-color:#ffffff;border:1px solid #e1e8f7;border-radius:20px;overflow:hidden;">
+
+          <!-- 상단 강조선 -->
+          <tr>
+            <td height="6" bgcolor="#1d54c8" style="height:6px;line-height:6px;font-size:6px;background-color:#1d54c8;background-image:linear-gradient(90deg,#1d54c8,#3978f0);">&nbsp;</td>
+          </tr>
+
+          <!-- 로고 + 마스코트 -->
+          <tr>
+            <td class="px" style="padding:28px 36px 0 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="middle">
+                    <img class="logo-light" src="cid:logo" width="140" alt="매삼코" style="display:block;width:140px;height:auto;">
+                    <img class="logo-dark" src="cid:logo-dark" width="140" alt="" style="width:140px;height:auto;">
+                  </td>
+                  <td align="right" valign="middle" width="84">
+                    <img src="cid:mascot" width="72" height="72" alt="" style="display:block;width:72px;height:72px;">
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 제목·안내 -->
+          <tr>
+            <td class="px" style="padding:22px 36px 0 36px;font-family:'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕','Noto Sans KR',Arial,sans-serif;">
+              <h1 class="text-title" style="margin:0;font-size:24px;line-height:32px;font-weight:800;color:#0f1b4d;">이메일 인증 코드</h1>
+              <p class="text-body" style="margin:10px 0 0 0;font-size:15px;line-height:24px;color:#4a5578;">
+                매삼코에 오신 것을 환영해요!<br>
+                아래 인증 코드를 가입 화면에 입력해 주세요.
+              </p>
+            </td>
+          </tr>
+
+          <!-- 인증 코드 -->
+          <tr>
+            <td class="px" style="padding:22px 36px 0 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" class="bg-code" bgcolor="#eef3ff"
+                      style="background-color:#eef3ff;border:1px solid #c9d9ff;border-radius:16px;padding:22px 12px;">
+                    <span class="code text-code"
+                          style="display:inline-block;font-family:'SF Mono','Menlo','Consolas','Courier New',monospace;font-size:36px;line-height:44px;font-weight:800;letter-spacing:8px;color:#1d54c8;">{{CODE}}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 유의사항 -->
+          <tr>
+            <td class="px" style="padding:24px 36px 0 36px;font-family:'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕','Noto Sans KR',Arial,sans-serif;">
+              <p class="text-body" style="margin:0;font-size:13px;line-height:22px;color:#4a5578;">
+                • 인증 코드를 다시 요청하면 이전에 받은 코드는 바로 사용할 수 없어요. 가장 최근에 받은 코드를 입력해 주세요.<br>
+                • 본인이 요청하지 않았다면 이 메일을 무시해 주세요.
+              </p>
+            </td>
+          </tr>
+
+          <!-- 푸터 -->
+          <tr>
+            <td class="px" style="padding:26px 36px 30px 36px;font-family:'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕','Noto Sans KR',Arial,sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="rule" style="border-top:1px solid #e6ecf8;padding-top:16px;">
+                    <p class="text-muted" style="margin:0;font-size:12px;line-height:20px;color:#8590b0;">
+                      매삼코 · 매일 3분, Java 한 걸음씩<br>
+                      이 메일은 발신 전용이에요. 문의가 있다면 앱에서 남겨 주세요.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
