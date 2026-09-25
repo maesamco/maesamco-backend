@@ -45,6 +45,11 @@ public class Lesson extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
 
+    /** 공개 상태. 새로 만든 콘텐츠는 DRAFT로 시작합니다(#344). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private ContentStatus status;
+
     private Lesson(UUID unitId, String title, String description, String content, ProgrammingLanguage language, Integer displayOrder) {
         this.unitId = unitId;
         this.title = title;
@@ -52,6 +57,7 @@ public class Lesson extends BaseEntity {
         this.content = content;
         this.language = language;
         this.displayOrder = displayOrder;
+        this.status = ContentStatus.DRAFT;
     }
 
     /** 유닛 생성 */
@@ -67,4 +73,13 @@ public class Lesson extends BaseEntity {
     public void changeDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
     }
+
+    /** 학습자에게 공개합니다. 이미 공개 상태면 아무 변화가 없습니다. */
+    public void publish() { this.status = ContentStatus.PUBLISHED; }
+
+    /** 학습자 조회에서 내립니다. 이미 비공개 상태면 아무 변화가 없습니다. */
+    public void unpublish() { this.status = ContentStatus.DRAFT; }
+
+    /** 이 항목 자체가 공개 상태인지 확인합니다. 상위 항목의 공개 여부는 포함하지 않습니다. */
+    public boolean isPublished() { return this.status == ContentStatus.PUBLISHED; }
 }
