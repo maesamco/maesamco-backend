@@ -3,7 +3,12 @@ package com.maesamco.content.presentation.request;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -51,6 +56,10 @@ public class ProblemUpdateRequest {
     private ProblemType type;
 
     /** 수정할 문제 설명입니다. */
+    @Pattern(
+            regexp = "(?s).*\\S.*",
+            message = "문제 설명은 공백일 수 없습니다."
+    )
     @Size(max = 10_000, message = "문제 설명은 최대 10,000자까지 입력할 수 있습니다.")
     private String description;
 

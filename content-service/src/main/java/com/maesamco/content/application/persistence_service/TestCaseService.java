@@ -58,6 +58,14 @@ public class TestCaseService {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
+        /*
+         * 관리자 경로도 공개 경로(getPublicTestCase)와 목록 조회처럼 상위 Problem의 활성 상태를 확인한다.
+         * 상위 Problem이 삭제된 뒤에는 하위 테스트케이스에 ID로 직접 접근할 수 없어야 한다(이슈 #336).
+         */
+        problemFinder.getById(
+                testCase.getProblemId()
+        );
+
         return TestCaseResponse.from(testCase);
     }
 
@@ -109,6 +117,9 @@ public class TestCaseService {
     public TestCaseResponse updateTestCase(UUID testCaseId, TestCaseUpdateRequest request) {
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
+        // 조회와 같은 정책: 상위 Problem이 삭제된 뒤에는 ID로 직접 수정할 수 없다(이슈 #336).
+        problemFinder.getById(testCase.getProblemId());
+
         // 입력값, 출력값 수정
         if (request.getInput() != null) { testCase.changeInput(request.getInput()); }
         if (request.getExpectedOutput() != null) { testCase.changeExpectedOutput(request.getExpectedOutput()); }
@@ -148,6 +159,9 @@ public class TestCaseService {
     public void deleteTestCase(UUID testCaseId, UUID userId) {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
+
+        // 조회·수정과 같은 정책: 상위 Problem이 삭제된 뒤에는 ID로 직접 삭제할 수 없다(이슈 #336).
+        problemFinder.getById(testCase.getProblemId());
 
         testCase.softDelete(userId);
     }
