@@ -17,7 +17,7 @@ import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.application.result.TagResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -750,11 +750,11 @@ class LessonServiceTest {
                     .thenReturn(List.of(stackTag, queueTag));
 
             // when
-            List<TagResponse> result = lessonService.getLessonConcepts(lessonId);
+            List<TagResult> result = lessonService.getLessonConcepts(lessonId);
 
             // then
             assertThat(result).hasSize(2);
-            assertThat(result).extracting(TagResponse::getName).containsExactly("스택", "큐");
+            assertThat(result).extracting(TagResult::getName).containsExactly("스택", "큐");
 
             verify(lessonFinder).getById(lessonId);
             verify(problemQueryRepository).findProblemIdsByLessonId(lessonId);
@@ -772,7 +772,7 @@ class LessonServiceTest {
             when(problemQueryRepository.findProblemIdsByLessonId(lessonId)).thenReturn(List.of());
 
             // when
-            List<TagResponse> result = lessonService.getLessonConcepts(lessonId);
+            List<TagResult> result = lessonService.getLessonConcepts(lessonId);
 
             // then
             assertThat(result).isEmpty();

@@ -3,9 +3,10 @@ package com.maesamco.content.infrastructure.persistence;
 import com.maesamco.content.domain.entity.TestCase;
 import com.maesamco.content.domain.entity.TestCaseStatus;
 import com.maesamco.content.domain.repository.TestCaseRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -57,31 +58,35 @@ public class TestCaseRepositoryImpl implements TestCaseRepository {
     }
 
     @Override
-    public Page<TestCase> searchTestCases(
+    public PageResult<TestCase> searchTestCases(
             UUID problemId,
             boolean isPublic,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
-        return springDataTestCaseRepository
-                .findByProblemIdAndIsPublicAndTestCaseStatusOrderByTestCaseOrderAscIdAsc(
-                        problemId,
-                        isPublic,
-                        TestCaseStatus.APPROVED,
-                        pageable
-                );
+        return SpringPageConverter.toPageResult(
+                springDataTestCaseRepository
+                        .findByProblemIdAndIsPublicAndTestCaseStatusOrderByTestCaseOrderAscIdAsc(
+                                problemId,
+                                isPublic,
+                                TestCaseStatus.APPROVED,
+                                SpringPageConverter.toPageable(pageQuery)
+                        )
+        );
     }
 
     @Override
-    public Page<TestCase> searchTestCasesAll(
+    public PageResult<TestCase> searchTestCasesAll(
             UUID problemId,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
-        return springDataTestCaseRepository
-                .findByProblemIdAndTestCaseStatusOrderByIsPublicDescTestCaseOrderAscIdAsc(
-                        problemId,
-                        TestCaseStatus.APPROVED,
-                        pageable
-                );
+        return SpringPageConverter.toPageResult(
+                springDataTestCaseRepository
+                        .findByProblemIdAndTestCaseStatusOrderByIsPublicDescTestCaseOrderAscIdAsc(
+                                problemId,
+                                TestCaseStatus.APPROVED,
+                                SpringPageConverter.toPageable(pageQuery)
+                        )
+        );
     }
 
     @Override

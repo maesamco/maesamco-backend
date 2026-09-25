@@ -1,8 +1,9 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.ProblemTagService;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,9 +11,6 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -76,16 +74,17 @@ class ProblemTagControllerTest {
     @DisplayName("문제의 태그 목록을 공개 조회하면 200을 반환한다")
     void getProblemTags_returns200() throws Exception {
         // given
-        Pageable pageable = PageRequest.of(1, 5);
-
-        PageResponse<TagResponse> response =
-                PageResponse.from(
-                        Page.empty(pageable)
+        PageResult<TagResult> response =
+                new PageResult<>(
+                        java.util.List.of(),
+                        1,
+                        5,
+                        0
                 );
 
         when(problemTagService.searchProblemTags(
                 org.mockito.ArgumentMatchers.eq(problemId),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
+                org.mockito.ArgumentMatchers.any(PageQuery.class)
         )).thenReturn(response);
 
         // when & then
@@ -103,8 +102,8 @@ class ProblemTagControllerTest {
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.size").value(5));
 
-        ArgumentCaptor<Pageable> captor =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<PageQuery> captor =
+                ArgumentCaptor.forClass(PageQuery.class);
 
         verify(problemTagService)
                 .searchProblemTags(
@@ -112,13 +111,13 @@ class ProblemTagControllerTest {
                         captor.capture()
                 );
 
-        Pageable capturedPageable =
+        PageQuery capturedPageQuery =
                 captor.getValue();
 
-        assertThat(capturedPageable.getPageNumber())
+        assertThat(capturedPageQuery.page())
                 .isEqualTo(1);
 
-        assertThat(capturedPageable.getPageSize())
+        assertThat(capturedPageQuery.size())
                 .isEqualTo(5);
     }
 

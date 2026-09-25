@@ -2,15 +2,17 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.TagService;
 import com.maesamco.content.domain.entity.TagAttribute;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.request.TagCreateRequest;
 import com.maesamco.content.presentation.request.TagUpdateRequest;
 import com.maesamco.content.presentation.response.TagCreateResponse;
 import com.maesamco.content.presentation.response.TagResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
@@ -38,7 +40,7 @@ public class TagController implements TagApiDocs {
     public ResponseEntity<SuccessResponse<TagCreateResponse>> createTag(
             TagCreateRequest request
     ) {
-        TagCreateResponse response = tagService.createTag(request);
+        TagCreateResponse response = TagCreateResponse.from(tagService.createTag(request.toCommand()));
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -56,15 +58,17 @@ public class TagController implements TagApiDocs {
             Integer page,
             Integer size
     ) {
-        Pageable pageable = PageableFactory.of(page, size, null, null);
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResponse<TagResponse> response;
+        PageResult<TagResult> result;
 
         if (attribute == null) {
-            response = tagService.searchTags(pageable);
+            result = tagService.searchTags(pageQuery);
         } else {
-            response = tagService.searchTagsByAttribute(attribute, pageable);
+            result = tagService.searchTagsByAttribute(attribute, pageQuery);
         }
+
+        PageResponse<TagResponse> response = PageResponse.from(result, TagResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -77,7 +81,7 @@ public class TagController implements TagApiDocs {
     @Override
     @RequireAdmin
     public ResponseEntity<SuccessResponse<Void>> updateTag(UUID tagId, TagUpdateRequest request) {
-        tagService.updateTag(tagId, request);
+        tagService.updateTag(tagId, request.toCommand());
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

@@ -3,13 +3,13 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.persistence_service.ProblemProgressService;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.response.ProblemProgressResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,10 +61,10 @@ public class ProblemProgressController implements ProblemProgressApiDocs {
             Integer page,
             Integer size
     ) {
-        Pageable pageable = PageableFactory.of(page, size, null, null);
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        Page<ProblemProgress> problemProgresses =
-                problemProgressService.getProblemProgresses(userId, progressStatus, pageable);
+        PageResult<ProblemProgress> problemProgresses =
+                problemProgressService.getProblemProgresses(userId, progressStatus, pageQuery);
 
         PageResponse<ProblemProgressResponse> response =
                 PageResponse.from(

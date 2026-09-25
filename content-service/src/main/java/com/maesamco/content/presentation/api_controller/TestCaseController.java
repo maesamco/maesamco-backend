@@ -1,15 +1,17 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.TestCaseService;
+import com.maesamco.content.application.result.TestCaseResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.request.TestCaseCreateRequest;
 import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
 import com.maesamco.content.presentation.response.TestCaseCreateResponse;
 import com.maesamco.content.presentation.response.TestCaseResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
@@ -50,7 +52,9 @@ public class TestCaseController implements TestCaseApiDocs {
             UUID problemId,
             TestCaseCreateRequest request
     ) {
-        TestCaseCreateResponse response = testCaseService.createTestCase(problemId, request);
+        TestCaseCreateResponse response = TestCaseCreateResponse.from(
+                testCaseService.createTestCase(problemId, request.toCommand())
+        );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -68,13 +72,15 @@ public class TestCaseController implements TestCaseApiDocs {
             UUID testCaseId,
             Authentication authentication
     ) {
-        TestCaseResponse response = null;
+        TestCaseResult result;
         if (isAdmin(authentication)) {
-            response = testCaseService.getTestCase(testCaseId);
+            result = testCaseService.getTestCase(testCaseId);
         }
         else {
-            response = testCaseService.getPublicTestCase(testCaseId);
+            result = testCaseService.getPublicTestCase(testCaseId);
         }
+
+        TestCaseResponse response = TestCaseResponse.from(result);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -99,14 +105,16 @@ public class TestCaseController implements TestCaseApiDocs {
             Integer size,
             Authentication authentication
     ) {
-        Pageable pageable = PageableFactory.of(page, size, null, null);
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResponse<TestCaseResponse> response = null;
+        PageResult<TestCaseResult> result;
         if (isAdmin(authentication)) {
-            response = testCaseService.searchTestCasesAll(problemId, pageable); // ADMIN
+            result = testCaseService.searchTestCasesAll(problemId, pageQuery); // ADMIN
         } else {
-            response = testCaseService.searchTestCasesPublic(problemId, pageable); // 비로그인, 로그인을 했지만 ADMIN이 아닌 사용자
+            result = testCaseService.searchTestCasesPublic(problemId, pageQuery); // 비로그인, 로그인을 했지만 ADMIN이 아닌 사용자
         }
+
+        PageResponse<TestCaseResponse> response = PageResponse.from(result, TestCaseResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -129,7 +137,9 @@ public class TestCaseController implements TestCaseApiDocs {
             UUID testCaseId,
             TestCaseUpdateRequest request
     ) {
-        TestCaseResponse response = testCaseService.updateTestCase(testCaseId, request);
+        TestCaseResponse response = TestCaseResponse.from(
+                testCaseService.updateTestCase(testCaseId, request.toCommand())
+        );
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)

@@ -1,5 +1,6 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.application.result.TagResult;
 import com.maesamco.content.application.finder.LessonFinder;
 import com.maesamco.content.application.finder.UnitFinder;
 import com.maesamco.content.domain.entity.Lesson;
@@ -13,7 +14,6 @@ import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
-import com.maesamco.content.presentation.response.TagResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -147,7 +147,7 @@ public class LessonService {
      * <p>레슨에 연결된 문제가 하나도 없으면 빈 목록을 반환합니다.</p>
      */
     @Transactional(readOnly = true)
-    public List<TagResponse> getLessonConcepts(UUID lessonId) {
+    public List<TagResult> getLessonConcepts(UUID lessonId) {
 
         // 존재하지 않는 레슨에 대한 조회 방지
         lessonFinder.getById(lessonId);
@@ -162,7 +162,7 @@ public class LessonService {
                 .findDistinctTagsByProblemIdsAndAttribute(problemIds, TagAttribute.CONCEPT);
 
         return concepts.stream()
-                .map(TagResponse::from)
+                .map(TagResult::from)
                 .toList();
     }
 }

@@ -12,6 +12,8 @@ import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
 import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
 import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.domain.repository.TestCaseRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +29,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -289,6 +292,94 @@ class TestCaseRepositoryImplTest {
 
         assertThat(found.get(0).getInput())
                 .isEqualTo("1 2");
+    }
+
+    @Test
+    @DisplayName(
+            "공개 테스트케이스 페이징 조회는 승인된 공개 항목만 testCaseOrder, id 순으로 반환하고 페이지 정보를 PageResult로 전달한다"
+    )
+    void searchTestCases_returnsApprovedPublicInOrderWithPageMetadata() {
+        // given
+        Problem problem = createProblem();
+        Problem otherProblem = createProblem();
+        entityManager.persist(problem);
+        entityManager.persist(otherProblem);
+        entityManager.flush();
+
+        // order가 같은 두 항목은 id로 순서가 결정된다.
+        TestCase first = TestCase.createByAdmin(problem.getId(), "1", "1", true, 1);
+        TestCase tieA = TestCase.createByAdmin(problem.getId(), "2", "2", true, 2);
+        TestCase tieB = TestCase.createByAdmin(problem.getId(), "3", "3", true, 2);
+        TestCase third = TestCase.createByAdmin(problem.getId(), "4", "4", true, 3);
+        TestCase hidden = TestCase.createByAdmin(problem.getId(), "5", "5", false, 1);
+        TestCase pending = TestCase.createByUser(problem.getId(), "6", "6", true, 1);
+        TestCase otherProblemCase = TestCase.createByAdmin(otherProblem.getId(), "7", "7", true, 1);
+        TestCase deleted = TestCase.createByAdmin(problem.getId(), "8", "8", true, 4);
+        deleted.softDelete(UUID.randomUUID());
+
+        testCaseRepository.saveAll(List.of(first, tieA, tieB, third, hidden, pending, otherProblemCase, deleted));
+        testCaseRepository.flush();
+        entityManager.clear();
+
+        List<TestCase> tied = List.of(tieA, tieB).stream()
+                .sorted(Comparator.comparing(tc -> tc.getId().toString()))
+                .toList();
+
+        // when
+        PageResult<TestCase> firstPage = testCaseRepository.searchTestCases(problem.getId(), true, PageQuery.of(0, 2));
+        PageResult<TestCase> secondPage = testCaseRepository.searchTestCases(problem.getId(), true, PageQuery.of(1, 2));
+
+        // then
+        assertThat(firstPage.totalElements()).isEqualTo(4);
+        assertThat(firstPage.page()).isZero();
+        assertThat(firstPage.size()).isEqualTo(2);
+        assertThat(firstPage.content()).extracting(TestCase::getId)
+                .containsExactly(first.getId(), tied.get(0).getId());
+
+        assertThat(secondPage.page()).isEqualTo(1);
+        assertThat(secondPage.content()).extracting(TestCase::getId)
+                .containsExactly(tied.get(1).getId(), third.getId());
+    }
+
+    @Test
+    @DisplayName(
+            "전체 테스트케이스 페이징 조회는 승인된 항목을 공개 우선, testCaseOrder, id 순으로 반환하고 페이지 정보를 PageResult로 전달한다"
+    )
+    void searchTestCasesAll_returnsApprovedPublicFirstInOrderWithPageMetadata() {
+        // given
+        Problem problem = createProblem();
+        entityManager.persist(problem);
+        entityManager.flush();
+
+        TestCase publicFirst = TestCase.createByAdmin(problem.getId(), "1", "1", true, 1);
+        TestCase publicSecond = TestCase.createByAdmin(problem.getId(), "2", "2", true, 2);
+        TestCase hiddenTieA = TestCase.createByAdmin(problem.getId(), "3", "3", false, 1);
+        TestCase hiddenTieB = TestCase.createByAdmin(problem.getId(), "4", "4", false, 1);
+        TestCase pending = TestCase.createByUser(problem.getId(), "5", "5", true, 1);
+        TestCase deleted = TestCase.createByAdmin(problem.getId(), "6", "6", false, 2);
+        deleted.softDelete(UUID.randomUUID());
+
+        testCaseRepository.saveAll(List.of(publicFirst, publicSecond, hiddenTieA, hiddenTieB, pending, deleted));
+        testCaseRepository.flush();
+        entityManager.clear();
+
+        List<TestCase> hiddenTied = List.of(hiddenTieA, hiddenTieB).stream()
+                .sorted(Comparator.comparing(tc -> tc.getId().toString()))
+                .toList();
+
+        // when
+        PageResult<TestCase> firstPage = testCaseRepository.searchTestCasesAll(problem.getId(), PageQuery.of(0, 3));
+        PageResult<TestCase> secondPage = testCaseRepository.searchTestCasesAll(problem.getId(), PageQuery.of(1, 3));
+
+        // then
+        assertThat(firstPage.totalElements()).isEqualTo(4);
+        assertThat(firstPage.size()).isEqualTo(3);
+        assertThat(firstPage.content()).extracting(TestCase::getId)
+                .containsExactly(publicFirst.getId(), publicSecond.getId(), hiddenTied.get(0).getId());
+
+        assertThat(secondPage.page()).isEqualTo(1);
+        assertThat(secondPage.content()).extracting(TestCase::getId)
+                .containsExactly(hiddenTied.get(1).getId());
     }
 
     private Problem createProblem() {

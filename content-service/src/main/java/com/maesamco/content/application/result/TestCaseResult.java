@@ -1,6 +1,6 @@
-package com.maesamco.content.presentation.response;
+package com.maesamco.content.application.result;
 
-import com.maesamco.content.application.result.TestCaseResult;
+import com.maesamco.content.domain.entity.TestCase;
 import com.maesamco.content.domain.entity.TestCaseStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -8,10 +8,10 @@ import lombok.Getter;
 
 import java.util.UUID;
 
-/** 테스트케이스 조회 응답 DTO */
+/** 테스트케이스 조회·생성·수정 결과입니다. Presentation의 응답 DTO와 분리된 Application 전용 타입입니다. */
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class TestCaseResponse {
+public class TestCaseResult {
 
     private final UUID id;
     private final UUID problemId;
@@ -21,8 +21,8 @@ public class TestCaseResponse {
     private final Integer testCaseOrder;
     private final TestCaseStatus testCaseStatus;
 
-    public static TestCaseResponse from(TestCaseResult testCase) {
-        return new TestCaseResponse(
+    public static TestCaseResult from(TestCase testCase) {
+        return new TestCaseResult(
                 testCase.getId(),
                 testCase.getProblemId(),
                 testCase.getInput(),

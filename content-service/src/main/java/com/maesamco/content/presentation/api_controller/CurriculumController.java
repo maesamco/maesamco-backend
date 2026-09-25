@@ -1,15 +1,17 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.CurriculumService;
+import com.maesamco.content.application.result.CurriculumResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.request.CurriculumCreateRequest;
 import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
 import com.maesamco.content.presentation.response.CurriculumCreateResponse;
 import com.maesamco.content.presentation.response.CurriculumResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.maesamco.content.global.security.authorization.RequireAdmin;
@@ -46,7 +48,8 @@ public class CurriculumController implements CurriculumApiDocs {
     @Override
     @RequireAdmin
     public ResponseEntity<SuccessResponse<CurriculumCreateResponse>> createCurriculum(CurriculumCreateRequest request) {
-        CurriculumCreateResponse response = curriculumService.createCurriculum(request);
+        CurriculumResult result = curriculumService.createCurriculum(request.toCommand());
+        CurriculumCreateResponse response = CurriculumCreateResponse.from(result);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -65,7 +68,7 @@ public class CurriculumController implements CurriculumApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(UUID curriculumId) {
-        CurriculumResponse response = curriculumService.getCurriculum(curriculumId);
+        CurriculumResponse response = CurriculumResponse.from(curriculumService.getCurriculum(curriculumId));
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -88,9 +91,10 @@ public class CurriculumController implements CurriculumApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(Integer page, Integer size) {
-        Pageable pageable = PageableFactory.of(page, size, null, null);
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResponse<CurriculumResponse> response = curriculumService.searchCurriculums(pageable);
+        PageResult<CurriculumResult> result = curriculumService.searchCurriculums(pageQuery);
+        PageResponse<CurriculumResponse> response = PageResponse.from(result, CurriculumResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -112,7 +116,9 @@ public class CurriculumController implements CurriculumApiDocs {
     @Override
     @RequireAdmin
     public ResponseEntity<SuccessResponse<CurriculumResponse>> updateCurriculum(UUID curriculumId, CurriculumUpdateRequest request) {
-        CurriculumResponse response = curriculumService.updateCurriculum(curriculumId, request);
+        CurriculumResponse response = CurriculumResponse.from(
+                curriculumService.updateCurriculum(curriculumId, request.toCommand())
+        );
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)

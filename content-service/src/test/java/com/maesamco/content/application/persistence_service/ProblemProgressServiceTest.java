@@ -12,10 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 
 import java.util.List;
 import java.util.UUID;
@@ -87,41 +85,40 @@ class ProblemProgressServiceTest {
     void getProblemProgressesWithoutProgressStatus() {
         // given
         UUID userId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         ProblemProgress problemProgress1 = org.mockito.Mockito.mock(ProblemProgress.class);
         ProblemProgress problemProgress2 = org.mockito.Mockito.mock(ProblemProgress.class);
 
-        Page<ProblemProgress> problemProgressPage =
-                new PageImpl<>(List.of(problemProgress1, problemProgress2), pageable, 2);
+        PageResult<ProblemProgress> problemProgressPage = new PageResult<>(List.of(problemProgress1, problemProgress2), pageQuery.page(), pageQuery.size(), 2);
 
-        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable))
+        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery))
                 .thenReturn(problemProgressPage);
 
         // when
-        Page<ProblemProgress> result =
-                problemProgressService.getProblemProgresses(userId, null, pageable);
+        PageResult<ProblemProgress> result =
+                problemProgressService.getProblemProgresses(userId, null, pageQuery);
 
         // then
         assertSame(problemProgressPage, result);
-        assertEquals(2, result.getContent().size());
-        assertEquals(2, result.getTotalElements());
+        assertEquals(2, result.content().size());
+        assertEquals(2, result.totalElements());
 
         verify(problemProgressRepository)
-                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery);
 
         verify(problemProgressRepository, never())
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                         userId,
                         ProblemProgressStatus.WRONG,
-                        pageable
+                        pageQuery
                 );
 
         verify(problemProgressRepository, never())
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                         userId,
                         ProblemProgressStatus.CORRECT,
-                        pageable
+                        pageQuery
                 );
 
         verifyNoInteractions(problemProgressFinder);
@@ -132,42 +129,41 @@ class ProblemProgressServiceTest {
     void getProblemProgressesWithWrongStatus() {
         // given
         UUID userId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         ProblemProgress problemProgress1 = org.mockito.Mockito.mock(ProblemProgress.class);
         ProblemProgress problemProgress2 = org.mockito.Mockito.mock(ProblemProgress.class);
 
-        Page<ProblemProgress> problemProgressPage =
-                new PageImpl<>(List.of(problemProgress1, problemProgress2), pageable, 2);
+        PageResult<ProblemProgress> problemProgressPage = new PageResult<>(List.of(problemProgress1, problemProgress2), pageQuery.page(), pageQuery.size(), 2);
 
         when(problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                 userId,
                 ProblemProgressStatus.WRONG,
-                pageable
+                pageQuery
         )).thenReturn(problemProgressPage);
 
         // when
-        Page<ProblemProgress> result =
+        PageResult<ProblemProgress> result =
                 problemProgressService.getProblemProgresses(
                         userId,
                         ProblemProgressStatus.WRONG,
-                        pageable
+                        pageQuery
                 );
 
         // then
         assertSame(problemProgressPage, result);
-        assertEquals(2, result.getContent().size());
-        assertEquals(2, result.getTotalElements());
+        assertEquals(2, result.content().size());
+        assertEquals(2, result.totalElements());
 
         verify(problemProgressRepository)
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                         userId,
                         ProblemProgressStatus.WRONG,
-                        pageable
+                        pageQuery
                 );
 
         verify(problemProgressRepository, never())
-                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery);
 
         verifyNoInteractions(problemProgressFinder);
     }
@@ -177,41 +173,40 @@ class ProblemProgressServiceTest {
     void getProblemProgressesWithCorrectStatus() {
         // given
         UUID userId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
         ProblemProgress problemProgress = org.mockito.Mockito.mock(ProblemProgress.class);
 
-        Page<ProblemProgress> problemProgressPage =
-                new PageImpl<>(List.of(problemProgress), pageable, 1);
+        PageResult<ProblemProgress> problemProgressPage = new PageResult<>(List.of(problemProgress), pageQuery.page(), pageQuery.size(), 1);
 
         when(problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                 userId,
                 ProblemProgressStatus.CORRECT,
-                pageable
+                pageQuery
         )).thenReturn(problemProgressPage);
 
         // when
-        Page<ProblemProgress> result =
+        PageResult<ProblemProgress> result =
                 problemProgressService.getProblemProgresses(
                         userId,
                         ProblemProgressStatus.CORRECT,
-                        pageable
+                        pageQuery
                 );
 
         // then
         assertSame(problemProgressPage, result);
-        assertEquals(1, result.getContent().size());
-        assertEquals(1, result.getTotalElements());
+        assertEquals(1, result.content().size());
+        assertEquals(1, result.totalElements());
 
         verify(problemProgressRepository)
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                         userId,
                         ProblemProgressStatus.CORRECT,
-                        pageable
+                        pageQuery
                 );
 
         verify(problemProgressRepository, never())
-                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery);
 
         verifyNoInteractions(problemProgressFinder);
     }
@@ -221,24 +216,24 @@ class ProblemProgressServiceTest {
     void getProblemProgressesEmpty() {
         // given
         UUID userId = UUID.randomUUID();
-        Pageable pageable = PageRequest.of(0, 20);
+        PageQuery pageQuery = PageQuery.of(0, 20);
 
-        Page<ProblemProgress> emptyPage = Page.empty(pageable);
+        PageResult<ProblemProgress> emptyPage = PageResult.empty(pageQuery);
 
-        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable))
+        when(problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery))
                 .thenReturn(emptyPage);
 
         // when
-        Page<ProblemProgress> result =
-                problemProgressService.getProblemProgresses(userId, null, pageable);
+        PageResult<ProblemProgress> result =
+                problemProgressService.getProblemProgresses(userId, null, pageQuery);
 
         // then
         assertSame(emptyPage, result);
-        assertEquals(0, result.getContent().size());
-        assertEquals(0, result.getTotalElements());
+        assertEquals(0, result.content().size());
+        assertEquals(0, result.totalElements());
 
         verify(problemProgressRepository)
-                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+                .findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery);
 
         verifyNoInteractions(problemProgressFinder);
     }

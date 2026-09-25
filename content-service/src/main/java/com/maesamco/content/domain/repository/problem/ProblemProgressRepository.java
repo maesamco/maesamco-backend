@@ -2,8 +2,8 @@ package com.maesamco.content.domain.repository.problem;
 
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +19,7 @@ public interface ProblemProgressRepository {
 
     List<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus);
 
-    Page<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, Pageable pageable);
+    PageResult<ProblemProgress> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, PageQuery pageQuery);
 
-    Page<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, Pageable pageable);
+    PageResult<ProblemProgress> findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(UUID userId, ProblemProgressStatus progressStatus, PageQuery pageQuery);
 }
