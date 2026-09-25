@@ -8,7 +8,7 @@ import com.maesamco.content.domain.dailyquiz.DailyQuizConceptCandidates;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-// import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -17,11 +17,8 @@ import java.util.UUID;
 
 /**
  * 사용자 풀이 이력 또는 관심 개념을 이용해 Daily Quiz 출제 개념 후보를 조회합니다.
- *
- * TODO: ProblemProgressConceptPort의 실제 구현이 병합되면
- * Service로 등록합니다.
  */
-// @Service
+@Service
 @RequiredArgsConstructor
 public class DailyQuizConceptCandidateQueryService {
 
