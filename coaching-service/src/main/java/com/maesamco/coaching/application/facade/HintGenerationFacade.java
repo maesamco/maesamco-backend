@@ -133,33 +133,45 @@ public class HintGenerationFacade {
 
         boolean skipAvailable = submission.attemptNo() >= SKIP_THRESHOLD_ATTEMPT_NO;
 
-        // 서비스 요약 [4]-1절 확정 — attemptNo >= 8인 힌트 요청이 들어올 때마다(최초 1회가
-        // 아니라 매번) 문제의 개념 태그로 WeakConcept를 기록한다(신규면 생성, 있으면
-        // recordOccurrence()로 발견 횟수만 갱신 — WeakConceptPersistenceService,
-        // FeedbackGenerationFacade와 로직 공유). 이건 힌트 응답 자체의 필수 조건이 아니라
-        // 부가 집계이므로, Content Service 조회가 실패해도(이력 저장 실패와 같은 성격)
-        // 로그만 남기고 힌트 요청 자체는 계속 진행한다.
-        //
-        // PR #166 리뷰(용현님 P2) 대응 — 이 조회가 성공하면 그 ProblemSnapshot을 실제 힌트
-        // 생성(generateHintContent())까지 재사용한다. 원래는 skipAvailable일 때 같은
-        // problemId를 Content Service에 두 번(WeakConcept용, 힌트 생성용) 요청했는데,
-        // 첫 조회가 성공했는데 두 번째만 일시적으로 실패하면 이미 확보한 지문이 있는데도
-        // 힌트 요청이 503으로 끝나고, 한 사용자 요청이 Content Service/CircuitBreaker에
-        // 두 건으로 잡혔다. 첫 조회가 실패한 경우에만(cachedProblem이 비어있을 때만)
-        // generateHintContent()가 자체적으로 다시 시도한다.
-        Optional<ProblemSnapshot> cachedProblem = Optional.empty();
-        if (skipAvailable) {
-            cachedProblem = recordWeakConceptsForSkip(session, submission);
+        // 이슈 #352 — 힌트는 오답 제출(시도)당 1개다. "오답 1 → 힌트 1 → 재도전 → 오답 2 → 힌트 2" 흐름이 의도인데,
+        // 같은 오답 코드로 힌트를 연속으로 요청하면 같은 코드에 대해 힌트가 계속 새로 생성돼 UX가 나빠지고
+        // (힌트가 한 번에 소진됨) 요청마다 LLM 호출 비용이 든다. 이 시도로 이미 받은 힌트가 있으면 새로 만들지 않고
+        // 그 힌트를 그대로 돌려준다(created=false → 200). 취약 개념 기록(아래)보다 먼저 확인해서, 같은 시도의
+        // 반복 요청이 발생 횟수를 중복으로 올리지 않게 한다. 이 값이 도입되기 전에 만든 힌트(attempt_no NULL)는
+        // 시도를 알 수 없으므로 판단에서 제외한다.
+        List<Hint> hintsBeforeRequest = hintRepository.findByCoachingSessionId(session.getId());
+        Optional<Hint> hintForThisAttempt = findHintForAttempt(hintsBeforeRequest, submission.attemptNo());
+        if (hintForThisAttempt.isPresent()) {
+            return new HintGenerationResult(session.getId(), hintForThisAttempt.get(), skipAvailable, false);
         }
 
-        List<Hint> existingHints = hintRepository.findByCoachingSessionId(session.getId());
+        // 서비스 요약 [4]-1절 확정 — attemptNo >= 8인 힌트 요청이 들어올 때마다(최초 1회가 아니라 매번) 문제의 개념
+        // 태그로 WeakConcept를 기록한다(신규면 생성, 있으면 recordOccurrence()로 발견 횟수만 갱신 —
+        // WeakConceptPersistenceService, FeedbackGenerationFacade와 로직 공유). 이건 힌트 응답 자체의 필수 조건이
+        // 아니라 부가 집계이므로, Content Service 조회가 실패해도 로그만 남기고 힌트 요청 자체는 계속 진행한다.
+        //
+        // 이 기록은 락 획득 전에 하지 않는다 — 같은 시도의 요청이 거의 동시에 둘 들어오면(더블클릭 등) 둘 다 위의
+        // "이 시도의 힌트 없음" 검사를 통과하므로 락 밖에서 기록하면 발생 횟수가 둘 다 올라간다. 아래 락 안에서 fresh 상태로
+        // 이 시도의 힌트가 없음을 다시 확인한 뒤 한 건만 기록한다(generateNextStageHint). 이미 4단계까지 받은 뒤의
+        // 요청은 힌트를 만들지 않으므로 락 없이 기존처럼 매 요청 기록한다(그 반복 집계는 이슈 #357).
+        List<Hint> existingHints = hintsBeforeRequest;
         int maxStage = existingHints.stream().mapToInt(Hint::getStage).max().orElse(0);
 
         if (maxStage >= MAX_STAGE) {
+            if (skipAvailable) {
+                recordWeakConceptsForSkip(session, submission);
+            }
             return new HintGenerationResult(session.getId(), maxStageHint(existingHints), skipAvailable, false);
         }
 
-        return generateNextStageHint(session, submission, maxStage + 1, skipAvailable, cachedProblem);
+        return generateNextStageHint(session, submission, skipAvailable);
+    }
+
+    /** 이 시도(attemptNo)로 이미 발급된 힌트를 찾는다. 시도 번호가 기록되지 않은 이전 힌트는 무시한다. */
+    private static Optional<Hint> findHintForAttempt(List<Hint> hints, int attemptNo) {
+        return hints.stream()
+                .filter(h -> h.getAttemptNo() != null && h.getAttemptNo() == attemptNo)
+                .findFirst();
     }
 
     private Optional<ProblemSnapshot> recordWeakConceptsForSkip(CoachingSession session, SubmissionSnapshot submission) {
@@ -182,39 +194,61 @@ public class HintGenerationFacade {
      *
      * 락을 못 얻으면(다른 요청이 이미 생성 중) LLM을 호출하지 않고, 그 요청이 저장을
      * 마칠 때까지 짧게 대기했다가 결과를 그대로 반환한다(waitForConcurrentHint()).
+     *
+     * 이슈 #352 — 힌트의 소유 기준이 stage뿐 아니라 시도(attemptNo)까지 포함되므로, 락 안에서는 미리 계산해 둔 stage가 아니라
+     * fresh 힌트 목록으로 다시 판단한다: (1) 이 시도로 발급된 힌트가 있으면 그것을 돌려주고, (2) 없으면 최신 maxStage를
+     * 다시 계산해 그 다음 stage를 이 시도의 새 힌트로 만든다. 서로 다른 시도의 요청이 동시에 들어와 같은 nextStage를
+     * 계산했더라도, 먼저 락을 잡은 쪽이 만든 힌트를 다른 시도가 그대로 받지 않는다(PR #355 리뷰, 용현님 P1).
      */
     private HintGenerationResult generateNextStageHint(
-            CoachingSession session, SubmissionSnapshot submission, int nextStage, boolean skipAvailable,
-            Optional<ProblemSnapshot> cachedProblem
+            CoachingSession session, SubmissionSnapshot submission, boolean skipAvailable
     ) {
         String lockToken = UUID.randomUUID().toString();
         if (!hintGenerationLockPort.tryLock(session.getId(), lockToken)) {
-            return waitForConcurrentHint(session.getId(), nextStage, skipAvailable);
+            return waitForConcurrentHint(session.getId(), submission.attemptNo(), skipAvailable);
         }
         try {
-            // 락 대기 없이 바로 획득한 경우에도, 혹시 그 사이 다른 흐름(레이스 복구 등)이
-            // 이미 이 stage를 만들어뒀을 가능성에 대비해 최신 상태를 한 번 더 확인한다.
+            // 락 대기 없이 바로 획득한 경우에도, 그 사이 다른 흐름이 이 시도의 힌트를 이미 만들어뒀을 수 있어 최신 상태를 확인한다.
             List<Hint> freshHints = hintRepository.findByCoachingSessionId(session.getId());
-            Optional<Hint> alreadyGenerated = freshHints.stream()
-                    .filter(h -> h.getStage() == nextStage)
-                    .findFirst();
-            if (alreadyGenerated.isPresent()) {
-                return new HintGenerationResult(session.getId(), alreadyGenerated.get(), skipAvailable, false);
+            Optional<Hint> generatedForThisAttempt = findHintForAttempt(freshHints, submission.attemptNo());
+            if (generatedForThisAttempt.isPresent()) {
+                return new HintGenerationResult(session.getId(), generatedForThisAttempt.get(), skipAvailable, false);
             }
 
+            // 이 시도로 새 힌트를 만들 것이 확정된 지점 — 취약 개념 기록은 여기서 한 번만 한다(락 안이라 같은 시도의
+            // 동시 요청은 위 검사에서 걸러진다). 조회에 성공한 ProblemSnapshot은 힌트 생성까지 재사용한다(PR #166 리뷰).
+            Optional<ProblemSnapshot> cachedProblem = Optional.empty();
+            if (skipAvailable) {
+                cachedProblem = recordWeakConceptsForSkip(session, submission);
+            }
+
+            int maxStage = freshHints.stream().mapToInt(Hint::getStage).max().orElse(0);
+            if (maxStage >= MAX_STAGE) {
+                // 요청 시작 후 다른 시도가 마지막 단계까지 채웠다 — 새로 만들 단계가 없으니 기존 4단계를 돌려준다.
+                return new HintGenerationResult(session.getId(), maxStageHint(freshHints), skipAvailable, false);
+            }
+            int nextStage = maxStage + 1;
+
             Hint hint = Hint.create(session.getId(), nextStage,
-                    generateHintContent(session, submission, nextStage, freshHints, cachedProblem));
+                    generateHintContent(session, submission, nextStage, freshHints, cachedProblem),
+                    submission.attemptNo());
             try {
                 Hint savedHint = hintRepository.save(hint);
                 return new HintGenerationResult(session.getId(), savedHint, skipAvailable, true);
             } catch (BusinessException e) {
-                // 락으로 대부분 막히지만, 락 메커니즘 장애(Redis 오류로 fail-open된 경우 등)에
-                // 대한 방어선으로 UNIQUE(coaching_session_id, stage) 위반 케이스는 그대로
-                // 남겨둔다 — 방금 다른 요청이 만든 힌트를 재조회해서 반환한다.
+                // 락으로 대부분 막히지만, 락 메커니즘 장애(Redis 오류로 fail-open된 경우 등)에 대한 방어선으로
+                // UNIQUE(coaching_session_id, stage) 위반 케이스를 남겨둔다. 충돌 상대가 같은 시도의 요청이면 그 힌트를
+                // 돌려주고, 다른 시도가 그 stage를 먼저 가져갔다면 그 힌트를 돌려주지 않고 잠시 후 다시 시도하게 한다.
                 if (e.getErrorCode() == ErrorCode.HINT_ALREADY_EXISTS) {
-                    Hint existingHint = hintRepository.findByCoachingSessionIdAndStage(session.getId(), nextStage)
-                            .orElseThrow(() -> e);
-                    return new HintGenerationResult(session.getId(), existingHint, skipAvailable, false);
+                    return hintRepository.findByCoachingSessionId(session.getId()).stream()
+                            .filter(h -> h.getAttemptNo() != null && h.getAttemptNo() == submission.attemptNo())
+                            .findFirst()
+                            .map(existing -> new HintGenerationResult(session.getId(), existing, skipAvailable, false))
+                            .orElseThrow(() -> new BusinessException(
+                                    ErrorCode.HINT_GENERATION_IN_PROGRESS,
+                                    ErrorCode.HINT_GENERATION_IN_PROGRESS.getMessage(),
+                                    BusinessException.LogSeverity.DEBUG
+                            ));
                 }
                 throw e;
             }
@@ -224,8 +258,10 @@ public class HintGenerationFacade {
     }
 
     /**
-     * 다른 요청이 이미 이 stage의 힌트를 생성 중일 때, LLM을 또 호출하지 않고 그 요청이
-     * 저장을 마칠 때까지 짧게 폴링한다.
+     * 다른 요청이 힌트를 생성 중일 때, LLM을 또 호출하지 않고 그 요청이 저장을 마칠 때까지 짧게 폴링한다.
+     * 이슈 #352 — 기다리는 대상은 stage가 아니라 <b>이 시도(attemptNo)의 힌트</b>다. 락을 쥔 요청이 다른 시도의
+     * 것이라면 그 힌트를 돌려받으면 안 되므로, 시간 안에 이 시도의 힌트가 나타나지 않으면 아래처럼 "진행 중" 응답으로
+     * 끝내고 클라이언트가 다시 요청해 새로 락을 잡게 한다.
      *
      * 이슈 #207 — 시간 안에 나타나지 않아도 그 요청이 실패했다고 단정하지 않는다.
      * LOCK_TTL(150초) 안에서는 여전히 정상적으로 진행 중일 가능성이 높고, 이 폴링
@@ -237,7 +273,7 @@ public class HintGenerationFacade {
      * 상황이라(PR #137이 도입한 LogSeverity.DEBUG의 원래 취지와 동일 — Refresh Token
      * grace window 동시 요청 사례 참고), WARN이 아니라 DEBUG로 남긴다.
      */
-    private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int expectedStage, boolean skipAvailable) {
+    private HintGenerationResult waitForConcurrentHint(UUID coachingSessionId, int attemptNo, boolean skipAvailable) {
         for (int attempt = 0; attempt < LOCK_WAIT_MAX_ATTEMPTS; attempt++) {
             try {
                 Thread.sleep(LOCK_WAIT_INTERVAL_MILLIS);
@@ -245,12 +281,12 @@ public class HintGenerationFacade {
                 Thread.currentThread().interrupt();
                 throw new BusinessException(ErrorCode.AI_GENERATION_FAILED);
             }
-            Optional<Hint> hint = hintRepository.findByCoachingSessionIdAndStage(coachingSessionId, expectedStage);
+            Optional<Hint> hint = findHintForAttempt(hintRepository.findByCoachingSessionId(coachingSessionId), attemptNo);
             if (hint.isPresent()) {
                 return new HintGenerationResult(coachingSessionId, hint.get(), skipAvailable, false);
             }
         }
-        log.debug("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, expectedStage={}", coachingSessionId, expectedStage);
+        log.debug("동시 힌트 생성 대기 시간 초과 - coachingSessionId={}, attemptNo={}", coachingSessionId, attemptNo);
         throw new BusinessException(
                 ErrorCode.HINT_GENERATION_IN_PROGRESS,
                 ErrorCode.HINT_GENERATION_IN_PROGRESS.getMessage(),
