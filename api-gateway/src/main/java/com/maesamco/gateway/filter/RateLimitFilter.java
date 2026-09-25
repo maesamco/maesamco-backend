@@ -149,17 +149,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
         String identifier = resolveIdentifier(request);
 
-        String methodKey = rule.method() == null
-                ? "ALL"
-                : rule.method().name();
-
-        // 기존 key 생성 코드 수정
-        String key = "rate-limit:"
-                + methodKey
-                + ":"
-                + rule.prefix()
-                + ":"
-                + identifier;
+        String key = buildKey(rule, identifier);
 
         return redisTemplate.execute(rateLimitScript,
                         List.of(key),
@@ -174,6 +164,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 });
     }
 
+    /** Redis 카운터 키 — "rate-limit:{메서드|ALL}:{prefix}:{식별자}". 메서드가 다르면 카운터가 분리된다. */
+    static String buildKey(RuleMatch rule, String identifier) {
+        String methodKey = rule.method() == null ? "ALL" : rule.method().name();
+        return "rate-limit:" + methodKey + ":" + rule.prefix() + ":" + identifier;
+    }
+
     /**
      * 요청 경로와 메서드에 적용할 첫 번째 룰을 찾는다(없으면 null).
      *
@@ -182,9 +178,13 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
      * 순서가 바뀌면 조용히 느슨한 한도가 적용되므로 RateLimitFilterTest가 이 우선순위를 고정한다(PR #320 리뷰).
      */
     RuleMatch findRule(String path, HttpMethod method) {
+        // HEAD는 Spring MVC가 GET 매핑에 자동으로 붙여 주는 메서드라 downstream에선 GET과 같은 조회 로직이 실행된다.
+        // GET 룰에 매칭되지 않고 우회되지 않도록 GET으로 정규화한다 — 룰의 method가 GET이라 카운터 키(rate-limit:GET:…)도
+        // GET과 같은 bucket을 공유한다(HEAD 전용 룰을 따로 두면 키가 갈라져 카운터가 다시 분리된다).
+        HttpMethod effectiveMethod = HttpMethod.HEAD.equals(method) ? HttpMethod.GET : method;
         return rules.stream()
                 .filter(r -> path.startsWith(r.prefix()))
-                .filter(r -> r.method() == null || r.method() == method)
+                .filter(r -> r.method() == null || r.method() == effectiveMethod)
                 .findFirst()
                 .orElse(null);
     }

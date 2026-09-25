@@ -1,15 +1,32 @@
 package com.maesamco.gateway.filter;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * RateLimitFilter의 룰 선택(prefix + findFirst) 우선순위를 검증한다.
@@ -97,5 +114,99 @@ class RateLimitFilterTest {
     @Test
     void submissionRules_doNotAffectOtherMethods() {
         assertNull(filter.findRule("/api/v1/submissions/some-id", HttpMethod.DELETE));
+    }
+
+    @Test
+    void head_isNormalizedToGetReadRule_soItCannotBypassTheReadLimit() {
+        // HEAD는 Spring MVC가 GET 매핑에 자동 지원하므로 GET과 같은 조회 룰(같은 bucket)이 적용돼야 한다.
+        RateLimitFilter.RuleMatch head = filter.findRule("/api/v1/submissions/some-id", HttpMethod.HEAD);
+        RateLimitFilter.RuleMatch headMe = filter.findRule("/api/v1/submissions/me", HttpMethod.HEAD);
+        RateLimitFilter.RuleMatch get = filter.findRule("/api/v1/submissions/some-id", HttpMethod.GET);
+
+        assertNotNull(head, "HEAD /{id}가 조회 룰을 우회함");
+        assertNotNull(headMe, "HEAD /me가 조회 룰을 우회함");
+        assertEquals(get, head);
+        assertEquals(HttpMethod.GET, head.method());
+        assertEquals(RateLimitFilter.buildKey(get, "1.2.3.4"), RateLimitFilter.buildKey(head, "1.2.3.4"));
+    }
+
+    @Test
+    void head_doesNotMatchPostOnlyRules() {
+        // 정규화는 GET 룰에만 영향을 준다 — POST 전용 룰(제출, 코칭)에는 HEAD가 걸리지 않는다.
+        assertNull(filter.findRule("/api/v1/coaching/submissions", HttpMethod.HEAD));
+        assertNull(filter.findRule("/api/v1/contents/problems", HttpMethod.HEAD));
+    }
+
+    @Test
+    void counterKeys_areSeparatedByMethodForTheSameClientIp() {
+        RateLimitFilter.RuleMatch post = filter.findRule("/api/v1/submissions", HttpMethod.POST);
+        RateLimitFilter.RuleMatch get = filter.findRule("/api/v1/submissions/some-id", HttpMethod.GET);
+
+        assertEquals("rate-limit:POST:/api/v1/submissions:1.2.3.4", RateLimitFilter.buildKey(post, "1.2.3.4"));
+        assertEquals("rate-limit:GET:/api/v1/submissions:1.2.3.4", RateLimitFilter.buildKey(get, "1.2.3.4"));
+        assertNotEquals(RateLimitFilter.buildKey(post, "1.2.3.4"), RateLimitFilter.buildKey(get, "1.2.3.4"));
+        // 메서드 무관 룰은 ALL로 표기된다.
+        assertEquals("rate-limit:ALL:/api/v1/auth/login:1.2.3.4",
+                RateLimitFilter.buildKey(filter.findRule("/api/v1/auth/login", HttpMethod.POST), "1.2.3.4"));
+    }
+
+    /** Redis 대신 키별 카운터를 메모리에 두는 가짜 템플릿 — 실제 filter() 경로에서 사용되는 키와 카운트를 검증한다. */
+    @SuppressWarnings("unchecked")
+    private RateLimitFilter filterWithInMemoryCounters(Map<String, Long> counters, List<String> usedKeys,
+                                                       int postLimit, int readLimit) {
+        ReactiveRedisTemplate<String, Long> redis = mock(ReactiveRedisTemplate.class);
+        when(redis.execute(any(RedisScript.class), anyList(), anyList())).thenAnswer(invocation -> {
+            String key = ((List<String>) invocation.getArgument(1)).get(0);
+            usedKeys.add(key);
+            return Flux.just(counters.merge(key, 1L, Long::sum));
+        });
+        return new RateLimitFilter(redis, postLimit, readLimit, List.of());
+    }
+
+    private HttpStatus send(RateLimitFilter f, HttpMethod method, String path) {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.method(method, path).remoteAddress(new InetSocketAddress("1.2.3.4", 5000)));
+        GatewayFilterChain chain = e -> Mono.empty();
+        f.filter(exchange, chain).block();
+        return exchange.getResponse().getStatusCode() == null ? HttpStatus.OK
+                : HttpStatus.valueOf(exchange.getResponse().getStatusCode().value());
+    }
+
+    @Test
+    void filter_postAndGetCountersDoNotInfluenceEachOther() {
+        Map<String, Long> counters = new HashMap<>();
+        List<String> usedKeys = new ArrayList<>();
+        RateLimitFilter f = filterWithInMemoryCounters(counters, usedKeys, 30, 300);
+
+        // 제출(POST) 30회는 통과하고 31번째는 429.
+        for (int i = 0; i < 30; i++) {
+            assertEquals(HttpStatus.OK, send(f, HttpMethod.POST, "/api/v1/submissions"));
+        }
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, send(f, HttpMethod.POST, "/api/v1/submissions"));
+
+        // 제출 한도가 소진돼도 같은 IP의 조회(GET)는 별도 카운터라 계속 통과한다.
+        for (int i = 0; i < 300; i++) {
+            assertEquals(HttpStatus.OK, send(f, HttpMethod.GET, "/api/v1/submissions/some-id"));
+        }
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, send(f, HttpMethod.GET, "/api/v1/submissions/some-id"));
+
+        assertEquals(31L, counters.get("rate-limit:POST:/api/v1/submissions:1.2.3.4"));
+        assertEquals(301L, counters.get("rate-limit:GET:/api/v1/submissions:1.2.3.4"));
+    }
+
+    @Test
+    void filter_headRequestsShareTheGetCounter_andCannotBypassTheLimit() {
+        Map<String, Long> counters = new HashMap<>();
+        List<String> usedKeys = new ArrayList<>();
+        RateLimitFilter f = filterWithInMemoryCounters(counters, usedKeys, 30, 3);
+
+        assertEquals(HttpStatus.OK, send(f, HttpMethod.GET, "/api/v1/submissions/some-id"));
+        assertEquals(HttpStatus.OK, send(f, HttpMethod.HEAD, "/api/v1/submissions/some-id"));
+        assertEquals(HttpStatus.OK, send(f, HttpMethod.HEAD, "/api/v1/submissions/me"));
+        // GET과 HEAD가 같은 카운터를 써서 4번째 요청(HEAD)이 429다.
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, send(f, HttpMethod.HEAD, "/api/v1/submissions/some-id"));
+
+        assertEquals(List.of("rate-limit:GET:/api/v1/submissions:1.2.3.4"),
+                usedKeys.stream().distinct().toList());
     }
 }
