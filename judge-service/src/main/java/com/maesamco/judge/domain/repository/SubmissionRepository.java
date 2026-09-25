@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     /** 재시도 스케줄러가 폴링 배치로 쓰는 조회 — 오래된 것부터 batchSize만큼. */
     List<Submission> findByStatusOrderBySubmittedAtAsc(SubmissionStatus status, Pageable pageable);
+
+    /**
+     * QUEUED 정체 복구 스케줄러가 쓰는 조회 — 마지막 갱신이 threshold보다 오래된 것을 오래된 제출부터(#350).
+     */
+    List<Submission> findByStatusAndUpdatedAtBeforeOrderBySubmittedAtAsc(
+            SubmissionStatus status, Instant threshold, Pageable pageable);
 
     @Query(value = "select new com.maesamco.judge.application.result.SubmissionSummaryResult("
             + "s.id, s.problemId, s.attemptNo, s.status, s.result, s.submittedAt) "

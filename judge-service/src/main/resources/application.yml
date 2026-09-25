@@ -110,3 +110,9 @@ judge:
   retry:
     fixed-delay-ms: 10000
     batch-size: 100
+  # 이슈 #350 — QUEUED에 오래 머문 제출 복구
+  queued-recovery:
+    enabled: ${JUDGE_QUEUED_RECOVERY_ENABLED:true}
+    fixed-delay-ms: 30000
+    stale-seconds: 60
+    batch-size: 50
