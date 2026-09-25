@@ -1,5 +1,7 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.application.finder.CurriculumFinder;
 import com.maesamco.content.application.command.CurriculumCreateCommand;
 import com.maesamco.content.application.command.CurriculumUpdateCommand;
@@ -157,9 +159,7 @@ public class CurriculumService {
             CurriculumUpdateCommand command
     ) {
         Curriculum curriculum =
-                curriculumFinder.getById(
-                        curriculumId
-                );
+                getForWrite(curriculumId);
 
         if (command.getLanguage() != null) {
             curriculum.changeLanguage(
@@ -190,9 +190,7 @@ public class CurriculumService {
             UUID userId
     ) {
         Curriculum curriculum =
-                curriculumFinder.getById(
-                        curriculumId
-                );
+                getForWrite(curriculumId);
 
         curriculum.softDelete(
                 userId
@@ -209,9 +207,7 @@ public class CurriculumService {
             UUID curriculumId
     ) {
         Curriculum curriculum =
-                curriculumFinder.getById(
-                        curriculumId
-                );
+                getForWrite(curriculumId);
 
         curriculum.publish();
 
@@ -231,14 +227,44 @@ public class CurriculumService {
             UUID curriculumId
     ) {
         Curriculum curriculum =
-                curriculumFinder.getById(
-                        curriculumId
-                );
+                getForWrite(curriculumId);
 
         curriculum.unpublish();
 
         return CurriculumResult.from(
                 curriculum
         );
+    }
+
+    /**
+     * 쓰기 경로(수정·공개 전환·삭제)에서 커리큘럼을 읽습니다(#366 리뷰 P2).
+     *
+     * <p>커리큘럼 행을 잠가 같은 커리큘럼의 쓰기와 하위 유닛의 생성·재정렬·수정을 직렬화하고,
+     * 잠금 이후의 최신 상태로 다시 읽습니다. 그래서 락 없이 읽어 둔 오래된 값(공개 상태, 삭제 여부 등)으로
+     * 다른 트랜잭션의 변경을 덮어쓰지 않습니다.</p>
+     */
+    private Curriculum getForWrite(
+            UUID curriculumId
+    ) {
+        Curriculum curriculum =
+                curriculumFinder.getById(
+                        curriculumId
+                );
+
+        curriculumFinder.lockById(
+                curriculumId
+        );
+
+        curriculumRepository.refresh(
+                curriculum
+        );
+
+        if (curriculum.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.CURRICULUM_NOT_FOUND
+            );
+        }
+
+        return curriculum;
     }
 }

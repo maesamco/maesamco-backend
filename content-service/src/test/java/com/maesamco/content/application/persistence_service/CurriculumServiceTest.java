@@ -200,6 +200,7 @@ class CurriculumServiceTest {
         verify(curriculum)
                 .softDelete(userId);
 
-        verifyNoInteractions(curriculumRepository);
+        verify(curriculumFinder).lockById(curriculumId);
+        verify(curriculumRepository).refresh(curriculum);
     }
 }

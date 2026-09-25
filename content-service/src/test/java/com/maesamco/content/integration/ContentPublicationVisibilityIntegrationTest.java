@@ -18,6 +18,7 @@ import com.maesamco.content.domain.repository.UnitRepository;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -271,17 +272,83 @@ class ContentPublicationVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("상위 커리큘럼이 삭제된 유닛·레슨은 공개 상태를 바꿀 수 없다")
-    void cannotChangeStatusUnderDeletedParent() {
+    @DisplayName("상위 커리큘럼이 삭제되면 커리큘럼·유닛·레슨 모두 공개와 비공개 어느 쪽으로도 상태를 바꿀 수 없다")
+    void cannotChangeStatusUnderDeletedCurriculum() {
         // given
-        Hierarchy ids = createHierarchy(true, false, false);
+        Hierarchy ids = createHierarchy(true, true, true);
         curriculums.deleteCurriculum(ids.curriculumId(), UUID.randomUUID());
         flushAndClear();
 
         // when & then
         assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> curriculums.publishCurriculum(ids.curriculumId()));
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> curriculums.unpublishCurriculum(ids.curriculumId()));
         assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> units.publishUnit(ids.unitId()));
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> units.unpublishUnit(ids.unitId()));
         assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> lessons.publishLesson(ids.lessonId()));
+        assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> lessons.unpublishLesson(ids.lessonId()));
+        assertThat(statusOf("p_lessons", "lesson_id", ids.lessonId())).isEqualTo(ContentStatus.PUBLISHED.name());
+    }
+
+    @Test
+    @DisplayName("유닛만 삭제돼도 유닛·레슨은 공개와 비공개 어느 쪽으로도 상태를 바꿀 수 없다")
+    void cannotChangeStatusUnderDeletedUnit() {
+        // given
+        Hierarchy ids = createHierarchy(true, true, true);
+        units.deleteUnit(ids.unitId(), UUID.randomUUID());
+        flushAndClear();
+
+        // when & then
+        assertError(ErrorCode.UNIT_NOT_FOUND, () -> units.publishUnit(ids.unitId()));
+        assertError(ErrorCode.UNIT_NOT_FOUND, () -> units.unpublishUnit(ids.unitId()));
+        assertError(ErrorCode.UNIT_NOT_FOUND, () -> lessons.publishLesson(ids.lessonId()));
+        assertError(ErrorCode.UNIT_NOT_FOUND, () -> lessons.unpublishLesson(ids.lessonId()));
+        assertThat(statusOf("p_lessons", "lesson_id", ids.lessonId())).isEqualTo(ContentStatus.PUBLISHED.name());
+    }
+
+    @Test
+    @DisplayName("학습자 레슨 목록은 비공개 레슨을 페이징 정보에서도 빼고, displayOrder 오름차순으로 나눠 준다")
+    void userLessonListExcludesDraftsFromPagingAndKeepsOrder() {
+        // given — 저장 순서와 displayOrder를 섞는다: 1(D, createHierarchy), 5(P), 4(P), 2(P), 3(D)
+        Hierarchy ids = createHierarchy(true, true, false);
+        UUID fifth = saveLesson(ids.unitId(), 5, true);
+        UUID fourth = saveLesson(ids.unitId(), 4, true);
+        UUID second = saveLesson(ids.unitId(), 2, true);
+        saveLesson(ids.unitId(), 3, false);
+
+        // when
+        PageResponse<LessonResponse> firstPage = lessons.searchLessonsForUser(ids.unitId(), PageRequest.of(0, 2));
+        PageResponse<LessonResponse> secondPage = lessons.searchLessonsForUser(ids.unitId(), PageRequest.of(1, 2));
+
+        // then — 공개 3개(2, 4, 5)만 페이징 대상이다
+        assertThat(lessonIds(firstPage.content())).containsExactly(second, fourth);
+        assertThat(firstPage.totalElements()).isEqualTo(3);
+        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(lessonIds(secondPage.content())).containsExactly(fifth);
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("학습자 유닛 목록은 비공개 유닛을 페이징 정보에서도 빼고, displayOrder 오름차순으로 나눠 준다")
+    void userUnitListExcludesDraftsFromPagingAndKeepsOrder() {
+        // given — 저장 순서와 displayOrder를 섞는다: 1(D, createHierarchy), 5(P), 4(P), 2(P), 3(D)
+        Hierarchy ids = createHierarchy(true, false, true);
+        UUID fifth = saveUnit(ids.curriculumId(), 5, true);
+        UUID fourth = saveUnit(ids.curriculumId(), 4, true);
+        UUID second = saveUnit(ids.curriculumId(), 2, true);
+        saveUnit(ids.curriculumId(), 3, false);
+
+        // when
+        PageResponse<UnitResponse> firstPage = units.searchUnitsForUser(ids.curriculumId(), PageRequest.of(0, 2));
+        PageResponse<UnitResponse> secondPage = units.searchUnitsForUser(ids.curriculumId(), PageRequest.of(1, 2));
+
+        // then — 공개 3개(2, 4, 5)만 페이징 대상이다
+        assertThat(unitIds(firstPage.content())).containsExactly(second, fourth);
+        assertThat(firstPage.totalElements()).isEqualTo(3);
+        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(unitIds(secondPage.content())).containsExactly(fifth);
+        assertThat(secondPage.hasNext()).isFalse();
     }
 
     private void flushAndClear() {

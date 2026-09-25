@@ -154,9 +154,7 @@ public class UnitService {
             UnitUpdateRequest request
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
         if (request.getTitle() != null) {
             unit.changeTitle(
@@ -205,9 +203,7 @@ public class UnitService {
             Unit unit,
             int position
     ) {
-        curriculumFinder.lockById(
-                unit.getCurriculumId()
-        );
+        // 부모 커리큘럼 락은 호출한 쪽(updateUnit → getForWrite)이 이미 잡고 있다.
 
         List<Unit> siblings =
                 unitRepository.findActiveSiblings(
@@ -249,12 +245,9 @@ public class UnitService {
             UUID userId
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
-        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
-        curriculumFinder.lockById(unit.getCurriculumId());
+        // 생성·순서 변경과 같은 부모 락(getForWrite)으로 삭제 및 번호 압축을 직렬화한다.
         List<Unit> siblings = unitRepository.findActiveSiblings(unit.getCurriculumId());
         if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(unitId))) {
             throw new BusinessException(ErrorCode.UNIT_NOT_FOUND);
@@ -277,9 +270,7 @@ public class UnitService {
             UUID unitId
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
         unit.publish();
 
@@ -297,14 +288,43 @@ public class UnitService {
             UUID unitId
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
         unit.unpublish();
 
         return UnitResponse.from(
                 unit
         );
+    }
+
+    /**
+     * 쓰기 경로(수정·공개 전환·삭제)에서 유닛을 읽습니다(#366 리뷰 P2).
+     *
+     * <p>생성·재정렬과 같은 부모 커리큘럼 락을 잡아 같은 커리큘럼의 유닛 쓰기를 직렬화하고,
+     * 잠금 이후의 최신 상태로 다시 읽습니다. 락을 기다리는 사이 삭제됐으면 UNIT_NOT_FOUND입니다.</p>
+     */
+    private Unit getForWrite(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
+
+        curriculumFinder.lockById(
+                unit.getCurriculumId()
+        );
+
+        unitRepository.refresh(
+                unit
+        );
+
+        if (unit.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.UNIT_NOT_FOUND
+            );
+        }
+
+        return unit;
     }
 }

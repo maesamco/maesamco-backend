@@ -16,6 +16,7 @@ import com.maesamco.content.presentation.response.LessonResponse;
 import com.maesamco.content.presentation.response.UnitResponse;
 import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -42,10 +44,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 관리자 콘텐츠 API가 엔드포인트마다 정확히 기대하는 서비스 메서드 하나만 호출하는지 고정합니다(#359, #366 리뷰 P3).
+ *
+ * <p>각 테스트는 기대 메서드를 verify한 뒤 {@code verifyNoMoreInteractions}로 다른 호출을 막습니다.
+ * 그래서 공개가 비공개를 호출하거나, 관리자 조회가 학습자용 ...ForUser를 호출하는 회귀를 잡습니다.</p>
+ */
 @WebMvcTest(AdminContentController.class)
 @Import(TestSecurityConfig.class)
 @DisplayName("AdminContentController (#359)")
 class AdminContentControllerTest {
+
+    private static final String BASE = "/api/v1/admin/contents";
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,110 +72,244 @@ class AdminContentControllerTest {
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
 
-    @Test
-    @DisplayName("ADMIN은 공개 상태와 관계없이 커리큘럼 목록을 조회하고, 응답에 status가 포함된다")
-    void getCurriculums_admin_returnsAllStatusesWithStatusField() throws Exception {
-        // given
-        UUID curriculumId = UUID.randomUUID();
-        CurriculumResult draft = CurriculumResult.from(curriculum(curriculumId, ContentStatus.DRAFT));
-        when(curriculumService.searchCurriculums(any(PageQuery.class)))
-                .thenReturn(new PageResult<>(List.of(draft), 0, 20, 1));
+    @Nested
+    @DisplayName("Curriculum")
+    class CurriculumEndpoints {
 
-        // when & then
-        mockMvc.perform(get("/api/v1/admin/contents/curriculums").with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].id").value(curriculumId.toString()))
-                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+        @Test
+        @DisplayName("목록 조회는 상태와 관계없는 searchCurriculums만 호출하고 status를 응답한다")
+        void getCurriculums_callsAdminSearchOnly() throws Exception {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            CurriculumResult draft = CurriculumResult.from(curriculum(curriculumId, ContentStatus.DRAFT));
+            when(curriculumService.searchCurriculums(any(PageQuery.class)))
+                    .thenReturn(new PageResult<>(List.of(draft), 0, 20, 1));
 
-        // 학습자용(...ForUser)이 아니라 전체 조회 메서드를 사용한다
-        verify(curriculumService).searchCurriculums(any(PageQuery.class));
+            // when & then
+            mockMvc.perform(get(BASE + "/curriculums").with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content[0].id").value(curriculumId.toString()))
+                    .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+
+            verify(curriculumService).searchCurriculums(any(PageQuery.class));
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("단건 조회는 상태와 관계없는 getCurriculum만 호출한다")
+        void getCurriculum_callsAdminGetOnly() throws Exception {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            CurriculumResult draft = CurriculumResult.from(curriculum(curriculumId, ContentStatus.DRAFT));
+            when(curriculumService.getCurriculum(curriculumId)).thenReturn(draft);
+
+            // when & then
+            mockMvc.perform(get(BASE + "/curriculums/{id}", curriculumId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+            verify(curriculumService).getCurriculum(curriculumId);
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("공개는 publishCurriculum만 호출한다")
+        void publishCurriculum_callsPublishOnly() throws Exception {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            CurriculumResult published = CurriculumResult.from(curriculum(curriculumId, ContentStatus.PUBLISHED));
+            when(curriculumService.publishCurriculum(curriculumId)).thenReturn(published);
+
+            // when & then
+            mockMvc.perform(patch(BASE + "/curriculums/{id}/publish", curriculumId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+            verify(curriculumService).publishCurriculum(curriculumId);
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("비공개는 unpublishCurriculum만 호출한다")
+        void unpublishCurriculum_callsUnpublishOnly() throws Exception {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            CurriculumResult draft = CurriculumResult.from(curriculum(curriculumId, ContentStatus.DRAFT));
+            when(curriculumService.unpublishCurriculum(curriculumId)).thenReturn(draft);
+
+            // when & then
+            mockMvc.perform(patch(BASE + "/curriculums/{id}/unpublish", curriculumId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+            verify(curriculumService).unpublishCurriculum(curriculumId);
+            verifyNoMoreServiceCalls();
+        }
     }
 
-    @Test
-    @DisplayName("ADMIN은 DRAFT 유닛도 단건 조회할 수 있다")
-    void getUnit_admin_returnsDraftUnit() throws Exception {
-        // given
-        UUID unitId = UUID.randomUUID();
-        // 헬퍼 안에서도 when(...)을 쓰므로 스터빙 중첩을 피하려고 응답을 먼저 만든다
-        UnitResponse draftUnit = UnitResponse.from(unit(unitId, ContentStatus.DRAFT));
-        when(unitService.getUnit(unitId)).thenReturn(draftUnit);
+    @Nested
+    @DisplayName("Unit")
+    class UnitEndpoints {
 
-        // when & then
-        mockMvc.perform(get("/api/v1/admin/contents/units/{unitId}", unitId).with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(unitId.toString()))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+        @Test
+        @DisplayName("목록 조회는 상태와 관계없는 searchUnits만 호출한다")
+        void getUnits_callsAdminSearchOnly() throws Exception {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            UUID unitId = UUID.randomUUID();
+            PageResponse<UnitResponse> page = new PageResponse<>(
+                    List.of(UnitResponse.from(unit(unitId, ContentStatus.DRAFT))), 0, 20, 1, 1, false);
+            when(unitService.searchUnits(eq(curriculumId), any(Pageable.class))).thenReturn(page);
+
+            // when & then
+            mockMvc.perform(get(BASE + "/units").param("curriculumId", curriculumId.toString()).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+
+            verify(unitService).searchUnits(eq(curriculumId), any(Pageable.class));
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("단건 조회는 상태와 관계없는 getUnit만 호출한다")
+        void getUnit_callsAdminGetOnly() throws Exception {
+            // given
+            UUID unitId = UUID.randomUUID();
+            UnitResponse draft = UnitResponse.from(unit(unitId, ContentStatus.DRAFT));
+            when(unitService.getUnit(unitId)).thenReturn(draft);
+
+            // when & then
+            mockMvc.perform(get(BASE + "/units/{id}", unitId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.id").value(unitId.toString()))
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+            verify(unitService).getUnit(unitId);
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("공개는 publishUnit만 호출한다")
+        void publishUnit_callsPublishOnly() throws Exception {
+            // given
+            UUID unitId = UUID.randomUUID();
+            UnitResponse published = UnitResponse.from(unit(unitId, ContentStatus.PUBLISHED));
+            when(unitService.publishUnit(unitId)).thenReturn(published);
+
+            // when & then
+            mockMvc.perform(patch(BASE + "/units/{id}/publish", unitId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+            verify(unitService).publishUnit(unitId);
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("비공개는 unpublishUnit만 호출한다")
+        void unpublishUnit_callsUnpublishOnly() throws Exception {
+            // given
+            UUID unitId = UUID.randomUUID();
+            UnitResponse draft = UnitResponse.from(unit(unitId, ContentStatus.DRAFT));
+            when(unitService.unpublishUnit(unitId)).thenReturn(draft);
+
+            // when & then
+            mockMvc.perform(patch(BASE + "/units/{id}/unpublish", unitId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+            verify(unitService).unpublishUnit(unitId);
+            verifyNoMoreServiceCalls();
+        }
     }
 
-    @Test
-    @DisplayName("ADMIN은 유닛별 레슨 목록을 공개 상태와 관계없이 조회한다")
-    void getLessons_admin_usesAdminSearch() throws Exception {
-        // given
-        UUID unitId = UUID.randomUUID();
-        UUID lessonId = UUID.randomUUID();
-        PageResponse<LessonResponse> page = new PageResponse<>(
-                List.of(LessonResponse.from(lesson(lessonId, unitId, ContentStatus.DRAFT))), 0, 20, 1, 1, false);
-        when(lessonService.searchLessons(eq(unitId), any(Pageable.class))).thenReturn(page);
+    @Nested
+    @DisplayName("Lesson")
+    class LessonEndpoints {
 
-        // when & then
-        mockMvc.perform(get("/api/v1/admin/contents/lessons")
-                        .param("unitId", unitId.toString())
-                        .with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+        @Test
+        @DisplayName("목록 조회는 상태와 관계없는 searchLessons만 호출한다")
+        void getLessons_callsAdminSearchOnly() throws Exception {
+            // given
+            UUID unitId = UUID.randomUUID();
+            UUID lessonId = UUID.randomUUID();
+            PageResponse<LessonResponse> page = new PageResponse<>(
+                    List.of(LessonResponse.from(lesson(lessonId, unitId, ContentStatus.DRAFT))), 0, 20, 1, 1, false);
+            when(lessonService.searchLessons(eq(unitId), any(Pageable.class))).thenReturn(page);
 
-        verify(lessonService).searchLessons(eq(unitId), any(Pageable.class));
-    }
+            // when & then
+            mockMvc.perform(get(BASE + "/lessons").param("unitId", unitId.toString()).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
 
-    @Test
-    @DisplayName("ADMIN이 커리큘럼을 공개하면 PUBLISHED 상태가 응답된다")
-    void publishCurriculum_admin_returnsPublished() throws Exception {
-        // given
-        UUID curriculumId = UUID.randomUUID();
-        CurriculumResult published = CurriculumResult.from(curriculum(curriculumId, ContentStatus.PUBLISHED));
-        when(curriculumService.publishCurriculum(curriculumId)).thenReturn(published);
+            verify(lessonService).searchLessons(eq(unitId), any(Pageable.class));
+            verifyNoMoreServiceCalls();
+        }
 
-        // when & then
-        mockMvc.perform(patch("/api/v1/admin/contents/curriculums/{curriculumId}/publish", curriculumId)
-                        .with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+        @Test
+        @DisplayName("단건 조회는 상태와 관계없는 getLesson만 호출한다")
+        void getLesson_callsAdminGetOnly() throws Exception {
+            // given
+            UUID lessonId = UUID.randomUUID();
+            LessonResponse draft = LessonResponse.from(lesson(lessonId, UUID.randomUUID(), ContentStatus.DRAFT));
+            when(lessonService.getLesson(lessonId)).thenReturn(draft);
 
-        verify(curriculumService).publishCurriculum(curriculumId);
-    }
+            // when & then
+            mockMvc.perform(get(BASE + "/lessons/{id}", lessonId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
 
-    @Test
-    @DisplayName("ADMIN이 유닛·레슨을 비공개하면 DRAFT 상태가 응답된다")
-    void unpublishUnitAndLesson_admin_returnsDraft() throws Exception {
-        // given
-        UUID unitId = UUID.randomUUID();
-        UUID lessonId = UUID.randomUUID();
-        UnitResponse draftUnit = UnitResponse.from(unit(unitId, ContentStatus.DRAFT));
-        LessonResponse draftLesson = LessonResponse.from(lesson(lessonId, unitId, ContentStatus.DRAFT));
-        when(unitService.unpublishUnit(unitId)).thenReturn(draftUnit);
-        when(lessonService.unpublishLesson(lessonId)).thenReturn(draftLesson);
+            verify(lessonService).getLesson(lessonId);
+            verifyNoMoreServiceCalls();
+        }
 
-        // when & then
-        mockMvc.perform(patch("/api/v1/admin/contents/units/{unitId}/unpublish", unitId).with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
-        mockMvc.perform(patch("/api/v1/admin/contents/lessons/{lessonId}/unpublish", lessonId).with(asAdmin(adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+        @Test
+        @DisplayName("공개는 publishLesson만 호출한다")
+        void publishLesson_callsPublishOnly() throws Exception {
+            // given
+            UUID lessonId = UUID.randomUUID();
+            LessonResponse published = LessonResponse.from(lesson(lessonId, UUID.randomUUID(), ContentStatus.PUBLISHED));
+            when(lessonService.publishLesson(lessonId)).thenReturn(published);
 
-        verify(unitService).unpublishUnit(unitId);
-        verify(lessonService).unpublishLesson(lessonId);
+            // when & then
+            mockMvc.perform(patch(BASE + "/lessons/{id}/publish", lessonId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+            verify(lessonService).publishLesson(lessonId);
+            verifyNoMoreServiceCalls();
+        }
+
+        @Test
+        @DisplayName("비공개는 unpublishLesson만 호출한다")
+        void unpublishLesson_callsUnpublishOnly() throws Exception {
+            // given
+            UUID lessonId = UUID.randomUUID();
+            LessonResponse draft = LessonResponse.from(lesson(lessonId, UUID.randomUUID(), ContentStatus.DRAFT));
+            when(lessonService.unpublishLesson(lessonId)).thenReturn(draft);
+
+            // when & then
+            mockMvc.perform(patch(BASE + "/lessons/{id}/unpublish", lessonId).with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+            verify(lessonService).unpublishLesson(lessonId);
+            verifyNoMoreServiceCalls();
+        }
     }
 
     @Test
     @DisplayName("ADMIN이 아닌 사용자는 공개 상태를 바꿀 수 없고 서비스도 호출되지 않는다")
     void publishLesson_nonAdmin_returns403() throws Exception {
         // when & then
-        mockMvc.perform(patch("/api/v1/admin/contents/lessons/{lessonId}/publish", UUID.randomUUID())
-                        .with(asUser(userId)))
+        mockMvc.perform(patch(BASE + "/lessons/{id}/publish", UUID.randomUUID()).with(asUser()))
                 .andExpect(status().isForbidden());
 
-        verifyNoInteractions(lessonService);
+        verifyNoInteractions(curriculumService, unitService, lessonService);
+    }
+
+    private void verifyNoMoreServiceCalls() {
+        verifyNoMoreInteractions(curriculumService, unitService, lessonService);
     }
 
     private static Curriculum curriculum(UUID id, ContentStatus status) {
@@ -199,23 +343,13 @@ class AdminContentControllerTest {
         return lesson;
     }
 
-    private static RequestPostProcessor asAdmin(UUID adminId) {
-        return authentication(
-                new UsernamePasswordAuthenticationToken(
-                        adminId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-                )
-        );
+    private RequestPostProcessor asAdmin() {
+        return authentication(new UsernamePasswordAuthenticationToken(
+                adminId, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
     }
 
-    private static RequestPostProcessor asUser(UUID userId) {
-        return authentication(
-                new UsernamePasswordAuthenticationToken(
-                        userId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                )
-        );
+    private RequestPostProcessor asUser() {
+        return authentication(new UsernamePasswordAuthenticationToken(
+                userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 }

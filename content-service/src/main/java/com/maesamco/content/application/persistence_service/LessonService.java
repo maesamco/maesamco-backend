@@ -120,7 +120,7 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse updateLesson(UUID lessonId, LessonUpdateRequest request) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
         if (request.getTitle() != null) {
             lesson.changeTitle(request.getTitle());
@@ -164,7 +164,7 @@ public class LessonService {
      */
     private void moveLesson(Lesson lesson, int position) {
 
-        unitFinder.lockById(lesson.getUnitId());
+        // 부모 유닛 락은 호출한 쪽(updateLesson → getForWrite)이 이미 잡고 있다.
 
         List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
 
@@ -193,10 +193,9 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteLesson(UUID lessonId, UUID userId) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
-        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
-        unitFinder.lockById(lesson.getUnitId());
+        // 생성·순서 변경과 같은 부모 락(getForWrite)으로 삭제 및 번호 압축을 직렬화한다.
         List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
         if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(lessonId))) {
             throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
@@ -262,7 +261,7 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse publishLesson(UUID lessonId) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
         lesson.publish();
 
@@ -273,10 +272,31 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse unpublishLesson(UUID lessonId) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
         lesson.unpublish();
 
         return LessonResponse.from(lesson);
+    }
+
+    /**
+     * 쓰기 경로(수정·공개 전환·삭제)에서 레슨을 읽습니다(#366 리뷰 P2).
+     *
+     * <p>생성·재정렬과 같은 부모 유닛 락을 잡아 같은 유닛의 레슨 쓰기를 직렬화하고,
+     * 잠금 이후의 최신 상태로 다시 읽습니다. 락을 기다리는 사이 삭제됐으면 LESSON_NOT_FOUND입니다.</p>
+     */
+    private Lesson getForWrite(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getById(lessonId);
+
+        unitFinder.lockById(lesson.getUnitId());
+
+        lessonRepository.refresh(lesson);
+
+        if (lesson.isDeleted()) {
+            throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+        }
+
+        return lesson;
     }
 }

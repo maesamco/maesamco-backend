@@ -498,7 +498,7 @@ class UnitServiceTest {
             verify(unit).changeLanguage(ProgrammingLanguage.PYTHON);
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository);
+            verify(unitRepository, never()).reorder(anyList());
         }
 
         @Test
@@ -523,7 +523,7 @@ class UnitServiceTest {
             verify(unit, never()).changeLanguage(any());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository);
+            verify(unitRepository, never()).reorder(anyList());
         }
 
         @Test
@@ -548,7 +548,7 @@ class UnitServiceTest {
             verify(unit, never()).changeTitle(anyString());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository);
+            verify(unitRepository, never()).reorder(anyList());
         }
 
         @Test
@@ -572,7 +572,7 @@ class UnitServiceTest {
             verify(unit, never()).changeLanguage(any());
             verify(unitFinder).getById(unitId);
 
-            verifyNoInteractions(unitRepository);
+            verify(unitRepository, never()).reorder(anyList());
         }
 
         @Test
@@ -691,7 +691,7 @@ class UnitServiceTest {
         }
 
         @Test
-        @DisplayName("현재와 같은 displayOrder면 부모를 잠그지 않고 재정렬하지 않는다")
+        @DisplayName("현재와 같은 displayOrder면 재정렬하지 않는다")
         void updateUnit_sameDisplayOrder_doesNothing() {
             // given
             UUID curriculumId = UUID.randomUUID();
@@ -704,7 +704,7 @@ class UnitServiceTest {
             unitService.updateUnit(unit.getId(), request);
 
             // then
-            verifyNoInteractions(curriculumFinder, unitRepository);
+            verify(unitRepository, never()).reorder(anyList());
         }
 
         @Test

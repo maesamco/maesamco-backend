@@ -1,5 +1,10 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.global.exception.BusinessException;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.EntityManager;
 import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.repository.UnitRepository;
@@ -16,6 +21,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UnitRepositoryImpl
         implements UnitRepository {
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final SpringDataUnitRepository
             springDataUnitRepository;
@@ -103,5 +111,16 @@ public class UnitRepositoryImpl
                         ContentStatus.PUBLISHED,
                         pageable
                 );
+    }
+
+    @Override
+    public void refresh(Unit unit) {
+        try {
+            entityManager.refresh(unit);
+        } catch (EntityNotFoundException exception) {
+            // BaseEntity의 @SQLRestriction(deleted_at IS NULL) 때문에, 락을 기다리는 사이
+            // 다른 트랜잭션이 soft delete를 커밋한 행은 refresh에서 "없는 행"이 된다(#366).
+            throw new BusinessException(ErrorCode.UNIT_NOT_FOUND);
+        }
     }
 }
