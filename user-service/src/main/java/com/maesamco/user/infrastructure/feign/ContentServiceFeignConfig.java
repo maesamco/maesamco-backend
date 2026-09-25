@@ -27,7 +27,8 @@ public class ContentServiceFeignConfig {
     ) {
         return new HmacSigningFeignInterceptor(
                 serviceName,
-                secretKeyForContent
+                secretKeyForContent,
+                ContentServiceFeignClient.INTERNAL_API_PREFIX
         );
     }
 }
