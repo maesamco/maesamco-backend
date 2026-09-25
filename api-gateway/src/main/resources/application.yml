@@ -80,6 +80,8 @@ springdoc:
 rate-limit:
   submissions:
     per-minute: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:30}
+    # 채점 결과·이력 조회(GET) 한도 — 폴링과 NAT 뒤 다중 사용자를 감안한 값(이슈 #349)
+    read-per-minute: ${RATE_LIMIT_SUBMISSIONS_READ_PER_MIN:300}
   trusted-proxy-ips: ${RATE_LIMIT_TRUSTED_PROXY_IPS:}
 
 cors:
