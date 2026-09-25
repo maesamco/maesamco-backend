@@ -92,7 +92,7 @@ public class Hint {
         this.coachingSessionId = Validate.requireNonNull(coachingSessionId, "코칭 세션 ID");
         this.stage = requireValidStage(stage);
         this.content = Validate.requireText(content, "힌트 본문");
-        this.attemptNo = attemptNo;
+        this.attemptNo = requireValidAttemptNo(attemptNo);
     }
 
     public static Hint create(UUID coachingSessionId, int stage, String content) {
@@ -107,6 +107,17 @@ public class Hint {
                 .content(content)
                 .attemptNo(attemptNo)
                 .build();
+    }
+
+    /** 이 값이 생기기 전에 만든 힌트(null)는 허용하고, 값이 있으면 DB CHECK(attempt_no >= 1)와 같게 1 이상이어야 한다. */
+    private static Integer requireValidAttemptNo(Integer attemptNo) {
+        if (attemptNo != null && attemptNo < 1) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "힌트의 시도 번호는 1 이상이어야 합니다."
+            );
+        }
+        return attemptNo;
     }
 
     private static int requireValidStage(int stage) {

@@ -403,11 +403,12 @@ class HintGenerationFacadeTest {
         when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 1));
         CoachingSession existingSession = persistedSession();
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
-        when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
+        Hint winningHint = Hint.create(existingSession.getId(), 1, "다른 요청이 먼저 저장한 힌트", 1);
+        // 요청 시작 전·락 안 재확인에서는 없다가, 저장 충돌 뒤 다시 조회하면 같은 시도의 요청이 만든 힌트가 보인다.
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of(), List.of(), List.of(winningHint));
         when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("1단계 힌트", "claude-sonnet-5", 1));
         when(hintRepository.save(any())).thenThrow(new BusinessException(ErrorCode.HINT_ALREADY_EXISTS));
-        Hint winningHint = Hint.create(existingSession.getId(), 1, "다른 요청이 먼저 저장한 힌트");
-        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1)).thenReturn(Optional.of(winningHint));
 
         HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
 
@@ -427,9 +428,10 @@ class HintGenerationFacadeTest {
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
         when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
-        Hint concurrentlyCreatedHint = Hint.create(existingSession.getId(), 1, "다른 요청이 만든 힌트");
-        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1))
-                .thenReturn(Optional.of(concurrentlyCreatedHint));
+        Hint concurrentlyCreatedHint = Hint.create(existingSession.getId(), 1, "다른 요청이 만든 힌트", 1);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(concurrentlyCreatedHint));
 
         HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
 
@@ -452,7 +454,6 @@ class HintGenerationFacadeTest {
         when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
         when(hintRepository.findByCoachingSessionId(existingSession.getId())).thenReturn(List.of());
         when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
-        when(hintRepository.findByCoachingSessionIdAndStage(existingSession.getId(), 1)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
                 .isInstanceOf(BusinessException.class)
@@ -751,5 +752,99 @@ class HintGenerationFacadeTest {
         assertThat(result.hint()).isSameAs(createdByConcurrentRequest);
         verify(aiModelPort, never()).generate(any(), any());
         verify(hintRepository, never()).save(any());
+    }
+
+    @Test
+    void 이슈352_서로_다른_시도가_동시에_들어와_같은_다음_단계를_계산해도_다른_시도의_힌트를_받지_않고_새_단계를_만든다() {
+        // 시도 3의 요청이 락 전에는 힌트가 없어(maxStage=0) 1단계를 계산했지만, 락을 얻고 보니 시도 2의 요청이 이미 1단계를 만들어 뒀다.
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 3));
+        CoachingSession existingSession = persistedSession(3);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint createdForAttempt2 = Hint.create(existingSession.getId(), 1, "시도 2 코드 기준 힌트", 2);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(createdForAttempt2));
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("2단계 힌트", "claude-sonnet-5", 10));
+        when(hintRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.hint()).isNotSameAs(createdForAttempt2);
+        assertThat(result.hint().getStage()).isEqualTo(2);   // 최신 maxStage(1) 다음 단계
+        assertThat(result.hint().getAttemptNo()).isEqualTo(3); // 이 시도의 힌트로 기록된다
+    }
+
+    @Test
+    void 이슈352_락을_못_얻고_기다리는_동안_다른_시도의_힌트만_생기면_그_힌트를_반환하지_않고_진행_중으로_응답한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 3));
+        CoachingSession existingSession = persistedSession(3);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
+        Hint createdForAttempt2 = Hint.create(existingSession.getId(), 1, "시도 2 코드 기준 힌트", 2);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(createdForAttempt2));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HINT_GENERATION_IN_PROGRESS);
+
+        verify(aiModelPort, never()).generate(any(), any());
+    }
+
+    @Test
+    void 이슈352_저장_충돌_상대가_다른_시도의_힌트라면_그_힌트를_반환하지_않고_진행_중으로_응답한다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 3));
+        CoachingSession existingSession = persistedSession(3);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint createdForAttempt2 = Hint.create(existingSession.getId(), 1, "시도 2 코드 기준 힌트", 2);
+        // 요청 전·락 안에서는 없다가(락 fail-open 상황), 저장 충돌 뒤에는 다른 시도의 힌트만 보인다.
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of(), List.of(), List.of(createdForAttempt2));
+        when(aiModelPort.generate(any(), any())).thenReturn(new AiModelResponse("1단계 힌트", "claude-sonnet-5", 1));
+        when(hintRepository.save(any())).thenThrow(new BusinessException(ErrorCode.HINT_ALREADY_EXISTS));
+
+        assertThatThrownBy(() -> facade.requestHint(submissionId, callerId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HINT_GENERATION_IN_PROGRESS);
+    }
+
+    @Test
+    void 이슈352_같은_시도의_동시_요청이_락_안에서_이미_만들어진_힌트를_발견하면_취약_개념을_기록하지_않는다() {
+        // 두 요청 모두 락 전 검사(힌트 없음)를 통과한 상황 — 나중에 락을 잡은 요청은 fresh 목록에서 먼저 들어온 요청의 힌트를 본다.
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        Hint createdByConcurrentRequest = Hint.create(existingSession.getId(), 1, "동시 요청이 만든 힌트", 8);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(createdByConcurrentRequest));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.hint()).isSameAs(createdByConcurrentRequest);
+        verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
+        verify(aiModelPort, never()).generate(any(), any());
+    }
+
+    @Test
+    void 이슈352_락을_못_얻은_요청은_취약_개념을_기록하지_않는다() {
+        when(judgeServicePort.getSubmission(submissionId)).thenReturn(wrongSubmission(callerId, 8));
+        CoachingSession existingSession = persistedSession(8);
+        when(coachingSessionRepository.findByUserIdAndProblemId(callerId, problemId)).thenReturn(Optional.of(existingSession));
+        when(hintGenerationLockPort.tryLock(eq(existingSession.getId()), any())).thenReturn(false);
+        Hint createdByConcurrentRequest = Hint.create(existingSession.getId(), 1, "동시 요청이 만든 힌트", 8);
+        when(hintRepository.findByCoachingSessionId(existingSession.getId()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(createdByConcurrentRequest));
+
+        HintGenerationFacade.HintGenerationResult result = facade.requestHint(submissionId, callerId);
+
+        assertThat(result.hint()).isSameAs(createdByConcurrentRequest);
+        verify(weakConceptPersistenceService, never()).recordOccurrences(any(), any());
     }
 }
