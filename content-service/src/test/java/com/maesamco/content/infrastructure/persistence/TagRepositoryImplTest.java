@@ -10,6 +10,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.SortOrder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -334,30 +337,30 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
-                    tagRepository.searchTags(pageable);
+            PageResult<Tag> result =
+                    tagRepository.searchTags(toQuery(pageable));
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
-            assertThat(result.getContent())
+            assertThat(result.content())
                     .containsExactly(
                             first,
                             second,
                             third
                     );
 
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isZero();
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(20);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isEqualTo(3);
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isEqualTo(1);
 
             verify(springDataTagRepository, times(1))
@@ -382,27 +385,26 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
-                    tagRepository.searchTags(pageable);
+            PageResult<Tag> result =
+                    tagRepository.searchTags(toQuery(pageable));
 
             // then
             assertThat(result)
-                    .isNotNull()
+                    .isNotNull();
+
+            assertThat(result.content())
                     .isEmpty();
 
-            assertThat(result.getContent())
-                    .isEmpty();
-
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isZero();
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(20);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isZero();
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isZero();
 
             verify(springDataTagRepository, times(1))
@@ -433,23 +435,23 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
-                    tagRepository.searchTags(pageable);
+            PageResult<Tag> result =
+                    tagRepository.searchTags(toQuery(pageable));
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isEqualTo(1);
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(10);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isEqualTo(11);
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isEqualTo(2);
 
             verify(springDataTagRepository)
@@ -481,7 +483,7 @@ class TagRepositoryImplTest {
                     ArgumentCaptor.forClass(Pageable.class);
 
             // when
-            tagRepository.searchTags(pageable);
+            tagRepository.searchTags(toQuery(pageable));
 
             // then
             verify(springDataTagRepository)
@@ -490,33 +492,33 @@ class TagRepositoryImplTest {
                     );
 
             assertThat(captor.getValue())
-                    .isSameAs(pageable);
+                    .isEqualTo(pageable);
 
             verifyNoMoreInteractions(springDataTagRepository);
         }
 
         @Test
-        @DisplayName("searchTags는 Spring Data Repository가 반환한 Page를 별도 변환 없이 그대로 반환한다")
-        @SuppressWarnings("unchecked")
+        @DisplayName("searchTags는 Spring Data Repository가 반환한 Page를 자체 Pagination 계약(PageResult)으로 변환해 반환한다")
         void searchTags_returnsSamePage() {
 
             // given
             Pageable pageable =
                     PageRequest.of(0, 20);
 
-            Page<Tag> expected = mock(Page.class);
+            Page<Tag> expected =
+                    new PageImpl<>(List.of(mock(Tag.class)), pageable, 1);
 
             when(springDataTagRepository
                     .findAllByOrderByCreatedAtDescIdDesc(pageable))
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
-                    tagRepository.searchTags(pageable);
+            PageResult<Tag> result =
+                    tagRepository.searchTags(toQuery(pageable));
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
             verify(springDataTagRepository)
                     .findAllByOrderByCreatedAtDescIdDesc(pageable);
@@ -566,33 +568,33 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     tagRepository.searchTagsByAttribute(
                             attribute,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
-            assertThat(result.getContent())
+            assertThat(result.content())
                     .containsExactly(
                             first,
                             second,
                             third
                     );
 
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isZero();
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(20);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isEqualTo(3);
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isEqualTo(1);
 
             verify(springDataTagRepository, times(1))
@@ -626,24 +628,23 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     tagRepository.searchTagsByAttribute(
                             attribute,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
             assertThat(result)
-                    .isNotNull()
+                    .isNotNull();
+
+            assertThat(result.content())
                     .isEmpty();
 
-            assertThat(result.getContent())
-                    .isEmpty();
-
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isZero();
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isZero();
 
             verify(springDataTagRepository, times(1))
@@ -685,7 +686,7 @@ class TagRepositoryImplTest {
             // when
             tagRepository.searchTagsByAttribute(
                     attribute,
-                    pageable
+                    toQuery(pageable)
             );
 
             // then
@@ -699,7 +700,7 @@ class TagRepositoryImplTest {
                     .isSameAs(attribute);
 
             assertThat(pageableCaptor.getValue())
-                    .isSameAs(pageable);
+                    .isEqualTo(pageable);
 
             verifyNoMoreInteractions(springDataTagRepository);
         }
@@ -735,26 +736,26 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     tagRepository.searchTagsByAttribute(
                             attribute,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isEqualTo(1);
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(5);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isEqualTo(6);
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isEqualTo(2);
 
-            assertThat(result.getContent())
+            assertThat(result.content())
                     .containsExactly(tag);
 
             verify(springDataTagRepository)
@@ -767,8 +768,7 @@ class TagRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("Spring Data Repository가 반환한 Page를 별도 변환 없이 그대로 반환한다")
-        @SuppressWarnings("unchecked")
+        @DisplayName("Spring Data Repository가 반환한 Page를 자체 Pagination 계약(PageResult)으로 변환해 반환한다")
         void searchTagsByAttribute_returnsSamePage() {
 
             // given
@@ -778,7 +778,8 @@ class TagRepositoryImplTest {
             Pageable pageable =
                     PageRequest.of(0, 10);
 
-            Page<Tag> expected = mock(Page.class);
+            Page<Tag> expected =
+                    new PageImpl<>(List.of(mock(Tag.class)), pageable, 1);
 
             when(springDataTagRepository
                     .findByAttributeOrderByCreatedAtDescIdDesc(
@@ -788,15 +789,15 @@ class TagRepositoryImplTest {
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     tagRepository.searchTagsByAttribute(
                             attribute,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
             verify(springDataTagRepository)
                     .findByAttributeOrderByCreatedAtDescIdDesc(
@@ -806,5 +807,17 @@ class TagRepositoryImplTest {
 
             verifyNoMoreInteractions(springDataTagRepository);
         }
+    }
+
+    private static PageQuery toQuery(Pageable pageable) {
+        return PageQuery.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                pageable.getSort().stream()
+                        .map(order -> order.isAscending()
+                                ? SortOrder.asc(order.getProperty())
+                                : SortOrder.desc(order.getProperty()))
+                        .toList()
+        );
     }
 }

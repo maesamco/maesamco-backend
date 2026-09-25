@@ -598,6 +598,106 @@ class UserApiControllerWithdrawTest {
         );
     }
 
+    @Test
+    @DisplayName(
+            "소셜 회원이 Google ID Token으로 탈퇴를 요청하면 "
+                    + "204를 반환하고 재인증 정보가 서비스로 전달된다 (#328)"
+    )
+    void withdrawWithGoogleIdToken() throws Exception {
+        // when & then
+        mockMvc.perform(
+                        delete("/api/v1/users/me")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        """
+                                        {
+                                          "googleIdToken": "google-id-token"
+                                        }
+                                        """
+                                )
+                )
+                .andExpect(
+                        status().isNoContent()
+                )
+                .andExpect(
+                        header().string(
+                                HttpHeaders.SET_COOKIE,
+                                containsString(
+                                        "Max-Age=0"
+                                )
+                        )
+                );
+
+        verify(withdrawUserService)
+                .withdraw(
+                        USER_ID,
+                        new WithdrawUserCommand(
+                                null,
+                                "google-id-token"
+                        )
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "비밀번호와 Google ID Token을 함께 보내면 "
+                    + "400 INVALID_INPUT_VALUE를 반환한다 (#328)"
+    )
+    void bothCredentials() throws Exception {
+        // when & then
+        mockMvc.perform(
+                        delete("/api/v1/users/me")
+                                .with(
+                                        authentication(
+                                                createAuthentication(
+                                                        USER_ID
+                                                )
+                                        )
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        """
+                                        {
+                                          "currentPassword": "Abcd1234!",
+                                          "googleIdToken": "google-id-token"
+                                        }
+                                        """
+                                )
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.error.fieldErrors[*].field")
+                                .value(
+                                        hasItem(
+                                                "googleIdToken"
+                                        )
+                                )
+                );
+
+        verifyNoInteractions(
+                withdrawUserService
+        );
+    }
+
     private String validRequest() {
         return """
                 {

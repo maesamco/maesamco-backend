@@ -1,6 +1,6 @@
 package com.maesamco.content.presentation.response;
 
-import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.application.result.CurriculumResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -20,7 +20,7 @@ public class CurriculumResponse {
     private final String title;
 
     public static CurriculumResponse from(
-            Curriculum curriculum
+            CurriculumResult curriculum
     ) {
         return new CurriculumResponse(
                 curriculum.getId(),

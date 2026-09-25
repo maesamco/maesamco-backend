@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.CurriculumUpdateCommand;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -21,4 +22,8 @@ public class CurriculumUpdateRequest {
     private String title;
 
     private ProgrammingLanguage language;
+
+    public CurriculumUpdateCommand toCommand() {
+        return new CurriculumUpdateCommand(title, language);
+    }
 }

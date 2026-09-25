@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.CurriculumCreateCommand;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,4 +18,8 @@ public class CurriculumCreateRequest {
 
     @NotNull(message = "프로그래밍 언어는 필수입니다.")
     private ProgrammingLanguage language;
+
+    public CurriculumCreateCommand toCommand() {
+        return new CurriculumCreateCommand(title, language);
+    }
 }

@@ -1,9 +1,9 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.TagAttribute;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
 import java.util.List;
@@ -20,7 +20,7 @@ public interface TagRepository {
 
     List<Tag> findAllByIds(Collection<UUID> tagIds);
 
-    Page<Tag> searchTags(Pageable pageable);
+    PageResult<Tag> searchTags(PageQuery pageQuery);
 
-    Page<Tag> searchTagsByAttribute(TagAttribute attribute, Pageable pageable);
+    PageResult<Tag> searchTagsByAttribute(TagAttribute attribute, PageQuery pageQuery);
 }

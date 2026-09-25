@@ -6,14 +6,12 @@ import com.maesamco.content.domain.entity.TestCase;
 import com.maesamco.content.domain.repository.TestCaseRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TestCaseCreateRequest;
-import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
-import com.maesamco.content.presentation.response.TestCaseCreateResponse;
-import com.maesamco.content.presentation.response.TestCaseResponse;
+import com.maesamco.content.application.command.TestCaseCreateCommand;
+import com.maesamco.content.application.command.TestCaseUpdateCommand;
+import com.maesamco.content.application.result.TestCaseResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,40 +28,48 @@ public class TestCaseService {
 
     /** 테스트케이스 생성 */
     @Transactional(rollbackFor = Exception.class)
-    public TestCaseCreateResponse createTestCase(UUID problemId, TestCaseCreateRequest request) {
+    public TestCaseResult createTestCase(UUID problemId, TestCaseCreateCommand command) {
 
         problemFinder.lockById(problemId);
 
         // 특정 문자에 대한 공개 또는 비공개 테스트케이스 중 하나의 분류에 대해서 그 중 가장 test_case_order가 큰 값에 + 1을 한다.
         int testCaseOrder =
-                testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, request.getIsPublic()) + 1;
+                testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(problemId, command.getIsPublic()) + 1;
 
         // 관리자가 테스트케이스를 생성하는 경우만 고려한다. TODO: 나중에 테스트케이스 생성 요청 API 만들면 createByUser 함수 사용한다.
         TestCase testCase = TestCase.createByAdmin(
                 problemId,
-                request.getInput(),
-                request.getExpectedOutput(),
-                request.getIsPublic(),
+                command.getInput(),
+                command.getExpectedOutput(),
+                command.getIsPublic(),
                 testCaseOrder
         );
 
         TestCase savedTestCase = testCaseRepository.save(testCase);
 
-        return TestCaseCreateResponse.from(savedTestCase);
+        return TestCaseResult.from(savedTestCase);
     }
 
     /** 테스트케이스 단건 조회 */
     @Transactional(readOnly = true)
-    public TestCaseResponse getTestCase(UUID testCaseId) {
+    public TestCaseResult getTestCase(UUID testCaseId) {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
-        return TestCaseResponse.from(testCase);
+        /*
+         * 관리자 경로도 공개 경로(getPublicTestCase)와 목록 조회처럼 상위 Problem의 활성 상태를 확인한다.
+         * 상위 Problem이 삭제된 뒤에는 하위 테스트케이스에 ID로 직접 접근할 수 없어야 한다(이슈 #336).
+         */
+        problemFinder.getById(
+                testCase.getProblemId()
+        );
+
+        return TestCaseResult.from(testCase);
     }
 
     /** 공개 테스트케이스 단건 조회 */
     @Transactional(readOnly = true)
-    public TestCaseResponse getPublicTestCase(UUID testCaseId) {
+    public TestCaseResult getPublicTestCase(UUID testCaseId) {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
@@ -81,41 +87,44 @@ public class TestCaseService {
             );
         }
 
-        return TestCaseResponse.from(testCase);
+        return TestCaseResult.from(testCase);
     }
 
     /** 특정 문제의 공개 테스트케이스 목록 조회 */
     @Transactional(readOnly = true)
-    public PageResponse<TestCaseResponse> searchTestCasesPublic(UUID problemId, Pageable pageable) {
+    public PageResult<TestCaseResult> searchTestCasesPublic(UUID problemId, PageQuery pageQuery) {
         problemFinder.getById(problemId);
 
-        Page<TestCase> testCases = testCaseRepository.searchTestCases(problemId, true, pageable);
+        PageResult<TestCase> testCases = testCaseRepository.searchTestCases(problemId, true, pageQuery);
 
-        return PageResponse.from(testCases, TestCaseResponse::from);
+        return testCases.map(TestCaseResult::from);
     }
 
     /** 특정 문제의 공개와 비공개 테스트케이스 목록 전체 조회 */
     @Transactional(readOnly = true)
-    public PageResponse<TestCaseResponse> searchTestCasesAll(UUID problemId, Pageable pageable) {
+    public PageResult<TestCaseResult> searchTestCasesAll(UUID problemId, PageQuery pageQuery) {
         problemFinder.getById(problemId);
 
-        Page<TestCase> testCases = testCaseRepository.searchTestCasesAll(problemId, pageable);
+        PageResult<TestCase> testCases = testCaseRepository.searchTestCasesAll(problemId, pageQuery);
 
-        return PageResponse.from(testCases, TestCaseResponse::from);
+        return testCases.map(TestCaseResult::from);
     }
 
     /** 테스트케이스 수정 */
     @Transactional(rollbackFor = Exception.class)
-    public TestCaseResponse updateTestCase(UUID testCaseId, TestCaseUpdateRequest request) {
+    public TestCaseResult updateTestCase(UUID testCaseId, TestCaseUpdateCommand command) {
         TestCase testCase = testCaseFinder.getById(testCaseId);
 
+        // 조회와 같은 정책: 상위 Problem이 삭제된 뒤에는 ID로 직접 수정할 수 없다(이슈 #336).
+        problemFinder.getById(testCase.getProblemId());
+
         // 입력값, 출력값 수정
-        if (request.getInput() != null) { testCase.changeInput(request.getInput()); }
-        if (request.getExpectedOutput() != null) { testCase.changeExpectedOutput(request.getExpectedOutput()); }
+        if (command.getInput() != null) { testCase.changeInput(command.getInput()); }
+        if (command.getExpectedOutput() != null) { testCase.changeExpectedOutput(command.getExpectedOutput()); }
 
         // 공개 / 비공개 수정 정책
-        if (request.getIsPublic() != null &&
-                request.getIsPublic() != testCase.getIsPublic()) {
+        if (command.getIsPublic() != null &&
+                command.getIsPublic() != testCase.getIsPublic()) {
 
             problemFinder.lockById(
                     testCase.getProblemId()
@@ -127,20 +136,20 @@ public class TestCaseService {
             int newTestCaseOrder =
                     testCaseRepository.findMaxTestCaseOrderByProblemIdAndIsPublic(
                             testCase.getProblemId(),
-                            request.getIsPublic()
+                            command.getIsPublic()
                     ) + 1;
-            testCase.changeIsPublic(request.getIsPublic());
+            testCase.changeIsPublic(command.getIsPublic());
             testCase.changeTestCaseOrder(newTestCaseOrder);
         }
 
         // test_case_order 값 수정 정책 (우선순위가 제일 높기에 마지막에 실행)
         // 그리고 만약에 관리자가 수정한 order가 기존 order랑 중복된다고 해도 tie-breaker가 실행되었기에 페이징에는 문제가 없다.
         // 또한 테스트케이스를 보낼 JudgeService에서는 사실상 집합의 개념으로 테스트케이스를 이용하기에 Order가 중요하지 않게 된다.
-        if (request.getTestCaseOrder() != null) {
-            testCase.changeTestCaseOrder(request.getTestCaseOrder());
+        if (command.getTestCaseOrder() != null) {
+            testCase.changeTestCaseOrder(command.getTestCaseOrder());
         }
 
-        return TestCaseResponse.from(testCase);
+        return TestCaseResult.from(testCase);
     }
 
     /** 테스트케이스 삭제 */
@@ -148,6 +157,9 @@ public class TestCaseService {
     public void deleteTestCase(UUID testCaseId, UUID userId) {
 
         TestCase testCase = testCaseFinder.getById(testCaseId);
+
+        // 조회·수정과 같은 정책: 상위 Problem이 삭제된 뒤에는 ID로 직접 삭제할 수 없다(이슈 #336).
+        problemFinder.getById(testCase.getProblemId());
 
         testCase.softDelete(userId);
     }

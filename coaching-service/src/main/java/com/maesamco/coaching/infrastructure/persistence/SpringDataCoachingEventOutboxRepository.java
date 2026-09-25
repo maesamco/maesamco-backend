@@ -32,7 +32,7 @@ interface SpringDataCoachingEventOutboxRepository extends JpaRepository<Coaching
                 o.status = :inProgressStatus
                 AND o.leaseUntil <= :claimedAt
             )
-            ORDER BY o.createdAt ASC
+            ORDER BY o.createdAt ASC, o.id ASC
             """)
     List<CoachingEventOutbox> findClaimableForUpdate(
             @Param("pendingStatus") OutboxStatus pendingStatus,

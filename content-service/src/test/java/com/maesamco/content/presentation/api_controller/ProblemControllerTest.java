@@ -11,25 +11,27 @@ import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.global.config.JacksonConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,7 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ProblemController.class)
 @Import({
-        ProblemControllerTest.TestSecurityConfig.class,
+        TestSecurityConfig.class,
         JacksonConfig.class
 })
 class ProblemControllerTest {
@@ -70,28 +72,6 @@ class ProblemControllerTest {
 
     private final UUID userId =
             UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity(proxyTargetClass = true)
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(
-                            AbstractHttpConfigurer::disable
-                    )
-                    .authorizeHttpRequests(
-                            auth ->
-                                    auth.anyRequest()
-                                            .permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(
             UUID adminId
@@ -276,7 +256,6 @@ class ProblemControllerTest {
                         problemId
                 );
     }
-
 
     @Test
     @DisplayName("ADMIN이 아닌 사용자는 관리자 문제 단건 조회 API를 호출할 수 없다")
@@ -1286,6 +1265,55 @@ class ProblemControllerTest {
                                 "$.error.fieldErrors[0].field"
                         ).value(
                                 "title"
+                        )
+                );
+
+        verifyNoInteractions(
+                problemService
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "문제 수정 시 설명이 공백만 있으면 400을 반환한다"
+    )
+    void updateProblem_blankDescription_returns400()
+            throws Exception {
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "description": "   "
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[0].field"
+                        ).value(
+                                "description"
                         )
                 );
 

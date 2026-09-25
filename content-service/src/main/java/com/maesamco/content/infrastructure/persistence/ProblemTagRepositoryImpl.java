@@ -4,9 +4,11 @@ import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.entity.problem.ProblemTag;
 import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -54,9 +56,15 @@ public class ProblemTagRepositoryImpl implements ProblemTagRepository {
     }
 
     @Override
-    public Page<Tag> searchTagsByProblemId(UUID problemId, Pageable pageable) {
-        return springDataProblemTagRepository
-                .findTagsByProblemId(problemId, pageable);
+    public PageResult<Tag> searchTagsByProblemId(UUID problemId, PageQuery pageQuery) {
+        // 이 쿼리는 정렬(tag.createdAt desc, tag.id desc)을 JPQL에 고정하고 있다. 요청의 동적 Sort를 넘기면
+        // 같은 컬럼이 order by에 중복으로 붙으므로(#307), 페이지 번호와 크기만 전달한다.
+        return SpringPageConverter.toPageResult(
+                springDataProblemTagRepository.findTagsByProblemId(
+                        problemId,
+                        PageRequest.of(pageQuery.page(), pageQuery.size())
+                )
+        );
     }
 
     @Override

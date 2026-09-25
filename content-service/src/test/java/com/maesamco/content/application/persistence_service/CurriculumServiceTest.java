@@ -4,11 +4,11 @@ import com.maesamco.content.application.finder.CurriculumFinder;
 import com.maesamco.content.domain.entity.Curriculum;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import com.maesamco.content.domain.repository.CurriculumRepository;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.CurriculumCreateRequest;
-import com.maesamco.content.presentation.request.CurriculumUpdateRequest;
-import com.maesamco.content.presentation.response.CurriculumCreateResponse;
-import com.maesamco.content.presentation.response.CurriculumResponse;
+import com.maesamco.content.application.command.CurriculumCreateCommand;
+import com.maesamco.content.application.command.CurriculumUpdateCommand;
+import com.maesamco.content.application.result.CurriculumResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,10 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -51,23 +47,20 @@ class CurriculumServiceTest {
     @Test
     @DisplayName("create curriculum")
     void createCurriculum_success() {
-        CurriculumCreateRequest request =
-                mock(CurriculumCreateRequest.class);
+        CurriculumCreateCommand command =
+                new CurriculumCreateCommand(
+                        "Java Basic",
+                        ProgrammingLanguage.JAVA
+                );
 
         Curriculum savedCurriculum =
                 mock(Curriculum.class);
 
-        when(request.getTitle())
-                .thenReturn("Java Basic");
-
-        when(request.getLanguage())
-                .thenReturn(ProgrammingLanguage.JAVA);
-
         when(curriculumRepository.save(any(Curriculum.class)))
                 .thenReturn(savedCurriculum);
 
-        CurriculumCreateResponse result =
-                curriculumService.createCurriculum(request);
+        CurriculumResult result =
+                curriculumService.createCurriculum(command);
 
         ArgumentCaptor<Curriculum> captor =
                 ArgumentCaptor.forClass(Curriculum.class);
@@ -103,7 +96,7 @@ class CurriculumServiceTest {
         when(curriculumFinder.getById(curriculumId))
                 .thenReturn(curriculum);
 
-        CurriculumResponse result =
+        CurriculumResult result =
                 curriculumService.getCurriculum(curriculumId);
 
         assertThat(result)
@@ -118,27 +111,28 @@ class CurriculumServiceTest {
     @Test
     @DisplayName("search curriculums")
     void searchCurriculums_success() {
-        Pageable pageable =
-                PageRequest.of(0, 10);
+        PageQuery pageQuery =
+                PageQuery.of(0, 10);
 
-        Page<Curriculum> page =
-                new PageImpl<>(
+        PageResult<Curriculum> page =
+                new PageResult<>(
                         List.of(),
-                        pageable,
+                        0,
+                        10,
                         0
                 );
 
-        when(curriculumRepository.searchCurriculums(pageable))
+        when(curriculumRepository.searchCurriculums(pageQuery))
                 .thenReturn(page);
 
-        PageResponse<CurriculumResponse> result =
-                curriculumService.searchCurriculums(pageable);
+        PageResult<CurriculumResult> result =
+                curriculumService.searchCurriculums(pageQuery);
 
         assertThat(result)
                 .isNotNull();
 
         verify(curriculumRepository)
-                .searchCurriculums(pageable);
+                .searchCurriculums(pageQuery);
 
         verifyNoInteractions(curriculumFinder);
     }
@@ -152,22 +146,19 @@ class CurriculumServiceTest {
         Curriculum curriculum =
                 mock(Curriculum.class);
 
-        CurriculumUpdateRequest request =
-                mock(CurriculumUpdateRequest.class);
+        CurriculumUpdateCommand command =
+                new CurriculumUpdateCommand(
+                        "Java Advanced",
+                        ProgrammingLanguage.JAVA
+                );
 
         when(curriculumFinder.getById(curriculumId))
                 .thenReturn(curriculum);
 
-        when(request.getTitle())
-                .thenReturn("Java Advanced");
-
-        when(request.getLanguage())
-                .thenReturn(ProgrammingLanguage.JAVA);
-
-        CurriculumResponse result =
+        CurriculumResult result =
                 curriculumService.updateCurriculum(
                         curriculumId,
-                        request
+                        command
                 );
 
         assertThat(result)

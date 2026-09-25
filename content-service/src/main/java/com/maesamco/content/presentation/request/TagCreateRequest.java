@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.TagCreateCommand;
 import com.maesamco.content.domain.entity.TagAttribute;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,4 +19,8 @@ public class TagCreateRequest {
 
     @NotNull
     private TagAttribute attribute;
+
+    public TagCreateCommand toCommand() {
+        return new TagCreateCommand(name, attribute);
+    }
 }

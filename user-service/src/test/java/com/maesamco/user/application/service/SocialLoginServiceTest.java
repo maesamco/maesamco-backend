@@ -143,10 +143,12 @@ class SocialLoginServiceTest {
                         emailNormalizer,
                         emailLookupHasher,
                         socialSignupTokenIssuer,
-                        tokenIssuer,
-                        refreshTokenHasher,
-                        authSessionStore,
-                        clock
+                        new AuthSessionIssuer(
+                                tokenIssuer,
+                                refreshTokenHasher,
+                                authSessionStore,
+                                clock
+                        )
                 );
     }
 

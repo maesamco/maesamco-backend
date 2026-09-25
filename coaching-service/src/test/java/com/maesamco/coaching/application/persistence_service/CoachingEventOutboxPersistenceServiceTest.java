@@ -20,7 +20,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
@@ -117,8 +116,8 @@ class CoachingEventOutboxPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("저장 시 낙관적 락 충돌(다른 Relay가 거의 동시에 먼저 처리)이 나면 예외를 전파하지 않고 무시한다")
-        void ignoresOptimisticLockingConflict() {
+        @DisplayName("저장 시 낙관적 락 충돌(다른 Relay가 거의 동시에 먼저 처리)이 나면 예외를 삼키지 않고 그대로 전파한다")
+        void propagatesOptimisticLockingConflict() {
             UUID outboxId = UUID.randomUUID();
             UUID claimId = UUID.randomUUID();
             CoachingEventOutbox freshOutbox = claimedOutbox(claimId);
@@ -126,8 +125,8 @@ class CoachingEventOutboxPersistenceServiceTest {
             willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
                     .given(coachingEventOutboxRepository).save(freshOutbox);
 
-            assertThatCode(() -> coachingEventOutboxPersistenceService.markPublished(outboxId, claimId))
-                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.markPublished(outboxId, claimId))
+                    .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         }
     }
 
@@ -153,8 +152,8 @@ class CoachingEventOutboxPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
-        void ignoresOptimisticLockingConflict() {
+        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 삼키지 않고 그대로 전파한다")
+        void propagatesOptimisticLockingConflict() {
             UUID outboxId = UUID.randomUUID();
             UUID claimId = UUID.randomUUID();
             CoachingEventOutbox freshOutbox = claimedOutbox(claimId);
@@ -162,13 +161,13 @@ class CoachingEventOutboxPersistenceServiceTest {
             willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
                     .given(coachingEventOutboxRepository).save(freshOutbox);
 
-            assertThatCode(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId, claimId))
-                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId, claimId))
+                    .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         }
 
         @Test
-        @DisplayName("상한 도달로 FAILED 저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
-        void ignoresOptimisticLockingConflictWhenTerminating() {
+        @DisplayName("상한 도달로 FAILED 저장 시 낙관적 락 충돌이 나면 예외를 삼키지 않고 그대로 전파한다")
+        void propagatesOptimisticLockingConflictWhenTerminating() {
             UUID outboxId = UUID.randomUUID();
             UUID claimId = UUID.randomUUID();
             CoachingEventOutbox freshOutbox = claimedOutbox(claimId);
@@ -179,8 +178,8 @@ class CoachingEventOutboxPersistenceServiceTest {
             willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
                     .given(coachingEventOutboxRepository).save(freshOutbox);
 
-            assertThatCode(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId, claimId))
-                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.recordFailedAttempt(outboxId, claimId))
+                    .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         }
 
         @Test
@@ -253,8 +252,8 @@ class CoachingEventOutboxPersistenceServiceTest {
         }
 
         @Test
-        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 전파하지 않고 무시한다")
-        void ignoresOptimisticLockingConflict() {
+        @DisplayName("저장 시 낙관적 락 충돌이 나면 예외를 삼키지 않고 그대로 전파한다")
+        void propagatesOptimisticLockingConflict() {
             UUID outboxId = UUID.randomUUID();
             UUID claimId = UUID.randomUUID();
             CoachingEventOutbox freshOutbox = claimedOutbox(claimId);
@@ -262,8 +261,8 @@ class CoachingEventOutboxPersistenceServiceTest {
             willThrow(new ObjectOptimisticLockingFailureException(CoachingEventOutbox.class, outboxId))
                     .given(coachingEventOutboxRepository).save(freshOutbox);
 
-            assertThatCode(() -> coachingEventOutboxPersistenceService.recordPostPublishFailure(outboxId, claimId))
-                    .doesNotThrowAnyException();
+            assertThatThrownBy(() -> coachingEventOutboxPersistenceService.recordPostPublishFailure(outboxId, claimId))
+                    .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         }
 
         @Test

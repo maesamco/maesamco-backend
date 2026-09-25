@@ -91,11 +91,13 @@ class LoginServiceTest {
                 emailLookupHasher,
                 passwordHasher,
                 userRepository,
-                tokenIssuer,
-                refreshTokenHasher,
-                authSessionStore,
-                meterRegistry,
-                clock
+                new AuthSessionIssuer(
+                        tokenIssuer,
+                        refreshTokenHasher,
+                        authSessionStore,
+                        clock
+                ),
+                meterRegistry
         );
     }
 

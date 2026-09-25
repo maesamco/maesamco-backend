@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.request;
 
+import com.maesamco.content.application.command.TagUpdateCommand;
 import com.maesamco.content.domain.entity.TagAttribute;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -22,4 +23,8 @@ public class TagUpdateRequest {
     private String name;
 
     private TagAttribute attribute;
+
+    public TagUpdateCommand toCommand() {
+        return new TagUpdateCommand(name, attribute);
+    }
 }

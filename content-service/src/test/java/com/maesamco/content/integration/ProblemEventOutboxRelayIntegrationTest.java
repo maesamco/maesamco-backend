@@ -1,6 +1,5 @@
 package com.maesamco.content.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.maesamco.content.application.facade.ProblemEventRelayFacade;
 import com.maesamco.content.application.persistence_service.ProblemEventOutboxPersistenceService;
 import com.maesamco.content.application.port.EventPublisherPort;
@@ -27,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -132,10 +132,10 @@ class ProblemEventOutboxRelayIntegrationTest {
                 payloadCaptor.capture()
         );
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        JsonMapper jsonMapper = JsonMapper.builder().build();
 
-        assertThat(objectMapper.readTree(payloadCaptor.getValue()))
-                .isEqualTo(objectMapper.readTree(outbox.getPayload()));
+        assertThat(jsonMapper.readTree(payloadCaptor.getValue()))
+                .isEqualTo(jsonMapper.readTree(outbox.getPayload()));
 
         assertThat(before.status()).isEqualTo(ProblemEventOutboxStatus.PENDING);
         assertThat(after.status()).isEqualTo(ProblemEventOutboxStatus.PUBLISHED);

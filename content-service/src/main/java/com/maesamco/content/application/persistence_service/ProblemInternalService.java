@@ -52,7 +52,7 @@ public class ProblemInternalService {
 
         return ProblemInternalResult.fromVersion(
                 problemVersion.getProblemId(),
-                problemVersion.getProblemSnapshot().path("description").asText(),
+                problemVersion.getProblemSnapshot().path("description").asString(),
                 tags
         );
     }

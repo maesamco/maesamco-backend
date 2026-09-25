@@ -2,7 +2,12 @@ package com.maesamco.content.presentation.request;
 
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

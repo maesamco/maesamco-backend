@@ -12,6 +12,8 @@ import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
 import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
 import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.config.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
 import org.hibernate.exception.ConstraintViolationException;
@@ -30,6 +32,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -292,6 +296,93 @@ class ProblemProgressRepositoryImplTest {
         assertThat(latest.getSolvedAt()).isEqualTo(
                 Instant.parse("2026-09-23T03:00:00Z")
         );
+    }
+
+    @Test
+    @DisplayName("사용자의 풀이 이력 페이징 조회는 createdAt DESC, id DESC로 정렬하고 createdAt이 같아도 페이지 경계에서 순서가 유지된다")
+    void findByUserId_ordersByCreatedAtDescThenIdDescAcrossPages() {
+        // given
+        UUID userId = UUID.randomUUID();
+        Instant sameTime = Instant.parse("2026-09-23T01:00:00Z");
+        Instant latest = Instant.parse("2026-09-23T05:00:00Z");
+
+        List<ProblemProgress> tied = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            tied.add(ProblemProgress.create(userId, createProblem(), 1, 1, ProblemProgressStatus.WRONG, sameTime));
+        }
+        ProblemProgress newest = ProblemProgress.create(
+                userId, createProblem(), 1, 1, ProblemProgressStatus.CORRECT, latest);
+        ProblemProgress otherUser = ProblemProgress.create(
+                UUID.randomUUID(), createProblem(), 1, 1, ProblemProgressStatus.WRONG, latest);
+
+        tied.forEach(problemProgressRepository::save);
+        problemProgressRepository.save(newest);
+        problemProgressRepository.save(otherUser);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<UUID> tiedIdsDesc = tied.stream()
+                .map(ProblemProgress::getId)
+                .sorted(Comparator.comparing(UUID::toString).reversed())
+                .toList();
+
+        // when
+        PageResult<ProblemProgress> firstPage =
+                problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageQuery.of(0, 2));
+        PageResult<ProblemProgress> secondPage =
+                problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageQuery.of(1, 2));
+
+        // then
+        assertThat(firstPage.totalElements()).isEqualTo(4);
+        assertThat(firstPage.page()).isZero();
+        assertThat(firstPage.size()).isEqualTo(2);
+        assertThat(firstPage.content()).extracting(ProblemProgress::getId)
+                .containsExactly(newest.getId(), tiedIdsDesc.get(0));
+
+        assertThat(secondPage.page()).isEqualTo(1);
+        assertThat(secondPage.content()).extracting(ProblemProgress::getId)
+                .containsExactly(tiedIdsDesc.get(1), tiedIdsDesc.get(2));
+    }
+
+    @Test
+    @DisplayName("상태별 풀이 이력 페이징 조회는 해당 상태만 같은 정렬로 반환하고 전체 개수를 PageResult로 전달한다")
+    void findByUserIdAndProgressStatus_filtersByStatusAndKeepsOrder() {
+        // given
+        UUID userId = UUID.randomUUID();
+        Instant sameTime = Instant.parse("2026-09-23T02:00:00Z");
+
+        List<ProblemProgress> correct = List.of(
+                ProblemProgress.create(userId, createProblem(), 1, 1, ProblemProgressStatus.CORRECT, sameTime),
+                ProblemProgress.create(userId, createProblem(), 1, 1, ProblemProgressStatus.CORRECT, sameTime),
+                ProblemProgress.create(userId, createProblem(), 1, 1, ProblemProgressStatus.CORRECT, sameTime)
+        );
+        ProblemProgress wrong = ProblemProgress.create(
+                userId, createProblem(), 1, 1, ProblemProgressStatus.WRONG, sameTime);
+
+        correct.forEach(problemProgressRepository::save);
+        problemProgressRepository.save(wrong);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<UUID> correctIdsDesc = correct.stream()
+                .map(ProblemProgress::getId)
+                .sorted(Comparator.comparing(UUID::toString).reversed())
+                .toList();
+
+        // when
+        PageResult<ProblemProgress> firstPage =
+                problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
+                        userId, ProblemProgressStatus.CORRECT, PageQuery.of(0, 2));
+        PageResult<ProblemProgress> secondPage =
+                problemProgressRepository.findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
+                        userId, ProblemProgressStatus.CORRECT, PageQuery.of(1, 2));
+
+        // then
+        assertThat(firstPage.totalElements()).isEqualTo(3);
+        assertThat(firstPage.content()).extracting(ProblemProgress::getId)
+                .containsExactly(correctIdsDesc.get(0), correctIdsDesc.get(1));
+        assertThat(secondPage.content()).extracting(ProblemProgress::getId)
+                .containsExactly(correctIdsDesc.get(2));
     }
 
     private UUID createProblem() {

@@ -3,7 +3,12 @@ package com.maesamco.content.presentation.response;
 
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
