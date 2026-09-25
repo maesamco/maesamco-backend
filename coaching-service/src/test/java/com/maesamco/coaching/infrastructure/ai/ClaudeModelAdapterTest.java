@@ -129,6 +129,9 @@ class ClaudeModelAdapterTest {
         Generation generation = new Generation(
                 org.springframework.ai.chat.messages.AssistantMessage.builder()
                         .content("응답 텍스트")
+                        .build(),
+                org.springframework.ai.chat.metadata.ChatGenerationMetadata.builder()
+                        .finishReason("end_turn")
                         .build()
         );
         ChatResponseMetadata metadata = ChatResponseMetadata.builder()
@@ -146,5 +149,36 @@ class ClaudeModelAdapterTest {
         assertThat(result.content()).isEqualTo("응답 텍스트");
         assertThat(result.modelName()).isEqualTo("claude-sonnet-5");
         assertThat(result.tokenUsage()).isEqualTo(30);
+    }
+
+    /**
+     * 이슈 #262/#280(용현님 리뷰, GeminiModelAdapter에서 먼저 발견돼 Claude에도 동일하게
+     * 방어를 추가) — finishReason=max_tokens(Anthropic stop_reason 소문자 표기)로 끝난
+     * 응답은 잘린 content가 있어도 정상 성공으로 반환되면 안 된다.
+     */
+    @Test
+    void finishReason이_max_tokens면_잘린_content가_있어도_AiModelCallException으로_처리한다() {
+        Generation generation = new Generation(
+                org.springframework.ai.chat.messages.AssistantMessage.builder()
+                        .content("중간에 잘린 응답...")
+                        .build(),
+                org.springframework.ai.chat.metadata.ChatGenerationMetadata.builder()
+                        .finishReason("max_tokens")
+                        .build()
+        );
+        ChatResponseMetadata metadata = ChatResponseMetadata.builder()
+                .model("claude-sonnet-5")
+                .usage(new DefaultUsage(10, 4096))
+                .build();
+        ChatResponse response = ChatResponse.builder()
+                .generations(java.util.List.of(generation))
+                .metadata(metadata)
+                .build();
+        when(chatModel.call(any(Prompt.class))).thenReturn(response);
+
+        assertThatThrownBy(() -> claudeModelAdapter.generate("system", "user"))
+                .isInstanceOf(AiModelCallException.class)
+                .extracting(e -> ((AiModelCallException) e).neverCalled())
+                .isEqualTo(false);
     }
 }

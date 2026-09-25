@@ -35,7 +35,8 @@ class GetMyProfileResultTest {
                         3,
                         Instant.parse(
                                 "2026-09-15T01:00:00Z"
-                        )
+                        ),
+                        true
                 );
 
         // when

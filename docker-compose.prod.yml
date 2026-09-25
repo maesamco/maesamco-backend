@@ -181,8 +181,14 @@ services:
       dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # ⚠️ 이슈 #310 — 예전엔 8080을 호스트에 직접 노출해서 평문 HTTP로만
+    # 접근 가능했음(Refresh Token 쿠키의 Secure 속성이 평문 HTTP에서
+    # 브라우저가 전송을 거부해 refresh가 항상 401이었던 원인). 이제
+    # Caddy가 TLS를 종단하고 내부적으로만 이 포트를 호출하므로, 호스트에
+    # 더 이상 직접 노출하지 않는다(같은 docker 네트워크 안에서
+    # "api-gateway:8080"으로 Caddy가 접근).
+    expose:
+      - "8080"
     environment:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       REDIS_HOST: redis
@@ -195,10 +201,51 @@ services:
       RATE_LIMIT_SUBMISSIONS_PER_MIN: ${RATE_LIMIT_SUBMISSIONS_PER_MIN:-30}
       # 배포 시 Gateway 앞에 신뢰 가능한 리버스 프록시를 두게 되면 그 IP를 콤마로 구분해 채운다.
       # 비워두면(기본값) Forwarded 헤더를 아무도 신뢰하지 않아 항상 안전하다.
+      # ⚠️ 이슈 #310 — Caddy를 앞단에 뒀으므로 이제 채워야 함. docker-compose
+      # 내부 네트워크(bridge)의 caddy 컨테이너 IP는 재시작마다 바뀔 수 있어,
+      # 컨테이너 이름 기반이 아니라 실제로는 이 네트워크의 서브넷 CIDR
+      # 전체(예: 172.20.0.0/16, docker network inspect로 확인)를 넣는 게
+      # 안전하다. 최초 배포 후 실제 값 확인해서 .env에 채워 넣을 것.
       RATE_LIMIT_TRUSTED_PROXY_IPS: ${RATE_LIMIT_TRUSTED_PROXY_IPS:-}
     depends_on:
       - eureka-server
       - redis
+
+  # ⚠️ 이슈 #310 — TLS 종단 담당. 도메인이 없어 nip.io(EC2 Elastic IP를 그대로
+  # 가리키는 무료 와일드카드 DNS)로 Let's Encrypt 인증서를 자동 발급·갱신한다.
+  # 이제 외부에서 이 서비스가 유일한 진입점이며(80/443), api-gateway는
+  # 더 이상 호스트에 직접 노출되지 않는다.
+  # ⚠️ 리뷰 반영(P1) — RATE_LIMIT_TRUSTED_PROXY_IPS에 Docker 서브넷 CIDR을
+  # 넣으라고 안내했었으나, RateLimitFilter가 정확 일치(contains)만 지원해서
+  # CIDR이 절대 매치되지 않았음(코드 미수정으로 발견). 대신 Caddy에 "고정 IP"를
+  # 부여하고, fetch-env.sh가 그 정확한 값을 RATE_LIMIT_TRUSTED_PROXY_IPS에
+  # 쓰도록 해서 정확 일치 방식과 맞춘다. 커스텀 브리지 네트워크가 있어야
+  # 컨테이너에 고정 IP를 줄 수 있어(default 네트워크는 불가) 여기서 새로 정의.
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # fetch-env.sh가 SSM의 EC2_ELASTIC_IP 값(점(.) 포함)을 받아 하이픈으로
+      # 바꿔서 채운다 — nip.io 서브도메인은 라벨 하나여야 해서 점을 못 씀.
+      EC2_ELASTIC_IP_DASHED: ${EC2_ELASTIC_IP_DASHED:?fetch-env.sh를 먼저 실행하세요}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 인증서를 컨테이너 재시작 후에도 유지 — 없으면 재시작마다 Let's Encrypt에
+      # 재발급을 요청하게 되어 Rate Limit(주당 발급 한도)에 걸릴 위험이 있다.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      default:
+        # ⚠️ 리뷰 반영(P1) — RATE_LIMIT_TRUSTED_PROXY_IPS와 정확히 일치해야
+        # 하므로 반드시 고정값. 이 값을 바꾸면 fetch-env.sh의 같은 값도 함께
+        # 바꿔야 한다(맨 아래 networks.default.ipam 서브넷과 같은 대역이어야 함).
+        ipv4_address: 172.28.255.10
+    depends_on:
+      - api-gateway
 
   user-service:
     build:
@@ -222,6 +269,7 @@ services:
       # 이슈(배포 스크립트 리뷰) — EMAIL_VERIFICATION_HMAC_KEY는 application.yml에
       # 기본값이 없어서, 이 변수가 전달 안 되면 user-service가 부팅 자체를 못 한다.
       EMAIL_VERIFICATION_HMAC_KEY: ${EMAIL_VERIFICATION_HMAC_KEY}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       MAIL_HOST: ${MAIL_HOST:-localhost}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
@@ -347,3 +395,15 @@ volumes:
   kafka-data:
   judge0-data:
   grafana-data:
+  caddy-data:
+  caddy-config:
+
+# ⚠️ 리뷰 반영(P1) — Compose 기본(default) 네트워크의 서브넷을 고정한다.
+# caddy에게 이 대역 안의 고정 IP(172.28.255.10)를 줘서, RATE_LIMIT_TRUSTED_PROXY_IPS가
+# 매 배포마다 같은 값으로 정확히 일치(exact match)하도록 하기 위함 — 다른
+# 서비스들은 기존처럼 이 네트워크에 자동으로 붙으므로 별도 수정 불필요.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

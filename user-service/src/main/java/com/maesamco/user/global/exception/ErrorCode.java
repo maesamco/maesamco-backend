@@ -39,6 +39,42 @@ public enum ErrorCode {
             HttpStatus.FORBIDDEN,
             "현재 로그인할 수 없는 계정입니다."
     ),
+    SOCIAL_PROVIDER_NOT_SUPPORTED(
+            HttpStatus.BAD_REQUEST,
+            "지원하지 않는 소셜 로그인 방식입니다."
+    ),
+    SOCIAL_EMAIL_NOT_VERIFIED(
+            HttpStatus.UNAUTHORIZED,
+            "소셜 계정의 이메일 인증을 확인할 수 없습니다."
+    ),
+    SOCIAL_SIGNUP_EMAIL_ALREADY_EXISTS(
+            HttpStatus.CONFLICT,
+            "이미 다른 로그인 방식으로 가입된 계정입니다. 기존 로그인 방법을 이용해주세요."
+    ),
+    SOCIAL_PROVIDER_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "소셜 로그인 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+    ),
+    SOCIAL_SIGNUP_TOKEN_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "소셜 회원가입 정보가 유효하지 않거나 만료되었습니다. 소셜 로그인을 다시 진행해주세요."
+    ),
+    SOCIAL_ACCOUNT_ALREADY_LINKED(
+            HttpStatus.CONFLICT,
+            "이미 가입된 소셜 계정입니다. 소셜 로그인을 다시 진행해주세요."
+    ),
+    /*
+     * 로그인된 상태에서의 재인증 실패는 401이 아니라 400으로 응답합니다(#328).
+     * 401은 클라이언트가 Access Token 만료로 해석해 재발급·재시도 루프에 빠질 수 있습니다.
+     */
+    SOCIAL_REAUTH_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "소셜 계정 재인증에 실패했습니다. 다시 인증해주세요."
+    ),
+    SOCIAL_REAUTH_ACCOUNT_MISMATCH(
+            HttpStatus.FORBIDDEN,
+            "가입할 때 사용한 소셜 계정으로 다시 인증해주세요."
+    ),
 
     // ===== user =====
     USER_DUPLICATE_EMAIL(
@@ -56,6 +92,10 @@ public enum ErrorCode {
     USER_CURRENT_PASSWORD_MISMATCH(
             HttpStatus.BAD_REQUEST,
             "현재 비밀번호가 일치하지 않습니다."
+    ),
+    USER_PASSWORD_NOT_SET(
+            HttpStatus.BAD_REQUEST,
+            "비밀번호가 설정되지 않은 소셜 계정입니다."
     ),
     USER_PASSWORD_POLICY_VIOLATION(
             HttpStatus.BAD_REQUEST,

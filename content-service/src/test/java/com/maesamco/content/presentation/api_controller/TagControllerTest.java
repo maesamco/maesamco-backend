@@ -3,28 +3,20 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.persistence_service.TagService;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.domain.entity.TagAttribute;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TagCreateRequest;
-import com.maesamco.content.presentation.request.TagUpdateRequest;
-import com.maesamco.content.presentation.response.TagCreateResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.application.command.TagCreateCommand;
+import com.maesamco.content.application.command.TagUpdateCommand;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TagController.class)
-@Import(TagControllerTest.TestSecurityConfig.class)
+@Import(TestSecurityConfig.class)
 class TagControllerTest {
 
     @Autowired
@@ -55,24 +47,6 @@ class TagControllerTest {
     private final UUID tagId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(
@@ -111,10 +85,10 @@ class TagControllerTest {
 
         when(
                 tagService.createTag(
-                        any(TagCreateRequest.class)
+                        any(TagCreateCommand.class)
                 )
         ).thenReturn(
-                TagCreateResponse.from(tag)
+                TagResult.from(tag)
         );
 
         String json = """
@@ -138,9 +112,9 @@ class TagControllerTest {
                                 .value(tagId.toString())
                 );
 
-        ArgumentCaptor<TagCreateRequest> captor =
+        ArgumentCaptor<TagCreateCommand> captor =
                 ArgumentCaptor.forClass(
-                        TagCreateRequest.class
+                        TagCreateCommand.class
                 );
 
         verify(tagService)
@@ -186,20 +160,19 @@ class TagControllerTest {
                 TagAttribute.CONCEPT
         );
 
-        PageResponse<TagResponse> response =
-                PageResponse.from(
-                        new PageImpl<>(
-                                List.of(
-                                        TagResponse.from(tag)
+        PageResult<TagResult> response =
+                new PageResult<>(
+                        List.of(
+                                        TagResult.from(tag)
                                 ),
-                                PageRequest.of(0, 10),
-                                1
-                        )
+                        0,
+                        10,
+                        1
                 );
 
         when(
                 tagService.searchTags(
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(response);
 
@@ -216,8 +189,8 @@ class TagControllerTest {
                                 .value(1)
                 );
 
-        ArgumentCaptor<Pageable> captor =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<PageQuery> captor =
+                ArgumentCaptor.forClass(PageQuery.class);
 
         verify(tagService)
                 .searchTags(captor.capture());
@@ -225,13 +198,13 @@ class TagControllerTest {
         verify(tagService, never())
                 .searchTagsByAttribute(
                         any(TagAttribute.class),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
 
-        assertThat(captor.getValue().getPageNumber())
+        assertThat(captor.getValue().page())
                 .isEqualTo(0);
 
-        assertThat(captor.getValue().getPageSize())
+        assertThat(captor.getValue().size())
                 .isEqualTo(10);
     }
 
@@ -240,19 +213,18 @@ class TagControllerTest {
     void getTags_withAttribute_searchesByAttribute() throws Exception {
 
         // given
-        PageResponse<TagResponse> response =
-                PageResponse.from(
-                        new PageImpl<>(
-                                List.of(),
-                                PageRequest.of(0, 10),
-                                0
-                        )
+        PageResult<TagResult> response =
+                new PageResult<>(
+                        List.of(),
+                        0,
+                        10,
+                        0
                 );
 
         when(
                 tagService.searchTagsByAttribute(
                         eq(TagAttribute.ALGORITHM),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(response);
 
@@ -269,11 +241,11 @@ class TagControllerTest {
         verify(tagService)
                 .searchTagsByAttribute(
                         eq(TagAttribute.ALGORITHM),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
 
         verify(tagService, never())
-                .searchTags(any(Pageable.class));
+                .searchTags(any(PageQuery.class));
     }
 
     @Test
@@ -304,7 +276,7 @@ class TagControllerTest {
         verify(tagService)
                 .updateTag(
                         eq(tagId),
-                        any(TagUpdateRequest.class)
+                        any(TagUpdateCommand.class)
                 );
     }
 

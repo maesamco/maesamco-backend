@@ -151,6 +151,75 @@ class WithdrawUserCommandValidationTest {
                 .doesNotContain(CURRENT_PASSWORD);
     }
 
+    @Test
+    @DisplayName("비밀번호 없이 Google ID Token만 보내면 Validation을 통과한다 (#328)")
+    void googleIdTokenOnly_isValid() {
+        // given
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        null,
+                        "google-id-token"
+                );
+
+        // when
+        Set<ConstraintViolation<WithdrawUserCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(violations).isEmpty();
+        assertThat(command.usesGoogleReauth()).isTrue();
+    }
+
+    @Test
+    @DisplayName("비밀번호와 Google ID Token을 함께 보내면 googleIdToken에 Validation 위반이 생긴다 (#328)")
+    void bothCredentials_isInvalid() {
+        // given
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        "Abcd1234!",
+                        "google-id-token"
+                );
+
+        // when
+        Set<ConstraintViolation<WithdrawUserCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(
+                hasViolationWithMessage(
+                        violations,
+                        "googleIdToken",
+                        "현재 비밀번호와 Google 재인증 정보는 함께 보낼 수 없습니다."
+                )
+        ).isTrue();
+    }
+
+    @Test
+    @DisplayName("Google ID Token이 8192자를 초과하면 Validation에 실패한다 (#328)")
+    void googleIdTokenTooLong_isInvalid() {
+        // given
+        WithdrawUserCommand command =
+                new WithdrawUserCommand(
+                        null,
+                        "a".repeat(8193)
+                );
+
+        // when
+        Set<ConstraintViolation<WithdrawUserCommand>> violations =
+                validator.validate(command);
+
+        // then
+        assertThat(hasViolation(violations, "googleIdToken")).isTrue();
+    }
+
+    @Test
+    @DisplayName("toString은 Google ID Token을 노출하지 않는다 (#328)")
+    void toStringMasksGoogleIdToken() {
+        assertThat(
+                new WithdrawUserCommand(null, "secret-google-id-token").toString()
+        ).doesNotContain("secret-google-id-token");
+    }
+
     private boolean hasViolation(
             Set<ConstraintViolation<WithdrawUserCommand>> violations,
             String propertyName

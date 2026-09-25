@@ -1,7 +1,14 @@
 package com.maesamco.content.application.result;
 
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,6 +33,8 @@ public class ProblemResult {
     private final ProblemStatus problemStatus;
     private final Integer currentVersionNo;
     private final Long lockVersion;
+    /** 연결된 레슨 ID(이슈 #291). 아직 레슨에 배정되지 않았으면 null. */
+    private final UUID lessonId;
 
     public static ProblemResult from(Problem problem) {
         return new ProblemResult(
@@ -42,7 +51,8 @@ public class ProblemResult {
                 problem.getSource(),
                 problem.getProblemStatus(),
                 problem.getCurrentVersionNo(),
-                problem.getLockVersion()
+                problem.getLockVersion(),
+                problem.getLessonId()
         );
     }
 }

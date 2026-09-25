@@ -2,10 +2,14 @@ package com.maesamco.content.application.persistence_service;
 
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
+import com.maesamco.content.application.finder.LessonFinder;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemVersion;
 import com.maesamco.content.domain.entity.problem.ProblemStatus;
@@ -15,8 +19,6 @@ import com.maesamco.content.domain.repository.problem.ProblemVersionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,8 @@ public class ProblemService {
 
     private final ProblemVersionRepository problemVersionRepository;
     private final ProblemFinder problemFinder;
+    private final LessonFinder lessonFinder;
+    private final ProblemPublicationFacade problemPublicationFacade;
 
     /** 문제 생성 */
     @Transactional(rollbackFor = Exception.class)
@@ -50,6 +54,12 @@ public class ProblemService {
                 command.getSource(),
                 ProblemStatus.DRAFT
         );
+
+        // 이슈 #291 — 생성 시점에 바로 레슨에 연결할 수도 있다(선택 사항).
+        if (command.getLessonId() != null) {
+            validateLessonForNewLink(command.getLessonId());
+            problem.changeLessonId(command.getLessonId());
+        }
 
         problem.requestPublicationReview();
 
@@ -91,17 +101,40 @@ public class ProblemService {
 
     /** 문제 검색 */
     @Transactional(readOnly = true)
-    public Page<ProblemSearchResult> searchProblems(
+    public PageResult<ProblemSearchResult> searchProblems(
             ProblemSearchQuery query,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
 
         // 공개 문제 목록에서는 클라이언트가 요청한 상태와 관계없이 PUBLISHED 상태의 문제만 조회한다.
         query.forcePublished();
 
-        Page<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageable);
+        PageResult<Problem> problems = problemQueryRepository.searchProblems(query.toCondition(), pageQuery);
 
         return problems.map(ProblemSearchResult::from);
+    }
+
+    /**
+     * 관리자 문제 검색
+     *
+     * <p>공개 검색과 달리 PUBLISHED 상태를 강제하지 않습니다.
+     * 관리자가 전달한 problemStatus 조건을 그대로 적용하며,
+     * 상태를 지정하지 않으면 모든 상태의 문제를 조회합니다.</p>
+     */
+    @Transactional(readOnly = true)
+    public PageResult<ProblemSearchResult> searchProblemsForAdmin(
+            ProblemSearchQuery query,
+            PageQuery pageQuery
+    ) {
+        PageResult<Problem> problems =
+                problemQueryRepository.searchProblems(
+                        query.toCondition(),
+                        pageQuery
+                );
+
+        return problems.map(
+                ProblemSearchResult::from
+        );
     }
 
     /** 문제 수정 */
@@ -131,7 +164,8 @@ public class ProblemService {
                         || command.getRunningTimeLimit() != null
                         || command.getRunningMemoryLimit() != null
                         || command.getTimerPolicy() != null
-                        || command.getSource() != null;
+                        || command.getSource() != null
+                        || command.getLessonId().isDefined();
 
         // 수정 요청이 있는 값들만 수정
         if (command.getTitle() != null) {
@@ -167,24 +201,67 @@ public class ProblemService {
         if (command.getSource() != null) {
             problem.changeSource(command.getSource());
         }
+        // 들어왔는데 null인 경우 -> 레슨 연결 해제 / 안 들어와서 null인 경우 -> 안 바꿈 (이슈 #291)
+        if (command.getLessonId().isDefined()) {
+            UUID newLessonId = command.getLessonId().getValue();
+            // 기존과 같은 lessonId를 다시 보내는 것은 새 연결이 아니므로 검증하지 않는다.
+            // (레슨이 삭제된 뒤에도 이미 연결된 문제는 같은 lessonId로 수정할 수 있어야 한다 — #348)
+            if (newLessonId != null && !newLessonId.equals(problem.getLessonId())) {
+                validateLessonForNewLink(newLessonId);
+            }
+            problem.changeLessonId(newLessonId);
+        }
 
         if (isModified) {
             problem.increaseVersion();
-            // TODO: problem publish 재발행 ( increaseVersion 이거 중복 처리되지 않도록 주의 )
 
-            /*
-             * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
-             * 새 버전 스냅샷으로 저장합니다.
-             */
-            ProblemVersion snapshot = ProblemVersion.snapshot(problem);
+            // ⚠️ 이슈 #254 — PUBLISHED 상태의 문제에서 채점에 실제로 영향을 주는
+            // 필드(language, runningTimeLimit, runningMemoryLimit)가 바뀌면,
+            // judge-service의 실행 스펙(p_problem_execution_specs)이 낡은 채로
+            // 남아 두 서비스 데이터가 조용히 어긋나는 문제가 있었다. 이 경우
+            // 일반 snapshot() 대신 승인된 테스트케이스까지 포함한 발행 버전을
+            // 새로 만들어 ProblemPublished 이벤트를 재발행한다.
+            //
+            // 반드시 양자택일이어야 한다 — 같은 currentVersionNo로 ProblemVersion을
+            // 두 번(snapshot() 한 번, createPublished() 한 번) 저장하면
+            // UNIQUE(problem_id, version_no) 제약 위반이 발생한다.
+            boolean gradingCriticalFieldChanged =
+                    command.getLanguage() != null
+                            || command.getRunningTimeLimit() != null
+                            || command.getRunningMemoryLimit() != null;
 
-            problemVersionRepository.save(snapshot);
+            if (problem.getProblemStatus() == ProblemStatus.PUBLISHED && gradingCriticalFieldChanged) {
+                problemPublicationFacade.republishExistingVersion(problem);
+            } else {
+                /*
+                 * 수정된 문제 상태를 증가된 currentVersionNo에 해당하는
+                 * 새 버전 스냅샷으로 저장합니다.
+                 */
+                ProblemVersion snapshot = ProblemVersion.snapshot(problem);
+
+                problemVersionRepository.save(snapshot);
+            }
 
             // 응답을 생성하기 전에 UPDATE를 실행하여 JPA @Version 충돌 여부와 증가된 lockVersion을 확정한다.
             problemCommandRepository.flush();
         }
 
         return ProblemResult.from(problem);
+    }
+
+    /** 새 연결만 확인한다. 이미 연결된 문제가 레슨 삭제 후 남는 것은 허용한다. */
+    private void validateLessonForNewLink(UUID lessonId) {
+        try {
+            lessonFinder.getById(lessonId);
+        } catch (BusinessException exception) {
+            ErrorCode errorCode = exception.getErrorCode();
+            if (errorCode == ErrorCode.LESSON_NOT_FOUND
+                    || errorCode == ErrorCode.UNIT_NOT_FOUND
+                    || errorCode == ErrorCode.CURRICULUM_NOT_FOUND) {
+                throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+            }
+            throw exception;
+        }
     }
 
     /** 문제 삭제 */

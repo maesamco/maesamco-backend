@@ -7,14 +7,12 @@ import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.domain.repository.TagRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TagCreateRequest;
-import com.maesamco.content.presentation.request.TagUpdateRequest;
-import com.maesamco.content.presentation.response.TagCreateResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.application.command.TagCreateCommand;
+import com.maesamco.content.application.command.TagUpdateCommand;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,39 +33,38 @@ public class TagService {
      * 태그를 생성합니다.
      */
     @Transactional
-    public TagCreateResponse createTag(
-            TagCreateRequest request
+    public TagResult createTag(
+            TagCreateCommand command
     ) {
-        if (tagRepository.existsByName(request.getName())) {
+        if (tagRepository.existsByName(command.getName())) {
             throw new BusinessException(
                     ErrorCode.TAG_NAME_ALREADY_EXISTS
             );
         }
 
         Tag tag = Tag.create(
-                request.getName(),
-                request.getAttribute()
+                command.getName(),
+                command.getAttribute()
         );
 
         Tag savedTag =
                 tagRepository.save(tag);
 
-        return TagCreateResponse.from(savedTag);
+        return TagResult.from(savedTag);
     }
 
     /**
      * 전체 태그 목록을 조회합니다.
      */
     @Transactional(readOnly = true)
-    public PageResponse<TagResponse> searchTags(
-            Pageable pageable
+    public PageResult<TagResult> searchTags(
+            PageQuery pageQuery
     ) {
-        Page<Tag> tags =
-                tagRepository.searchTags(pageable);
+        PageResult<Tag> tags =
+                tagRepository.searchTags(pageQuery);
 
-        return PageResponse.from(
-                tags,
-                TagResponse::from
+        return tags.map(
+                TagResult::from
         );
     }
 
@@ -75,19 +72,18 @@ public class TagService {
      * 특정 속성의 태그 목록을 조회합니다.
      */
     @Transactional(readOnly = true)
-    public PageResponse<TagResponse> searchTagsByAttribute(
+    public PageResult<TagResult> searchTagsByAttribute(
             TagAttribute attribute,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
-        Page<Tag> tags =
+        PageResult<Tag> tags =
                 tagRepository.searchTagsByAttribute(
                         attribute,
-                        pageable
+                        pageQuery
                 );
 
-        return PageResponse.from(
-                tags,
-                TagResponse::from
+        return tags.map(
+                TagResult::from
         );
     }
 
@@ -97,26 +93,26 @@ public class TagService {
     @Transactional
     public void updateTag(
             UUID tagId,
-            TagUpdateRequest request
+            TagUpdateCommand command
     ) {
         Tag tag =
                 tagFinder.getById(tagId);
 
-        if (request.getName() != null
-                && !tag.getName().equals(request.getName())) {
+        if (command.getName() != null
+                && !tag.getName().equals(command.getName())) {
 
-            if (tagRepository.existsByName(request.getName())) {
+            if (tagRepository.existsByName(command.getName())) {
                 throw new BusinessException(
                         ErrorCode.TAG_NAME_ALREADY_EXISTS
                 );
             }
 
-            tag.changeName(request.getName());
+            tag.changeName(command.getName());
         }
 
-        if (request.getAttribute() != null) {
+        if (command.getAttribute() != null) {
             tag.changeAttribute(
-                    request.getAttribute()
+                    command.getAttribute()
             );
         }
     }

@@ -10,6 +10,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.SortOrder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -490,37 +493,37 @@ class ProblemTagRepositoryImplTest {
                     );
 
             when(springDataProblemTagRepository
-                    .findTagsByProblemId(problemId, pageable))
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())))
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     problemTagRepository.searchTagsByProblemId(
                             problemId,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
-            assertThat(result.getContent())
+            assertThat(result.content())
                     .containsExactly(first, second, third);
 
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isZero();
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(20);
 
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isEqualTo(3);
 
-            assertThat(result.getTotalPages())
+            assertThat(result.totalPages())
                     .isEqualTo(1);
 
             verify(springDataProblemTagRepository, times(1))
-                    .findTagsByProblemId(problemId, pageable);
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
@@ -539,29 +542,28 @@ class ProblemTagRepositoryImplTest {
                     Page.empty(pageable);
 
             when(springDataProblemTagRepository
-                    .findTagsByProblemId(problemId, pageable))
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())))
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     problemTagRepository.searchTagsByProblemId(
                             problemId,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
             assertThat(result)
-                    .isNotNull()
+                    .isNotNull();
+
+            assertThat(result.content())
                     .isEmpty();
 
-            assertThat(result.getContent())
-                    .isEmpty();
-
-            assertThat(result.getTotalElements())
+            assertThat(result.totalElements())
                     .isZero();
 
             verify(springDataProblemTagRepository, times(1))
-                    .findTagsByProblemId(problemId, pageable);
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
@@ -591,28 +593,28 @@ class ProblemTagRepositoryImplTest {
                     );
 
             when(springDataProblemTagRepository
-                    .findTagsByProblemId(problemId, pageable))
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())))
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     problemTagRepository.searchTagsByProblemId(
                             problemId,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
-            assertThat(result.getNumber())
+            assertThat(result.page())
                     .isEqualTo(1);
 
-            assertThat(result.getSize())
+            assertThat(result.size())
                     .isEqualTo(10);
 
             verify(springDataProblemTagRepository)
-                    .findTagsByProblemId(problemId, pageable);
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
@@ -628,24 +630,24 @@ class ProblemTagRepositoryImplTest {
                     PageRequest.of(2, 5);
 
             when(springDataProblemTagRepository
-                    .findTagsByProblemId(problemId, pageable))
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())))
                     .thenReturn(Page.empty(pageable));
 
             // when
             problemTagRepository.searchTagsByProblemId(
                     problemId,
-                    pageable
+                    toQuery(pageable)
             );
 
             // then
             verify(springDataProblemTagRepository)
-                    .findTagsByProblemId(problemId, pageable);
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
 
         @Test
-        @DisplayName("Spring Data Repository가 반환한 Page 객체를 별도 변환 없이 그대로 반환한다")
+        @DisplayName("Spring Data Repository가 반환한 Page 객체를 자체 Pagination 계약(PageResult)으로 변환해 반환한다")
         void searchTagsByProblemId_returnsSamePage() {
 
             // given
@@ -654,25 +656,26 @@ class ProblemTagRepositoryImplTest {
             Pageable pageable =
                     PageRequest.of(0, 10);
 
-            Page<Tag> expected = mock(Page.class);
+            Page<Tag> expected =
+                    new PageImpl<>(List.of(mock(Tag.class)), pageable, 1);
 
             when(springDataProblemTagRepository
-                    .findTagsByProblemId(problemId, pageable))
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())))
                     .thenReturn(expected);
 
             // when
-            Page<Tag> result =
+            PageResult<Tag> result =
                     problemTagRepository.searchTagsByProblemId(
                             problemId,
-                            pageable
+                            toQuery(pageable)
                     );
 
             // then
-            assertThat(result)
-                    .isSameAs(expected);
+            assertThat(result.content())
+                    .isEqualTo(expected.getContent());
 
             verify(springDataProblemTagRepository)
-                    .findTagsByProblemId(problemId, pageable);
+                    .findTagsByProblemId(problemId, org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
@@ -804,5 +807,17 @@ class ProblemTagRepositoryImplTest {
 
             verifyNoMoreInteractions(springDataProblemTagRepository);
         }
+    }
+
+    private static PageQuery toQuery(Pageable pageable) {
+        return PageQuery.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                pageable.getSort().stream()
+                        .map(order -> order.isAscending()
+                                ? SortOrder.asc(order.getProperty())
+                                : SortOrder.desc(order.getProperty()))
+                        .toList()
+        );
     }
 }

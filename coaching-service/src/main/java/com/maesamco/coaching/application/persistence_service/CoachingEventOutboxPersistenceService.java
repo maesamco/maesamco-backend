@@ -5,7 +5,6 @@ import com.maesamco.coaching.domain.entity.OutboxStatus;
 import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,12 +40,26 @@ import java.util.UUID;
  *     같은 행을 PENDING으로 읽으면 막지 못한다. {@code CoachingEventOutbox}에 낙관적 락
  *     (`@Version`)을 추가하고, `CoachingEventOutboxRepositoryImpl.save()`가
  *     `saveAndFlush()`로 즉시 flush하게 만들어서, 나중에 flush되는 트랜잭션이
- *     `ObjectOptimisticLockingFailureException`을 이 메서드 안에서 바로 받게 했다 — status
- *     체크로 걸러지는 경우와 동일하게 "다른 Relay가 이미 처리함"으로 보고 무시한다.
+ *     `ObjectOptimisticLockingFailureException`을 받게 했다.
+ *     이슈 #288 — 처음에는 이 예외를 각 메서드 안에서 catch해 "다른 Relay가 먼저 처리함"으로
+ *     무시했으나, 안쪽 `save()`(Spring Data 트랜잭션 advice)에서 예외가 나가면 바깥
+ *     `@Transactional`이 이미 rollback-only로 표시돼, catch로 정상 반환해도 커밋 시점에
+ *     `UnexpectedRollbackException`이 새로 발생했다(실제 PostgreSQL 통합 테스트로 재현).
+ *     그래서 catch를 제거하고 예외를 그대로 내보낸다 — `claimId` 확인이 1차 방어, `@Version`이
+ *     2차 방어이며, 던져진 예외는 Facade가 잡아 처리한다(`markPublished()`는
+ *     `recordPostPublishFailure()`로 넘어가지만 이미 `claimId`가 바뀌었으면 no-op, 나머지는
+ *     `relay()` 바깥 catch에서 로그만 남기고 다음 항목으로 진행). 데이터는 덮어써지지 않는다.
  * (4) `recordPostPublishFailure()`의 무한 재시도가 Relay의 oldest-first LIMIT 100 폴링과
  *     결합되면 head-of-line blocking을 일으킬 수 있어, 실패마다
  *     {@code CoachingEventOutbox.scheduleNextAttempt()}로 지수 백오프 시각을 기록한다.
- *     Relay 조회(`findPollableByStatus`)는 이 시각이 지나지 않은 행을 제외한다.
+ *     Relay 조회(이슈 #261 이후 `claimPublishable`)는 이 시각이 지나지 않은 행을 제외한다.
+ *
+ * 이슈 #261 — 위 (3)의 낙관적 락은 "결과를 DB에 쓰는" 시점의 충돌만 막고, 그 전에 두 Relay가
+ * 같은 행을 동시에 폴링해서 Kafka에 중복 발행하는 것 자체는 막지 못했다. `CoachingEventRelayFacade`가
+ * 이제 `claimPublishable()`(`FOR UPDATE SKIP LOCKED`)로 선점한 뒤에만 Kafka 발행을 시도하므로,
+ * 이 클래스의 각 메서드는 "PENDING인지"가 아니라 "지금 이 호출자의 claimId로 IN_PROGRESS
+ * 선점 중인지"를 확인한다 — lease가 만료돼 다른 Worker가 이미 재선점한 경우도 이 확인으로
+ * 같이 걸러진다(claimId가 더 이상 일치하지 않으므로).
  */
 @Service
 @RequiredArgsConstructor
@@ -65,24 +78,18 @@ public class CoachingEventOutboxPersistenceService {
     // save()하면 merge 과정에서 이미 반영된 최신 상태를 오래된 값으로 덮어쓴다(PR #123 심층
     // 재검토, 2026-09-09).
     @Transactional
-    public void markPublished(UUID outboxId) {
+    public void markPublished(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 처리했거나, lease 만료 후 재선점함 — 멱등하게 무시
         }
 
         freshOutbox.incrementAttemptCount();
         freshOutbox.markPublished();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            // 이 조회~저장 사이에 다른 Relay 인스턴스가 먼저 종료 처리했다 — status 체크로
-            // 걸러지는 경우와 동일하게 멱등하게 무시한다(PR #123 재검토 2차).
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행 자체가 실패했을 때 호출 — 이벤트가 아직 전달되지 않았으므로, 상한 소진 시
@@ -91,36 +98,27 @@ public class CoachingEventOutboxPersistenceService {
     // markPublished()와 같은 이유로 id로 다시 조회한 fresh entity를 쓴다 — 오래된 객체를
     // 그대로 쓰면 이미 다른 실행이 COMPLETED로 끝낸 Outbox를 FAILED로 되돌려버릴 수 있다.
     @Transactional
-    public void recordFailedAttempt(UUID outboxId) {
+    public void recordFailedAttempt(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 실패 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 종료 처리한 Outbox — 멱등하게 무시
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 처리했거나, lease 만료 후 재선점함 — 멱등하게 무시
         }
 
         freshOutbox.incrementAttemptCount();
 
         if (freshOutbox.getAttemptCount() >= MAX_RELAY_ATTEMPTS) {
             freshOutbox.markFailed();
-            try {
-                coachingEventOutboxRepository.save(freshOutbox);
-            } catch (ObjectOptimisticLockingFailureException e) {
-                log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-                return;
-            }
+            coachingEventOutboxRepository.save(freshOutbox);
             log.error("[Coaching] Outbox 재시도 상한({}) 도달 — FAILED 처리, User Service에 CoachingCompleted가 "
                             + "발행되지 않아 XP/스트릭 반영이 누락됩니다. 수동 확인 필요. outboxId={}, eventType={}",
                     MAX_RELAY_ATTEMPTS, freshOutbox.getId(), freshOutbox.getEventType());
             return;
         }
         freshOutbox.scheduleNextAttempt();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
     }
 
     // Kafka 발행은 성공했으나, markPublished()의 DB 후처리(완료 표시)가 실패했을 때 호출.
@@ -133,26 +131,27 @@ public class CoachingEventOutboxPersistenceService {
     // 그래서 이 경로는 attemptCount만 계속 늘리며 무한 재시도한다 — 재발행으로 인한 중복은
     // User Service 소비자 쪽 멱등 처리로 상쇄하는 게 이미 설계상 전제돼 있다(이슈 #89 문서).
     @Transactional
-    public void recordPostPublishFailure(UUID outboxId) {
+    public void recordPostPublishFailure(UUID outboxId, UUID claimId) {
         CoachingEventOutbox freshOutbox = coachingEventOutboxRepository.findById(outboxId)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 발행 처리하던 Outbox를 다시 찾을 수 없습니다. outboxId=" + outboxId));
 
-        if (freshOutbox.getStatus() != OutboxStatus.PENDING) {
-            return; // 다른 Relay 실행이 이미 COMPLETED로 끝냈다면 여기서 FAILED로 되돌리지 않는다
+        if (!isActiveClaim(freshOutbox, claimId)) {
+            return; // 다른 Relay가 이미 COMPLETED로 끝냈거나 lease 만료 후 재선점함 — 되돌리지 않는다
         }
 
         freshOutbox.incrementAttemptCount();
         freshOutbox.scheduleNextAttempt();
-        try {
-            coachingEventOutboxRepository.save(freshOutbox);
-        } catch (ObjectOptimisticLockingFailureException e) {
-            log.info("[Coaching] Outbox 낙관적 락 충돌 — 다른 Relay가 먼저 처리함. outboxId={}", outboxId);
-            return;
-        }
+        coachingEventOutboxRepository.save(freshOutbox);
         log.error("[Coaching] Kafka 발행은 성공했지만 완료 표시(DB 후처리)가 반복 실패 중입니다 — "
                         + "이벤트가 이미 전달됐을 수 있어 FAILED로 종료하지 않고 계속 재시도합니다. "
                         + "attemptCount={}, outboxId={}",
                 freshOutbox.getAttemptCount(), outboxId);
+    }
+
+    /** 지금 이 호출자가 IN_PROGRESS 선점을 유효하게 들고 있는지 확인한다(이슈 #261). */
+    private boolean isActiveClaim(CoachingEventOutbox outbox, UUID claimId) {
+        return outbox.getStatus() == OutboxStatus.IN_PROGRESS
+                && claimId.equals(outbox.getClaimId());
     }
 }

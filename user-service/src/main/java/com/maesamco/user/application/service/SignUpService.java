@@ -1,27 +1,18 @@
 package com.maesamco.user.application.service;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionStore;
 import com.maesamco.user.application.port.EmailCipher;
 import com.maesamco.user.application.port.EmailLookupHasher;
 import com.maesamco.user.application.port.EmailVerificationSecretHasher;
 import com.maesamco.user.application.port.EmailVerificationStore;
-import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.PasswordHasher;
-import com.maesamco.user.application.port.RefreshTokenHasher;
-import com.maesamco.user.application.port.TokenIssuer;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
-import com.maesamco.user.global.security.TokenExpirationCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * 사용자 회원가입과 자동 로그인용 인증 세션 생성을 처리합니다.
@@ -39,10 +30,7 @@ public class SignUpService {
     private final EmailLookupHasher emailLookupHasher;
     private final PasswordHasher passwordHasher;
     private final SignUpPersistenceService signUpPersistenceService;
-    private final TokenIssuer tokenIssuer;
-    private final RefreshTokenHasher refreshTokenHasher;
-    private final AuthSessionStore authSessionStore;
-    private final Clock clock;
+    private final AuthSessionIssuer authSessionIssuer;
     private final EmailVerificationSecretHasher emailVerificationSecretHasher;
     private final EmailVerificationStore emailVerificationStore;
 
@@ -171,61 +159,16 @@ public class SignUpService {
                         user
                 );
 
-        UUID sessionId =
-                UUID.randomUUID();
-
-        UUID familyId =
-                UUID.randomUUID();
-
-        IssuedTokens issuedTokens =
-                tokenIssuer.issueTokens(
-                        savedUser.getId(),
-                        savedUser.getRole(),
-                        sessionId
+        IssuedAuthSession authSession =
+                authSessionIssuer.issue(
+                        savedUser,
+                        AuthSessionPurpose.SIGNUP
                 );
-
-        Instant now =
-                clock.instant();
-
-        AuthSession authSession = new AuthSession(
-                sessionId,
-                familyId,
-                savedUser.getId(),
-                refreshTokenHasher.hash(
-                        issuedTokens.refreshToken()
-                ),
-                now,
-                issuedTokens.refreshTokenExpiresAt()
-        );
-
-        try {
-            authSessionStore.save(
-                    authSession
-            );
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "회원가입 완료 후 Redis 인증 세션 저장에 실패했습니다. "
-                            + "userId={}, sessionId={}",
-                    savedUser.getId(),
-                    sessionId,
-                    exception
-            );
-
-            throw new BusinessException(
-                    ErrorCode.SIGNUP_AUTO_LOGIN_FAILED
-            );
-        }
 
         log.info(
                 "회원가입이 완료되었습니다. userId={}",
                 savedUser.getId()
         );
-
-        long accessTokenExpiresIn =
-                TokenExpirationCalculator.remainingSeconds(
-                        now,
-                        issuedTokens.accessTokenExpiresAt()
-                );
 
         return new SignUpResult(
                 savedUser.getId(),
@@ -234,9 +177,9 @@ public class SignUpService {
                 savedUser.getStatus(),
                 savedUser.getJavaExperienceMonths(),
                 savedUser.getLearningLevel(),
-                issuedTokens.accessToken(),
-                accessTokenExpiresIn,
-                issuedTokens
+                authSession.issuedTokens().accessToken(),
+                authSession.accessTokenExpiresIn(),
+                authSession.issuedTokens()
         );
     }
 

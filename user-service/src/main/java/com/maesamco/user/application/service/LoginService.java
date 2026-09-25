@@ -1,27 +1,18 @@
 package com.maesamco.user.application.service;
 
-import com.maesamco.user.application.port.AuthSession;
-import com.maesamco.user.application.port.AuthSessionStore;
 import com.maesamco.user.application.port.EmailLookupHasher;
-import com.maesamco.user.application.port.IssuedTokens;
 import com.maesamco.user.application.port.PasswordHasher;
-import com.maesamco.user.application.port.RefreshTokenHasher;
-import com.maesamco.user.application.port.TokenIssuer;
 import com.maesamco.user.domain.entity.User;
 import com.maesamco.user.domain.entity.UserStatus;
 import com.maesamco.user.domain.repository.UserRepository;
 import com.maesamco.user.global.exception.BusinessException;
 import com.maesamco.user.global.exception.ErrorCode;
-import com.maesamco.user.global.security.TokenExpirationCalculator;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * 이메일과 비밀번호를 이용한 사용자 로그인과
@@ -69,11 +60,8 @@ public class LoginService {
     private final EmailLookupHasher emailLookupHasher;
     private final PasswordHasher passwordHasher;
     private final UserRepository userRepository;
-    private final TokenIssuer tokenIssuer;
-    private final RefreshTokenHasher refreshTokenHasher;
-    private final AuthSessionStore authSessionStore;
+    private final AuthSessionIssuer authSessionIssuer;
     private final MeterRegistry meterRegistry;
-    private final Clock clock;
 
     /**
      * 이메일과 비밀번호를 검증하고 새로운 로그인 인증 세션을 생성합니다.
@@ -129,6 +117,25 @@ public class LoginService {
             );
         }
 
+        /*
+         * 소셜 계정으로만 가입한 사용자는 비밀번호가 없습니다(#308).
+         * 계정 존재 여부나 가입 방식이 드러나지 않도록
+         * 사용자 미존재와 같은 비용·같은 오류로 처리합니다.
+         */
+        if (!user.hasPassword()) {
+            consumePasswordVerificationCost(
+                    command.password()
+            );
+
+            incrementLoginMetric(
+                    LOGIN_RESULT_INVALID_CREDENTIALS
+            );
+
+            throw new BusinessException(
+                    ErrorCode.INVALID_CREDENTIALS
+            );
+        }
+
         validatePassword(
                 command.password(),
                 user.getPasswordHash()
@@ -136,43 +143,10 @@ public class LoginService {
 
         validateActiveUser(user);
 
-        UUID sessionId = UUID.randomUUID();
-        UUID familyId = UUID.randomUUID();
-
-        Instant sessionStartedAt =
-                clock.instant();
-
-        IssuedTokens issuedTokens =
-                tokenIssuer.issueTokens(
-                        user.getId(),
-                        user.getRole(),
-                        sessionId
-                );
-
-        Instant now =
-                clock.instant();
-
-        String refreshTokenHash =
-                refreshTokenHasher.hash(
-                        issuedTokens.refreshToken()
-                );
-
-        AuthSession authSession =
-                new AuthSession(
-                        sessionId,
-                        familyId,
-                        user.getId(),
-                        refreshTokenHash,
-                        sessionStartedAt,
-                        issuedTokens.refreshTokenExpiresAt()
-                );
-
-        authSessionStore.save(authSession);
-
-        long accessTokenExpiresIn =
-                TokenExpirationCalculator.remainingSeconds(
-                        now,
-                        issuedTokens.accessTokenExpiresAt()
+        IssuedAuthSession authSession =
+                authSessionIssuer.issue(
+                        user,
+                        AuthSessionPurpose.LOGIN
                 );
 
         incrementLoginMetric(
@@ -186,9 +160,9 @@ public class LoginService {
                 user.getStatus(),
                 user.getJavaExperienceMonths(),
                 user.getLearningLevel(),
-                issuedTokens.accessToken(),
-                accessTokenExpiresIn,
-                issuedTokens
+                authSession.issuedTokens().accessToken(),
+                authSession.accessTokenExpiresIn(),
+                authSession.issuedTokens()
         );
     }
 

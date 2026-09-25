@@ -1,14 +1,25 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
+import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.ProblemVersion;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.domain.repository.problem.ProblemCommandRepository;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemSearchCondition;
@@ -22,10 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -51,6 +58,9 @@ class ProblemServiceTest {
 
     @Mock
     private ProblemFinder problemFinder;
+
+    @Mock
+    private ProblemPublicationFacade problemPublicationFacade;
 
     @InjectMocks
     private ProblemService problemService;
@@ -126,6 +136,65 @@ class ProblemServiceTest {
 
         assertThat(version.getVersionNo())
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("관리자 문제 검색은 요청한 상태 조건을 강제로 PUBLISHED로 변경하지 않는다")
+    void searchProblemsForAdmin_preservesRequestedStatus() {
+
+        ProblemSearchQuery query =
+                new ProblemSearchQuery(
+                        null,
+                        null,
+                        null,
+                        ProblemStatus.REVIEW_PENDING,
+                        null,
+                        null
+                );
+
+        PageQuery pageQuery = PageQuery.of(0, 20);
+
+        ProblemSearchCondition condition =
+                query.toCondition();
+
+        when(
+                problemQueryRepository.searchProblems(
+                        any(ProblemSearchCondition.class),
+                        eq(pageQuery)
+                )
+        ).thenReturn(
+                PageResult.empty(pageQuery)
+        );
+
+        problemService.searchProblemsForAdmin(
+                query,
+                pageQuery
+        );
+
+        assertThat(
+                query.getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
+
+        ArgumentCaptor<ProblemSearchCondition>
+                conditionCaptor =
+                ArgumentCaptor.forClass(
+                        ProblemSearchCondition.class
+                );
+
+        verify(problemQueryRepository)
+                .searchProblems(
+                        conditionCaptor.capture(),
+                        eq(pageQuery)
+                );
+
+        assertThat(
+                conditionCaptor.getValue()
+                        .getProblemStatus()
+        ).isEqualTo(
+                ProblemStatus.REVIEW_PENDING
+        );
     }
 
     @Test
@@ -232,8 +301,8 @@ class ProblemServiceTest {
         ProblemSearchCondition condition =
                 mock(ProblemSearchCondition.class);
 
-        Pageable pageable =
-                PageRequest.of(
+        PageQuery pageQuery =
+                PageQuery.of(
                         0,
                         20
                 );
@@ -248,30 +317,38 @@ class ProblemServiceTest {
 
         when(problemQueryRepository.searchProblems(
                 condition,
-                pageable
+                pageQuery
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(problem),
-                        pageable,
+                        0,
+                        20,
                         1
                 )
         );
 
         // when
-        Page<ProblemSearchResult> result =
+        PageResult<ProblemSearchResult> result =
                 problemService.searchProblems(
                         query,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
+
+        // content만 변환되고 페이징 정보는 그대로 유지된다.
+        assertThat(result.page()).isZero();
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalElements()).isEqualTo(1);
+
+        verify(query).forcePublished();
 
         verify(problemQueryRepository)
                 .searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         verifyNoInteractions(
@@ -309,6 +386,11 @@ class ProblemServiceTest {
 
         // starterCode가 요청에 포함되지 않았음을 표현한다.
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );
@@ -364,6 +446,92 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("이슈 #254 — PUBLISHED 문제의 채점 관련 필드(language)가 바뀌면 일반 스냅샷 대신 재발행한다")
+    void updateProblem_publishedAndLanguageChanged_republishesInsteadOfSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.PUBLISHED);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        assertThat(problem.getCurrentVersionNo()).isEqualTo(2);
+
+        verify(problemPublicationFacade).republishExistingVersion(problem);
+        verifyNoInteractions(problemVersionRepository);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED 문제라도 채점과 무관한 필드(title)만 바뀌면 일반 스냅샷을 저장한다")
+    void updateProblem_publishedButOnlyNonGradingFieldChanged_savesPlainSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.PUBLISHED);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getTitle()).thenReturn("제목만 변경");
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        assertThat(problem.getTitle()).isEqualTo("제목만 변경");
+        assertThat(problem.getCurrentVersionNo()).isEqualTo(2);
+
+        verify(problemVersionRepository).save(any(ProblemVersion.class));
+        verifyNoInteractions(problemPublicationFacade);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
+    @DisplayName("이슈 #254 — PUBLISHED가 아닌 문제는 채점 관련 필드가 바뀌어도 재발행하지 않는다")
+    void updateProblem_notPublishedAndLanguageChanged_savesPlainSnapshot() {
+        // given
+        Problem problem = createProblem(ProblemStatus.REVIEW_PENDING);
+
+        ProblemUpdateCommand command = mock(ProblemUpdateCommand.class);
+
+        when(problemFinder.lockById(problemId)).thenReturn(problem);
+        when(command.getLockVersion()).thenReturn(0L);
+        when(command.getLanguage()).thenReturn(ProgrammingLanguage.JAVA);
+        when(command.getStarterCode()).thenReturn(UpdateField.undefined());
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        // when
+        problemService.updateProblem(problemId, command);
+
+        // then
+        verify(problemVersionRepository).save(any(ProblemVersion.class));
+        verifyNoInteractions(problemPublicationFacade);
+        verify(problemCommandRepository).flush();
+    }
+
+    @Test
     @DisplayName("starterCode가 요청에 포함되지 않으면 기존 값을 유지한다")
     void updateProblem_starterCodeUndefined_keepsExistingValue() {
         // given
@@ -386,6 +554,11 @@ class ProblemServiceTest {
 
         // 요청에 starterCode 필드 자체가 없는 경우
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );
@@ -431,6 +604,11 @@ class ProblemServiceTest {
         when(command.getStarterCode())
                 .thenReturn(
                         UpdateField.of(null)
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -480,6 +658,11 @@ class ProblemServiceTest {
                         UpdateField.of(
                                 "public class UpdatedMain {}"
                         )
+                );
+
+        when(command.getLessonId())
+                .thenReturn(
+                        UpdateField.undefined()
                 );
 
         // when
@@ -583,6 +766,11 @@ class ProblemServiceTest {
                 .thenReturn("동시 수정");
 
         when(command.getStarterCode())
+                .thenReturn(
+                        UpdateField.undefined()
+                );
+
+        when(command.getLessonId())
                 .thenReturn(
                         UpdateField.undefined()
                 );

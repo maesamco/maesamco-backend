@@ -1,5 +1,6 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.application.result.TagResult;
 import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.finder.TagFinder;
 import com.maesamco.content.domain.entity.problem.Problem;
@@ -9,11 +10,9 @@ import com.maesamco.content.domain.repository.problem.ProblemTagRepository;
 import com.maesamco.content.domain.entity.Tag;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.response.TagResponse;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,9 +29,9 @@ public class ProblemTagService {
 
     /** 특정 문제의 태그 목록 조회 */
     @Transactional(readOnly = true)
-    public PageResponse<TagResponse> searchProblemTags(
+    public PageResult<TagResult> searchProblemTags(
             UUID problemId,
-            Pageable pageable
+            PageQuery pageQuery
     ) {
         Problem problem = problemFinder.getById(problemId);
 
@@ -47,15 +46,14 @@ public class ProblemTagService {
             );
         }
 
-        Page<Tag> tags =
+        PageResult<Tag> tags =
                 problemTagRepository.searchTagsByProblemId(
                         problemId,
-                        pageable
+                        pageQuery
                 );
 
-        return PageResponse.from(
-                tags,
-                TagResponse::from
+        return tags.map(
+                TagResult::from
         );
     }
 

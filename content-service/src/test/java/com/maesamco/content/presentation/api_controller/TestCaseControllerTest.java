@@ -2,28 +2,20 @@ package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.TestCaseService;
 import com.maesamco.content.domain.entity.TestCase;
-import com.maesamco.content.global.response.PageResponse;
-import com.maesamco.content.presentation.request.TestCaseCreateRequest;
-import com.maesamco.content.presentation.request.TestCaseUpdateRequest;
-import com.maesamco.content.presentation.response.TestCaseCreateResponse;
-import com.maesamco.content.presentation.response.TestCaseResponse;
+import com.maesamco.content.application.command.TestCaseCreateCommand;
+import com.maesamco.content.application.command.TestCaseUpdateCommand;
+import com.maesamco.content.application.result.TestCaseResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TestCaseController.class)
-@Import(TestCaseControllerTest.TestSecurityConfig.class)
+@Import(TestSecurityConfig.class)
 class TestCaseControllerTest {
 
     @Autowired
@@ -55,24 +47,6 @@ class TestCaseControllerTest {
     private final UUID testCaseId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(
@@ -108,10 +82,10 @@ class TestCaseControllerTest {
         when(
                 testCaseService.createTestCase(
                         eq(problemId),
-                        any(TestCaseCreateRequest.class)
+                        any(TestCaseCreateCommand.class)
                 )
         ).thenReturn(
-                TestCaseCreateResponse.from(testCase)
+                TestCaseResult.from(testCase)
         );
 
         String json = """
@@ -136,9 +110,9 @@ class TestCaseControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true));
 
-        ArgumentCaptor<TestCaseCreateRequest> captor =
+        ArgumentCaptor<TestCaseCreateCommand> captor =
                 ArgumentCaptor.forClass(
-                        TestCaseCreateRequest.class
+                        TestCaseCreateCommand.class
                 );
 
         verify(testCaseService)
@@ -191,7 +165,7 @@ class TestCaseControllerTest {
         // given
         when(testCaseService.getTestCase(testCaseId))
                 .thenReturn(
-                        TestCaseResponse.from(createTestCase())
+                        TestCaseResult.from(createTestCase())
                 );
 
         // when & then
@@ -219,7 +193,7 @@ class TestCaseControllerTest {
         // given
         when(testCaseService.getPublicTestCase(testCaseId))
                 .thenReturn(
-                        TestCaseResponse.from(createTestCase())
+                        TestCaseResult.from(createTestCase())
                 );
 
         // when & then
@@ -245,13 +219,13 @@ class TestCaseControllerTest {
     void getTestCases_admin_searchesAll() throws Exception {
 
         // given
-        PageResponse<TestCaseResponse> response =
-                createPageResponse();
+        PageResult<TestCaseResult> response =
+                createPageResult();
 
         when(
                 testCaseService.searchTestCasesAll(
                         eq(problemId),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(response);
 
@@ -268,8 +242,8 @@ class TestCaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        ArgumentCaptor<Pageable> captor =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<PageQuery> captor =
+                ArgumentCaptor.forClass(PageQuery.class);
 
         verify(testCaseService)
                 .searchTestCasesAll(
@@ -283,10 +257,10 @@ class TestCaseControllerTest {
                         any()
                 );
 
-        assertThat(captor.getValue().getPageNumber())
+        assertThat(captor.getValue().page())
                 .isEqualTo(0);
 
-        assertThat(captor.getValue().getPageSize())
+        assertThat(captor.getValue().size())
                 .isEqualTo(10);
     }
 
@@ -298,10 +272,10 @@ class TestCaseControllerTest {
         when(
                 testCaseService.searchTestCasesPublic(
                         eq(problemId),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 )
         ).thenReturn(
-                createPageResponse()
+                createPageResult()
         );
 
         // when & then
@@ -320,7 +294,7 @@ class TestCaseControllerTest {
         verify(testCaseService)
                 .searchTestCasesPublic(
                         eq(problemId),
-                        any(Pageable.class)
+                        any(PageQuery.class)
                 );
 
         verify(testCaseService, never())
@@ -338,10 +312,10 @@ class TestCaseControllerTest {
         when(
                 testCaseService.updateTestCase(
                         eq(testCaseId),
-                        any(TestCaseUpdateRequest.class)
+                        any(TestCaseUpdateCommand.class)
                 )
         ).thenReturn(
-                TestCaseResponse.from(createTestCase())
+                TestCaseResult.from(createTestCase())
         );
 
         String json = """
@@ -368,7 +342,7 @@ class TestCaseControllerTest {
         verify(testCaseService)
                 .updateTestCase(
                         eq(testCaseId),
-                        any(TestCaseUpdateRequest.class)
+                        any(TestCaseUpdateCommand.class)
                 );
     }
 
@@ -430,18 +404,17 @@ class TestCaseControllerTest {
         return testCase;
     }
 
-    private PageResponse<TestCaseResponse> createPageResponse() {
+    private PageResult<TestCaseResult> createPageResult() {
 
-        return PageResponse.from(
-                new PageImpl<>(
-                        List.of(
-                                TestCaseResponse.from(
-                                        createTestCase()
-                                )
-                        ),
-                        PageRequest.of(0, 10),
-                        1
-                )
+        return new PageResult<>(
+                List.of(
+                        TestCaseResult.from(
+                                createTestCase()
+                        )
+                ),
+                0,
+                10,
+                1
         );
     }
 }

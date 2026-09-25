@@ -3,12 +3,20 @@ package com.maesamco.content.presentation.request;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.command.UpdateField;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.openapitools.jackson.nullable.JsonNullable;
+
+import java.util.UUID;
 
 /**
  * 문제 수정 요청 정보를 전달합니다.
@@ -24,7 +32,14 @@ import org.openapitools.jackson.nullable.JsonNullable;
 public class ProblemUpdateRequest {
 
     /** 수정할 문제 제목입니다. */
-    @Size(max = 100)
+    @Pattern(
+            regexp = "(?s).*\\S.*",
+            message = "문제 제목은 공백일 수 없습니다."
+    )
+    @Size(
+            max = 100,
+            message = "문제 제목은 100자 이하여야 합니다."
+    )
     private String title;
 
     /** 관리자가 조회했을 당시의 JPA 낙관적 락 버전입니다. */
@@ -41,6 +56,10 @@ public class ProblemUpdateRequest {
     private ProblemType type;
 
     /** 수정할 문제 설명입니다. */
+    @Pattern(
+            regexp = "(?s).*\\S.*",
+            message = "문제 설명은 공백일 수 없습니다."
+    )
     @Size(max = 10_000, message = "문제 설명은 최대 10,000자까지 입력할 수 있습니다.")
     private String description;
 
@@ -60,6 +79,12 @@ public class ProblemUpdateRequest {
     /** 수정할 문제 출처입니다. */
     private ProblemSource source;
 
+    /**
+     * 연결할 레슨 ID입니다(이슈 #291). 필드 자체가 요청에 없으면 기존 연결을
+     * 유지하고, 명시적으로 null을 보내면 레슨 연결을 해제합니다.
+     */
+    private JsonNullable<UUID> lessonId = JsonNullable.undefined();
+
     public ProblemUpdateCommand toCommand() {
         return new ProblemUpdateCommand(
                 title,
@@ -72,7 +97,8 @@ public class ProblemUpdateRequest {
                 runningTimeLimit,
                 runningMemoryLimit,
                 timerPolicy,
-                source
+                source,
+                toUpdateField(lessonId)
         );
     }
 

@@ -150,6 +150,10 @@ class UserApiControllerGetMyProfileTest {
                                 .value(CREATED_AT.toString())
                 )
                 .andExpect(
+                        jsonPath("$.data.hasPassword")
+                                .value(true)
+                )
+                .andExpect(
                         jsonPath("$.data.passwordHash")
                                 .doesNotExist()
                 )
@@ -313,7 +317,8 @@ class UserApiControllerGetMyProfileTest {
                 UserStatus.ACTIVE,
                 LearningLevel.BEGINNER,
                 3,
-                CREATED_AT
+                CREATED_AT,
+                true
         );
     }
 

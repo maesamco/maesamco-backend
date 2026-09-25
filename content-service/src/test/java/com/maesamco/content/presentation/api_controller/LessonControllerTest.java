@@ -3,28 +3,26 @@ package com.maesamco.content.presentation.api_controller;
 import com.maesamco.content.application.persistence_service.LessonService;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.Tag;
+import com.maesamco.content.domain.entity.TagAttribute;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
 import com.maesamco.content.presentation.response.LessonCreateResponse;
 import com.maesamco.content.presentation.response.LessonResponse;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(LessonController.class)
-@Import(LessonControllerTest.TestSecurityConfig.class)
+@Import(TestSecurityConfig.class)
 class LessonControllerTest {
 
     @Autowired
@@ -56,24 +54,6 @@ class LessonControllerTest {
     private final UUID unitId = UUID.randomUUID();
     private final UUID adminId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest().permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(UUID adminId) {
         return authentication(
@@ -240,6 +220,33 @@ class LessonControllerTest {
 
         verify(lessonService)
                 .getLesson(lessonId);
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 인증 사용자가 레슨의 개념 목록을 조회하면 200을 반환한다")
+    void getLessonConcepts_authenticated_returns200() throws Exception {
+
+        // given
+        Tag stackTag = Tag.create("스택", TagAttribute.CONCEPT);
+
+        when(lessonService.getLessonConcepts(lessonId))
+                .thenReturn(List.of(TagResult.from(stackTag)));
+
+        // when & then
+        mockMvc.perform(
+                        get(
+                                "/api/v1/contents/lessons/{lessonId}/concepts",
+                                lessonId
+                        )
+                                .with(asUser(userId))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0].name").value("스택"));
+
+        verify(lessonService)
+                .getLessonConcepts(lessonId);
     }
 
     @Test

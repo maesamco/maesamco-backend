@@ -1,12 +1,12 @@
 package com.maesamco.content.application.persistence_service;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.application.finder.ProblemProgressFinder;
 import com.maesamco.content.domain.entity.problem.ProblemProgress;
 import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.domain.repository.problem.ProblemProgressRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +28,10 @@ public class ProblemProgressService {
     }
 
     /** 현재 사용자의 문제 풀이 이력 목록을 조회 */
-    public Page<ProblemProgress> getProblemProgresses(UUID userId, ProblemProgressStatus progressStatus, Pageable pageable) {
+    public PageResult<ProblemProgress> getProblemProgresses(UUID userId, ProblemProgressStatus progressStatus, PageQuery pageQuery) {
         if (progressStatus == null) {
             // 전체 조회
-            return problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+            return problemProgressRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageQuery);
         }
 
         // CORRECT 상태 문제들만 조회 or  WRONG 상태 문제들만 조회
@@ -39,7 +39,7 @@ public class ProblemProgressService {
                 .findByUserIdAndProgressStatusOrderByCreatedAtDescIdDesc(
                         userId,
                         progressStatus,
-                        pageable
+                        pageQuery
                 );
     }
 }

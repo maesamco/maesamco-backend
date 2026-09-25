@@ -1,19 +1,27 @@
 package com.maesamco.content.domain.repository;
 
 import com.maesamco.content.domain.entity.Curriculum;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 
 import java.util.Optional;
 import java.util.UUID;
 
 public interface CurriculumRepository {
 
-    Curriculum save(Curriculum curriculum);
+    Curriculum save(
+            Curriculum curriculum
+    );
 
-    Optional<Curriculum> findById(UUID curriculumId);
+    Optional<Curriculum> findById(
+            UUID curriculumId
+    );
 
-    long count();
+    Optional<Curriculum> findByIdForUpdate(
+            UUID curriculumId
+    );
 
-    Page<Curriculum> searchCurriculums(Pageable pageable);
+    PageResult<Curriculum> searchCurriculums(
+            PageQuery pageQuery
+    );
 }

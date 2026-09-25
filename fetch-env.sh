@@ -69,6 +69,9 @@ write EMAIL_ENCRYPTION_KEY
 write EMAIL_LOOKUP_HMAC_KEY
 write EMAIL_VERIFICATION_HMAC_KEY
 
+# ===== Google OAuth =====
+write GOOGLE_OAUTH_CLIENT_ID
+
 # ===== SMTP =====
 write MAIL_HOST
 write MAIL_PORT
@@ -110,11 +113,51 @@ echo "EUREKA_URL=http://eureka-server:8761/eureka/" >> "$TMP_ENV"
 
 # ===== Grafana Alerting =====
 write SLACK_WEBHOOK_URL
-write GRAFANA_ROOT_URL
+GRAFANA_ROOT_URL_VALUE=$(get_param GRAFANA_ROOT_URL)
+echo "GRAFANA_ROOT_URL=$GRAFANA_ROOT_URL_VALUE" >> "$TMP_ENV"
+
+# ===== 이슈 #310 — Caddy용 nip.io 도메인 =====
+# GRAFANA_ROOT_URL(예: http://54.180.36.179:4000)에서 IP만 뽑아내
+# nip.io 서브도메인 형식(점 -> 하이픈)으로 변환한다. 새 Parameter Store
+# 값을 따로 추가하지 않고 기존 값에서 파생시켜, 배포자가 IP를 두 군데
+# 따로 관리하다 서로 어긋나는 실수를 원천 차단한다.
+EC2_IP=$(echo "$GRAFANA_ROOT_URL_VALUE" | sed -E 's#https?://##; s#:.*##')
+if [ -z "$EC2_IP" ]; then
+    echo "❌ GRAFANA_ROOT_URL에서 IP를 추출하지 못했습니다: $GRAFANA_ROOT_URL_VALUE" >&2
+    rm -f "$TMP_ENV"
+    exit 1
+fi
+EC2_IP_DASHED=$(echo "$EC2_IP" | tr '.' '-')
+echo "EC2_ELASTIC_IP_DASHED=$EC2_IP_DASHED" >> "$TMP_ENV"
 
 # ===== Rate Limit =====
 echo "RATE_LIMIT_SUBMISSIONS_PER_MIN=" >> "$TMP_ENV"
-echo "RATE_LIMIT_TRUSTED_PROXY_IPS=" >> "$TMP_ENV"
+# ⚠️ 리뷰 반영(P1) — 예전엔 빈 값으로 썼다가 배포자가 수동으로 채워 넣는
+# 방식이었는데, 이 스크립트가 재배포마다 .env를 통째로 새로 만들기 때문에
+# 수동으로 채운 값이 다음 배포에서 그대로 사라지는 문제가 있었다(실제로
+# 재현·확인됨). docker-compose.prod.yml에서 caddy에 고정 IP(172.28.255.10)를
+# 부여했으므로, 그 값과 정확히 일치하는 값을 매번 자동으로 쓴다 — CIDR이
+# 아니라 정확한 IP 하나인 이유는 RateLimitFilter가 정확 일치(contains)만
+# 지원하기 때문(CIDR 지원은 별도 이슈로 분리, 게이트웨이 코드 변경 필요).
+# docker-compose.prod.yml의 caddy ipv4_address를 바꾸면 이 값도 반드시 같이 바꿀 것.
+echo "RATE_LIMIT_TRUSTED_PROXY_IPS=172.28.255.10" >> "$TMP_ENV"
+
+# ===== 이슈 #310 리뷰 반영(P2) — Refresh Token 쿠키 SameSite/CORS =====
+# 예전엔 이 두 값을 이 스크립트가 전혀 관리하지 않아서, docker-compose.prod.yml의
+# 기본값(AUTH_COOKIE_SAME_SITE=Lax, CORS_ALLOWED_ORIGINS=http://localhost:3000)이
+# 매 배포마다 그대로 유지됐다. 프론트가 API와 다른 site(예: localhost:3000에서
+# https://<ip>.nip.io 호출)에서 부르는 크로스 사이트 구조라면, Lax 쿠키는
+# fetch/XHR 기반 크로스 사이트 POST(/auth/refresh 등)에는 전송되지 않아
+# #310이 SameSite 때문에 다시 재현된다(Secure는 이제 만족하지만 SameSite에서 막힘).
+#
+# ⚠️ 이 두 값은 자주 바뀔 수 있어(프론트 개발 서버 포트, 배포 도메인 등)
+# Parameter Store에서 관리한다. 최초 1회, 아래 값을 실제 프론트 상황에
+# 맞게 등록해야 한다(예시는 로컬 개발 프론트가 크로스 사이트로 호출하는
+# 현재 상황 기준):
+#   aws ssm put-parameter --name /maesamco/AUTH_COOKIE_SAME_SITE --value "None" --type String
+#   aws ssm put-parameter --name /maesamco/CORS_ALLOWED_ORIGINS --value "http://localhost:3000" --type String
+write AUTH_COOKIE_SAME_SITE
+write CORS_ALLOWED_ORIGINS
 
 # 전부 성공했을 때만 실제 .env로 교체 — 중간 실패 시 기존 정상 .env를 보존한다.
 mv "$TMP_ENV" .env

@@ -1,6 +1,12 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.SortOrder;
+import com.maesamco.content.domain.entity.Curriculum;
+import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
+import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.ProblemSource;
@@ -17,7 +23,6 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Answers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -25,19 +30,15 @@ import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.mockito.Mockito.mock;
 
 @DataJpaTest(properties = {
         "spring.flyway.enabled=true",
@@ -150,24 +151,21 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(4);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -178,8 +176,42 @@ class ProblemQueryRepositoryImplTest {
                         cEasy.getId()
                 );
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName(
+            "findById는 @SQLRestriction에 의해 soft delete된 문제를 반환하지 않는다"
+    )
+    void findById_softDeletedProblem_returnsEmpty() {
+
+        assertThat(
+                problemQueryRepository.findById(
+                        deletedProblem.getId()
+                )
+        ).isEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "findById는 삭제되지 않은 문제를 정상 조회한다"
+    )
+    void findById_activeProblem_returnsProblem() {
+
+        assertThat(
+                problemQueryRepository.findById(
+                        javaEasy.getId()
+                )
+        )
+                .isPresent()
+                .get()
+                .extracting(
+                        Problem::getId
+                )
+                .isEqualTo(
+                        javaEasy.getId()
+                );
     }
 
     @Test
@@ -196,24 +228,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getLanguage
                 )
@@ -221,7 +250,7 @@ class ProblemQueryRepositoryImplTest {
                         ProgrammingLanguage.JAVA
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -245,24 +274,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -270,7 +296,7 @@ class ProblemQueryRepositoryImplTest {
                         ProblemDifficulty.EASY
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -294,25 +320,22 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         Problem found =
-                result.getContent()
+                result.content()
                         .get(0);
 
         assertThat(found.getId())
@@ -350,17 +373,14 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
@@ -368,11 +388,11 @@ class ProblemQueryRepositoryImplTest {
          * deletedProblem 역시 HUMAN_AUTHORED이지만
          * soft delete 상태이므로 조회 결과에서 제외된다.
          */
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         assertThat(
-                result.getContent()
+                result.content()
                         .get(0)
                         .getId()
         ).isEqualTo(
@@ -380,7 +400,7 @@ class ProblemQueryRepositoryImplTest {
         );
 
         assertThat(
-                result.getContent()
+                result.content()
                         .get(0)
                         .getSource()
         ).isEqualTo(
@@ -402,24 +422,21 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getProblemStatus
                 )
@@ -427,7 +444,7 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -451,25 +468,22 @@ class ProblemQueryRepositoryImplTest {
                         ProblemStatus.PUBLISHED
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(1);
 
         Problem found =
-                result.getContent()
+                result.content()
                         .get(0);
 
         assertThat(found.getId())
@@ -517,24 +531,21 @@ class ProblemQueryRepositoryImplTest {
                         null
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .isEmpty();
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isZero();
     }
 
@@ -547,24 +558,21 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .isNotEmpty();
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getType
                 )
@@ -579,26 +587,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsByTitleAscending() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("title")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getTitle
                 )
@@ -616,26 +616,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsDifficultyAscendingByBusinessOrder() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -653,26 +645,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_sortsDifficultyDescendingByBusinessOrder() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.desc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.desc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getDifficulty
                 )
@@ -690,29 +674,18 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_appliesMultipleSortConditions() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                ),
-                                Sort.Order.desc(
-                                        "difficulty"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("title"), SortOrder.desc("difficulty")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getTitle,
                         Problem::getDifficulty
@@ -743,44 +716,35 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_unsupportedSort_usesDefaultSort() {
         // given
-        Pageable defaultPageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery defaultPageQuery =
+                PageQuery.of(0, 20);
 
-        Pageable unsupportedPageable =
-                PageRequest.of(
-                        0,
-                        20,
-                        Sort.by(
-                                "unknownField"
-                        )
-                );
+        PageQuery unsupportedPageQuery =
+                PageQuery.of(0, 20, List.of(SortOrder.asc("unknownField")));
 
         // when
-        Page<Problem> defaultResult =
+        PageResult<Problem> defaultResult =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        defaultPageable
+                        defaultPageQuery
                 );
 
-        Page<Problem> unsupportedResult =
+        PageResult<Problem> unsupportedResult =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        unsupportedPageable
+                        unsupportedPageQuery
                 );
 
         // then
         assertThat(
-                unsupportedResult.getContent()
+                unsupportedResult.content()
         )
                 .extracting(
                         Problem::getId
                 )
                 .containsExactlyElementsOf(
                         defaultResult
-                                .getContent()
+                                .content()
                                 .stream()
                                 .map(
                                         Problem::getId
@@ -795,38 +759,30 @@ class ProblemQueryRepositoryImplTest {
     )
     void searchProblems_appliesPagination() {
         // given
-        Pageable pageable =
-                PageRequest.of(
-                        1,
-                        2,
-                        Sort.by(
-                                Sort.Order.asc(
-                                        "title"
-                                )
-                        )
-                );
+        PageQuery pageQuery =
+                PageQuery.of(1, 2, List.of(SortOrder.asc("title")));
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         emptyCondition(),
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getNumber())
+        assertThat(result.page())
                 .isEqualTo(1);
 
-        assertThat(result.getSize())
+        assertThat(result.size())
                 .isEqualTo(2);
 
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .hasSize(2);
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
 
-        assertThat(result.getTotalPages())
+        assertThat(result.totalPages())
                 .isEqualTo(2);
 
         assertThat(result.hasPrevious())
@@ -845,21 +801,18 @@ class ProblemQueryRepositoryImplTest {
         ProblemSearchCondition condition =
                 emptyCondition();
 
-        Pageable pageable =
-                PageRequest.of(
-                        0,
-                        20
-                );
+        PageQuery pageQuery =
+                PageQuery.of(0, 20);
 
         // when
-        Page<Problem> result =
+        PageResult<Problem> result =
                 problemQueryRepository.searchProblems(
                         condition,
-                        pageable
+                        pageQuery
                 );
 
         // then
-        assertThat(result.getContent())
+        assertThat(result.content())
                 .extracting(
                         Problem::getId
                 )
@@ -867,8 +820,63 @@ class ProblemQueryRepositoryImplTest {
                         deletedProblem.getId()
                 );
 
-        assertThat(result.getTotalElements())
+        assertThat(result.totalElements())
                 .isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨 ID 조건으로 문제를 검색한다")
+    void searchProblems_filtersByLessonId() {
+        // given
+        // FK 제약을 만족하도록 실제 Curriculum → Unit → Lesson 픽스처를 생성한다.
+        Curriculum curriculum = Curriculum.create("Java 기본 과정", ProgrammingLanguage.JAVA);
+        entityManager.persist(curriculum);
+
+        Unit unit = Unit.create(curriculum.getId(), "자료구조", ProgrammingLanguage.JAVA, 1);
+        entityManager.persist(unit);
+
+        Lesson lesson = Lesson.create(
+                unit.getId(), "스택과 큐", "설명", "내용", ProgrammingLanguage.JAVA, 1);
+        entityManager.persist(lesson);
+
+        entityManager.flush();
+
+        UUID targetLessonId = lesson.getId();
+
+        // setUp() 이후 detached 상태이므로 다시 조회해 managed 상태에서 수정한다.
+        Problem managedJavaEasy = entityManager.find(Problem.class, javaEasy.getId());
+        managedJavaEasy.changeLessonId(targetLessonId);
+        entityManager.flush();
+        entityManager.clear();
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        PageQuery pageQuery = PageQuery.of(0, 20);
+
+        // when
+        PageResult<Problem> result = problemQueryRepository.searchProblems(condition, pageQuery);
+
+        // then
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).getId()).isEqualTo(javaEasy.getId());
+    }
+
+    @Test
+    @DisplayName("이슈 #291 — 레슨에 연결되지 않은 문제는 lessonId 조건에서 제외된다")
+    void searchProblems_filtersByLessonId_excludesUnassignedProblems() {
+        // given
+        UUID targetLessonId = UUID.randomUUID();
+        // javaEasy, javaHard 등 어떤 문제도 이 레슨에 연결하지 않는다.
+
+        ProblemSearchCondition condition = conditionWithLessonId(targetLessonId);
+
+        PageQuery pageQuery = PageQuery.of(0, 20);
+
+        // when
+        PageResult<Problem> result = problemQueryRepository.searchProblems(condition, pageQuery);
+
+        // then
+        assertThat(result.content()).isEmpty();
     }
 
     private ProblemSearchCondition emptyCondition() {
@@ -886,50 +894,27 @@ class ProblemQueryRepositoryImplTest {
             ProblemSource source,
             ProblemStatus problemStatus
     ) {
-        return mock(
-                ProblemSearchCondition.class,
-                invocation -> {
+        return conditionWithLessonId(language, difficulty, source, problemStatus, null);
+    }
 
-                    String methodName =
-                            invocation
-                                    .getMethod()
-                                    .getName();
+    private ProblemSearchCondition conditionWithLessonId(UUID lessonId) {
+        return conditionWithLessonId(null, null, null, null, lessonId);
+    }
 
-                    return switch (methodName) {
-
-                        case "language",
-                             "getLanguage" ->
-                                language;
-
-                        case "difficulty",
-                             "getDifficulty" ->
-                                difficulty;
-
-                        /*
-                         * 현재 ProblemType은 CODE만 사용하므로
-                         * 모든 검색 조건에서도 CODE를 반환한다.
-                         */
-                        case "type",
-                             "getType" ->
-                                ProblemType.CODE;
-
-                        case "source",
-                             "getSource" ->
-                                source;
-
-                        case "problemStatus",
-                             "getProblemStatus",
-                             "status",
-                             "getStatus" ->
-                                problemStatus;
-
-                        default ->
-                                Answers.RETURNS_DEFAULTS
-                                        .answer(
-                                                invocation
-                                        );
-                    };
-                }
+    private ProblemSearchCondition conditionWithLessonId(
+            ProgrammingLanguage language,
+            ProblemDifficulty difficulty,
+            ProblemSource source,
+            ProblemStatus problemStatus,
+            UUID lessonId
+    ) {
+        return new ProblemSearchCondition(
+                language,
+                difficulty,
+                ProblemType.CODE,
+                source,
+                problemStatus,
+                lessonId
         );
     }
 

@@ -42,7 +42,11 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
             "/api/v1/auth/password-reset/request",
-            "/api/v1/auth/password-reset/confirm"
+            "/api/v1/auth/password-reset/confirm",
+            // 소셜 로그인/가입은 아직 MAESAMCO JWT가 없는 사용자가 호출한다(#304, #308).
+            // 정확히 일치하는 경로만 공개한다.
+            "/api/v1/auth/social/google",
+            "/api/v1/auth/social/google/signup"
     );
 
     /**

@@ -403,7 +403,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("낙관적 락 충돌은 PROBLEM_MODIFIED_CONCURRENTLY로 응답한다")
+    @DisplayName("낙관적 락 충돌은 범용 RESOURCE_MODIFIED_CONCURRENTLY로 응답한다")
     void handleOptimisticLockingFailure_returnsConflict() {
         // given
         ObjectOptimisticLockingFailureException exception =
@@ -421,8 +421,8 @@ class GlobalExceptionHandlerTest {
         // then
         assertErrorResponse(
                 response,
-                ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY,
-                ErrorCode.PROBLEM_MODIFIED_CONCURRENTLY.getMessage()
+                ErrorCode.RESOURCE_MODIFIED_CONCURRENTLY,
+                ErrorCode.RESOURCE_MODIFIED_CONCURRENTLY.getMessage()
         );
     }
 

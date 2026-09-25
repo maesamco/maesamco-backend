@@ -1,10 +1,13 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.domain.entity.problem.Problem;
 import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
 import com.maesamco.content.domain.entity.problem.QProblem;
 import com.maesamco.content.domain.repository.problem.ProblemQueryRepository;
 import com.maesamco.content.domain.repository.problem.ProblemSearchCondition;
+import com.maesamco.content.infrastructure.persistence.support.SpringPageConverter;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -24,7 +27,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** derived query로 표현하기에 복잡한 구조이기에 QueryDSL로 구현한다. */
+/**
+ * derived query로 표현하기에 복잡한 구조이기에 QueryDSL로 구현한다.
+ *
+ * <p>Spring Data의 {@link Pageable} / {@link Page}는 이 구현체 내부에서만 사용하고,
+ * Domain 계약에는 {@link PageQuery} / {@link PageResult}로 노출한다(#230).</p>
+ */
 
 @Repository
 @RequiredArgsConstructor
@@ -34,12 +42,24 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Optional<Problem> findById(UUID problemId) {
-        return springDataProblemRepository.findByIdAndDeletedAtIsNull(problemId);
+    public Optional<Problem> findById(
+            UUID problemId
+    ) {
+        return springDataProblemRepository
+                .findById(problemId);
     }
 
     @Override
-    public Page<Problem> searchProblems(ProblemSearchCondition condition, Pageable pageable) {
+    public List<UUID> findProblemIdsByLessonId(UUID lessonId) {
+        return springDataProblemRepository.findAllByLessonIdAndDeletedAtIsNull(lessonId)
+                .stream()
+                .map(Problem::getId)
+                .toList();
+    }
+
+    @Override
+    public PageResult<Problem> searchProblems(ProblemSearchCondition condition, PageQuery pageQuery) {
+        Pageable pageable = SpringPageConverter.toPageable(pageQuery);
         QProblem problem = QProblem.problem;
 
         BooleanExpression[] conditions = {
@@ -47,7 +67,8 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
                 difficultyEq(problem, condition),
                 typeEq(problem, condition),
                 sourceEq(problem, condition),
-                statusEq(problem, condition)
+                statusEq(problem, condition),
+                lessonIdEq(problem, condition)
         };
 
         List<Problem> problems = queryFactory
@@ -63,11 +84,14 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
                 .from(problem)
                 .where(conditions);
 
-        return PageableExecutionUtils.getPage(
+        // 마지막 페이지 등 content만으로 전체 개수를 알 수 있으면 count 쿼리를 생략한다.
+        Page<Problem> page = PageableExecutionUtils.getPage(
                 problems,
                 pageable,
                 countQuery::fetchOne
         );
+
+        return SpringPageConverter.toPageResult(page);
     }
 
     private BooleanExpression languageEq(QProblem problem, ProblemSearchCondition condition) {
@@ -108,6 +132,14 @@ public class ProblemQueryRepositoryImpl implements ProblemQueryRepository {
         }
 
         return problem.problemStatus.eq(condition.getProblemStatus());
+    }
+
+    private BooleanExpression lessonIdEq(QProblem problem, ProblemSearchCondition condition) {
+        if (condition == null || condition.getLessonId() == null) {
+            return null;
+        }
+
+        return problem.lessonId.eq(condition.getLessonId());
     }
 
     private OrderSpecifier<?>[] toOrderSpecifiers(QProblem problem, Pageable pageable) {

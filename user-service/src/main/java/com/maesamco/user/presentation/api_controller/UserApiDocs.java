@@ -508,10 +508,14 @@ public interface UserApiDocs {
      */
     @Operation(
             summary = "회원 탈퇴",
-            description = "현재 비밀번호를 확인한 후 인증된 사용자를 "
-                    + "논리 삭제합니다. 사용자의 관심 개념도 논리 삭제하며, "
-                    + "기존 Access Token과 Refresh Token 인증 세션을 "
-                    + "모두 무효화합니다."
+            description = "본인 확인 후 인증된 사용자를 논리 삭제합니다. "
+                    + "사용자의 관심 개념과 소셜 계정 연결도 논리 삭제하며, "
+                    + "기존 Access Token과 Refresh Token 인증 세션을 모두 무효화합니다.\n\n"
+                    + "본인 확인 수단은 둘 중 하나만 보냅니다 (GET /users/me의 hasPassword 기준).\n"
+                    + "- hasPassword=true: currentPassword\n"
+                    + "- hasPassword=false (소셜 가입): googleIdToken — Google로 다시 인증해 받은 ID Token. "
+                    + "가입에 사용한 Google 계정이어야 합니다.\n\n"
+                    + "탈퇴 후 같은 Google 계정으로 다시 가입할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(
@@ -529,8 +533,10 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "INVALID_INPUT_VALUE 또는 "
-                            + "USER_CURRENT_PASSWORD_MISMATCH",
+                    description = "INVALID_INPUT_VALUE, "
+                            + "USER_CURRENT_PASSWORD_MISMATCH, "
+                            + "USER_PASSWORD_NOT_SET(소셜 계정인데 비밀번호를 보낸 경우) 또는 "
+                            + "SOCIAL_REAUTH_FAILED(Google ID Token이 유효하지 않음)",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class
@@ -548,7 +554,8 @@ public interface UserApiDocs {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "USER_NOT_ACTIVE",
+                    description = "USER_NOT_ACTIVE 또는 "
+                            + "SOCIAL_REAUTH_ACCOUNT_MISMATCH(가입에 쓰지 않은 Google 계정)",
                     content = @Content(
                             schema = @Schema(
                                     implementation = ErrorResponse.class

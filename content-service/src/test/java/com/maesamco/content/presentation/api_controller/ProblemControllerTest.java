@@ -1,5 +1,8 @@
 package com.maesamco.content.presentation.api_controller;
 
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
+import com.maesamco.content.global.common.pagination.SortOrder;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.query.ProblemSearchQuery;
@@ -8,27 +11,27 @@ import com.maesamco.content.application.result.ProblemSearchResult;
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
 import com.maesamco.content.application.persistence_service.ProblemService;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.global.config.JacksonConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -47,7 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ProblemController.class)
 @Import({
-        ProblemControllerTest.TestSecurityConfig.class,
+        TestSecurityConfig.class,
         JacksonConfig.class
 })
 class ProblemControllerTest {
@@ -69,28 +72,6 @@ class ProblemControllerTest {
 
     private final UUID userId =
             UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-
-            http.csrf(
-                            AbstractHttpConfigurer::disable
-                    )
-                    .authorizeHttpRequests(
-                            auth ->
-                                    auth.anyRequest()
-                                            .permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asAdmin(
             UUID adminId
@@ -121,6 +102,181 @@ class ProblemControllerTest {
                                 )
                         )
                 )
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "문제 수정 중 전달된 낙관적 락 예외를 전역 핸들러가 HTTP 409와 범용 에러코드로 변환한다"
+    )
+    void updateProblem_optimisticLockConflict_returns409()
+            throws Exception {
+
+        when(
+                problemService.updateProblem(
+                        eq(problemId),
+                        any(ProblemUpdateCommand.class)
+                )
+        ).thenThrow(
+                new ObjectOptimisticLockingFailureException(
+                        Problem.class,
+                        problemId
+                )
+        );
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "title": "동시 수정"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "RESOURCE_MODIFIED_CONCURRENTLY"
+                                )
+                );
+    }
+
+    @Test
+    @DisplayName(
+            "문제 삭제 중 전달된 낙관적 락 예외를 전역 핸들러가 HTTP 409와 범용 에러코드로 변환한다"
+    )
+    void deleteProblem_optimisticLockConflict_returns409()
+            throws Exception {
+
+        doThrow(
+                new ObjectOptimisticLockingFailureException(
+                        Problem.class,
+                        problemId
+                )
+        ).when(
+                problemService
+        ).deleteProblem(
+                problemId,
+                adminId
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "RESOURCE_MODIFIED_CONCURRENTLY"
+                                )
+                );
+    }
+
+    @Test
+    @DisplayName("ADMIN은 비공개 상태의 문제도 관리자 단건 조회 API로 조회할 수 있다")
+    void getProblemForAdmin_admin_returns200()
+            throws Exception {
+
+        // given
+        Problem problem =
+                createProblem(
+                        ProblemStatus.REVIEW_PENDING
+                );
+
+        when(
+                problemService.getProblemForAdmin(
+                        problemId
+                )
+        ).thenReturn(
+                ProblemResult.from(problem)
+        );
+
+        // when & then
+        mockMvc.perform(
+                        get(
+                                "/api/v1/contents/problems/admin/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                )
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(true)
+                )
+                .andExpect(
+                        jsonPath("$.data.id")
+                                .value(
+                                        problemId.toString()
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.data.title")
+                                .value(
+                                        "두 수의 합"
+                                )
+                );
+
+        verify(problemService)
+                .getProblemForAdmin(
+                        problemId
+                );
+    }
+
+    @Test
+    @DisplayName("ADMIN이 아닌 사용자는 관리자 문제 단건 조회 API를 호출할 수 없다")
+    void getProblemForAdmin_nonAdmin_returns403()
+            throws Exception {
+
+        mockMvc.perform(
+                        get(
+                                "/api/v1/contents/problems/admin/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asUser(userId)
+                                )
+                )
+                .andExpect(
+                        status().isForbidden()
+                );
+
+        verifyNoInteractions(
+                problemService
         );
     }
 
@@ -402,7 +558,7 @@ class ProblemControllerTest {
     }
 
     @Test
-    @DisplayName("검색 Request를 Query로 변환하고 Pageable과 함께 서비스에 전달한다")
+    @DisplayName("검색 Request를 Query로 변환하고 PageQuery와 함께 서비스에 전달한다")
     void getProblems_returnsPagedProblems()
             throws Exception {
 
@@ -414,21 +570,16 @@ class ProblemControllerTest {
                         )
                 );
 
-        Pageable pageable =
-                PageRequest.of(
-                        1,
-                        2
-                );
-
         when(problemService.searchProblems(
                 any(ProblemSearchQuery.class),
-                any(Pageable.class)
+                any(PageQuery.class)
         )).thenReturn(
-                new PageImpl<>(
+                new PageResult<>(
                         List.of(
                                 searchResult
                         ),
-                        pageable,
+                        1,
+                        2,
                         3
                 )
         );
@@ -502,15 +653,15 @@ class ProblemControllerTest {
                         ProblemSearchQuery.class
                 );
 
-        ArgumentCaptor<Pageable> pageableCaptor =
+        ArgumentCaptor<PageQuery> pageQueryCaptor =
                 ArgumentCaptor.forClass(
-                        Pageable.class
+                        PageQuery.class
                 );
 
         verify(problemService)
                 .searchProblems(
                         queryCaptor.capture(),
-                        pageableCaptor.capture()
+                        pageQueryCaptor.capture()
                 );
 
         ProblemSearchQuery query =
@@ -536,23 +687,20 @@ class ProblemControllerTest {
                         ProblemSource.HUMAN_AUTHORED
                 );
 
-        Pageable capturedPageable =
-                pageableCaptor.getValue();
+        PageQuery capturedPageQuery =
+                pageQueryCaptor.getValue();
 
         assertThat(
-                capturedPageable.getPageNumber()
+                capturedPageQuery.page()
         ).isEqualTo(1);
 
         assertThat(
-                capturedPageable.getPageSize()
+                capturedPageQuery.size()
         ).isEqualTo(2);
 
         assertThat(
-                capturedPageable
-                        .getSort()
-                        .getOrderFor("title")
-                        .isAscending()
-        ).isTrue();
+                capturedPageQuery.sortOrders()
+        ).containsExactly(SortOrder.asc("title"));
     }
 
     @Test
@@ -598,6 +746,9 @@ class ProblemControllerTest {
         );
 
         updatedProblem.increaseVersion();
+
+        UUID lessonId = UUID.randomUUID();
+        updatedProblem.changeLessonId(lessonId);
 
         when(problemService.updateProblem(
                 eq(problemId),
@@ -656,6 +807,10 @@ class ProblemControllerTest {
                         jsonPath(
                                 "$.data.currentVersionNo"
                         ).value(2)
+                )
+                .andExpect(
+                        jsonPath("$.data.lessonId")
+                                .value(lessonId.toString())
                 );
 
         ArgumentCaptor<ProblemUpdateCommand> captor =
@@ -1063,5 +1218,107 @@ class ProblemControllerTest {
         );
 
         return problem;
+    }
+
+    @Test
+    @DisplayName(
+            "문제 수정 시 제목이 공백만 있으면 400을 반환한다"
+    )
+    void updateProblem_blankTitle_returns400()
+            throws Exception {
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "title": "   "
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.success")
+                                .value(false)
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[0].field"
+                        ).value(
+                                "title"
+                        )
+                );
+
+        verifyNoInteractions(
+                problemService
+        );
+    }
+
+    @Test
+    @DisplayName(
+            "문제 수정 시 설명이 공백만 있으면 400을 반환한다"
+    )
+    void updateProblem_blankDescription_returns400()
+            throws Exception {
+
+        String json = """
+            {
+                "lockVersion": 0,
+                "description": "   "
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/v1/contents/problems/{problemId}",
+                                problemId
+                        )
+                                .with(
+                                        asAdmin(adminId)
+                                )
+                                .contentType(
+                                        "application/json"
+                                )
+                                .content(json)
+                )
+                .andExpect(
+                        status().isBadRequest()
+                )
+                .andExpect(
+                        jsonPath("$.error.code")
+                                .value(
+                                        "INVALID_INPUT_VALUE"
+                                )
+                )
+                .andExpect(
+                        jsonPath(
+                                "$.error.fieldErrors[0].field"
+                        ).value(
+                                "description"
+                        )
+                );
+
+        verifyNoInteractions(
+                problemService
+        );
     }
 }

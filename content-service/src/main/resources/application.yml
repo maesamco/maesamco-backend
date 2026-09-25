@@ -34,6 +34,10 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+        type:
+          # Jackson 2/3이 클래스패스에 공존하면 Hibernate는 기본으로 Jackson 2 FormatMapper를 고른다.
+          # JSONB 필드(ProblemVersion.problemSnapshot 등)가 Jackson 3 JsonNode이므로 명시한다.
+          json_format_mapper: org.hibernate.type.format.jackson.Jackson3JsonFormatMapper
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -98,6 +102,12 @@ outbox:
       # Kafka ACK를 기다리는 최대 시간입니다.
       publish-timeout-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_PUBLISH_TIMEOUT_MS:5000}
 
+      # 다중 인스턴스 중복 발행 방지를 위한 Outbox 선점(lease) 유지 시간입니다.
+      # 처리 중인 인스턴스가 종료되면 이 시간이 지난 뒤 다른 인스턴스가 재선점합니다.
+      # 한 건의 Kafka ACK 대기 시간 + 상태 저장 시간을 충분히 넘도록 설정합니다.
+      # (publish-timeout-ms + 1000ms 이상이어야 하며, 그렇지 않으면 기동 시 실패합니다.)
+      lease-duration-ms: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_LEASE_DURATION_MS:60000}
+
       # Kafka 발행 전 허용할 직렬화 payload의 최대 UTF-8 바이트 크기입니다.
       max-payload-bytes: ${PROBLEM_PUBLISHED_OUTBOX_RELAY_MAX_PAYLOAD_BYTES:900000}
 
@@ -111,6 +121,10 @@ internal:
   hmac:
     keys:
       coaching-service: ${HMAC_KEY_COACHING_TO_CONTENT}
+      # 이슈 #309 — user-service의 ContentServiceFeignClient가 POST /internal/v1/concepts/validate
+      # 호출에 사용하는 발신 키(HMAC_KEY_USER_TO_CONTENT)와 같은 값이어야 한다. docker-compose(local/prod)
+      # 양쪽에 이미 user-service/content-service 블록 모두로 전달되도록 구성돼 있다.
+      user-service: ${HMAC_KEY_USER_TO_CONTENT}
     outbound:
       user-service: ${HMAC_KEY_CONTENT_TO_USER}
 

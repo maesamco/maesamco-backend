@@ -1,21 +1,17 @@
 package com.maesamco.content.presentation.api_controller;
 
 import com.maesamco.content.application.persistence_service.ProblemTagService;
+import com.maesamco.content.application.result.TagResult;
+import com.maesamco.content.global.common.pagination.PageQuery;
+import com.maesamco.content.global.common.pagination.PageResult;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.global.response.SuccessResponse;
-import com.maesamco.content.global.util.PageableFactory;
+import com.maesamco.content.global.util.PageQueryFactory;
 import com.maesamco.content.presentation.response.TagResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import com.maesamco.content.global.security.authorization.RequireAdmin;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -28,8 +24,7 @@ import java.util.UUID;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/contents/problems/{problemId}/tags")
-public class ProblemTagController {
+public class ProblemTagController implements ProblemTagApiDocs {
 
     private final ProblemTagService problemTagService;
 
@@ -41,25 +36,21 @@ public class ProblemTagController {
      * @param size 한 페이지의 태그 개수
      * @return 문제에 등록된 태그 목록
      */
-    @GetMapping
+    @Override
     public ResponseEntity<SuccessResponse<PageResponse<TagResponse>>> getProblemTags(
-            @PathVariable UUID problemId,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
+            UUID problemId,
+            Integer page,
+            Integer size
     ) {
-        Pageable pageable =
-                PageableFactory.of(
-                        page,
-                        size,
-                        null,
-                        null
-                );
+        PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResponse<TagResponse> response =
+        PageResult<TagResult> result =
                 problemTagService.searchProblemTags(
                         problemId,
-                        pageable
+                        pageQuery
                 );
+
+        PageResponse<TagResponse> response = PageResponse.from(result, TagResponse::from);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -73,16 +64,10 @@ public class ProblemTagController {
      * @param tagId 등록할 태그 식별자
      * @return 데이터가 없는 성공 응답
      */
-    @PostMapping("/{tagId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SuccessResponse<Void>> addTagToProblem(
-            @PathVariable UUID problemId,
-            @PathVariable UUID tagId
-    ) {
-        problemTagService.addTagToProblem(
-                problemId,
-                tagId
-        );
+    @Override
+    @RequireAdmin
+    public ResponseEntity<SuccessResponse<Void>> addTagToProblem(UUID problemId, UUID tagId) {
+        problemTagService.addTagToProblem(problemId, tagId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -96,16 +81,10 @@ public class ProblemTagController {
      * @param tagId 제거할 태그 식별자
      * @return 데이터가 없는 성공 응답
      */
-    @DeleteMapping("/{tagId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(
-            @PathVariable UUID problemId,
-            @PathVariable UUID tagId
-    ) {
-        problemTagService.removeTagFromProblem(
-                problemId,
-                tagId
-        );
+    @Override
+    @RequireAdmin
+    public ResponseEntity<SuccessResponse<Void>> removeTagFromProblem(UUID problemId, UUID tagId) {
+        problemTagService.removeTagFromProblem(problemId, tagId);
 
         return ResponseEntity.ok(
                 SuccessResponse.empty()

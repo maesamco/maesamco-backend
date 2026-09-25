@@ -54,6 +54,7 @@ import static org.mockito.Mockito.*;
         UserRepositoryImpl.class,
         UserGamificationStateRepositoryImpl.class,
         SignUpPersistenceService.class,
+        AuthSessionIssuer.class,
         SignUpService.class
 })
 @Testcontainers
