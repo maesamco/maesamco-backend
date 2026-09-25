@@ -7,6 +7,7 @@ import com.maesamco.user.application.service.GetMyXpHistoriesQuery;
 import com.maesamco.user.application.service.GetMyXpHistoriesResult;
 import com.maesamco.user.application.service.GetMyXpHistoriesService;
 import com.maesamco.user.application.service.GetMyXpHistoryItemResult;
+import com.maesamco.user.application.service.GetMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.application.service.WithdrawUserService;
@@ -78,6 +79,9 @@ class UserApiControllerGetMyXpHistoriesTest {
 
     @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoBean
+    private GetMyInterestsService getMyInterestsService;
 
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;

@@ -10,10 +10,13 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 @FeignClient(
         name = "content-service",
-        path = "/internal/v1",
+        path = ContentServiceFeignClient.INTERNAL_API_PREFIX,
         configuration = ContentServiceFeignConfig.class
 )
 public interface ContentServiceFeignClient {
+
+    /** 이 클라이언트가 호출하는 Content Service 내부 API의 공통 prefix. HMAC 서명(ContentServiceFeignConfig)에도 쓴다. */
+    String INTERNAL_API_PREFIX = "/internal/v1";
 
     /**
      * 개념 ID 목록의 존재 여부와 활성 상태를 일괄 검증합니다.

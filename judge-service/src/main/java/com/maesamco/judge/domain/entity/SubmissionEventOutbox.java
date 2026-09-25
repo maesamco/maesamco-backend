@@ -60,6 +60,19 @@ public class SubmissionEventOutbox {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    /** 현재 선점을 식별하는 fencing token(#272). IN_PROGRESS일 때만 값이 있다. */
+    @Column(name = "claim_id")
+    private UUID claimId;
+
+    /** 이 선점이 만료되는 시각(#272). 지나면 다른 Worker가 재선점할 수 있다. */
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
+    /** claim_id 검증을 통과한 뒤의 쓰기 충돌을 막는 2차 방어(낙관적 락). */
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
     private SubmissionEventOutbox(UUID aggregateId, String eventType, String payload) {
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -73,6 +86,46 @@ public class SubmissionEventOutbox {
         return new SubmissionEventOutbox(aggregateId, eventType, payload);
     }
 
+    /**
+     * Relay Worker가 Kafka 발행을 시작하기 위해 이 Outbox를 선점한다(#272).
+     * PENDING이거나 lease가 만료된 IN_PROGRESS 행만 선점할 수 있다. 호출자는
+     * {@code SELECT ... FOR UPDATE SKIP LOCKED}로 잠근 행에만 호출해야 한다 — 상태 검증만으로는
+     * 진짜 동시 선점을 막지 못한다.
+     */
+    public void claimForPublish(UUID claimId, Instant claimedAt, Instant leaseUntil) {
+        if (claimId == null || claimedAt == null || leaseUntil == null) {
+            throw new IllegalArgumentException("선점 ID와 선점/만료 시각은 필수입니다.");
+        }
+        if (!leaseUntil.isAfter(claimedAt)) {
+            throw new IllegalArgumentException("선점 만료 시각은 선점 시각 이후여야 합니다.");
+        }
+        boolean pending = this.status == OutboxStatus.PENDING;
+        boolean expiredClaim = this.status == OutboxStatus.IN_PROGRESS
+                && this.leaseUntil != null && !this.leaseUntil.isAfter(claimedAt);
+        if (!pending && !expiredClaim) {
+            throw new IllegalStateException("선점 가능한 상태가 아닙니다. status=" + this.status);
+        }
+        this.status = OutboxStatus.IN_PROGRESS;
+        this.claimId = claimId;
+        this.leaseUntil = leaseUntil;
+    }
+
+    /** 이 호출자가 지금 유효한 선점(IN_PROGRESS + 같은 claimId)을 들고 있는지. lease 만료 후 재선점됐다면 false. */
+    public boolean isClaimedBy(UUID claimId) {
+        return this.status == OutboxStatus.IN_PROGRESS && claimId != null && claimId.equals(this.claimId);
+    }
+
+    /** 발행을 이어가지 못했을 때 선점을 풀어 PENDING으로 되돌린다 — 다음 폴링에서 다시 선점된다. */
+    public void releaseClaim() {
+        this.status = OutboxStatus.PENDING;
+        clearClaim();
+    }
+
+    private void clearClaim() {
+        this.claimId = null;
+        this.leaseUntil = null;
+    }
+
     /** Relay가 Kafka 발행 시도(성공/실패 무관)마다 호출 — 재시도 상한 판단용. */
     public void incrementAttemptCount() {
         this.attemptCount++;
@@ -82,10 +135,12 @@ public class SubmissionEventOutbox {
     public void markPublished() {
         this.status = OutboxStatus.COMPLETED;
         this.processedAt = Instant.now();
+        clearClaim();
     }
 
     public void markFailed() {
         this.status = OutboxStatus.FAILED;
         this.processedAt = Instant.now();
+        clearClaim();
     }
 }

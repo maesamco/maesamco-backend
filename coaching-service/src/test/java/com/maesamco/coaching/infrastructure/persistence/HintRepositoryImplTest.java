@@ -62,6 +62,25 @@ class HintRepositoryImplTest extends AbstractCoachingRepositoryTest {
     }
 
     @Test
+    @DisplayName("이슈 #352 — 힌트가 발급된 시도 번호(attempt_no)를 저장하고 다시 조회할 수 있다")
+    void save_persistsAttemptNo() {
+        // given
+        UUID sessionId = createCoachingSessionId();
+        hintRepository.save(Hint.create(sessionId, 1, "시도 기록 있음", 4));
+        hintRepository.save(Hint.create(sessionId, 2, "시도 기록 없음(이전 데이터)"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var hints = hintRepository.findByCoachingSessionId(sessionId);
+
+        // then
+        assertThat(hints).hasSize(2);
+        assertThat(hints.get(0).getAttemptNo()).isEqualTo(4);
+        assertThat(hints.get(1).getAttemptNo()).isNull();
+    }
+
+    @Test
     @DisplayName("코칭 세션 ID로 힌트 전체를 단계 오름차순으로 조회할 수 있다")
     void findByCoachingSessionId_returnsAllHintsOrderedByStage() {
         // given — 단계 역순으로 저장해도 조회 결과는 오름차순이어야 한다

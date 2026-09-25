@@ -76,6 +76,9 @@ class UserApiControllerGetMyProfileTest {
     private UpdateMyProfileService updateMyProfileService;
 
     @MockitoBean
+    private GetMyInterestsService getMyInterestsService;
+
+    @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
 
     @MockitoBean

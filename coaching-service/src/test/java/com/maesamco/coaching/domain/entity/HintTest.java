@@ -76,4 +76,29 @@ class HintTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }
+
+    @Test
+    void 이슈352_발급된_시도_번호를_함께_기록하고_기록하지_않으면_null이다() {
+        UUID sessionId = UUID.randomUUID();
+
+        assertThat(Hint.create(sessionId, 1, "힌트", 3).getAttemptNo()).isEqualTo(3);
+        assertThat(Hint.create(sessionId, 1, "힌트").getAttemptNo()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1})
+    @DisplayName("시도 번호가 있다면 1 이상이어야 한다(DB CHECK 제약과 동일)")
+    void create_throwsWhenAttemptNoIsBelowOne(int invalidAttemptNo) {
+        assertThatThrownBy(() -> Hint.create(UUID.randomUUID(), 1, "내용", invalidAttemptNo))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("시도 번호 1은 허용하고 null도 허용한다(이 값이 생기기 전의 힌트 호환)")
+    void create_acceptsAttemptNoOneAndNull() {
+        assertThat(Hint.create(UUID.randomUUID(), 1, "내용", 1).getAttemptNo()).isEqualTo(1);
+        assertThat(Hint.create(UUID.randomUUID(), 1, "내용", null).getAttemptNo()).isNull();
+    }
 }
