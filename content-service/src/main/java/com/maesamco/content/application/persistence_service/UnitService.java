@@ -4,6 +4,8 @@ import com.maesamco.content.application.finder.CurriculumFinder;
 import com.maesamco.content.application.finder.UnitFinder;
 import com.maesamco.content.domain.entity.Unit;
 import com.maesamco.content.domain.repository.UnitRepository;
+import com.maesamco.content.global.exception.BusinessException;
+import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.response.PageResponse;
 import com.maesamco.content.presentation.request.UnitCreateRequest;
 import com.maesamco.content.presentation.request.UnitUpdateRequest;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /** 유닛 생성, 조회, 수정, 삭제를 담당하는 서비스 */
@@ -112,22 +115,6 @@ public class UnitService {
                         unitId
                 );
 
-        /*
-         * 형제 Unit의 displayOrder와 경쟁할 수 있으므로
-         * 실제 순서 변경 요청인 경우 부모 Curriculum을 잠근다.
-         */
-        if (
-                request.getDisplayOrder() != null
-                        && !request.getDisplayOrder()
-                        .equals(
-                                unit.getDisplayOrder()
-                        )
-        ) {
-            curriculumFinder.lockById(
-                    unit.getCurriculumId()
-            );
-        }
-
         if (request.getTitle() != null) {
             unit.changeTitle(
                     request.getTitle()
@@ -147,13 +134,69 @@ public class UnitService {
                                 unit.getDisplayOrder()
                         )
         ) {
-            unit.changeDisplayOrder(
+            moveUnit(
+                    unit,
                     request.getDisplayOrder()
             );
         }
 
         return UnitResponse.from(
                 unit
+        );
+    }
+
+    /**
+     * Unit을 같은 Curriculum 안의 목표 자리로 옮기고, 형제 Unit을 1..N으로 다시 정렬합니다(#324).
+     *
+     * <p>displayOrder는 "옮겨 갈 자리"로 해석합니다. 다른 형제가 쓰고 있는 번호로 옮기면
+     * 그 사이의 형제들이 한 칸씩 밀리거나 당겨집니다.</p>
+     *
+     * <ul>
+     *     <li>부모 Curriculum을 먼저 잠가 같은 Curriculum의 생성·순서 변경을 직렬화합니다.</li>
+     *     <li>목표 자리가 1..(활성 형제 수)를 벗어나면 UNIT_DISPLAY_ORDER_OUT_OF_RANGE로 거절합니다.
+     *     트랜잭션이 롤백되므로 같은 요청의 다른 필드 변경도 반영되지 않습니다.</li>
+     *     <li>잠금을 기다리는 사이 Unit이 삭제됐으면 UNIT_NOT_FOUND로 거절합니다.</li>
+     * </ul>
+     */
+    private void moveUnit(
+            Unit unit,
+            int position
+    ) {
+        curriculumFinder.lockById(
+                unit.getCurriculumId()
+        );
+
+        List<Unit> siblings =
+                unitRepository.findActiveSiblings(
+                        unit.getCurriculumId()
+                );
+
+        boolean stillActive =
+                siblings.stream()
+                        .anyMatch(
+                                sibling -> sibling.getId()
+                                        .equals(unit.getId())
+                        );
+
+        if (!stillActive) {
+            throw new BusinessException(
+                    ErrorCode.UNIT_NOT_FOUND
+            );
+        }
+
+        if (!SiblingDisplayOrders.isInRange(position, siblings.size())) {
+            throw new BusinessException(
+                    ErrorCode.UNIT_DISPLAY_ORDER_OUT_OF_RANGE
+            );
+        }
+
+        unitRepository.reorder(
+                SiblingDisplayOrders.moveTo(
+                        siblings,
+                        Unit::getId,
+                        unit.getId(),
+                        position
+                )
         );
     }
 
@@ -167,8 +210,18 @@ public class UnitService {
                         unitId
                 );
 
+        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
+        curriculumFinder.lockById(unit.getCurriculumId());
+        List<Unit> siblings = unitRepository.findActiveSiblings(unit.getCurriculumId());
+        if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(unitId))) {
+            throw new BusinessException(ErrorCode.UNIT_NOT_FOUND);
+        }
+
         unit.softDelete(
                 userId
         );
+        unitRepository.reorder(siblings.stream()
+                .filter(sibling -> !sibling.getId().equals(unitId))
+                .toList());
     }
 }

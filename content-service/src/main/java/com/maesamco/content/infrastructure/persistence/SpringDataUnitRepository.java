@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,5 +47,10 @@ interface SpringDataUnitRepository
     findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
             UUID curriculumId,
             Pageable pageable
+    );
+
+    List<Unit>
+    findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+            UUID curriculumId
     );
 }

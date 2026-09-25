@@ -123,11 +123,16 @@ public interface UnitApiDocs {
             summary = "유닛 수정",
             description = "유닛 ID를 기준으로 유닛 정보를 수정합니다. "
                     + "수정 전 유닛과 상위 커리큘럼의 유효성을 확인하며 요청에 포함된 값만 변경합니다. "
+                    + "displayOrder는 같은 커리큘럼 안에서 옮겨 갈 자리(1부터)로 해석하며, "
+                    + "다른 유닛이 쓰고 있는 번호로 옮기면 사이의 유닛들이 한 칸씩 밀리거나 당겨지고 "
+                    + "형제 유닛 전체가 1..N으로 다시 정렬됩니다. "
+                    + "(예: [A1 B2 C3 D4 E5]에서 E를 2로 옮기면 [A1 E2 B3 C4 D5]) "
                     + "ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "유닛 수정 성공"),
-            @ApiResponse(responseCode = "400", description = "요청 값 검증 실패"),
+            @ApiResponse(responseCode = "400", description = "요청 값 검증 실패; "
+                    + "UNIT_DISPLAY_ORDER_OUT_OF_RANGE — displayOrder가 1..(같은 커리큘럼의 유닛 수)를 벗어남"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
             @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
             @ApiResponse(responseCode = "404", description = "UNIT_NOT_FOUND — 유닛을 찾을 수 없음; "

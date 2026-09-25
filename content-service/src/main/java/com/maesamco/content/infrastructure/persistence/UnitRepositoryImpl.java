@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,5 +68,26 @@ public class UnitRepositoryImpl
                         curriculumId,
                         pageable
                 );
+    }
+
+    @Override
+    public List<Unit> findActiveSiblings(
+            UUID curriculumId
+    ) {
+        return springDataUnitRepository
+                .findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+                        curriculumId
+                );
+    }
+
+    @Override
+    public void reorder(
+            List<Unit> unitsInOrder
+    ) {
+        TwoPhaseDisplayOrderUpdater.reassign(
+                unitsInOrder,
+                Unit::changeDisplayOrder,
+                springDataUnitRepository::flush
+        );
     }
 }

@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -479,6 +480,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(null);
 
             when(request.getTitle()).thenReturn("수정된 제목");
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
@@ -506,6 +508,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(null);
 
             when(request.getTitle()).thenReturn("새로운 제목");
             when(unitFinder.getById(unitId)).thenReturn(unit);
@@ -530,6 +533,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(null);
 
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
             when(unitFinder.getById(unitId)).thenReturn(unit);
@@ -554,6 +558,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(null);
 
             when(unitFinder.getById(unitId)).thenReturn(unit);
 
@@ -577,6 +582,7 @@ class UnitServiceTest {
             UUID unitId = UUID.randomUUID();
             Unit unit = spy(createUnitEntity(UUID.randomUUID()));
             UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(null);
 
             when(request.getTitle()).thenReturn("수정된 제목");
             when(unitFinder.getById(unitId)).thenReturn(unit);
@@ -638,6 +644,125 @@ class UnitServiceTest {
     }
 
     @Nested
+    @DisplayName("updateUnit 순서 변경 (#324)")
+    class UpdateUnitDisplayOrder {
+
+        @Test
+        @DisplayName("뒤쪽 자리로 옮기면 사이의 형제가 한 칸씩 당겨지고, 부모 잠금 → 형제 조회 → 재정렬 순서로 수행한다")
+        void updateUnit_moveBackward_pullsSiblingsForward() {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            Unit a = unitWithId(curriculumId, 1);
+            Unit b = unitWithId(curriculumId, 2);
+            Unit c = unitWithId(curriculumId, 3);
+            UnitUpdateRequest request = displayOrderRequest(3);
+
+            when(unitFinder.getById(a.getId())).thenReturn(a);
+            when(unitRepository.findActiveSiblings(curriculumId)).thenReturn(List.of(a, b, c));
+
+            // when
+            unitService.updateUnit(a.getId(), request);
+
+            // then
+            InOrder inOrder = inOrder(curriculumFinder, unitRepository);
+            inOrder.verify(curriculumFinder).lockById(curriculumId);
+            inOrder.verify(unitRepository).findActiveSiblings(curriculumId);
+            inOrder.verify(unitRepository).reorder(List.of(b, c, a));
+        }
+
+        @Test
+        @DisplayName("다른 형제가 쓰고 있는 앞쪽 번호로 옮기면 그 형제부터 한 칸씩 밀린다")
+        void updateUnit_moveToOccupiedFrontOrder_pushesSiblingsBack() {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            Unit a = unitWithId(curriculumId, 1);
+            Unit b = unitWithId(curriculumId, 2);
+            Unit c = unitWithId(curriculumId, 3);
+            UnitUpdateRequest request = displayOrderRequest(1);
+
+            when(unitFinder.getById(c.getId())).thenReturn(c);
+            when(unitRepository.findActiveSiblings(curriculumId)).thenReturn(List.of(a, b, c));
+
+            // when
+            unitService.updateUnit(c.getId(), request);
+
+            // then
+            verify(unitRepository).reorder(List.of(c, a, b));
+        }
+
+        @Test
+        @DisplayName("현재와 같은 displayOrder면 부모를 잠그지 않고 재정렬하지 않는다")
+        void updateUnit_sameDisplayOrder_doesNothing() {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            Unit unit = unitWithId(curriculumId, 2);
+            UnitUpdateRequest request = displayOrderRequest(2);
+
+            when(unitFinder.getById(unit.getId())).thenReturn(unit);
+
+            // when
+            unitService.updateUnit(unit.getId(), request);
+
+            // then
+            verifyNoInteractions(curriculumFinder, unitRepository);
+        }
+
+        @Test
+        @DisplayName("형제 수보다 큰 자리로 옮기면 UNIT_DISPLAY_ORDER_OUT_OF_RANGE로 거절하고 재정렬하지 않는다")
+        void updateUnit_displayOrderGreaterThanSiblingCount_throwsOutOfRange() {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            Unit a = unitWithId(curriculumId, 1);
+            Unit b = unitWithId(curriculumId, 2);
+            UnitUpdateRequest request = displayOrderRequest(3);
+
+            when(unitFinder.getById(a.getId())).thenReturn(a);
+            when(unitRepository.findActiveSiblings(curriculumId)).thenReturn(List.of(a, b));
+
+            // when & then
+            assertThatThrownBy(() -> unitService.updateUnit(a.getId(), request))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                    .isEqualTo(ErrorCode.UNIT_DISPLAY_ORDER_OUT_OF_RANGE);
+
+            verify(unitRepository, never()).reorder(anyList());
+        }
+
+        @Test
+        @DisplayName("부모 잠금을 기다리는 사이 Unit이 삭제됐으면 UNIT_NOT_FOUND로 거절하고 재정렬하지 않는다")
+        void updateUnit_unitDeletedWhileWaitingForLock_throwsNotFound() {
+            // given
+            UUID curriculumId = UUID.randomUUID();
+            Unit deleted = unitWithId(curriculumId, 1);
+            Unit other = unitWithId(curriculumId, 2);
+            UnitUpdateRequest request = displayOrderRequest(2);
+
+            when(unitFinder.getById(deleted.getId())).thenReturn(deleted);
+            when(unitRepository.findActiveSiblings(curriculumId)).thenReturn(List.of(other));
+
+            // when & then
+            assertThatThrownBy(() -> unitService.updateUnit(deleted.getId(), request))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                    .isEqualTo(ErrorCode.UNIT_NOT_FOUND);
+
+            verify(unitRepository, never()).reorder(anyList());
+        }
+
+        private UnitUpdateRequest displayOrderRequest(int displayOrder) {
+            UnitUpdateRequest request = mock(UnitUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(displayOrder);
+            return request;
+        }
+
+        private Unit unitWithId(UUID curriculumId, int displayOrder) {
+            Unit unit = Unit.create(curriculumId, "유닛" + displayOrder, ProgrammingLanguage.JAVA, displayOrder);
+            ReflectionTestUtils.setField(unit, "id", UUID.randomUUID());
+            return unit;
+        }
+    }
+
+    @Nested
     @DisplayName("deleteUnit")
     class DeleteUnit {
 
@@ -647,9 +772,12 @@ class UnitServiceTest {
             // given
             UUID unitId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Unit unit = spy(createUnitEntity(UUID.randomUUID()));
+            Unit unit = createUnitEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(unit, "id", unitId);
+            unit = spy(unit);
 
             when(unitFinder.getById(unitId)).thenReturn(unit);
+            when(unitRepository.findActiveSiblings(unit.getCurriculumId())).thenReturn(List.of(unit));
 
             // when
             unitService.deleteUnit(unitId, userId);
@@ -661,7 +789,8 @@ class UnitServiceTest {
             assertThat(unit.isDeleted()).isTrue();
             assertThat(unit.getDeletedBy()).isEqualTo(userId);
 
-            verifyNoInteractions(unitRepository, curriculumFinder);
+            verify(curriculumFinder).lockById(unit.getCurriculumId());
+            verify(unitRepository).reorder(List.of());
         }
 
         @Test
@@ -670,9 +799,12 @@ class UnitServiceTest {
             // given
             UUID unitId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Unit unit = spy(createUnitEntity(UUID.randomUUID()));
+            Unit unit = createUnitEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(unit, "id", unitId);
+            unit = spy(unit);
 
             when(unitFinder.getById(unitId)).thenReturn(unit);
+            when(unitRepository.findActiveSiblings(unit.getCurriculumId())).thenReturn(List.of(unit));
 
             // when
             unitService.deleteUnit(unitId, userId);
@@ -681,7 +813,8 @@ class UnitServiceTest {
             verify(unitFinder).getById(unitId);
             verify(unit).softDelete(userId);
             verify(unitRepository, never()).save(any(Unit.class));
-            verifyNoInteractions(curriculumFinder);
+            verify(curriculumFinder).lockById(unit.getCurriculumId());
+            verify(unitRepository).reorder(List.of());
         }
 
         @Test
