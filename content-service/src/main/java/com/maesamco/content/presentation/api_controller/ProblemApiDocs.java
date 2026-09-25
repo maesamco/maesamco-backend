@@ -52,7 +52,8 @@ public interface ProblemApiDocs {
             @ApiResponse(responseCode = "201", description = "문제 생성 성공"),
             @ApiResponse(responseCode = "400", description = "요청 값 검증 실패"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
-            @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음")
+            @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "LESSON_NOT_FOUND — 연결할 레슨이 없거나 레슨·유닛·커리큘럼이 삭제됨")
     })
     ResponseEntity<SuccessResponse<ProblemCreateResponse>> createProblem(
             @Valid @RequestBody ProblemCreateRequest request
@@ -168,7 +169,8 @@ public interface ProblemApiDocs {
                     + "STARTER_CODE_NOT_INITIALIZED — starterCode가 초기화되지 않음"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
             @ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
-            @ApiResponse(responseCode = "404", description = "PROBLEM_NOT_FOUND — 문제를 찾을 수 없음"),
+            @ApiResponse(responseCode = "404", description = "PROBLEM_NOT_FOUND — 문제를 찾을 수 없음; "
+                    + "LESSON_NOT_FOUND — 새로 연결할 레슨이 없거나 레슨·유닛·커리큘럼이 삭제됨"),
             @ApiResponse(responseCode = "409", description = "PROBLEM_MODIFIED_CONCURRENTLY — 다른 요청에 의해 문제가 먼저 수정되어 버전 충돌이 발생함")
     })
     ResponseEntity<SuccessResponse<ProblemResponse>> updateProblem(

@@ -3,6 +3,7 @@ package com.maesamco.content.infrastructure.persistence;
 import com.maesamco.content.domain.entity.Unit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,5 +61,29 @@ class UnitRepositoryImplTest {
         Page<Unit> page = Page.empty(pageable);
         when(springDataUnitRepository.findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(curriculumId, pageable)).thenReturn(page);
         assertThat(unitRepository.searchUnits(curriculumId, pageable)).isSameAs(page);
+    }
+
+    @Test
+    void findActiveSiblings_success() {
+        UUID curriculumId = UUID.randomUUID();
+        List<Unit> siblings = List.of(mock(Unit.class), mock(Unit.class));
+        when(springDataUnitRepository.findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(curriculumId)).thenReturn(siblings);
+        assertThat(unitRepository.findActiveSiblings(curriculumId)).isSameAs(siblings);
+    }
+
+    @Test
+    void reorder_assignsNegativeThenFinalOrdersWithFlushInBetween() {
+        Unit first = mock(Unit.class);
+        Unit second = mock(Unit.class);
+
+        unitRepository.reorder(List.of(first, second));
+
+        InOrder inOrder = inOrder(first, second, springDataUnitRepository);
+        inOrder.verify(first).changeDisplayOrder(-1);
+        inOrder.verify(second).changeDisplayOrder(-2);
+        inOrder.verify(springDataUnitRepository).flush();
+        inOrder.verify(first).changeDisplayOrder(1);
+        inOrder.verify(second).changeDisplayOrder(2);
+        inOrder.verify(springDataUnitRepository).flush();
     }
 }

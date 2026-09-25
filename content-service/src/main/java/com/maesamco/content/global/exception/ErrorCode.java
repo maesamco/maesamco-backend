@@ -53,9 +53,13 @@ public enum ErrorCode {
 
     /* Unit */
     UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "유닛을 찾을 수 없습니다."),
+    // 순서 변경 요청의 displayOrder가 1..(같은 커리큘럼의 활성 유닛 수) 범위를 벗어난 경우 (#324)
+    UNIT_DISPLAY_ORDER_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "유닛 표시 순서는 1 이상, 같은 커리큘럼의 유닛 수 이하여야 합니다."),
 
     /* Lesson */
     LESSON_NOT_FOUND(HttpStatus.NOT_FOUND, "레슨을 찾을 수 없습니다."),
+    // 순서 변경 요청의 displayOrder가 1..(같은 유닛의 활성 레슨 수) 범위를 벗어난 경우 (#324)
+    LESSON_DISPLAY_ORDER_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "레슨 표시 순서는 1 이상, 같은 유닛의 레슨 수 이하여야 합니다."),
 
     /* Problem */
     PROBLEM_NOT_FOUND(HttpStatus.NOT_FOUND, "문제를 찾을 수 없습니다."),

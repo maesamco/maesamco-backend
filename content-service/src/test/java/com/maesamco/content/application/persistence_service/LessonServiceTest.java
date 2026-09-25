@@ -31,6 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -470,16 +471,19 @@ class LessonServiceTest {
         @DisplayName("모든 수정 필드가 존재하면 모든 변경 메서드를 호출한다")
         void updateLesson_allFieldsPresent_changesAllFields() {
             // given
-            UUID lessonId = UUID.randomUUID();
-            Lesson lesson = spy(createLessonEntity(UUID.randomUUID()));
+            UUID unitId = UUID.randomUUID();
+            Lesson lesson = spy(lessonWithId(unitId, 1));
+            Lesson sibling = lessonWithId(unitId, 2);
+            UUID lessonId = lesson.getId();
             LessonUpdateRequest request = mock(LessonUpdateRequest.class);
 
             when(request.getTitle()).thenReturn("수정된 제목");
             when(request.getDescription()).thenReturn("수정된 설명");
             when(request.getContent()).thenReturn("수정된 내용");
             when(request.getLanguage()).thenReturn(ProgrammingLanguage.PYTHON);
-            when(request.getDisplayOrder()).thenReturn(10);
+            when(request.getDisplayOrder()).thenReturn(2);
             when(lessonFinder.getById(lessonId)).thenReturn(lesson);
+            when(lessonRepository.findActiveSiblings(unitId)).thenReturn(List.of(lesson, sibling));
 
             // when
             LessonResponse result = lessonService.updateLesson(lessonId, request);
@@ -490,17 +494,15 @@ class LessonServiceTest {
             assertThat(lesson.getDescription()).isEqualTo("수정된 설명");
             assertThat(lesson.getContent()).isEqualTo("수정된 내용");
             assertThat(lesson.getLanguage()).isEqualTo(ProgrammingLanguage.PYTHON);
-            assertThat(lesson.getDisplayOrder()).isEqualTo(10);
 
             verify(lesson).changeTitle("수정된 제목");
             verify(lesson).changeDescription("수정된 설명");
             verify(lesson).changeContent("수정된 내용");
             verify(lesson).changeLanguage(ProgrammingLanguage.PYTHON);
-            verify(lesson).changeDisplayOrder(10);
-            verify(unitFinder).lockById(lesson.getUnitId());
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).reorder(List.of(sibling, lesson));
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository);
         }
 
         @Test
@@ -609,21 +611,23 @@ class LessonServiceTest {
         @DisplayName("displayOrder만 존재하면 displayOrder만 수정한다")
         void updateLesson_onlyDisplayOrder_changesOnlyDisplayOrder() {
             // given
-            UUID lessonId = UUID.randomUUID();
-            Lesson lesson = spy(createLessonEntity(UUID.randomUUID()));
+            UUID unitId = UUID.randomUUID();
+            Lesson lesson = spy(lessonWithId(unitId, 1));
+            Lesson second = lessonWithId(unitId, 2);
+            Lesson third = lessonWithId(unitId, 3);
+            UUID lessonId = lesson.getId();
             LessonUpdateRequest request = mock(LessonUpdateRequest.class);
 
-            when(request.getDisplayOrder()).thenReturn(5);
+            when(request.getDisplayOrder()).thenReturn(3);
             when(lessonFinder.getById(lessonId)).thenReturn(lesson);
+            when(lessonRepository.findActiveSiblings(unitId)).thenReturn(List.of(lesson, second, third));
 
             // when
             lessonService.updateLesson(lessonId, request);
 
             // then
-            assertThat(lesson.getDisplayOrder()).isEqualTo(5);
-
-            verify(lesson).changeDisplayOrder(5);
-            verify(unitFinder).lockById(lesson.getUnitId());
+            verify(unitFinder).lockById(unitId);
+            verify(lessonRepository).reorder(List.of(second, third, lesson));
             verify(lesson, never()).changeTitle(anyString());
             verify(lesson, never()).changeDescription(anyString());
             verify(lesson, never()).changeContent(anyString());
@@ -682,6 +686,98 @@ class LessonServiceTest {
     }
 
     @Nested
+    @DisplayName("updateLesson 순서 변경 (#324)")
+    class UpdateLessonDisplayOrder {
+
+        @Test
+        @DisplayName("다른 형제가 쓰고 있는 앞쪽 번호로 옮기면 부모 잠금 → 형제 조회 → 재정렬 순서로 형제를 한 칸씩 민다")
+        void updateLesson_moveToOccupiedFrontOrder_pushesSiblingsBack() {
+            // given
+            UUID unitId = UUID.randomUUID();
+            Lesson a = lessonWithId(unitId, 1);
+            Lesson b = lessonWithId(unitId, 2);
+            Lesson c = lessonWithId(unitId, 3);
+            LessonUpdateRequest request = displayOrderRequest(1);
+
+            when(lessonFinder.getById(c.getId())).thenReturn(c);
+            when(lessonRepository.findActiveSiblings(unitId)).thenReturn(List.of(a, b, c));
+
+            // when
+            lessonService.updateLesson(c.getId(), request);
+
+            // then
+            InOrder inOrder = inOrder(unitFinder, lessonRepository);
+            inOrder.verify(unitFinder).lockById(unitId);
+            inOrder.verify(lessonRepository).findActiveSiblings(unitId);
+            inOrder.verify(lessonRepository).reorder(List.of(c, a, b));
+        }
+
+        @Test
+        @DisplayName("현재와 같은 displayOrder면 부모를 잠그지 않고 재정렬하지 않는다")
+        void updateLesson_sameDisplayOrder_doesNothing() {
+            // given
+            Lesson lesson = lessonWithId(UUID.randomUUID(), 2);
+            LessonUpdateRequest request = displayOrderRequest(2);
+
+            when(lessonFinder.getById(lesson.getId())).thenReturn(lesson);
+
+            // when
+            lessonService.updateLesson(lesson.getId(), request);
+
+            // then
+            verifyNoInteractions(unitFinder, lessonRepository);
+        }
+
+        @Test
+        @DisplayName("형제 수보다 큰 자리로 옮기면 LESSON_DISPLAY_ORDER_OUT_OF_RANGE로 거절하고 재정렬하지 않는다")
+        void updateLesson_displayOrderGreaterThanSiblingCount_throwsOutOfRange() {
+            // given
+            UUID unitId = UUID.randomUUID();
+            Lesson a = lessonWithId(unitId, 1);
+            Lesson b = lessonWithId(unitId, 2);
+            LessonUpdateRequest request = displayOrderRequest(3);
+
+            when(lessonFinder.getById(a.getId())).thenReturn(a);
+            when(lessonRepository.findActiveSiblings(unitId)).thenReturn(List.of(a, b));
+
+            // when & then
+            assertThatThrownBy(() -> lessonService.updateLesson(a.getId(), request))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                    .isEqualTo(ErrorCode.LESSON_DISPLAY_ORDER_OUT_OF_RANGE);
+
+            verify(lessonRepository, never()).reorder(anyList());
+        }
+
+        @Test
+        @DisplayName("부모 잠금을 기다리는 사이 Lesson이 삭제됐으면 LESSON_NOT_FOUND로 거절하고 재정렬하지 않는다")
+        void updateLesson_lessonDeletedWhileWaitingForLock_throwsNotFound() {
+            // given
+            UUID unitId = UUID.randomUUID();
+            Lesson deleted = lessonWithId(unitId, 1);
+            Lesson other = lessonWithId(unitId, 2);
+            LessonUpdateRequest request = displayOrderRequest(2);
+
+            when(lessonFinder.getById(deleted.getId())).thenReturn(deleted);
+            when(lessonRepository.findActiveSiblings(unitId)).thenReturn(List.of(other));
+
+            // when & then
+            assertThatThrownBy(() -> lessonService.updateLesson(deleted.getId(), request))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                    .isEqualTo(ErrorCode.LESSON_NOT_FOUND);
+
+            verify(lessonRepository, never()).reorder(anyList());
+        }
+
+        private LessonUpdateRequest displayOrderRequest(int displayOrder) {
+            LessonUpdateRequest request = mock(LessonUpdateRequest.class);
+            when(request.getDisplayOrder()).thenReturn(displayOrder);
+            return request;
+        }
+    }
+
+    @Nested
     @DisplayName("deleteLesson")
     class DeleteLesson {
 
@@ -691,9 +787,12 @@ class LessonServiceTest {
             // given
             UUID lessonId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            Lesson lesson = spy(createLessonEntity(UUID.randomUUID()));
+            Lesson lesson = createLessonEntity(UUID.randomUUID());
+            ReflectionTestUtils.setField(lesson, "id", lessonId);
+            lesson = spy(lesson);
 
             when(lessonFinder.getById(lessonId)).thenReturn(lesson);
+            when(lessonRepository.findActiveSiblings(lesson.getUnitId())).thenReturn(List.of(lesson));
 
             // when
             lessonService.deleteLesson(lessonId, userId);
@@ -705,7 +804,8 @@ class LessonServiceTest {
             assertThat(lesson.isDeleted()).isTrue();
             assertThat(lesson.getDeletedBy()).isEqualTo(userId);
 
-            verifyNoInteractions(lessonRepository);
+            verify(unitFinder).lockById(lesson.getUnitId());
+            verify(lessonRepository).reorder(List.of());
         }
 
         @Test
@@ -814,6 +914,19 @@ class LessonServiceTest {
         when(request.getLanguage()).thenReturn(language);
 
         return request;
+    }
+
+    private Lesson lessonWithId(UUID unitId, int displayOrder) {
+        Lesson lesson = Lesson.create(
+                unitId,
+                "레슨" + displayOrder,
+                "설명",
+                "내용",
+                ProgrammingLanguage.JAVA,
+                displayOrder
+        );
+        ReflectionTestUtils.setField(lesson, "id", UUID.randomUUID());
+        return lesson;
     }
 
     private Lesson createLessonEntity(UUID unitId) {
