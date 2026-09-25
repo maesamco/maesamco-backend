@@ -21,9 +21,12 @@ import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.infrastructure.persistence.CurriculumRepositoryImpl;
 import com.maesamco.content.infrastructure.persistence.LessonRepositoryImpl;
 import com.maesamco.content.infrastructure.persistence.UnitRepositoryImpl;
+import com.maesamco.content.presentation.request.LessonCreateRequest;
 import com.maesamco.content.presentation.request.LessonUpdateRequest;
+import com.maesamco.content.presentation.request.UnitCreateRequest;
 import com.maesamco.content.presentation.request.UnitUpdateRequest;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -42,6 +45,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @DataJpaTest(properties = {
         "spring.flyway.enabled=true",
@@ -80,6 +84,7 @@ class ContentHierarchyDeletionIntegrationTest {
     @Autowired private LessonFinderService lessonFinder;
 
     @Test
+    @DisplayName("Curriculum ??젣 ???섏쐞 ?곗씠?곕뒗 蹂댁〈?섍퀬 Unit/Lesson ?쒕퉬???묎렐? 李⑤떒?쒕떎")
     void deletingCurriculumKeepsChildrenButBlocksTheirServiceEndpoints() {
         Hierarchy ids = createHierarchy();
         CurriculumService curriculums = new CurriculumService(curriculumRepository, curriculumFinder);
@@ -112,6 +117,7 @@ class ContentHierarchyDeletionIntegrationTest {
     }
 
     @Test
+    @DisplayName("Unit ??젣 ??Lesson ?곗씠?곕뒗 蹂댁〈?섍퀬 Lesson ?쒕퉬???묎렐? 李⑤떒?쒕떎")
     void deletingUnitKeepsLessonButBlocksItsEndpoints() {
         Hierarchy ids = createHierarchy();
         UnitService units = new UnitService(unitRepository, unitFinder, curriculumFinder);
@@ -133,6 +139,76 @@ class ContentHierarchyDeletionIntegrationTest {
                 () -> lessons.getLessonConcepts(ids.lessonId()));
     }
 
+
+    @Test
+    @DisplayName("Curriculum ??젣 ??Unit ?앹꽦? CURRICULUM_NOT_FOUND濡?李⑤떒?쒕떎")
+    void deletingCurriculumBlocksCreatingUnit() {
+        // Given
+        Hierarchy ids = createHierarchy();
+        CurriculumService curriculums =
+                new CurriculumService(curriculumRepository, curriculumFinder);
+        UnitService units =
+                new UnitService(unitRepository, unitFinder, curriculumFinder);
+
+        curriculums.deleteCurriculum(ids.curriculumId(), UUID.randomUUID());
+        entityManager.flush();
+        entityManager.clear();
+
+        UnitCreateRequest request = mock(UnitCreateRequest.class);
+        when(request.getCurriculumId()).thenReturn(ids.curriculumId());
+
+        // When & Then
+        assertError(
+                ErrorCode.CURRICULUM_NOT_FOUND,
+                () -> units.createUnit(request)
+        );
+    }
+
+    @Test
+    @DisplayName("Curriculum ??젣 ??湲곗〈 Unit ?꾨옒 Lesson ?앹꽦? CURRICULUM_NOT_FOUND濡?李⑤떒?쒕떎")
+    void deletingCurriculumBlocksCreatingLessonUnderExistingUnit() {
+        // Given
+        Hierarchy ids = createHierarchy();
+        CurriculumService curriculums =
+                new CurriculumService(curriculumRepository, curriculumFinder);
+        LessonService lessons = lessonService();
+
+        curriculums.deleteCurriculum(ids.curriculumId(), UUID.randomUUID());
+        entityManager.flush();
+        entityManager.clear();
+
+        LessonCreateRequest request = mock(LessonCreateRequest.class);
+        when(request.getUnitId()).thenReturn(ids.unitId());
+
+        // When & Then
+        assertError(
+                ErrorCode.CURRICULUM_NOT_FOUND,
+                () -> lessons.createLesson(request)
+        );
+    }
+
+    @Test
+    @DisplayName("Unit ??젣 ??Lesson ?앹꽦? UNIT_NOT_FOUND濡?李⑤떒?쒕떎")
+    void deletingUnitBlocksCreatingLesson() {
+        // Given
+        Hierarchy ids = createHierarchy();
+        UnitService units =
+                new UnitService(unitRepository, unitFinder, curriculumFinder);
+        LessonService lessons = lessonService();
+
+        units.deleteUnit(ids.unitId(), UUID.randomUUID());
+        entityManager.flush();
+        entityManager.clear();
+
+        LessonCreateRequest request = mock(LessonCreateRequest.class);
+        when(request.getUnitId()).thenReturn(ids.unitId());
+
+        // When & Then
+        assertError(
+                ErrorCode.UNIT_NOT_FOUND,
+                () -> lessons.createLesson(request)
+        );
+    }
     private Hierarchy createHierarchy() {
         Curriculum curriculum = curriculumRepository.save(Curriculum.create("Java", ProgrammingLanguage.JAVA));
         Unit unit = unitRepository.save(Unit.create(curriculum.getId(), "기초", ProgrammingLanguage.JAVA, 1));
