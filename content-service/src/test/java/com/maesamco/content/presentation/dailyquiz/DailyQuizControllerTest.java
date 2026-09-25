@@ -12,6 +12,7 @@ import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
 import com.maesamco.content.global.config.OpenApiConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.configuration.SpringDocSpecPropertiesConfiguration;
@@ -19,16 +20,10 @@ import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -51,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 오늘의 Daily Quiz 조회 API 계약과 인증 정책을 검증합니다.
  */
 @WebMvcTest(controllers = DailyQuizController.class, properties = "springdoc.api-docs.enabled=true")
-@Import({DailyQuizControllerTest.TestSecurityConfig.class, OpenApiConfig.class})
+@Import({TestSecurityConfig.class, OpenApiConfig.class})
 @ImportAutoConfiguration({
         SpringDocConfiguration.class,
         SpringDocWebMvcConfiguration.class,
@@ -68,18 +63,6 @@ class DailyQuizControllerTest {
 
     @MockitoBean
     private DailyQuizSubmitService submitService;
-
-    @TestConfiguration
-    @EnableMethodSecurity
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
-            http.csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-            return http.build();
-        }
-    }
 
     @Test
     void 오늘의_세트가_없으면_404와_QUIZ_NOT_FOUND를_반환한다() throws Exception {

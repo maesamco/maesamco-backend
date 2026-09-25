@@ -1,7 +1,6 @@
 package com.maesamco.content.support;
 
 import com.maesamco.content.global.security.authorization.RequireAdmin;
-import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -14,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 스프링 컨텍스트를 띄우지 않고 클래스패스의 모든 {@code @RestController}를 스캔해서
@@ -42,15 +42,44 @@ public final class ControllerEndpointScanner {
         }
     }
 
-    public static List<Endpoint> scan() {
+    /** 클래스패스의 모든 {@code @RestController} 클래스를 이름순으로 반환한다. */
+    public static List<Class<?>> controllerClasses() {
         ClassPathScanningCandidateComponentProvider provider =
                 new ClassPathScanningCandidateComponentProvider(false);
         provider.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
 
+        return provider.findCandidateComponents(BASE_PACKAGE).stream()
+                .map(definition -> load(definition.getBeanClassName()))
+                .sorted(Comparator.comparing(Class::getName))
+                .collect(Collectors.toList());
+    }
+
+
+    /** 클래스패스의 모든 {@code *ApiDocs} 인터페이스를 이름순으로 반환한다. */
+    public static List<Class<?>> apiDocsInterfaces() {
+        ClassPathScanningCandidateComponentProvider provider =
+                new ClassPathScanningCandidateComponentProvider(false) {
+                    @Override
+                    protected boolean isCandidateComponent(
+                            org.springframework.beans.factory.annotation.AnnotatedBeanDefinition beanDefinition
+                    ) {
+                        return beanDefinition.getMetadata().isInterface();
+                    }
+                };
+        provider.addIncludeFilter(new org.springframework.core.type.filter.RegexPatternTypeFilter(
+                java.util.regex.Pattern.compile(".*ApiDocs$")
+        ));
+
+        return provider.findCandidateComponents(BASE_PACKAGE).stream()
+                .map(definition -> load(definition.getBeanClassName()))
+                .sorted(Comparator.comparing(Class::getName))
+                .collect(Collectors.toList());
+    }
+
+    public static List<Endpoint> scan() {
         List<Endpoint> endpoints = new ArrayList<>();
 
-        for (BeanDefinition definition : provider.findCandidateComponents(BASE_PACKAGE)) {
-            Class<?> controller = load(definition.getBeanClassName());
+        for (Class<?> controller : controllerClasses()) {
             RequestMapping classMapping = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);
             String basePath = classMapping == null ? "" : firstPath(classMapping);
 
