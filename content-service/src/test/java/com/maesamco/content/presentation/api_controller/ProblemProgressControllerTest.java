@@ -6,23 +6,18 @@ import com.maesamco.content.domain.entity.problem.ProblemProgressStatus;
 import com.maesamco.content.global.config.JacksonConfig;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
+import com.maesamco.content.support.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -45,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ProblemProgressController.class)
 @Import({
-        ProblemProgressControllerTest.TestSecurityConfig.class,
+        TestSecurityConfig.class,
         JacksonConfig.class
 })
 class ProblemProgressControllerTest {
@@ -59,26 +54,6 @@ class ProblemProgressControllerTest {
     private final UUID userId = UUID.randomUUID();
 
     private final UUID problemId = UUID.randomUUID();
-
-    @TestConfiguration
-    @EnableMethodSecurity(proxyTargetClass = true)
-    static class TestSecurityConfig {
-
-        @Bean
-        SecurityFilterChain testSecurityFilterChain(
-                HttpSecurity http
-        ) throws Exception {
-            http.csrf(
-                            AbstractHttpConfigurer::disable
-                    )
-                    .authorizeHttpRequests(
-                            auth -> auth.anyRequest()
-                                    .permitAll()
-                    );
-
-            return http.build();
-        }
-    }
 
     private static RequestPostProcessor asUser(
             UUID userId

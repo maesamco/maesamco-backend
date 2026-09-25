@@ -8,6 +8,7 @@ import com.maesamco.coaching.domain.repository.CoachingEventOutboxRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -108,8 +109,12 @@ public class CoachingEventRelayFacade {
                 // outbox까지 막지 않도록 격리한다. 오래된 순으로 선점하므로, 여기서 격리하지
                 // 않으면 이 outbox가 다음 폴링에서도 계속 맨 앞을 차지하며 뒤의 항목들을 무기한
                 // 밀어낼 수 있다(PR #123 심층 재검토, 2026-09-09).
-                log.error("[Coaching] Outbox 처리 중 예상치 못한 예외 — 이 항목만 건너뛰고 나머지 배치는 계속 처리. outboxId={}",
-                        outbox.getId(), e);
+                if (e instanceof ObjectOptimisticLockingFailureException) {
+                    logOptimisticLockLoss("Outbox 결과 기록", outbox);
+                } else {
+                    log.error("[Coaching] Outbox 처리 중 예상치 못한 예외 — 이 항목만 건너뛰고 나머지 배치는 계속 처리. outboxId={}",
+                            outbox.getId(), e);
+                }
             }
 
             // relayOne() 안의 KafkaEventPublisherAdapter가 대기 중 인터럽트를 받으면 interrupt
@@ -160,10 +165,26 @@ public class CoachingEventRelayFacade {
                     outbox.getId(), outbox.getEventType(), outbox.getAggregateId());
         } catch (Exception e) {
             coachingEventOutboxPersistenceService.recordPostPublishFailure(outbox.getId(), claimId);
-            log.error("[Coaching] Kafka 발행은 성공했으나 후처리(Outbox 완료 표시) 실패 — "
-                            + "재시도 대상으로 표시. outboxId={}, eventType={}",
-                    outbox.getId(), outbox.getEventType(), e);
+            if (e instanceof ObjectOptimisticLockingFailureException) {
+                logOptimisticLockLoss("Outbox 완료 표시", outbox);
+            } else {
+                log.error("[Coaching] Kafka 발행은 성공했으나 후처리(Outbox 완료 표시) 실패 — "
+                                + "재시도 대상으로 표시. outboxId={}, eventType={}",
+                        outbox.getId(), outbox.getEventType(), e);
+            }
         }
+    }
+
+    /**
+     * 결과 기록 중 낙관적 락 충돌은 lease 만료 직후 다른 Worker가 재선점하는 경계에서 발생할 수 있는
+     * <b>예상 가능한 경합</b>이다(이슈 #288). 데이터는 덮어써지지 않고 재선점한 Worker가 처리하므로
+     * 장애 신호(ERROR)가 아니라 WARN으로 남긴다. ERROR를 알람 기준으로 쓰는 환경에서 정상 경합이
+     * 오탐이 되지 않도록, 트랜잭션 밖인 이 경계에서만 구분한다(서비스 안에서 catch하면 rollback-only가 된다).
+     */
+    private void logOptimisticLockLoss(String action, CoachingEventOutbox outbox) {
+        log.warn("[Coaching] {} 중 다른 Relay와 낙관적 락 충돌 — 다른 Worker가 재선점해 처리한 것으로 보고 건너뜁니다. "
+                        + "outboxId={}, eventType={}",
+                action, outbox.getId(), outbox.getEventType());
     }
 
     private String serialize(JsonNode payload) {
