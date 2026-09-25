@@ -3,6 +3,8 @@ package com.maesamco.content.application.dailyquiz.service;
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
 import com.maesamco.content.application.dailyquiz.facade.DailyQuizSetGenerationFacade;
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizConceptCandidateQueryService;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -22,8 +25,20 @@ class DailyQuizUserGenerationServiceTest {
             mock(DailyQuizConceptCandidateQueryService.class);
     private final DailyQuizSetGenerationFacade setGenerationFacade =
             mock(DailyQuizSetGenerationFacade.class);
+    private final DailyQuizAttemptRepository attemptRepository = mock(DailyQuizAttemptRepository.class);
     private final DailyQuizUserGenerationService service =
-            new DailyQuizUserGenerationService(candidateQueryService, setGenerationFacade);
+            new DailyQuizUserGenerationService(candidateQueryService, setGenerationFacade, attemptRepository);
+
+    @Test
+    void 이미_생성된_날짜는_개념_조회_전에_건너뛴다() {
+        UUID userId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        when(attemptRepository.existsByUserIdAndAttemptDate(userId, attemptDate)).thenReturn(true);
+
+        assertThat(service.generate(userId, attemptDate))
+                .isEqualTo(DailyQuizSetGenerationResult.alreadyExists());
+        verifyNoInteractions(candidateQueryService, setGenerationFacade);
+    }
 
     @Test
     void 개념_후보_데이터_오류는_사용자_단위_예외로_분류한다() {

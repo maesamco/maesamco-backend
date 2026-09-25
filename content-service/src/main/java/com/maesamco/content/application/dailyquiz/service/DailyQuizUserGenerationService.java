@@ -7,6 +7,7 @@ import com.maesamco.content.application.dailyquiz.query.DailyQuizConceptCandidat
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizConceptCandidateQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.domain.dailyquiz.DailyQuizConceptCandidates;
+import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -24,11 +25,17 @@ public class DailyQuizUserGenerationService {
 
     private final DailyQuizConceptCandidateQueryService conceptCandidateQueryService;
     private final DailyQuizSetGenerationFacade setGenerationFacade;
+    private final DailyQuizAttemptRepository attemptRepository;
 
     public DailyQuizSetGenerationResult generate(UUID userId, LocalDate attemptDate) {
         // userId와 attemptDate로 DailyQuizConceptCandidatesGetQuery를 생성합니다.
         DailyQuizConceptCandidatesGetQuery query =
                 DailyQuizConceptCandidatesGetQuery.from(userId, attemptDate);
+
+        // 재실행 시 이미 생성된 세트는 외부 개념 조회와 문항 확보 전에 건너뜁니다.
+        if (attemptRepository.existsByUserIdAndAttemptDate(userId, attemptDate)) {
+            return DailyQuizSetGenerationResult.alreadyExists();
+        }
 
         // 특정 사용자의 개념 후보 데이터가 도메인 계약을 위반하면 사용자 단위 예외로 변환합니다.
         DailyQuizConceptCandidates conceptCandidates;

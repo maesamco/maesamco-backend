@@ -82,4 +82,27 @@ class DailyQuizBatchExecutionServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FEIGN_CLIENT_ERROR));
     }
+
+    @Test
+    void 실패한_날짜를_처음부터_재실행하면_기존_사용자는_건너뛰고_남은_사용자를_처리한다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID firstUser = UUID.randomUUID();
+        UUID secondUser = UUID.randomUUID();
+        when(targetUserPort.getTargetUsers(null, 100))
+                .thenReturn(new DailyQuizTargetUserPage(List.of(firstUser, secondUser), null, false));
+        when(userGenerationService.generate(firstUser, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 3))
+                .thenReturn(DailyQuizSetGenerationResult.alreadyExists());
+        BusinessException failure = new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR);
+        when(userGenerationService.generate(secondUser, attemptDate))
+                .thenThrow(failure)
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 3));
+
+        assertThatThrownBy(() -> service.execute(attemptDate, 100)).isSameAs(failure);
+        service.execute(attemptDate, 100);
+
+        verify(targetUserPort, times(2)).getTargetUsers(null, 100);
+        verify(userGenerationService, times(2)).generate(firstUser, attemptDate);
+        verify(userGenerationService, times(2)).generate(secondUser, attemptDate);
+    }
 }
