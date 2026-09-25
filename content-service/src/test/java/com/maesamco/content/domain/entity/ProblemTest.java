@@ -1,12 +1,21 @@
 package com.maesamco.content.domain.entity;
 
-import com.maesamco.content.domain.entity.problem.*;
+import com.maesamco.content.domain.entity.problem.Problem;
+import com.maesamco.content.domain.entity.problem.ProblemDifficulty;
+import com.maesamco.content.domain.entity.problem.ProblemSource;
+import com.maesamco.content.domain.entity.problem.ProblemStatus;
+import com.maesamco.content.domain.entity.problem.ProblemType;
+import com.maesamco.content.domain.entity.problem.RunningMemoryLimit;
+import com.maesamco.content.domain.entity.problem.RunningTimeLimit;
+import com.maesamco.content.domain.entity.problem.TimerPolicy;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
+
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -383,6 +392,115 @@ class ProblemTest {
 
         // then
         assertThat(problem.getCurrentVersionNo()).isEqualTo(4);
+    }
+
+    // ===== 이슈 #336 — 엔티티 자체 검증 (요청 DTO의 @Valid를 거치지 않는 진입점 방어) =====
+
+    @Test
+    @DisplayName("이슈 #336 — 공백이거나 100자를 넘는 제목으로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeTitle_invalid_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        for (String invalid : new String[]{null, "", "   ", "a".repeat(101)}) {
+            assertThatThrownBy(() -> problem.changeTitle(invalid))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        assertThat(problem.getTitle()).isEqualTo("두 수의 합");
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 정확히 100자인 제목으로는 변경할 수 있다")
+    void changeTitle_maxLength_isAllowed() {
+        Problem problem = createProblem();
+
+        problem.changeTitle("a".repeat(100));
+
+        assertThat(problem.getTitle()).hasSize(100);
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 비어 있는 문제 설명으로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeDescription_blank_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        for (String invalid : new String[]{null, "", "  \n "}) {
+            assertThatThrownBy(() -> problem.changeDescription(invalid))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+
+        assertThat(problem.getDescription()).isEqualTo("두 정수를 입력받아 합을 출력하세요.");
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 필수 enum 필드를 null로 변경하면 예외가 발생하고 값은 바뀌지 않는다")
+    void changeRequiredEnums_null_throwsAndKeepsValue() {
+        Problem problem = createProblem();
+
+        assertThatThrownBy(() -> problem.changeLanguage(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeDifficulty(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeRunningTimeLimit(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeRunningMemoryLimit(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeTimerPolicy(null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> problem.changeSource(null)).isInstanceOf(BusinessException.class);
+
+        assertThat(problem.getLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
+        assertThat(problem.getDifficulty()).isEqualTo(ProblemDifficulty.EASY);
+        assertThat(problem.getRunningTimeLimit()).isEqualTo(RunningTimeLimit.values()[0]);
+        assertThat(problem.getRunningMemoryLimit()).isEqualTo(RunningMemoryLimit.values()[0]);
+        assertThat(problem.getTimerPolicy()).isEqualTo(TimerPolicy.NOT_APPLY_TIMEPOLICY);
+        assertThat(problem.getSource()).isEqualTo(ProblemSource.HUMAN_AUTHORED);
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — create()의 필수 인자를 하나씩 비우면 모두 INVALID_INPUT_VALUE로 거부된다")
+    void create_eachRequiredFieldInvalid_throws() {
+        Object[][] cases = {
+                {"title null", (Supplier<Problem>) () -> createWith(null, ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"title blank", (Supplier<Problem>) () -> createWith(" ", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"language null", (Supplier<Problem>) () -> createWith("제목", null, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"difficulty null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, null, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"type null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, null, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"description null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, null, RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"description blank", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "  ", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"runningTimeLimit null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", null, RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"runningMemoryLimit null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], null, TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"timerPolicy null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], null, ProblemSource.HUMAN_AUTHORED, ProblemStatus.DRAFT)},
+                {"source null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, null, ProblemStatus.DRAFT)},
+                {"problemStatus null", (Supplier<Problem>) () -> createWith("제목", ProgrammingLanguage.JAVA, ProblemDifficulty.EASY, ProblemType.CODE, "설명", RunningTimeLimit.values()[0], RunningMemoryLimit.values()[0], TimerPolicy.NOT_APPLY_TIMEPOLICY, ProblemSource.HUMAN_AUTHORED, null)},
+        };
+
+        for (Object[] c : cases) {
+            @SuppressWarnings("unchecked")
+            Supplier<Problem> creation = (Supplier<Problem>) c[1];
+            assertThatThrownBy(creation::get)
+                    .as(c[0].toString())
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        }
+    }
+
+    @Test
+    @DisplayName("이슈 #336 — 문제 유형을 null로 변경해도 필수값 오류(INVALID_INPUT_VALUE)로 거부되고 값은 바뀌지 않는다")
+    void changeType_null_throwsInvalidInputValue() {
+        Problem problem = createProblem();
+
+        assertThatThrownBy(() -> problem.changeType(null))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        assertThat(problem.getType()).isEqualTo(ProblemType.CODE);
+    }
+
+    private Problem createWith(
+            String title, ProgrammingLanguage language, ProblemDifficulty difficulty, ProblemType type,
+            String description, RunningTimeLimit timeLimit, RunningMemoryLimit memoryLimit,
+            TimerPolicy timerPolicy, ProblemSource source, ProblemStatus status
+    ) {
+        return Problem.create(title, language, difficulty, type, description, null,
+                timeLimit, memoryLimit, timerPolicy, source, status);
     }
 
     private Problem createProblem() {

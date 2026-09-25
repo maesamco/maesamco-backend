@@ -24,6 +24,7 @@ allprojects {
         bouncycastleVersion     = "1.79"
         springAiVersion         = "2.0.1"      // 확정 (Boot 4.1.1 + Initializr 실측)
         googleApiClientVersion  = "2.9.1"
+        jacksonNullableVersion  = "0.2.11"     // content-service PATCH 요청의 undefined/null 구분(JsonNullable)
     }
 }
 
