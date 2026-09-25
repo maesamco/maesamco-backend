@@ -44,6 +44,8 @@ outbox:
   relay:
     fixed-delay-ms: 1000
     publish-timeout-ms: 5000
+    # 이슈 #272 — Outbox 선점(claim) 유효시간. publish-timeout-ms보다 충분히 길어야 한다(생성자에서 검증).
+    lease-duration-ms: 300000
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
@@ -110,3 +112,10 @@ judge:
   retry:
     fixed-delay-ms: 10000
     batch-size: 100
+  # 이슈 #350 — QUEUED에 오래 머문 제출 복구
+  queued-recovery:
+    enabled: ${JUDGE_QUEUED_RECOVERY_ENABLED:true}
+    fixed-delay-ms: 30000
+    stale-seconds: 60
+    batch-size: 10
+    soft-budget-seconds: 20

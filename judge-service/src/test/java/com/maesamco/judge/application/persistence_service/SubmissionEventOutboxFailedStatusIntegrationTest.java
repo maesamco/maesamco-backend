@@ -15,6 +15,7 @@ import com.maesamco.judge.domain.entity.SubmissionStatus;
 import com.maesamco.judge.domain.repository.ProblemExecutionSpecRepository;
 import com.maesamco.judge.domain.repository.SubmissionEventOutboxRepository;
 import com.maesamco.judge.domain.repository.SubmissionRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -47,6 +48,8 @@ class SubmissionEventOutboxFailedStatusIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        // 이 테스트가 만든 Outbox를 Relay 스케줄러가 먼저 선점하지 않도록 폴링 주기를 사실상 끈다.
+        registry.add("outbox.relay.fixed-delay-ms", () -> "3600000");
     }
 
     @Autowired
@@ -97,15 +100,17 @@ class SubmissionEventOutboxFailedStatusIntegrationTest {
     void savesOutboxAsFailedWhenRetryLimitReached() {
         // given
         UUID submissionId = createSubmission("idem-key-retry-cap");
+        // 제출 생성이 함께 저장한 Outbox는 지우고, 이 테스트가 만든 Outbox만 선점 대상이 되게 한다.
+        submissionEventOutboxRepository.deleteAll();
         SubmissionEventOutbox outbox = submissionEventOutboxRepository.saveAndFlush(
                 SubmissionEventOutbox.create(submissionId, "JudgeRequested", "{}"));
         UUID outboxId = outbox.getId();
 
-        // when
+        // when — 실제 Relay처럼 매 시도마다 선점한 뒤 실패를 기록한다.
         for (int attempt = 1; attempt <= MAX_RELAY_ATTEMPTS; attempt++) {
-            SubmissionEventOutbox freshOutbox =
-                    submissionEventOutboxRepository.findById(outboxId).orElseThrow();
-            submissionEventOutboxPersistenceService.recordFailedAttempt(freshOutbox);
+            UUID claimId = UUID.randomUUID();
+            submissionEventOutboxPersistenceService.claimNext(claimId, Duration.ofMinutes(5)).orElseThrow();
+            submissionEventOutboxPersistenceService.recordFailedAttempt(outboxId, claimId);
         }
 
         // then
@@ -124,12 +129,16 @@ class SubmissionEventOutboxFailedStatusIntegrationTest {
     void savesOutboxAsFailedWhenEventTypeUnsupported() {
         // given
         UUID submissionId = createSubmission("idem-key-unsupported-type");
+        // 제출 생성이 함께 저장한 Outbox는 지우고, 이 테스트가 만든 Outbox만 선점 대상이 되게 한다.
+        submissionEventOutboxRepository.deleteAll();
         SubmissionEventOutbox outbox = submissionEventOutboxRepository.saveAndFlush(
                 SubmissionEventOutbox.create(submissionId, "SubmissionJudged", "{}"));
         UUID outboxId = outbox.getId();
 
         // when
-        submissionEventOutboxPersistenceService.markUnsupportedEventType(outbox);
+        UUID claimId = UUID.randomUUID();
+        submissionEventOutboxPersistenceService.claimNext(claimId, Duration.ofMinutes(5)).orElseThrow();
+        submissionEventOutboxPersistenceService.markUnsupportedEventType(outboxId, claimId);
 
         // then
         SubmissionEventOutbox reloadedOutbox =
