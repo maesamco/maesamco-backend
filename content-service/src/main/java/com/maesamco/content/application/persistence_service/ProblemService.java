@@ -3,8 +3,8 @@ package com.maesamco.content.application.persistence_service;
 import com.maesamco.content.application.command.ProblemCreateCommand;
 import com.maesamco.content.application.command.ProblemUpdateCommand;
 import com.maesamco.content.application.facade.ProblemPublicationFacade;
-import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.finder.LessonFinder;
+import com.maesamco.content.application.finder.ProblemFinder;
 import com.maesamco.content.application.query.ProblemSearchQuery;
 import com.maesamco.content.application.result.ProblemResult;
 import com.maesamco.content.application.result.ProblemSearchResult;
@@ -203,10 +203,13 @@ public class ProblemService {
         }
         // 들어왔는데 null인 경우 -> 레슨 연결 해제 / 안 들어와서 null인 경우 -> 안 바꿈 (이슈 #291)
         if (command.getLessonId().isDefined()) {
-            if (command.getLessonId().getValue() != null) {
-                validateLessonForNewLink(command.getLessonId().getValue());
+            UUID newLessonId = command.getLessonId().getValue();
+            // 기존과 같은 lessonId를 다시 보내는 것은 새 연결이 아니므로 검증하지 않는다.
+            // (레슨이 삭제된 뒤에도 이미 연결된 문제는 같은 lessonId로 수정할 수 있어야 한다 — #348)
+            if (newLessonId != null && !newLessonId.equals(problem.getLessonId())) {
+                validateLessonForNewLink(newLessonId);
             }
-            problem.changeLessonId(command.getLessonId().getValue());
+            problem.changeLessonId(newLessonId);
         }
 
         if (isModified) {

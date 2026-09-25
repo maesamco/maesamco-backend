@@ -20,6 +20,7 @@ import com.maesamco.content.global.exception.ErrorCode;
 import com.maesamco.content.global.common.pagination.PageQuery;
 import com.maesamco.content.infrastructure.persistence.*;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -80,44 +81,62 @@ class ProblemLessonLinkIntegrationTest {
 
     enum MissingParent { LESSON, UNIT, CURRICULUM }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}이(가) 삭제되면 해당 레슨으로 문제를 생성할 수 없다")
     @EnumSource(MissingParent.class)
+    @DisplayName("삭제된 레슨 또는 상위 유닛·커리큘럼으로 문제를 생성하면 LESSON_NOT_FOUND")
     void createRejectsDeletedLessonOrParent(MissingParent missingParent) {
+        // given
         Hierarchy hierarchy = createHierarchy();
         delete(hierarchy, missingParent);
 
+        // when & then
         assertLessonNotFound(() -> problemService.createProblem(createCommand(hierarchy.lessonId())));
     }
 
     @Test
+    @DisplayName("존재하지 않는 레슨으로 문제를 생성하면 FK 위반 전에 LESSON_NOT_FOUND")
     void createRejectsUnknownLessonBeforeForeignKeyViolation() {
-        assertLessonNotFound(() -> problemService.createProblem(createCommand(UUID.randomUUID())));
+        // given
+        UUID unknownLessonId = UUID.randomUUID();
+
+        // when & then
+        assertLessonNotFound(() -> problemService.createProblem(createCommand(unknownLessonId)));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}이(가) 삭제되면 해당 레슨으로 새로 연결할 수 없다")
     @EnumSource(MissingParent.class)
+    @DisplayName("삭제된 레슨 또는 상위 유닛·커리큘럼으로 문제를 새로 연결하면 LESSON_NOT_FOUND")
     void updateRejectsDeletedLessonOrParent(MissingParent missingParent) {
+        // given
         Hierarchy hierarchy = createHierarchy();
         UUID problemId = problemService.createProblem(createCommand(null)).getId();
         delete(hierarchy, missingParent);
 
+        // when & then
         assertLessonNotFound(() -> problemService.updateProblem(
                 problemId, updateCommand(problemId, UpdateField.of(hierarchy.lessonId()))));
     }
 
     @Test
+    @DisplayName("존재하지 않는 레슨으로 문제를 새로 연결하면 LESSON_NOT_FOUND")
     void updateRejectsUnknownLesson() {
+        // given
         UUID problemId = problemService.createProblem(createCommand(null)).getId();
+
+        // when & then
         assertLessonNotFound(() -> problemService.updateProblem(
                 problemId, updateCommand(problemId, UpdateField.of(UUID.randomUUID()))));
     }
 
     @Test
+    @DisplayName("레슨이 삭제돼도 이미 연결된 문제는 연결이 유지되고, 미전송 시 유지·null 전송 시 해제된다")
     void deletedLessonKeepsAlreadyLinkedProblemAndAllowsOtherEditsOrUnlink() {
+        // given
         Hierarchy hierarchy = createHierarchy();
         UUID problemId = problemService.createProblem(createCommand(hierarchy.lessonId())).getId();
         delete(hierarchy, MissingParent.LESSON);
 
+        // when & then: 연결과 검색 필터 유지
         assertThat(problemService.getProblemForAdmin(problemId).getLessonId())
                 .isEqualTo(hierarchy.lessonId());
         // Problem은 Lesson 삭제와 독립적인 자산이다. 관리자 검색의 lessonId 필터도 유지한다.
@@ -125,12 +144,32 @@ class ProblemLessonLinkIntegrationTest {
                 new ProblemSearchQuery(null, null, null, null, null, hierarchy.lessonId()),
                 PageQuery.of(0, 10)).totalElements()).isEqualTo(1);
 
+        // when & then: lessonId 미전송 -> 유지
         problemService.updateProblem(problemId, updateCommand(problemId, UpdateField.undefined()));
         assertThat(problemService.getProblemForAdmin(problemId).getLessonId())
                 .isEqualTo(hierarchy.lessonId());
 
+        // when & then: lessonId null 전송 -> 연결 해제
         problemService.updateProblem(problemId, updateCommand(problemId, UpdateField.of(null)));
         assertThat(problemService.getProblemForAdmin(problemId).getLessonId()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0}이(가) 삭제돼도 같은 lessonId 재전송은 성공한다")
+    @EnumSource(MissingParent.class)
+    @DisplayName("이미 연결된 레슨이 삭제된 뒤 같은 lessonId를 다시 보내면 수정이 성공하고 연결이 유지된다")
+    void updateWithSameLessonIdSucceedsAfterLinkedLessonOrParentDeleted(MissingParent missingParent) {
+        // given
+        Hierarchy hierarchy = createHierarchy();
+        UUID problemId = problemService.createProblem(createCommand(hierarchy.lessonId())).getId();
+        delete(hierarchy, missingParent);
+
+        // when
+        problemService.updateProblem(
+                problemId, updateCommand(problemId, UpdateField.of(hierarchy.lessonId())));
+
+        // then
+        assertThat(problemService.getProblemForAdmin(problemId).getLessonId())
+                .isEqualTo(hierarchy.lessonId());
     }
 
     private Hierarchy createHierarchy() {
