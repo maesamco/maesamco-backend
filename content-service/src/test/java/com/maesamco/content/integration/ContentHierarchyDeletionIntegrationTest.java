@@ -84,7 +84,7 @@ class ContentHierarchyDeletionIntegrationTest {
     @Autowired private LessonFinderService lessonFinder;
 
     @Test
-    @DisplayName("Curriculum ??젣 ???섏쐞 ?곗씠?곕뒗 蹂댁〈?섍퀬 Unit/Lesson ?쒕퉬???묎렐? 李⑤떒?쒕떎")
+    @DisplayName("Curriculum 삭제 시 하위 데이터는 보존하고 Unit/Lesson 서비스 접근은 차단한다")
     void deletingCurriculumKeepsChildrenButBlocksTheirServiceEndpoints() {
         Hierarchy ids = createHierarchy();
         CurriculumService curriculums = new CurriculumService(curriculumRepository, curriculumFinder);
@@ -95,7 +95,7 @@ class ContentHierarchyDeletionIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        // 선택지 B: 자식 행은 보존하지만 삭제된 부모를 통과하는 경로는 모두 막는다.
+        // 부모가 삭제되면 하위 리소스는 보존하되, 삭제된 부모를 거치는 Unit/Lesson 서비스 진입점은 막는다 (#344 제안). Problem-Lesson 연결 경로는 #348에서 다룬다.
         assertThat(activeRowCount("p_units", "unit_id", ids.unitId())).isEqualTo(1);
         assertThat(activeRowCount("p_lessons", "lesson_id", ids.lessonId())).isEqualTo(1);
         assertError(ErrorCode.CURRICULUM_NOT_FOUND, () -> units.getUnit(ids.unitId()));
@@ -117,7 +117,7 @@ class ContentHierarchyDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Unit ??젣 ??Lesson ?곗씠?곕뒗 蹂댁〈?섍퀬 Lesson ?쒕퉬???묎렐? 李⑤떒?쒕떎")
+    @DisplayName("Unit 삭제 시 Lesson 데이터는 보존하고 Lesson 서비스 접근은 차단한다")
     void deletingUnitKeepsLessonButBlocksItsEndpoints() {
         Hierarchy ids = createHierarchy();
         UnitService units = new UnitService(unitRepository, unitFinder, curriculumFinder);
@@ -141,7 +141,7 @@ class ContentHierarchyDeletionIntegrationTest {
 
 
     @Test
-    @DisplayName("Curriculum ??젣 ??Unit ?앹꽦? CURRICULUM_NOT_FOUND濡?李⑤떒?쒕떎")
+    @DisplayName("Curriculum 삭제 후 Unit 생성은 CURRICULUM_NOT_FOUND로 차단된다")
     void deletingCurriculumBlocksCreatingUnit() {
         // Given
         Hierarchy ids = createHierarchy();
@@ -165,7 +165,7 @@ class ContentHierarchyDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Curriculum ??젣 ??湲곗〈 Unit ?꾨옒 Lesson ?앹꽦? CURRICULUM_NOT_FOUND濡?李⑤떒?쒕떎")
+    @DisplayName("Curriculum 삭제 후 기존 Unit 아래 Lesson 생성은 CURRICULUM_NOT_FOUND로 차단된다")
     void deletingCurriculumBlocksCreatingLessonUnderExistingUnit() {
         // Given
         Hierarchy ids = createHierarchy();
@@ -188,7 +188,7 @@ class ContentHierarchyDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Unit ??젣 ??Lesson ?앹꽦? UNIT_NOT_FOUND濡?李⑤떒?쒕떎")
+    @DisplayName("Unit 삭제 후 Lesson 생성은 UNIT_NOT_FOUND로 차단된다")
     void deletingUnitBlocksCreatingLesson() {
         // Given
         Hierarchy ids = createHierarchy();
