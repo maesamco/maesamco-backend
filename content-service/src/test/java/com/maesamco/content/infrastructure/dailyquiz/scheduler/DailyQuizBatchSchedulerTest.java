@@ -11,13 +11,50 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class DailyQuizBatchSchedulerTest {
+
+    @Test
+    void 실제_예약_실행기가_같은_날짜의_배치를_다시_실행한다() throws InterruptedException {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
+        try {
+            DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
+                    "0 0 3 * * *", "Asia/Seoul", 100, 2, 1_000
+            );
+            Clock clock = Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul"));
+            DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                    executionService, properties, clock, retryExecutor
+            );
+            LocalDate attemptDate = LocalDate.of(2026, 9, 23);
+            AtomicInteger attempts = new AtomicInteger();
+            CountDownLatch retried = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                if (attempts.incrementAndGet() == 1) {
+                    throw new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR);
+                }
+                retried.countDown();
+                return null;
+            }).when(executionService).execute(attemptDate, 100);
+
+            scheduler.run();
+
+            assertThat(retried.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(attempts.get()).isEqualTo(2);
+            verify(executionService, times(2)).execute(attemptDate, 100);
+        } finally {
+            retryExecutor.shutdownNow();
+        }
+    }
 
     @Test
     void 설정한_시간대의_퀴즈_날짜와_청크_크기로_배치를_실행한다() {
