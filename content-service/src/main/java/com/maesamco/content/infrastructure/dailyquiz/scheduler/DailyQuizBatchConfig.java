@@ -1,6 +1,7 @@
 package com.maesamco.content.infrastructure.dailyquiz.scheduler;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,6 +27,7 @@ public class DailyQuizBatchConfig {
     }
 
     @Bean(destroyMethod = "shutdownNow")
+    @ConditionalOnProperty(prefix = "daily-quiz.batch", name = "enabled", havingValue = "true")
     public ScheduledExecutorService dailyQuizBatchRetryExecutor() {
         return Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "daily-quiz-batch-retry");

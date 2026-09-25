@@ -140,6 +140,7 @@ resilience4j:
 
 daily-quiz:
   batch:
+    enabled: ${DAILY_QUIZ_BATCH_ENABLED:false}
     cron: "${DAILY_QUIZ_BATCH_CRON:0 0 3 * * *}"
     zone: ${DAILY_QUIZ_BATCH_ZONE:Asia/Seoul}
     chunk-size: ${DAILY_QUIZ_BATCH_CHUNK_SIZE:100}

@@ -5,6 +5,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 설정된 시간에 Daily Quiz 배치를 시작하고 같은 JVM 내 중복 실행을 방지하는 스케줄러입니다.
  */
 @Component
+@ConditionalOnProperty(prefix = "daily-quiz.batch", name = "enabled", havingValue = "true")
 @Slf4j
 @RequiredArgsConstructor
 public class DailyQuizBatchScheduler {

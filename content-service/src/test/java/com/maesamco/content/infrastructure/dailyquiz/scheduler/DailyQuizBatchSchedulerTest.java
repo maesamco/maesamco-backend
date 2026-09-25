@@ -5,6 +5,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.QueryTimeoutException;
@@ -24,6 +25,39 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class DailyQuizBatchSchedulerTest {
+
+    private final ApplicationContextRunner wiringContextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(DailyQuizBatchConfig.class, DailyQuizBatchScheduler.class)
+            .withBean(DailyQuizBatchExecutionService.class, () -> mock(DailyQuizBatchExecutionService.class))
+            .withPropertyValues(
+                    "daily-quiz.batch.cron=0 0 3 * * *",
+                    "daily-quiz.batch.zone=Asia/Seoul",
+                    "daily-quiz.batch.chunk-size=100",
+                    "daily-quiz.batch.max-retries=2",
+                    "daily-quiz.batch.retry-delay-ms=300000"
+            );
+
+    @Test
+    void 배치_활성화_설정이_없거나_false면_스케줄러와_재시도_실행기를_생성하지_않는다() {
+        wiringContextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean(DailyQuizBatchScheduler.class);
+            assertThat(context).doesNotHaveBean(ScheduledExecutorService.class);
+        });
+        wiringContextRunner.withPropertyValues("daily-quiz.batch.enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(DailyQuizBatchScheduler.class);
+                    assertThat(context).doesNotHaveBean(ScheduledExecutorService.class);
+                });
+    }
+
+    @Test
+    void 배치_활성화_설정이_true면_스케줄러와_재시도_실행기를_생성한다() {
+        wiringContextRunner.withPropertyValues("daily-quiz.batch.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(DailyQuizBatchScheduler.class);
+                    assertThat(context).hasSingleBean(ScheduledExecutorService.class);
+                });
+    }
 
     @Test
     void 실제_예약_실행기가_같은_날짜의_배치를_다시_실행한다() throws InterruptedException {
