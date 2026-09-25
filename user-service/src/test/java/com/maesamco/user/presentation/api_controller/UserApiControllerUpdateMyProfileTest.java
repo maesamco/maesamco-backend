@@ -82,6 +82,9 @@ class UserApiControllerUpdateMyProfileTest {
     private ChangePasswordRetryService changePasswordRetryService;
 
     @MockitoBean
+    private GetMyInterestsService getMyInterestsService;
+
+    @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
 
     @MockitoBean

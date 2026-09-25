@@ -5,6 +5,7 @@ import com.maesamco.user.application.service.GetMyGamificationResult;
 import com.maesamco.user.application.service.GetMyGamificationService;
 import com.maesamco.user.application.service.GetMyXpHistoriesService;
 import com.maesamco.user.application.service.GetMyProfileService;
+import com.maesamco.user.application.service.GetMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyInterestsService;
 import com.maesamco.user.application.service.UpdateMyProfileService;
 import com.maesamco.user.application.service.WithdrawUserService;
@@ -72,6 +73,9 @@ class UserApiControllerGetMyGamificationTest {
 
     @MockitoBean
     private UpdateMyProfileService updateMyProfileService;
+
+    @MockitoBean
+    private GetMyInterestsService getMyInterestsService;
 
     @MockitoBean
     private UpdateMyInterestsService updateMyInterestsService;
