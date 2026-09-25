@@ -30,6 +30,12 @@ public class JudgeExecutionFacade {
     private static final int SAVE_RETRY_MAX_ATTEMPTS = 3;
     private static final long SAVE_RETRY_BACKOFF_MS = 200L;
 
+    // 이슈 #350 — Outbox 릴레이는 Kafka 발행 직후에 PENDING → QUEUED 전이를 커밋한다. 그 몇 ms 사이에
+    // 소비자가 같은 Submission을 읽으면 낙관적 락 충돌이 나는데, 충돌 상대는 다른 채점 워커가 아니라
+    // 릴레이의 상태 전이라서 잠깐 뒤 다시 읽으면(QUEUED) 정상적으로 RUNNING 전이가 된다.
+    private static final int MARK_RUNNING_MAX_ATTEMPTS = 3;
+    private static final long MARK_RUNNING_BACKOFF_MS = 100L;
+
     private final JudgeExecutionPersistenceService judgeExecutionPersistenceService;
     private final JudgeExecutionPort judgeExecutionPort;
     private final JsonMapper jsonMapper;
@@ -37,10 +43,14 @@ public class JudgeExecutionFacade {
     public void execute(UUID submissionId) {
         Optional<UUID> markedRunning;
         try {
-            markedRunning = judgeExecutionPersistenceService.markRunningIfNeeded(submissionId);
+            markedRunning = markRunningIfNeededWithRetry(submissionId);
         } catch (ObjectOptimisticLockingFailureException e) {
-            log.info("[Judge] 다른 워커가 이미 처리 중 — 낙관적 락 충돌로 스킵. submissionId={}", submissionId);
-            return;
+            // 재시도해도 계속 충돌하면 여기서 정상 종료하지 않는다 — 정상 종료하면 Kafka 메시지가 소비 완료로
+            // 처리돼 재전달되지 않고 제출이 QUEUED에 영구히 남는다(이슈 #350). 예외를 컨테이너의 에러
+            // 핸들러(재시도 후 DLT)로 넘긴다.
+            log.warn("[Judge] RUNNING 전이가 낙관적 락 충돌로 {}회 모두 실패 — 재전달을 위해 예외를 전파. submissionId={}",
+                    MARK_RUNNING_MAX_ATTEMPTS, submissionId);
+            throw e;
         } catch (Exception e) {
             // RUNNING 전이가 커밋된 적이 없으므로 상태를 건드리지 않고 종료한다.
             // QUEUED는 메시지 재전달이, RETRY_WAIT는 스케줄러가 알아서 다시 집어간다.
@@ -149,6 +159,35 @@ public class JudgeExecutionFacade {
             }
         }
         throw new IllegalStateException("토큰 저장 재시도 소진. submissionId=" + submissionId, lastException);
+    }
+
+    /**
+     * RUNNING 전이를 시도하고, 낙관적 락 충돌이면 잠깐 대기한 뒤 최신 상태로 다시 시도한다.
+     *
+     * <p>다시 시도하면 두 경우가 모두 올바르게 수렴한다 — 릴레이의 QUEUED 전이가 끝났으면 정상 전이되고,
+     * 다른 워커가 실제로 RUNNING으로 바꿨으면 markRunningIfNeeded가 빈 값을 돌려줘 스킵된다.</p>
+     */
+    private Optional<UUID> markRunningIfNeededWithRetry(UUID submissionId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return judgeExecutionPersistenceService.markRunningIfNeeded(submissionId);
+            } catch (ObjectOptimisticLockingFailureException e) {
+                if (attempt >= MARK_RUNNING_MAX_ATTEMPTS) {
+                    throw e;
+                }
+                log.info("[Judge] RUNNING 전이가 낙관적 락 충돌 — 최신 상태로 재시도. attempt={}/{}, submissionId={}",
+                        attempt, MARK_RUNNING_MAX_ATTEMPTS, submissionId);
+                sleep(MARK_RUNNING_BACKOFF_MS * attempt);
+            }
+        }
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void sleepBeforeRetry(int attempt) {

@@ -106,6 +106,62 @@ class JudgeExecutionFacadeTest {
         }
 
         @Test
+        @DisplayName("이슈 #350 — RUNNING 전이가 릴레이의 QUEUED 전이와 낙관적 락 충돌해도 최신 상태로 다시 시도해 채점을 이어간다")
+        void retriesMarkRunningOnOptimisticLockConflictAndContinues() {
+            UUID submissionId = UUID.randomUUID();
+            String testCasesJson = jsonMapper.writeValueAsString(List.of(
+                    new ExecutionTestCase(UUID.randomUUID(), true, "1 2", "3", 1)
+            ));
+            ProblemExecutionSpec spec = specWithTestCases(testCasesJson);
+            JudgeExecutionPreparation preparation =
+                    new JudgeExecutionPreparation(submissionId, "public class Main {}", spec);
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            com.maesamco.judge.domain.entity.Submission.class, submissionId))
+                    .willReturn(Optional.of(submissionId));
+            given(judgeExecutionPersistenceService.loadExecutionPreparation(submissionId))
+                    .willReturn(preparation);
+            given(judgeExecutionPort.submitBatch(anyList())).willReturn(List.of("token-1"));
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService, times(2)).markRunningIfNeeded(submissionId);
+            verify(judgeExecutionPort).submitBatch(anyList());
+        }
+
+        @Test
+        @DisplayName("이슈 #350 — 충돌 뒤 다시 읽었을 때 다른 워커가 이미 RUNNING으로 바꿨다면 채점하지 않고 스킵한다")
+        void skipsWhenAnotherWorkerAlreadyMarkedRunningAfterConflict() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            com.maesamco.judge.domain.entity.Submission.class, submissionId))
+                    .willReturn(Optional.empty());
+
+            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
+
+            verify(judgeExecutionPersistenceService, times(2)).markRunningIfNeeded(submissionId);
+            verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
+            verify(judgeExecutionPort, never()).submitBatch(any());
+        }
+
+        @Test
+        @DisplayName("이슈 #350 — 낙관적 락 충돌이 계속되면 조용히 종료하지 않고 예외를 전파해 메시지가 재전달되게 한다")
+        void propagatesOptimisticLockConflictWhenRetriesExhausted() {
+            UUID submissionId = UUID.randomUUID();
+            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            com.maesamco.judge.domain.entity.Submission.class, submissionId));
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> judgeExecutionFacade.execute(submissionId))
+                    .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+
+            verify(judgeExecutionPersistenceService, times(3)).markRunningIfNeeded(submissionId);
+            verify(judgeExecutionPersistenceService, never()).loadExecutionPreparation(any());
+            verify(judgeExecutionPort, never()).submitBatch(any());
+        }
+
+        @Test
         @DisplayName("markRunningIfNeeded이 SUBMISSION_NOT_FOUND를 던지면 RUNNING 전이가 커밋된 적이 없으므로 "
                 + "재시도/실패 처리를 하지 않고 조용히 종료한다")
         void doesNothingWhenMarkRunningIfNeededThrowsSubmissionNotFound() {
@@ -332,21 +388,6 @@ class JudgeExecutionFacadeTest {
             assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
 
             verify(judgeExecutionPersistenceService).handleRetryableFailure(submissionId, FailureCode.INTERNAL_SYSTEM_ERROR);
-        }
-
-        @Test
-        @DisplayName("markRunningIfNeeded이 낙관적 락 충돌을 던지면 상태/재시도 카운트를 건드리지 않고 조용히 스킵한다")
-        void skipsWhenMarkRunningIfNeededThrowsOptimisticLockingFailure() {
-            UUID submissionId = UUID.randomUUID();
-            given(judgeExecutionPersistenceService.markRunningIfNeeded(submissionId))
-                    .willThrow(new ObjectOptimisticLockingFailureException(
-                            com.maesamco.judge.domain.entity.Submission.class, submissionId));
-
-            assertThatCode(() -> judgeExecutionFacade.execute(submissionId)).doesNotThrowAnyException();
-
-            verify(judgeExecutionPersistenceService, never()).markFailed(any(), any());
-            verify(judgeExecutionPersistenceService, never()).handleRetryableFailure(any(), any());
-            verify(judgeExecutionPort, never()).submitBatch(any());
         }
     }
 }
