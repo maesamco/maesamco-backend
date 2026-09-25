@@ -4,6 +4,8 @@ import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.ChangePasswordRetryService;
 import com.maesamco.user.application.service.GetMyGamificationResult;
 import com.maesamco.user.application.service.GetMyGamificationService;
+import com.maesamco.user.application.service.GetMyInterestsResult;
+import com.maesamco.user.application.service.GetMyInterestsService;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyProfileService;
 import com.maesamco.user.application.service.GetMyXpHistoriesQuery;
@@ -57,6 +59,8 @@ public class UserApiController implements UserApiDocs {
     private final ChangePasswordRetryService changePasswordRetryService;
 
     private final UpdateMyProfileService updateMyProfileService;
+
+    private final GetMyInterestsService getMyInterestsService;
 
     private final UpdateMyInterestsService updateMyInterestsService;
 
@@ -191,6 +195,35 @@ public class UserApiController implements UserApiDocs {
                 updateMyProfileService.updateMyProfile(
                         userId,
                         command
+                );
+
+        return ResponseEntity.ok(
+                SuccessResponse.success(
+                        result
+                )
+        );
+    }
+
+    /**
+     * 로그인 사용자의 현재 관심 개념 목록을 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 현재 저장된 관심 개념 ID 목록
+     */
+    @Override
+    @GetMapping("/interests")
+    public ResponseEntity<SuccessResponse<GetMyInterestsResult>>
+    getMyInterests(
+            Authentication authentication
+    ) {
+        UUID userId =
+                requireUserId(
+                        authentication
+                );
+
+        GetMyInterestsResult result =
+                getMyInterestsService.getMyInterests(
+                        userId
                 );
 
         return ResponseEntity.ok(

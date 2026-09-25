@@ -2,6 +2,7 @@ package com.maesamco.user.presentation.api_controller;
 
 import com.maesamco.user.application.service.ChangePasswordCommand;
 import com.maesamco.user.application.service.GetMyGamificationResult;
+import com.maesamco.user.application.service.GetMyInterestsResult;
 import com.maesamco.user.application.service.GetMyProfileResult;
 import com.maesamco.user.application.service.GetMyXpHistoriesResult;
 import com.maesamco.user.application.service.UpdateMyInterestsCommand;
@@ -413,6 +414,67 @@ public interface UserApiDocs {
             @Valid
             @RequestBody
             ChangePasswordCommand command
+    );
+
+    /**
+     * 로그인 사용자의 현재 관심 개념 목록을 조회합니다.
+     *
+     * @param authentication 현재 Access Token 인증 정보
+     * @return 현재 저장된 관심 개념 ID 목록
+     */
+    @Operation(
+            summary = "내 관심 개념 조회",
+            description = "Access Token으로 인증된 활성 사용자의 현재 관심 개념 ID 목록을 조회합니다. "
+                    + "설정한 개념이 없으면 빈 배열을 반환하며, 개념 이름은 "
+                    + "Content Service의 태그 목록 조회 결과와 ID로 매핑합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "관심 개념 조회 성공",
+                    useReturnTypeSchema = true
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "AUTH_UNAUTHORIZED 또는 AUTH_INVALID_TOKEN",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "USER_NOT_ACTIVE",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "USER_NOT_FOUND",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "INTERNAL_SERVER_ERROR",
+                    content = @Content(
+                            schema = @Schema(
+                                    implementation = ErrorResponse.class
+                            )
+                    )
+            )
+    })
+    ResponseEntity<SuccessResponse<GetMyInterestsResult>>
+    getMyInterests(
+            @Parameter(hidden = true)
+            Authentication authentication
     );
 
     /**
