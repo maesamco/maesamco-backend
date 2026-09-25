@@ -20,14 +20,14 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V22 Curriculum/Unit/Lesson 공개 상태 도입 마이그레이션 테스트(#344).
+ * V23 Curriculum/Unit/Lesson 공개 상태 도입 마이그레이션 테스트(#344, #359).
  *
- * <p>V21까지 적용한 DB에 활성·삭제 행을 넣고 V22를 적용해,
+ * <p>V22까지 적용한 DB에 활성·삭제 행을 넣고 V23을 적용해,
  * 기존 행은 PUBLISHED로 채워지고 이후 신규 행은 DRAFT가 기본값인지 검증합니다.</p>
  */
 @Testcontainers
-@DisplayName("V22 Curriculum/Unit/Lesson status Migration 통합 테스트 (#344)")
-class ContentStatusV22MigrationTest {
+@DisplayName("V23 Curriculum/Unit/Lesson status Migration 통합 테스트 (#359)")
+class ContentStatusV23MigrationTest {
 
     private static final UUID SYSTEM = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
@@ -41,18 +41,18 @@ class ContentStatusV22MigrationTest {
             new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
     @Test
-    @DisplayName("V22는 기존 행(삭제 행 포함)을 PUBLISHED로 채우고, 이후 신규 행의 기본값은 DRAFT이며, 허용되지 않은 값은 거절한다")
-    void migrateV22_backfillsExistingRowsAsPublishedAndDefaultsNewRowsToDraft() throws SQLException {
-        // given — V21까지 적용하고 기존 데이터를 넣는다
-        flyway("21").migrate();
+    @DisplayName("V23은 기존 행(삭제 행 포함)을 PUBLISHED로 채우고, 이후 신규 행의 기본값은 DRAFT이며, 허용되지 않은 값은 거절한다")
+    void migrateV23_backfillsExistingRowsAsPublishedAndDefaultsNewRowsToDraft() throws SQLException {
+        // given — V22까지 적용하고 기존 데이터를 넣는다
+        flyway("22").migrate();
 
         insertCurriculum(CURRICULUM);
         insertUnit(UNIT, CURRICULUM, 1, false);
         insertUnit(UNIT_DELETED, CURRICULUM, 2, true);
         insertLesson(LESSON, UNIT, 1);
 
-        // when — V22 적용
-        assertThatCode(() -> flyway("22").migrate()).doesNotThrowAnyException();
+        // when — V23 적용
+        assertThatCode(() -> flyway("23").migrate()).doesNotThrowAnyException();
 
         // then — 기존 행은 학습자에게 이미 보이던 콘텐츠이므로 PUBLISHED
         assertThat(status("p_curriculums", "curriculum_id", CURRICULUM)).isEqualTo("PUBLISHED");
@@ -60,7 +60,7 @@ class ContentStatusV22MigrationTest {
         assertThat(status("p_units", "unit_id", UNIT_DELETED)).isEqualTo("PUBLISHED");
         assertThat(status("p_lessons", "lesson_id", LESSON)).isEqualTo("PUBLISHED");
 
-        // then — V22 이후 status 없이 INSERT한 행은 DRAFT
+        // then — V23 이후 status 없이 INSERT한 행은 DRAFT
         UUID newCurriculum = UUID.randomUUID();
         UUID newUnit = UUID.randomUUID();
         UUID newLesson = UUID.randomUUID();
