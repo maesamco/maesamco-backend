@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,5 +31,10 @@ interface SpringDataLessonRepository extends JpaRepository<Lesson, UUID> {
     Page<Lesson> findByUnitIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
             UUID unitId,
             Pageable pageable
+    );
+
+    /** 특정 유닛에 속한 삭제되지 않은 레슨 전체를 displayOrder, id 오름차순으로 조회 (#324) */
+    List<Lesson> findByUnitIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+            UUID unitId
     );
 }
