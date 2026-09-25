@@ -44,8 +44,8 @@ public class DailyQuizBatchScheduler {
 
     private void runAttempt(LocalDate attemptDate, int retryCount) {
         if (!running.compareAndSet(false, true)) {
-            log.warn("Daily Quiz 배치가 이미 실행 중이어서 실행을 연기합니다. attemptDate={}", attemptDate);
-            scheduleAttempt(attemptDate, retryCount);
+            log.warn("Daily Quiz 배치가 이미 실행 중이어서 중복 실행을 건너뜁니다. attemptDate={}, retryCount={}",
+                    attemptDate, retryCount);
             return;
         }
 

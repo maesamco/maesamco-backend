@@ -183,7 +183,7 @@ class DailyQuizBatchSchedulerTest {
     }
 
     @Test
-    void 실행이_겹치면_재시도_횟수를_소모하지_않고_같은_날짜로_연기한다() {
+    void 실행이_겹치면_추가_예약_없이_건너뛴다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
         ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
@@ -196,14 +196,39 @@ class DailyQuizBatchSchedulerTest {
         LocalDate attemptDate = LocalDate.of(2026, 9, 23);
         doAnswer(invocation -> {
             scheduler.run();
+            scheduler.run();
             return null;
-        }).doNothing().when(executionService).execute(attemptDate, 100);
+        }).when(executionService).execute(attemptDate, 100);
 
         scheduler.run();
 
-        ArgumentCaptor<Runnable> deferred = ArgumentCaptor.forClass(Runnable.class);
-        verify(retryExecutor).schedule(deferred.capture(), eq(300_000L), eq(TimeUnit.MILLISECONDS));
-        deferred.getValue().run();
+        verify(executionService).execute(attemptDate, 100);
+        verifyNoInteractions(retryExecutor);
+    }
+
+    @Test
+    void 예약된_재시도가_진행중인_배치와_겹쳐도_다시_예약하지_않는다() {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                retryExecutor
+        );
+        LocalDate attemptDate = LocalDate.of(2026, 9, 23);
+        ArgumentCaptor<Runnable> retry = ArgumentCaptor.forClass(Runnable.class);
+        doThrow(new BusinessException(ErrorCode.FEIGN_CLIENT_ERROR))
+                .doAnswer(invocation -> {
+                    retry.getValue().run();
+                    return null;
+                })
+                .when(executionService).execute(attemptDate, 100);
+
+        scheduler.run();
+        verify(retryExecutor).schedule(retry.capture(), eq(300_000L), eq(TimeUnit.MILLISECONDS));
+        scheduler.run();
+
         verify(executionService, times(2)).execute(attemptDate, 100);
         verifyNoMoreInteractions(retryExecutor);
     }
