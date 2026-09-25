@@ -4,7 +4,7 @@ import com.maesamco.content.application.dailyquiz.service.DailyQuizBatchExecutio
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-// import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -12,11 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 설정된 시간에 Daily Quiz 배치를 시작하고 같은 JVM 내 중복 실행을 방지하는 스케줄러입니다.
- *
- * TODO: 개념 후보 조회에 필요한 선행 Repository 구현이 병합되면
- * 이 클래스를 Spring Bean으로 등록하고 스케줄링을 활성화합니다.
  */
-// @Component
+@Component
 @Slf4j
 @RequiredArgsConstructor
 public class DailyQuizBatchScheduler {

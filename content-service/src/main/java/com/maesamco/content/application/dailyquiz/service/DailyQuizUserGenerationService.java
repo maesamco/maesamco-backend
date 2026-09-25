@@ -10,18 +10,15 @@ import com.maesamco.content.domain.dailyquiz.DailyQuizConceptCandidates;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-// import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.UUID;
 
 /**
  * 사용자 한 명의 개념 후보를 조회하고 Daily Quiz 세트 생성을 실행하는 서비스
- *
- * TODO: ProblemProgressConceptPort와 ConceptLookupPort의 실제 구현이 병합되면
- * DailyQuizConceptCandidateQueryService와 이 클래스를 Spring Bean으로 등록합니다.
  */
-// @Service
+@Service
 @RequiredArgsConstructor
 public class DailyQuizUserGenerationService {
 

@@ -8,7 +8,7 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-// import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -21,11 +21,8 @@ import static com.maesamco.content.domain.dailyquiz.DailyQuizBatchPolicy.MIN_BAT
 /**
  * User Service의 대상 사용자 페이지를 cursor 방식으로 순회하며
  * 사용자별 Daily Quiz 생성을 순차 실행하는 서비스
- *
- * TODO: 개념 후보 조회에 필요한 선행 Repository 구현이 병합되면
- * DailyQuizUserGenerationService와 함께 Spring Bean으로 등록합니다.
  */
-// @Service
+@Service
 @Slf4j
 @RequiredArgsConstructor
 public class DailyQuizBatchExecutionService {
