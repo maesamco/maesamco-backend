@@ -104,10 +104,12 @@ class SocialSignUpServiceTest {
                         socialSignupTokenStore,
                         signUpPersistenceService,
                         socialSignUpPersistenceService,
-                        tokenIssuer,
-                        refreshTokenHasher,
-                        authSessionStore,
-                        Clock.fixed(NOW, ZoneOffset.UTC)
+                        new AuthSessionIssuer(
+                                tokenIssuer,
+                                refreshTokenHasher,
+                                authSessionStore,
+                                Clock.fixed(NOW, ZoneOffset.UTC)
+                        )
                 );
     }
 

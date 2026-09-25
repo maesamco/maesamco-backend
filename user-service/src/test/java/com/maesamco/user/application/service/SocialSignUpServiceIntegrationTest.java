@@ -82,6 +82,7 @@ import static org.mockito.Mockito.when;
         SocialAccountRepositoryImpl.class,
         SignUpPersistenceService.class,
         SocialSignUpPersistenceService.class,
+        AuthSessionIssuer.class,
         SocialSignUpService.class,
         SocialLoginService.class,
         SocialSignUpServiceIntegrationTest.FakeGoogleVerifierConfig.class
