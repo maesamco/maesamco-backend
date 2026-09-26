@@ -42,5 +42,5 @@ interface SpringDataDailyQuizQuestionRepository extends JpaRepository<DailyQuizQ
             @Param("limitPerSlotCriteria") int limitPerSlotCriteria
     );
 
-    List<DailyQuizQuestion> findByStatusAndFallbackEligibleTrue(DailyQuizQuestionStatus status);
+    List<DailyQuizQuestion> findByStatus(DailyQuizQuestionStatus status);
 }

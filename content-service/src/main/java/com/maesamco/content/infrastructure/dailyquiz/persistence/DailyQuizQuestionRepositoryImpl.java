@@ -54,7 +54,7 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
 
     @Override
     public List<DailyQuizQuestion> findActiveFallbackQuestions() {
-        return springDataRepository.findByStatusAndFallbackEligibleTrue(DailyQuizQuestionStatus.ACTIVE);
+        return springDataRepository.findByStatus(DailyQuizQuestionStatus.ACTIVE);
     }
 
     @Override

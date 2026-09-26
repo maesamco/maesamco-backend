@@ -91,9 +91,6 @@ public class DailyQuizQuestion {
     @Column(name = "status", nullable = false, length = 20)
     private DailyQuizQuestionStatus status;
 
-    @Column(name = "fallback_eligible", nullable = false)
-    private boolean fallbackEligible;
-
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

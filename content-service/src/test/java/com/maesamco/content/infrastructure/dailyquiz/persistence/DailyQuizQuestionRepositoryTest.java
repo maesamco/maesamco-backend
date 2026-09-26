@@ -13,7 +13,6 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -50,9 +49,6 @@ class DailyQuizQuestionRepositoryTest {
     @Autowired
     private EntityManager entityManager;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     @Test
     void 문항_슬롯의_개념과_유형에_맞는_후보를_유형별로_조회한다() {
         saveQuestions(MULTIPLE_CHOICE, 5);
@@ -76,22 +72,18 @@ class DailyQuizQuestionRepositoryTest {
     }
 
     @Test
-    void 공통_폴백에는_검수_표시된_ACTIVE_문항만_조회한다() {
-        DailyQuizQuestion eligible = questionRepository.save(createQuestion(MULTIPLE_CHOICE, 1));
+    void 공통_폴백에는_모든_ACTIVE_문항을_조회하고_FLAGGED는_제외한다() {
+        DailyQuizQuestion firstActive = questionRepository.save(createQuestion(MULTIPLE_CHOICE, 1));
         DailyQuizQuestion flagged = questionRepository.save(createQuestion(SHORT_ANSWER, 2));
-        DailyQuizQuestion unreviewed = questionRepository.save(createQuestion(FILL_IN_BLANK, 3));
+        DailyQuizQuestion secondActive = questionRepository.save(createQuestion(FILL_IN_BLANK, 3));
         flagged.flag();
         entityManager.flush();
-        jdbcTemplate.update(
-                "UPDATE content_schema.p_daily_quiz_questions SET fallback_eligible = TRUE WHERE id IN (?, ?)",
-                eligible.getId(), flagged.getId()
-        );
         entityManager.clear();
 
         List<DailyQuizQuestion> result = questionRepository.findActiveFallbackQuestions();
 
-        assertThat(result).extracting(DailyQuizQuestion::getId).containsExactly(eligible.getId());
-        assertThat(result).extracting(DailyQuizQuestion::getId).doesNotContain(unreviewed.getId());
+        assertThat(result).extracting(DailyQuizQuestion::getId)
+                .containsExactlyInAnyOrder(firstActive.getId(), secondActive.getId());
     }
 
     private void saveQuestions(DailyQuizProblemType problemType, int count) {
