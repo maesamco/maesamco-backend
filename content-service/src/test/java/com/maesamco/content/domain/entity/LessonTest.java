@@ -317,4 +317,34 @@ class LessonTest {
                 DISPLAY_ORDER
         );
     }
+
+    @Test
+    @DisplayName("Lesson은(는) DRAFT 상태로 생성된다")
+    void create_startsAsDraft() {
+        // given & when
+        Lesson content = Lesson.create(UUID.randomUUID(), "변수", "설명", "본문", ProgrammingLanguage.JAVA, 1);
+
+        // then
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.DRAFT);
+        assertThat(content.isPublished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Lesson을(를) 공개하면 PUBLISHED, 비공개로 되돌리면 DRAFT가 되고, 같은 전환을 반복해도 상태가 유지된다")
+    void publishAndUnpublish_changeStatusIdempotently() {
+        // given
+        Lesson content = Lesson.create(UUID.randomUUID(), "변수", "설명", "본문", ProgrammingLanguage.JAVA, 1);
+
+        // when & then: 공개
+        content.publish();
+        content.publish();
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        assertThat(content.isPublished()).isTrue();
+
+        // when & then: 비공개
+        content.unpublish();
+        content.unpublish();
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.DRAFT);
+        assertThat(content.isPublished()).isFalse();
+    }
 }

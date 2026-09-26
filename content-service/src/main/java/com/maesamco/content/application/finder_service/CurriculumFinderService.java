@@ -50,4 +50,24 @@ public class CurriculumFinderService
                         )
                 );
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Curriculum getPublishedById(
+            UUID curriculumId
+    ) {
+        Curriculum curriculum =
+                getById(
+                        curriculumId
+                );
+
+        // 비공개 콘텐츠는 존재 자체를 드러내지 않도록 삭제와 같은 NOT_FOUND로 응답한다.
+        if (!curriculum.isPublished()) {
+            throw new BusinessException(
+                    ErrorCode.CURRICULUM_NOT_FOUND
+            );
+        }
+
+        return curriculum;
+    }
 }

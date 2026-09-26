@@ -529,7 +529,7 @@ class LessonServiceTest {
             verify(lesson, never()).changeLanguage(any());
             verify(lesson, never()).changeDisplayOrder(anyInt());
 
-            verifyNoInteractions(lessonRepository);
+            verify(lessonRepository, never()).reorder(anyList());
         }
 
         @Test
@@ -658,7 +658,7 @@ class LessonServiceTest {
             verify(lesson, never()).changeDisplayOrder(anyInt());
 
             verify(lessonFinder).getById(lessonId);
-            verifyNoInteractions(lessonRepository);
+            verify(lessonRepository, never()).reorder(anyList());
         }
     }
 
@@ -713,7 +713,7 @@ class LessonServiceTest {
         }
 
         @Test
-        @DisplayName("현재와 같은 displayOrder면 부모를 잠그지 않고 재정렬하지 않는다")
+        @DisplayName("현재와 같은 displayOrder면 재정렬하지 않는다")
         void updateLesson_sameDisplayOrder_doesNothing() {
             // given
             Lesson lesson = lessonWithId(UUID.randomUUID(), 2);
@@ -725,7 +725,7 @@ class LessonServiceTest {
             lessonService.updateLesson(lesson.getId(), request);
 
             // then
-            verifyNoInteractions(unitFinder, lessonRepository);
+            verify(lessonRepository, never()).reorder(anyList());
         }
 
         @Test

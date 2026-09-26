@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Curriculum;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -35,6 +36,12 @@ interface SpringDataCurriculumRepository
 
     /** 삭제되지 않은 커리큘럼 목록을 ID 오름차순으로 조회 */
     Page<Curriculum> findByDeletedAtIsNullOrderByIdAsc(
+            Pageable pageable
+    );
+
+    /** 삭제되지 않은 특정 상태의 커리큘럼 목록을 ID 오름차순으로 조회 (#359) */
+    Page<Curriculum> findByStatusAndDeletedAtIsNullOrderByIdAsc(
+            ContentStatus status,
             Pageable pageable
     );
 }

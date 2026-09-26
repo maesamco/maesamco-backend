@@ -65,7 +65,7 @@ public class UnitController implements UnitApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<UnitResponse>> getUnit(UUID unitId) {
-        UnitResponse response = unitService.getUnit(unitId);
+        UnitResponse response = unitService.getUnitForUser(unitId);
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -95,7 +95,7 @@ public class UnitController implements UnitApiDocs {
     ) {
         Pageable pageable = PageableFactory.of(page, size, null, null);
 
-        PageResponse<UnitResponse> response = unitService.searchUnits(
+        PageResponse<UnitResponse> response = unitService.searchUnitsForUser(
                 curriculumId,
                 pageable
         );

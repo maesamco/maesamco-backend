@@ -68,7 +68,7 @@ public class CurriculumController implements CurriculumApiDocs {
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(UUID curriculumId) {
-        CurriculumResponse response = CurriculumResponse.from(curriculumService.getCurriculum(curriculumId));
+        CurriculumResponse response = CurriculumResponse.from(curriculumService.getCurriculumForUser(curriculumId));
 
         return ResponseEntity.ok(
                 SuccessResponse.success(response)
@@ -93,7 +93,7 @@ public class CurriculumController implements CurriculumApiDocs {
     public ResponseEntity<SuccessResponse<PageResponse<CurriculumResponse>>> getCurriculums(Integer page, Integer size) {
         PageQuery pageQuery = PageQueryFactory.of(page, size, null, null);
 
-        PageResult<CurriculumResult> result = curriculumService.searchCurriculums(pageQuery);
+        PageResult<CurriculumResult> result = curriculumService.searchCurriculumsForUser(pageQuery);
         PageResponse<CurriculumResponse> response = PageResponse.from(result, CurriculumResponse::from);
 
         return ResponseEntity.ok(

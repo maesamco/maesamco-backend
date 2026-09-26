@@ -173,7 +173,7 @@ class CurriculumControllerTest {
                         1
                 );
 
-        when(curriculumService.getCurriculum(curriculumId))
+        when(curriculumService.getCurriculumForUser(curriculumId))
                 .thenReturn(
                         CurriculumResult.from(curriculum)
                 );
@@ -202,7 +202,7 @@ class CurriculumControllerTest {
                 );
 
         verify(curriculumService)
-                .getCurriculum(curriculumId);
+                .getCurriculumForUser(curriculumId);
     }
 
     @Test
@@ -229,7 +229,7 @@ class CurriculumControllerTest {
                 );
 
         when(
-                curriculumService.searchCurriculums(
+                curriculumService.searchCurriculumsForUser(
                         any(PageQuery.class)
                 )
         ).thenReturn(response);
@@ -264,7 +264,7 @@ class CurriculumControllerTest {
                 ArgumentCaptor.forClass(PageQuery.class);
 
         verify(curriculumService)
-                .searchCurriculums(captor.capture());
+                .searchCurriculumsForUser(captor.capture());
 
         assertThat(captor.getValue().page())
                 .isEqualTo(1);

@@ -40,6 +40,7 @@ public interface CurriculumApiDocs {
     @Operation(
             summary = "커리큘럼 생성",
             description = "새로운 커리큘럼을 생성합니다. "
+                    + "새로 만든 커리큘럼은(는) DRAFT 상태이며, 관리자 공개 API(PATCH /api/v1/admin/contents/curriculums/{id}/publish)를 호출해야 학습자 조회에 포함됩니다. "
                     + "ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
@@ -55,13 +56,15 @@ public interface CurriculumApiDocs {
     @GetMapping("/{curriculumId}")
     @Operation(
             summary = "커리큘럼 단건 조회",
-            description = "커리큘럼 ID를 기준으로 커리큘럼을 조회합니다. "
-                    + "삭제되지 않은 커리큘럼만 조회할 수 있습니다."
+            description = "커리큘럼 ID를 기준으로 학습자에게 공개된 커리큘럼을 조회합니다. "
+                    + "삭제되지 않고 공개(PUBLISHED)된 커리큘럼만 조회할 수 있으며, "
+                    + "비공개(DRAFT)인 경우에도 삭제된 것과 같이 404로 응답합니다. "
+                    + "관리자는 /api/v1/admin/contents/curriculums/{curriculumId}로 상태와 관계없이 조회합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "커리큘럼 조회 성공"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
-            @ApiResponse(responseCode = "404", description = "CURRICULUM_NOT_FOUND — 커리큘럼을 찾을 수 없음")
+            @ApiResponse(responseCode = "404", description = "CURRICULUM_NOT_FOUND — 커리큘럼을 찾을 수 없거나 공개되지 않음")
     })
     ResponseEntity<SuccessResponse<CurriculumResponse>> getCurriculum(
             @Parameter(description = "조회할 커리큘럼 ID")
@@ -71,7 +74,8 @@ public interface CurriculumApiDocs {
     @GetMapping
     @Operation(
             summary = "커리큘럼 목록 조회",
-            description = "삭제되지 않은 커리큘럼 목록을 페이징하여 조회합니다. "
+            description = "학습자에게 공개(PUBLISHED)된 커리큘럼 목록을 페이징하여 조회합니다. "
+                    + "비공개(DRAFT)·삭제된 커리큘럼은 목록과 페이징 정보(totalElements 등)에서 모두 제외됩니다. "
                     + "커리큘럼은 ID 기준 오름차순으로 정렬됩니다. "
                     + "page와 size를 생략하면 기본 페이징 값이 적용됩니다."
     )

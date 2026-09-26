@@ -320,4 +320,34 @@ class UnitTest {
                 DISPLAY_ORDER
         );
     }
+
+    @Test
+    @DisplayName("Unit은(는) DRAFT 상태로 생성된다")
+    void create_startsAsDraft() {
+        // given & when
+        Unit content = Unit.create(UUID.randomUUID(), "기초", ProgrammingLanguage.JAVA, 1);
+
+        // then
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.DRAFT);
+        assertThat(content.isPublished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Unit을(를) 공개하면 PUBLISHED, 비공개로 되돌리면 DRAFT가 되고, 같은 전환을 반복해도 상태가 유지된다")
+    void publishAndUnpublish_changeStatusIdempotently() {
+        // given
+        Unit content = Unit.create(UUID.randomUUID(), "기초", ProgrammingLanguage.JAVA, 1);
+
+        // when & then: 공개
+        content.publish();
+        content.publish();
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.PUBLISHED);
+        assertThat(content.isPublished()).isTrue();
+
+        // when & then: 비공개
+        content.unpublish();
+        content.unpublish();
+        assertThat(content.getStatus()).isEqualTo(ContentStatus.DRAFT);
+        assertThat(content.isPublished()).isFalse();
+    }
 }

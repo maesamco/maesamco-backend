@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Lesson;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,5 +37,12 @@ interface SpringDataLessonRepository extends JpaRepository<Lesson, UUID> {
     /** 특정 유닛에 속한 삭제되지 않은 레슨 전체를 displayOrder, id 오름차순으로 조회 (#324) */
     List<Lesson> findByUnitIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
             UUID unitId
+    );
+
+    /** 특정 유닛의 삭제되지 않은 특정 상태 레슨 목록을 displayOrder, id 오름차순으로 조회 (#359) */
+    Page<Lesson> findByUnitIdAndStatusAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+            UUID unitId,
+            ContentStatus status,
+            Pageable pageable
     );
 }

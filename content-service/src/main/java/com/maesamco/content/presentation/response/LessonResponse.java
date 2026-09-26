@@ -1,5 +1,6 @@
 package com.maesamco.content.presentation.response;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Lesson;
 import com.maesamco.content.domain.entity.ProgrammingLanguage;
 import lombok.AccessLevel;
@@ -21,6 +22,9 @@ public class LessonResponse {
     private final ProgrammingLanguage language;
     private final Integer displayOrder;
 
+    /** 공개 상태 (#359). 학습자 조회에서는 항상 PUBLISHED입니다. */
+    private final ContentStatus status;
+
     public static LessonResponse from(Lesson lesson) {
         return new LessonResponse(
                 lesson.getId(),
@@ -29,7 +33,8 @@ public class LessonResponse {
                 lesson.getDescription(),
                 lesson.getContent(),
                 lesson.getLanguage(),
-                lesson.getDisplayOrder()
+                lesson.getDisplayOrder(),
+                lesson.getStatus()
         );
     }
 }

@@ -90,11 +90,37 @@ public class LessonService {
         return PageResponse.from(lessons, LessonResponse::from);
     }
 
+    /**
+     * 학습자용 레슨 단건 조회입니다(#359).
+     * 레슨·유닛·커리큘럼 중 공개(PUBLISHED)되지 않은 항목이 있으면 삭제된 것과 같이 NOT_FOUND로 응답합니다.
+     */
+    @Transactional(readOnly = true)
+    public LessonResponse getLessonForUser(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getPublishedById(lessonId);
+
+        return LessonResponse.from(lesson);
+    }
+
+    /**
+     * 학습자용 레슨 목록 조회입니다(#359).
+     * 상위 유닛·커리큘럼이 모두 공개 상태일 때만 조회하며, 공개(PUBLISHED)된 레슨만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<LessonResponse> searchLessonsForUser(UUID unitId, Pageable pageable) {
+
+        unitFinder.getPublishedById(unitId);
+
+        Page<Lesson> lessons = lessonRepository.searchPublishedLessons(unitId, pageable);
+
+        return PageResponse.from(lessons, LessonResponse::from);
+    }
+
     /** 레슨 수정 */
     @Transactional(rollbackFor = Exception.class)
     public LessonResponse updateLesson(UUID lessonId, LessonUpdateRequest request) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
         if (request.getTitle() != null) {
             lesson.changeTitle(request.getTitle());
@@ -138,7 +164,7 @@ public class LessonService {
      */
     private void moveLesson(Lesson lesson, int position) {
 
-        unitFinder.lockById(lesson.getUnitId());
+        // 부모 유닛 락은 호출한 쪽(updateLesson → getForWrite)이 이미 잡고 있다.
 
         List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
 
@@ -167,10 +193,9 @@ public class LessonService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteLesson(UUID lessonId, UUID userId) {
 
-        Lesson lesson = lessonFinder.getById(lessonId);
+        Lesson lesson = getForWrite(lessonId);
 
-        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
-        unitFinder.lockById(lesson.getUnitId());
+        // 생성·순서 변경과 같은 부모 락(getForWrite)으로 삭제 및 번호 압축을 직렬화한다.
         List<Lesson> siblings = lessonRepository.findActiveSiblings(lesson.getUnitId());
         if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(lessonId))) {
             throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
@@ -198,6 +223,23 @@ public class LessonService {
         // 존재하지 않는 레슨에 대한 조회 방지
         lessonFinder.getById(lessonId);
 
+        return findLessonConcepts(lessonId);
+    }
+
+    /**
+     * 학습자용 레슨 개념 조회입니다(#359).
+     * 레슨·유닛·커리큘럼이 모두 공개(PUBLISHED) 상태일 때만 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<TagResult> getLessonConceptsForUser(UUID lessonId) {
+
+        lessonFinder.getPublishedById(lessonId);
+
+        return findLessonConcepts(lessonId);
+    }
+
+    private List<TagResult> findLessonConcepts(UUID lessonId) {
+
         List<UUID> problemIds = problemQueryRepository.findProblemIdsByLessonId(lessonId);
 
         if (problemIds.isEmpty()) {
@@ -210,5 +252,51 @@ public class LessonService {
         return concepts.stream()
                 .map(TagResult::from)
                 .toList();
+    }
+
+    /**
+     * 레슨을 학습자에게 공개합니다(#359). 이미 공개 상태면 그대로 둡니다.
+     * 상위 유닛·커리큘럼이 비공개면 공개해도 학습자에게는 보이지 않습니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public LessonResponse publishLesson(UUID lessonId) {
+
+        Lesson lesson = getForWrite(lessonId);
+
+        lesson.publish();
+
+        return LessonResponse.from(lesson);
+    }
+
+    /** 레슨을 학습자 조회에서 내립니다(#359). 이미 비공개 상태면 그대로 둡니다. */
+    @Transactional(rollbackFor = Exception.class)
+    public LessonResponse unpublishLesson(UUID lessonId) {
+
+        Lesson lesson = getForWrite(lessonId);
+
+        lesson.unpublish();
+
+        return LessonResponse.from(lesson);
+    }
+
+    /**
+     * 쓰기 경로(수정·공개 전환·삭제)에서 레슨을 읽습니다(#366 리뷰 P2).
+     *
+     * <p>생성·재정렬과 같은 부모 유닛 락을 잡아 같은 유닛의 레슨 쓰기를 직렬화하고,
+     * 잠금 이후의 최신 상태로 다시 읽습니다. 락을 기다리는 사이 삭제됐으면 LESSON_NOT_FOUND입니다.</p>
+     */
+    private Lesson getForWrite(UUID lessonId) {
+
+        Lesson lesson = lessonFinder.getById(lessonId);
+
+        unitFinder.lockById(lesson.getUnitId());
+
+        lessonRepository.refresh(lesson);
+
+        if (lesson.isDeleted()) {
+            throw new BusinessException(ErrorCode.LESSON_NOT_FOUND);
+        }
+
+        return lesson;
     }
 }

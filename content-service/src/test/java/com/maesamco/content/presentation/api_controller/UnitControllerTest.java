@@ -207,7 +207,7 @@ class UnitControllerTest {
                 1
         );
 
-        when(unitService.getUnit(unitId))
+        when(unitService.getUnitForUser(unitId))
                 .thenReturn(
                         UnitResponse.from(unit)
                 );
@@ -236,7 +236,7 @@ class UnitControllerTest {
                 );
 
         verify(unitService)
-                .getUnit(unitId);
+                .getUnitForUser(unitId);
     }
 
     @Test
@@ -264,7 +264,7 @@ class UnitControllerTest {
                 );
 
         when(
-                unitService.searchUnits(
+                unitService.searchUnitsForUser(
                         eq(curriculumId),
                         any(Pageable.class)
                 )
@@ -306,7 +306,7 @@ class UnitControllerTest {
                 );
 
         verify(unitService)
-                .searchUnits(
+                .searchUnitsForUser(
                         eq(curriculumId),
                         captor.capture()
                 );

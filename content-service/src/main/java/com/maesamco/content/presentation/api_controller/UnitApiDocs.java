@@ -41,6 +41,7 @@ public interface UnitApiDocs {
             summary = "유닛 생성",
             description = "특정 커리큘럼에 새로운 유닛을 생성합니다. "
                     + "생성 전 상위 커리큘럼의 존재 여부를 확인하며 displayOrder는 기존 유닛 수를 기준으로 자동 지정됩니다. "
+                    + "새로 만든 유닛은(는) DRAFT 상태이며, 관리자 공개 API(PATCH /api/v1/admin/contents/units/{id}/publish)를 호출해야 학습자 조회에 포함됩니다. "
                     + "ADMIN 권한이 필요합니다."
     )
     @ApiResponses({
@@ -58,14 +59,16 @@ public interface UnitApiDocs {
     @Operation(
             summary = "유닛 단건 조회",
             description = "유닛 ID를 기준으로 유닛 상세 정보를 조회합니다. "
-                    + "삭제되지 않은 유닛만 조회할 수 있으며 상위 커리큘럼의 유효성도 함께 확인합니다. "
+                    + "유닛과 상위 커리큘럼이 모두 삭제되지 않고 공개(PUBLISHED)된 경우에만 조회할 수 있으며, "
+                    + "비공개(DRAFT)인 경우에도 삭제된 것과 같이 404로 응답합니다. "
+                    + "관리자는 /api/v1/admin/contents/units/{unitId}로 상태와 관계없이 조회합니다. "
                     + "인증된 사용자만 요청할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "유닛 조회 성공"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
-            @ApiResponse(responseCode = "404", description = "UNIT_NOT_FOUND — 유닛을 찾을 수 없음; "
-                    + "CURRICULUM_NOT_FOUND — 유닛이 속한 커리큘럼을 찾을 수 없음")
+            @ApiResponse(responseCode = "404", description = "UNIT_NOT_FOUND — 유닛을 찾을 수 없거나 공개되지 않음; "
+                    + "CURRICULUM_NOT_FOUND — 유닛이 속한 커리큘럼을 찾을 수 없거나 공개되지 않음")
     })
     ResponseEntity<SuccessResponse<UnitResponse>> getUnit(
             @Parameter(description = "조회할 유닛 ID")
@@ -75,14 +78,16 @@ public interface UnitApiDocs {
     @GetMapping
     @Operation(
             summary = "커리큘럼별 유닛 목록 조회",
-            description = "특정 커리큘럼에 속한 삭제되지 않은 유닛 목록을 페이징하여 조회합니다. "
+            description = "공개된 커리큘럼에 속한 공개(PUBLISHED) 유닛 목록을 페이징하여 조회합니다. "
+                    + "비공개(DRAFT)·삭제된 유닛은 목록과 페이징 정보에서 모두 제외되고, 커리큘럼이 비공개면 404로 응답합니다. "
                     + "유닛은 displayOrder 기준 오름차순으로 정렬되며 page와 size를 생략하면 기본값이 적용됩니다. "
+                    + "displayOrder는 비공개 항목을 포함한 형제 기준이라 학습자에게는 1, 3, 5처럼 비연속으로 보일 수 있습니다(정렬 순서는 유지). "
                     + "인증된 사용자만 요청할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "유닛 목록 조회 성공"),
             @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
-            @ApiResponse(responseCode = "404", description = "CURRICULUM_NOT_FOUND — 조회 대상 커리큘럼을 찾을 수 없음")
+            @ApiResponse(responseCode = "404", description = "CURRICULUM_NOT_FOUND — 조회 대상 커리큘럼을 찾을 수 없거나 공개되지 않음")
     })
     ResponseEntity<SuccessResponse<PageResponse<UnitResponse>>> getUnits(
             @Parameter(

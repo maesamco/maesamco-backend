@@ -105,15 +105,56 @@ public class UnitService {
         );
     }
 
+    /**
+     * 학습자용 유닛 단건 조회입니다(#359).
+     * 유닛 또는 상위 커리큘럼이 공개(PUBLISHED)되지 않았으면 삭제된 것과 같이 NOT_FOUND로 응답합니다.
+     */
+    @Transactional(readOnly = true)
+    public UnitResponse getUnitForUser(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getPublishedById(
+                        unitId
+                );
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    /**
+     * 학습자용 유닛 목록 조회입니다(#359).
+     * 상위 커리큘럼이 공개 상태일 때만 조회하며, 공개(PUBLISHED)된 유닛만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<UnitResponse> searchUnitsForUser(
+            UUID curriculumId,
+            Pageable pageable
+    ) {
+        curriculumFinder.getPublishedById(
+                curriculumId
+        );
+
+        Page<Unit> units =
+                unitRepository.searchPublishedUnits(
+                        curriculumId,
+                        pageable
+                );
+
+        return PageResponse.from(
+                units,
+                UnitResponse::from
+        );
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public UnitResponse updateUnit(
             UUID unitId,
             UnitUpdateRequest request
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
         if (request.getTitle() != null) {
             unit.changeTitle(
@@ -162,9 +203,7 @@ public class UnitService {
             Unit unit,
             int position
     ) {
-        curriculumFinder.lockById(
-                unit.getCurriculumId()
-        );
+        // 부모 커리큘럼 락은 호출한 쪽(updateUnit → getForWrite)이 이미 잡고 있다.
 
         List<Unit> siblings =
                 unitRepository.findActiveSiblings(
@@ -206,12 +245,9 @@ public class UnitService {
             UUID userId
     ) {
         Unit unit =
-                unitFinder.getById(
-                        unitId
-                );
+                getForWrite(unitId);
 
-        // 생성·순서 변경과 같은 부모 락으로 삭제 및 번호 압축을 직렬화한다.
-        curriculumFinder.lockById(unit.getCurriculumId());
+        // 생성·순서 변경과 같은 부모 락(getForWrite)으로 삭제 및 번호 압축을 직렬화한다.
         List<Unit> siblings = unitRepository.findActiveSiblings(unit.getCurriculumId());
         if (siblings.stream().noneMatch(sibling -> sibling.getId().equals(unitId))) {
             throw new BusinessException(ErrorCode.UNIT_NOT_FOUND);
@@ -223,5 +259,72 @@ public class UnitService {
         unitRepository.reorder(siblings.stream()
                 .filter(sibling -> !sibling.getId().equals(unitId))
                 .toList());
+    }
+
+    /**
+     * 유닛을 학습자에게 공개합니다(#359). 이미 공개 상태면 그대로 둡니다.
+     * 상위 커리큘럼이 비공개면 공개해도 학습자에게는 보이지 않습니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UnitResponse publishUnit(
+            UUID unitId
+    ) {
+        Unit unit =
+                getForWrite(unitId);
+
+        unit.publish();
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    /**
+     * 유닛을 학습자 조회에서 내립니다(#359). 이미 비공개 상태면 그대로 둡니다.
+     * 하위 레슨의 상태값은 바꾸지 않고 학습자 조회 시점에 함께 숨겨집니다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UnitResponse unpublishUnit(
+            UUID unitId
+    ) {
+        Unit unit =
+                getForWrite(unitId);
+
+        unit.unpublish();
+
+        return UnitResponse.from(
+                unit
+        );
+    }
+
+    /**
+     * 쓰기 경로(수정·공개 전환·삭제)에서 유닛을 읽습니다(#366 리뷰 P2).
+     *
+     * <p>생성·재정렬과 같은 부모 커리큘럼 락을 잡아 같은 커리큘럼의 유닛 쓰기를 직렬화하고,
+     * 잠금 이후의 최신 상태로 다시 읽습니다. 락을 기다리는 사이 삭제됐으면 UNIT_NOT_FOUND입니다.</p>
+     */
+    private Unit getForWrite(
+            UUID unitId
+    ) {
+        Unit unit =
+                unitFinder.getById(
+                        unitId
+                );
+
+        curriculumFinder.lockById(
+                unit.getCurriculumId()
+        );
+
+        unitRepository.refresh(
+                unit
+        );
+
+        if (unit.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.UNIT_NOT_FOUND
+            );
+        }
+
+        return unit;
     }
 }

@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.persistence;
 
+import com.maesamco.content.domain.entity.ContentStatus;
 import com.maesamco.content.domain.entity.Unit;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -52,5 +53,13 @@ interface SpringDataUnitRepository
     List<Unit>
     findByCurriculumIdAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
             UUID curriculumId
+    );
+
+    /** 특정 커리큘럼의 삭제되지 않은 특정 상태 유닛 목록을 displayOrder, id 오름차순으로 조회 (#359) */
+    Page<Unit>
+    findByCurriculumIdAndStatusAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(
+            UUID curriculumId,
+            ContentStatus status,
+            Pageable pageable
     );
 }
