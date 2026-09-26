@@ -16,7 +16,7 @@ public record DailyQuizConceptCandidates(
         List<String> wrongConcepts,
         // 정답 처리한 문제들의 개념
         List<String> correctConcepts,
-        // 풀이 이력이 없는 신규 사용자의 관심 개념 목록
+        // 풀이 이력 개념이 부족할 때 보충할 관심 개념 목록
         List<String> interestConcepts
 ) {
 
@@ -44,9 +44,6 @@ public record DailyQuizConceptCandidates(
         correctConcepts = List.copyOf(correctConcepts);
         interestConcepts = List.copyOf(interestConcepts);
 
-        if (hasProblemProgress && !interestConcepts.isEmpty()) {
-            throw invalidInput("풀이 이력이 있는 사용자는 관심 개념을 사용할 수 없습니다.");
-        }
         if (!hasProblemProgress && (!wrongConcepts.isEmpty() || !correctConcepts.isEmpty())) {
             throw invalidInput("풀이 이력이 없는 사용자는 오답 또는 정답 개념을 사용할 수 없습니다.");
         }
@@ -60,11 +57,19 @@ public record DailyQuizConceptCandidates(
             List<String> wrongConcepts,
             List<String> correctConcepts
     ) {
+        return fromProblemProgress(wrongConcepts, correctConcepts, List.of());
+    }
+
+    public static DailyQuizConceptCandidates fromProblemProgress(
+            List<String> wrongConcepts,
+            List<String> correctConcepts,
+            List<String> interestConcepts
+    ) {
         return new DailyQuizConceptCandidates(
                 true,
                 wrongConcepts,
                 correctConcepts,
-                List.of()
+                interestConcepts
         );
     }
 

@@ -29,15 +29,21 @@ public class DailyQuizConceptSlotSelector {
             );
         }
 
-        if (candidates.hasProblemProgress()) {
-            return selectFromProblemProgress(candidates.wrongConcepts(), candidates.correctConcepts());
-        }
-        return selectFromInterests(candidates.interestConcepts());
+        return selectConcepts(
+                candidates.wrongConcepts(),
+                candidates.correctConcepts(),
+                candidates.interestConcepts()
+        );
     }
 
-    private Optional<ConceptSlots> selectFromProblemProgress(List<String> wrongConcepts, List<String> correctConcepts) {
+    private Optional<ConceptSlots> selectConcepts(
+            List<String> wrongConcepts,
+            List<String> correctConcepts,
+            List<String> interestConcepts
+    ) {
         List<String> normalizedWrongConcepts = normalizeDistinct(wrongConcepts);
         List<String> normalizedCorrectConcepts = normalizeDistinct(correctConcepts);
+        List<String> normalizedInterests = normalizeDistinct(interestConcepts);
 
         List<String> slots = new ArrayList<>(TARGET_QUESTION_COUNT);
         Set<String> selectedConcepts = new LinkedHashSet<>();
@@ -45,26 +51,13 @@ public class DailyQuizConceptSlotSelector {
         // 서로 다른 오답 개념을 먼저 배치한 뒤 정답 개념을 배치합니다.
         appendDistinct(slots, selectedConcepts, normalizedWrongConcepts);
         appendDistinct(slots, selectedConcepts, normalizedCorrectConcepts);
-
-        // 부족한 슬롯은 오답 개념을 반복하고, 오답 개념이 없으면 정답 개념을 반복합니다.
-        List<String> repeatCandidates = normalizedWrongConcepts.isEmpty()
-                ? normalizedCorrectConcepts
-                : normalizedWrongConcepts;
-
-        return fillRemainingSlots(slots, repeatCandidates);
-    }
-
-    private Optional<ConceptSlots> selectFromInterests(List<String> interestConcepts) {
-        List<String> normalizedInterests = normalizeDistinct(interestConcepts);
-
-        List<String> slots = new ArrayList<>(TARGET_QUESTION_COUNT);
-        Set<String> selectedConcepts = new LinkedHashSet<>();
-
-        // 신규 사용자는 서로 다른 관심 개념을 먼저 배치합니다.
         appendDistinct(slots, selectedConcepts, normalizedInterests);
 
-        // 부족한 슬롯은 관심 개념을 순서대로 반복해 채웁니다.
-        return fillRemainingSlots(slots, normalizedInterests);
+        List<String> repeatCandidates = !normalizedWrongConcepts.isEmpty()
+                ? normalizedWrongConcepts
+                : !normalizedCorrectConcepts.isEmpty() ? normalizedCorrectConcepts : normalizedInterests;
+
+        return fillRemainingSlots(slots, repeatCandidates);
     }
 
     private static List<String> normalizeDistinct(List<String> concepts) {

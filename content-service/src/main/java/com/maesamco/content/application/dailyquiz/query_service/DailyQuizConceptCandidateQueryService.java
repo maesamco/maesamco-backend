@@ -14,6 +14,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
+
+import static com.maesamco.content.domain.dailyquiz.DailyQuizPolicy.TARGET_QUESTION_COUNT;
 
 /**
  * 사용자 풀이 이력 또는 관심 개념을 이용해 Daily Quiz 출제 개념 후보를 조회합니다.
@@ -42,10 +45,7 @@ public class DailyQuizConceptCandidateQueryService {
 
         // 풀이 이력이 없으면 관심 개념 ID를 조회하고 Daily Quiz 개념 태그로 변환합니다.
         if (!hasProblemProgress) {
-            List<UUID> interestConceptIds = userInterestConceptPort.getInterestConceptIds(query.userId());
-            List<String> conceptTags = conceptLookupPort.getConceptTags(interestConceptIds);
-
-            return DailyQuizConceptCandidates.fromInterests(conceptTags);
+            return DailyQuizConceptCandidates.fromInterests(getInterestConceptTags(query.userId()));
         }
 
         // 풀이 이력이 있으면 WRONG 개념을 조회합니다.
@@ -61,6 +61,20 @@ public class DailyQuizConceptCandidateQueryService {
                 quizDateStart
         );
 
-        return DailyQuizConceptCandidates.fromProblemProgress(wrongConcepts, correctConcepts);
+        long distinctProgressConcepts = Stream.concat(
+                wrongConcepts.stream(), correctConcepts.stream()
+        ).distinct().count();
+        if (distinctProgressConcepts >= TARGET_QUESTION_COUNT) {
+            return DailyQuizConceptCandidates.fromProblemProgress(wrongConcepts, correctConcepts);
+        }
+
+        return DailyQuizConceptCandidates.fromProblemProgress(
+                wrongConcepts, correctConcepts, getInterestConceptTags(query.userId())
+        );
+    }
+
+    public List<String> getInterestConceptTags(UUID userId) {
+        List<UUID> interestConceptIds = userInterestConceptPort.getInterestConceptIds(userId);
+        return conceptLookupPort.getConceptTags(interestConceptIds);
     }
 }
