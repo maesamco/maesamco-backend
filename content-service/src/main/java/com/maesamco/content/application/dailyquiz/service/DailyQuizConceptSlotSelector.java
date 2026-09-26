@@ -6,11 +6,14 @@ import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static com.maesamco.content.domain.dailyquiz.DailyQuizPolicy.TARGET_QUESTION_COUNT;
 
@@ -21,29 +24,40 @@ import static com.maesamco.content.domain.dailyquiz.DailyQuizPolicy.TARGET_QUEST
 @Component
 public class DailyQuizConceptSlotSelector {
 
-    public Optional<ConceptSlots> select(DailyQuizConceptCandidates candidates) {
+    public Optional<ConceptSlots> select(
+            DailyQuizConceptCandidates candidates,
+            UUID userId,
+            LocalDate attemptDate
+    ) {
         if (candidates == null) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
                     "개념 선정 후보는 필수입니다."
             );
         }
+        if (userId == null || attemptDate == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "사용자 ID와 퀴즈 날짜는 필수입니다.");
+        }
 
         return selectConcepts(
                 candidates.wrongConcepts(),
                 candidates.correctConcepts(),
-                candidates.interestConcepts()
+                candidates.interestConcepts(),
+                userId,
+                attemptDate
         );
     }
 
     private Optional<ConceptSlots> selectConcepts(
             List<String> wrongConcepts,
             List<String> correctConcepts,
-            List<String> interestConcepts
+            List<String> interestConcepts,
+            UUID userId,
+            LocalDate attemptDate
     ) {
-        List<String> normalizedWrongConcepts = normalizeDistinct(wrongConcepts);
-        List<String> normalizedCorrectConcepts = normalizeDistinct(correctConcepts);
-        List<String> normalizedInterests = normalizeDistinct(interestConcepts);
+        List<String> normalizedWrongConcepts = rotate(wrongConcepts, userId, attemptDate);
+        List<String> normalizedCorrectConcepts = rotate(correctConcepts, userId, attemptDate);
+        List<String> normalizedInterests = rotate(interestConcepts, userId, attemptDate);
 
         List<String> slots = new ArrayList<>(TARGET_QUESTION_COUNT);
         Set<String> selectedConcepts = new LinkedHashSet<>();
@@ -60,10 +74,19 @@ public class DailyQuizConceptSlotSelector {
         return fillRemainingSlots(slots, repeatCandidates);
     }
 
-    private static List<String> normalizeDistinct(List<String> concepts) {
-        return concepts.stream()
+    private static List<String> rotate(List<String> concepts, UUID userId, LocalDate attemptDate) {
+        List<String> ordered = concepts.stream()
                 .map(String::strip)
                 .distinct()
+                .sorted()
+                .toList();
+        if (ordered.isEmpty()) {
+            return ordered;
+        }
+
+        int firstIndex = Math.floorMod((long) userId.hashCode() + attemptDate.toEpochDay(), ordered.size());
+        return IntStream.range(0, ordered.size())
+                .mapToObj(index -> ordered.get((firstIndex + index) % ordered.size()))
                 .toList();
     }
 

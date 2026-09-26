@@ -69,7 +69,9 @@ public class DailyQuizSetGenerationFacade {
             return DailyQuizSetGenerationResult.alreadyExists();
         }
 
-        Optional<ConceptSlots> selectedConceptSlots = conceptSlotSelector.select(command.conceptCandidates());
+        Optional<ConceptSlots> selectedConceptSlots = conceptSlotSelector.select(
+                command.conceptCandidates(), command.userId(), command.attemptDate()
+        );
         List<DailyQuizQuestion> personalizedQuestions = List.of();
         if (selectedConceptSlots.isPresent()) {
             QuestionSlots questionSlots = questionSlotAllocator.allocate(selectedConceptSlots.get());

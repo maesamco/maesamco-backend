@@ -74,7 +74,7 @@ class DailyQuizSetGenerationFacadeTest {
         List<DailyQuizQuestion> fallbackQuestions = List.of(
                 question(), question(), question(), question(), question()
         );
-        when(conceptSlotSelector.select(any())).thenReturn(Optional.empty());
+        when(conceptSlotSelector.select(any(), any(), any())).thenReturn(Optional.empty());
         when(fallbackSelector.fill(userId, attemptDate, List.of())).thenReturn(fallbackQuestions);
         UUID attemptId = UUID.randomUUID();
         when(persistenceService.create(any())).thenReturn(DailyQuizSetGenerationResult.created(attemptId, 5));
@@ -108,7 +108,7 @@ class DailyQuizSetGenerationFacadeTest {
         LocalDate attemptDate = LocalDate.of(2026, 9, 26);
         List<DailyQuizQuestion> threeQuestions = List.of(question(), question(), question());
         List<DailyQuizQuestion> twoQuestions = List.of(question(), question());
-        when(conceptSlotSelector.select(any())).thenReturn(Optional.empty());
+        when(conceptSlotSelector.select(any(), any(), any())).thenReturn(Optional.empty());
         when(fallbackSelector.fill(eq(userId), eq(attemptDate), eq(List.of())))
                 .thenReturn(threeQuestions)
                 .thenReturn(twoQuestions);
@@ -138,7 +138,7 @@ class DailyQuizSetGenerationFacadeTest {
         UUID userId = UUID.randomUUID();
         LocalDate attemptDate = LocalDate.of(2026, 9, 26);
         ConceptSlots progressSlots = new ConceptSlots(List.of("반복문", "조건문", "변수", "배열", "함수"));
-        when(conceptSlotSelector.select(any())).thenReturn(Optional.of(progressSlots));
+        when(conceptSlotSelector.select(any(), any(), any())).thenReturn(Optional.of(progressSlots));
         when(candidateQueryService.getInterestConceptTags(userId)).thenReturn(List.of("자료구조"));
         List<DailyQuizQuestion> progressQuestions = List.of(
                 question(DailyQuizProblemType.MULTIPLE_CHOICE),
