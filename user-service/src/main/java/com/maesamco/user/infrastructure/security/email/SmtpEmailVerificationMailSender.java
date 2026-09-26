@@ -96,7 +96,6 @@ public class SmtpEmailVerificationMailSender
             );
 
             helper.addInline("logo", new ClassPathResource("mail/logo.png"), "image/png");
-            helper.addInline("logo-dark", new ClassPathResource("mail/logo-dark.png"), "image/png");
             helper.addInline("mascot", new ClassPathResource("mail/mascot.png"), "image/png");
 
             mailSender.send(message);

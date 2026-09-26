@@ -138,22 +138,23 @@ class SmtpEmailVerificationMailSenderTest {
             }
         }
 
-        assertThat(contentIds).hasSize(3);
-        assertThat(contentIds).anyMatch(id -> id.contains("logo-dark")); // 다크 모드용 로고
+        assertThat(contentIds).hasSize(2);
+        assertThat(contentIds).anyMatch(id -> id.contains("logo"));
         assertThat(contentIds).anyMatch(id -> id.contains("mascot"));
-        assertThat(html).contains("cid:logo\"", "cid:logo-dark\"", "cid:mascot\"");
+        assertThat(html).contains("cid:logo\"", "cid:mascot\"");
+        // 라이트/다크 전용 로고를 바꿔 끼우지 않고, 양쪽에서 읽히는 로고 하나만 쓴다.
+        assertThat(html).doesNotContain("logo-dark");
         assertThat(html).doesNotContain("src=\"http"); // 외부 이미지 호스팅에 의존하지 않는다
     }
 
     @Test
-    @DisplayName("라이트/다크 모드를 모두 선언하고 다크용 로고로 바꿔 보여준다")
+    @DisplayName("라이트/다크 모드를 모두 선언한다")
     void declaresLightAndDarkColorSchemes() throws Exception {
         String html = textOf(leafParts(sendAndCapture("learner@example.com", "123456")), "text/html");
 
         assertThat(html).contains("<meta name=\"color-scheme\" content=\"light dark\">");
         assertThat(html).contains("@media (prefers-color-scheme: dark)");
-        assertThat(html).contains(".logo-dark { display: block !important");
-        assertThat(html).contains(".logo-light { display: none !important");
+        assertThat(html).contains(".bg-card { background-color: #151b2e !important");
     }
 
     @Test
