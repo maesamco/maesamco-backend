@@ -13,7 +13,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
  *
  * ProblemPublished Outbox Relay가 활성화된 환경에서 Spring Scheduling 인프라를 활성화하고,
  * ProblemPublished Relay와 DailyQuizCompleted Relay가 서로의 실행을 지연시키지 않도록
- * 공용 스케줄러 스레드 풀을 구성합니다.
+ * 공용 스케줄러 스레드 풀을 구성합니다. Daily Quiz 배치 본문은 별도 실행기에서 실행합니다.
  */
 @Configuration
 @EnableScheduling

@@ -16,10 +16,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -94,9 +98,77 @@ class DailyQuizBatchSchedulerTest {
     }
 
     @Test
+    void 배치가_오래_실행되어도_스케줄_트리거는_바로_반환하고_겹친_실행은_쌓지_않는다() throws Exception {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService batchExecutor = Executors.newSingleThreadScheduledExecutor();
+        ExecutorService triggerExecutor = Executors.newSingleThreadExecutor();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        AtomicReference<Thread> batchThread = new AtomicReference<>();
+        AtomicReference<Thread> triggerThread = new AtomicReference<>();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 23);
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                batchExecutor
+        );
+        doAnswer(invocation -> {
+            batchThread.set(Thread.currentThread());
+            started.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } finally {
+                finished.countDown();
+            }
+            return null;
+        }).when(executionService).execute(attemptDate, 100);
+
+        try {
+            Future<?> trigger = triggerExecutor.submit(() -> {
+                triggerThread.set(Thread.currentThread());
+                scheduler.run();
+            });
+            assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+            trigger.get(1, TimeUnit.SECONDS);
+            assertThat(batchThread.get()).isNotSameAs(triggerThread.get());
+
+            scheduler.run();
+            release.countDown();
+            assertThat(finished.await(2, TimeUnit.SECONDS)).isTrue();
+            verify(executionService, times(1)).execute(attemptDate, 100);
+        } finally {
+            release.countDown();
+            triggerExecutor.shutdownNow();
+            batchExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void 배치_실행기_제출이_거부되면_실행중_상태를_해제한다() {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService batchExecutor = mock(ScheduledExecutorService.class);
+        doThrow(new RejectedExecutionException("executor closed"))
+                .when(batchExecutor).execute(any(Runnable.class));
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                batchExecutor
+        );
+
+        scheduler.run();
+        scheduler.run();
+
+        verify(batchExecutor, times(2)).execute(any(Runnable.class));
+        verifyNoInteractions(executionService);
+    }
+
+    @Test
     void 설정한_시간대의_퀴즈_날짜와_청크_크기로_배치를_실행한다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -108,13 +180,14 @@ class DailyQuizBatchSchedulerTest {
         scheduler.run();
 
         verify(executionService).execute(LocalDate.of(2026, 9, 23), 100);
-        verifyNoInteractions(retryExecutor);
+        verify(retryExecutor).execute(any(Runnable.class));
+        verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 실패하면_같은_날짜로_재실행하고_성공하면_추가_예약하지_않는다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -134,13 +207,14 @@ class DailyQuizBatchSchedulerTest {
         retry.getValue().run();
 
         verify(executionService, times(2)).execute(attemptDate, 100);
+        verify(retryExecutor).execute(any(Runnable.class));
         verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 최소_문항_공급_부족도_같은_날짜로_재시도한다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         LocalDate attemptDate = LocalDate.of(2026, 9, 23);
         DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
                 executionService,
@@ -159,7 +233,7 @@ class DailyQuizBatchSchedulerTest {
     @Test
     void 연속_실패하면_설정된_횟수까지만_재실행한다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -180,13 +254,14 @@ class DailyQuizBatchSchedulerTest {
         retries.getAllValues().getLast().run();
 
         verify(executionService, times(3)).execute(attemptDate, 100);
+        verify(retryExecutor).execute(any(Runnable.class));
         verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 코드_오류는_자동_재시도하지_않는다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -199,13 +274,14 @@ class DailyQuizBatchSchedulerTest {
 
         scheduler.run();
 
-        verifyNoInteractions(retryExecutor);
+        verify(retryExecutor).execute(any(Runnable.class));
+        verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 실행이_겹치면_추가_예약_없이_건너뛴다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -223,13 +299,14 @@ class DailyQuizBatchSchedulerTest {
         scheduler.run();
 
         verify(executionService).execute(attemptDate, 100);
-        verifyNoInteractions(retryExecutor);
+        verify(retryExecutor).execute(any(Runnable.class));
+        verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 예약된_재시도가_진행중인_배치와_겹쳐도_다시_예약하지_않는다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
                 executionService,
                 new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
@@ -250,13 +327,14 @@ class DailyQuizBatchSchedulerTest {
         scheduler.run();
 
         verify(executionService, times(2)).execute(attemptDate, 100);
+        verify(retryExecutor, times(2)).execute(any(Runnable.class));
         verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void DB_접근_오류도_재시도한다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchProperties properties = new DailyQuizBatchProperties(
                 "0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000
         );
@@ -275,7 +353,7 @@ class DailyQuizBatchSchedulerTest {
     @Test
     void DB_무결성_오류는_전체_배치를_재시도하지_않는다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
                 executionService,
                 new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
@@ -287,13 +365,14 @@ class DailyQuizBatchSchedulerTest {
 
         scheduler.run();
 
-        verifyNoInteractions(retryExecutor);
+        verify(retryExecutor).execute(any(Runnable.class));
+        verifyNoMoreInteractions(retryExecutor);
     }
 
     @Test
     void 일시적_DB_오류는_전체_배치를_재시도한다() {
         DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
-        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        ScheduledExecutorService retryExecutor = immediateExecutor();
         DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
                 executionService,
                 new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
@@ -306,5 +385,15 @@ class DailyQuizBatchSchedulerTest {
         scheduler.run();
 
         verify(retryExecutor).schedule(any(Runnable.class), eq(300_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    private static ScheduledExecutorService immediateExecutor() {
+        return mock(ScheduledExecutorService.class, invocation -> {
+            if (invocation.getMethod().getName().equals("execute")) {
+                ((Runnable) invocation.getArgument(0)).run();
+                return null;
+            }
+            return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
+        });
     }
 }

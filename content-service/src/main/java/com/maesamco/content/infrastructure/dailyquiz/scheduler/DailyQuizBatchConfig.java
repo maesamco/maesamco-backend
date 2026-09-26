@@ -28,9 +28,9 @@ public class DailyQuizBatchConfig {
 
     @Bean(destroyMethod = "shutdownNow")
     @ConditionalOnProperty(prefix = "daily-quiz.batch", name = "enabled", havingValue = "true")
-    public ScheduledExecutorService dailyQuizBatchRetryExecutor() {
+    public ScheduledExecutorService dailyQuizBatchExecutor() {
         return Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "daily-quiz-batch-retry");
+            Thread thread = new Thread(runnable, "daily-quiz-batch");
             thread.setDaemon(true);
             return thread;
         });

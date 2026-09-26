@@ -32,7 +32,7 @@ public class DailyQuizBatchScheduler {
     private final DailyQuizBatchExecutionService batchExecutionService;
     private final DailyQuizBatchProperties properties;
     private final Clock dailyQuizClock;
-    private final ScheduledExecutorService retryExecutor;
+    private final ScheduledExecutorService batchExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     @Scheduled(
@@ -40,7 +40,17 @@ public class DailyQuizBatchScheduler {
             zone = "${daily-quiz.batch.zone}"
     )
     public void run() {
-        runAttempt(LocalDate.now(dailyQuizClock), 0);
+        LocalDate attemptDate = LocalDate.now(dailyQuizClock);
+        if (!running.compareAndSet(false, true)) {
+            log.warn("Daily Quiz 배치가 이미 실행 중이어서 중복 실행을 건너뜁니다. attemptDate={}", attemptDate);
+            return;
+        }
+        try {
+            batchExecutor.execute(() -> executeAttempt(attemptDate, 0));
+        } catch (RejectedExecutionException exception) {
+            running.set(false);
+            log.error("Daily Quiz 배치 실행 예약에 실패했습니다. attemptDate={}", attemptDate, exception);
+        }
     }
 
     private void runAttempt(LocalDate attemptDate, int retryCount) {
@@ -50,6 +60,10 @@ public class DailyQuizBatchScheduler {
             return;
         }
 
+        executeAttempt(attemptDate, retryCount);
+    }
+
+    private void executeAttempt(LocalDate attemptDate, int retryCount) {
         try {
             log.info(
                     "Daily Quiz 배치를 시작합니다. attemptDate={}, chunkSize={}, retryCount={}",
@@ -84,7 +98,7 @@ public class DailyQuizBatchScheduler {
 
     private void scheduleAttempt(LocalDate attemptDate, int retryCount) {
         try {
-            retryExecutor.schedule(
+            batchExecutor.schedule(
                     () -> runAttempt(attemptDate, retryCount),
                     properties.retryDelayMs(),
                     TimeUnit.MILLISECONDS
