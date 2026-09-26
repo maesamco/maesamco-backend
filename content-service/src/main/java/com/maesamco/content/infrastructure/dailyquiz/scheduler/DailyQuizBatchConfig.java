@@ -1,11 +1,13 @@
 package com.maesamco.content.infrastructure.dailyquiz.scheduler;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-// import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * daily-quiz.batch 설정을 DailyQuizBatchProperties에 바인딩하고
@@ -13,7 +15,6 @@ import java.time.Clock;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(DailyQuizBatchProperties.class)
-// @EnableScheduling
 public class DailyQuizBatchConfig {
 
     /**
@@ -23,5 +24,15 @@ public class DailyQuizBatchConfig {
     @Bean
     public Clock dailyQuizClock(DailyQuizBatchProperties properties) {
         return Clock.system(properties.zoneId());
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    @ConditionalOnProperty(prefix = "daily-quiz.batch", name = "enabled", havingValue = "true")
+    public ScheduledExecutorService dailyQuizBatchExecutor() {
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "daily-quiz-batch");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 }

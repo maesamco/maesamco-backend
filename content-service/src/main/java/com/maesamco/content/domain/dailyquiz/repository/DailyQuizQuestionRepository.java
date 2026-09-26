@@ -19,6 +19,8 @@ public interface DailyQuizQuestionRepository {
 
     List<DailyQuizQuestion> findActiveByQuestionSlots(QuestionSlots questionSlots);
 
+    List<DailyQuizQuestion> findActiveFallbackQuestions();
+
     /**
      * 사용자 세트에 배정된 특정 문제 버전들을 ID로 일괄 조회합니다.
      * 이미 배정된 문항은 현재 상태와 관계없이 재조회할 수 있어야 하므로

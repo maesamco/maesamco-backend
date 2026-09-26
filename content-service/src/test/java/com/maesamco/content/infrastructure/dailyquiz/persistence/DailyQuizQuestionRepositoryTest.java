@@ -6,6 +6,7 @@ import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.config.JpaAuditingConfig;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -45,6 +46,9 @@ class DailyQuizQuestionRepositoryTest {
     @Autowired
     private DailyQuizQuestionRepository questionRepository;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @Test
     void 문항_슬롯의_개념과_유형에_맞는_후보를_유형별로_조회한다() {
         saveQuestions(MULTIPLE_CHOICE, 5);
@@ -65,6 +69,21 @@ class DailyQuizQuestionRepositoryTest {
         assertThat(result).filteredOn(question -> question.getProblemType() == MULTIPLE_CHOICE).hasSize(5);
         assertThat(result).filteredOn(question -> question.getProblemType() == SHORT_ANSWER).hasSize(2);
         assertThat(result).filteredOn(question -> question.getProblemType() == FILL_IN_BLANK).hasSize(1);
+    }
+
+    @Test
+    void 공통_폴백에는_모든_ACTIVE_문항을_조회하고_FLAGGED는_제외한다() {
+        DailyQuizQuestion firstActive = questionRepository.save(createQuestion(MULTIPLE_CHOICE, 1));
+        DailyQuizQuestion flagged = questionRepository.save(createQuestion(SHORT_ANSWER, 2));
+        DailyQuizQuestion secondActive = questionRepository.save(createQuestion(FILL_IN_BLANK, 3));
+        flagged.flag();
+        entityManager.flush();
+        entityManager.clear();
+
+        List<DailyQuizQuestion> result = questionRepository.findActiveFallbackQuestions();
+
+        assertThat(result).extracting(DailyQuizQuestion::getId)
+                .containsExactlyInAnyOrder(firstActive.getId(), secondActive.getId());
     }
 
     private void saveQuestions(DailyQuizProblemType problemType, int count) {
