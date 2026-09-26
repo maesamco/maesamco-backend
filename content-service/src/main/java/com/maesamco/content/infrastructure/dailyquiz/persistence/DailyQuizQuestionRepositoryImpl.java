@@ -3,6 +3,7 @@ package com.maesamco.content.infrastructure.dailyquiz.persistence;
 import com.maesamco.content.domain.dailyquiz.QuestionSlot;
 import com.maesamco.content.domain.dailyquiz.QuestionSlots;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestionStatus;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -49,6 +50,11 @@ public class DailyQuizQuestionRepositoryImpl implements DailyQuizQuestionReposit
                 problemTypes,
                 questionSlots.size()
         );
+    }
+
+    @Override
+    public List<DailyQuizQuestion> findActiveFallbackQuestions() {
+        return springDataRepository.findByStatusAndFallbackEligibleTrue(DailyQuizQuestionStatus.ACTIVE);
     }
 
     @Override

@@ -47,8 +47,6 @@ public class DailyQuizUserGenerationService {
                     throw exception;
                 }
                 throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
-            } catch (DailyQuizUserLookupException exception) {
-                throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
             }
 
             DailyQuizSetGenerationCommand command = DailyQuizSetGenerationCommand.from(
@@ -59,6 +57,8 @@ public class DailyQuizUserGenerationService {
 
             return setGenerationFacade.generate(command);
         } catch (DataIntegrityViolationException exception) {
+            throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
+        } catch (DailyQuizUserLookupException exception) {
             throw new DailyQuizUserProcessingException(userId, attemptDate, exception);
         }
     }

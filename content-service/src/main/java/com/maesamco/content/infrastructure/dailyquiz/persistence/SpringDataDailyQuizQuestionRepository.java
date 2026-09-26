@@ -1,6 +1,7 @@
 package com.maesamco.content.infrastructure.dailyquiz.persistence;
 
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +41,6 @@ interface SpringDataDailyQuizQuestionRepository extends JpaRepository<DailyQuizQ
             @Param("problemTypes") String[] problemTypes,
             @Param("limitPerSlotCriteria") int limitPerSlotCriteria
     );
+
+    List<DailyQuizQuestion> findByStatusAndFallbackEligibleTrue(DailyQuizQuestionStatus status);
 }
