@@ -10,8 +10,9 @@
     :root { color-scheme: light dark; supported-color-schemes: light dark; }
     body { margin: 0; padding: 0; width: 100% !important; }
     img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
-    /* 다크용 로고는 기본으로 숨기고, 다크 모드를 지원하는 클라이언트에서만 라이트용과 바꿔 보여준다. */
-    .logo-dark { display: none; max-height: 0; overflow: hidden; mso-hide: all; }
+    /* 로고는 밝은/어두운 배경 모두에서 읽히는 중간 톤(마스코트와 같은 파랑) 하나만 쓴다.
+       Gmail 앱처럼 prefers-color-scheme을 무시하고 배경·글자색만 자동 반전하는 클라이언트에서는
+       이미지가 그대로 남아, 라이트/다크 전용 로고를 바꿔 끼우는 방식이 통하지 않는다. */
 
     @media (prefers-color-scheme: dark) {
       .bg-page { background-color: #0b0f1c !important; }
@@ -22,8 +23,6 @@
       .text-muted { color: #8b96b6 !important; }
       .text-code { color: #9dbeff !important; }
       .rule { border-color: #2a3350 !important; }
-      .logo-light { display: none !important; max-height: 0 !important; overflow: hidden !important; mso-hide: all !important; }
-      .logo-dark { display: block !important; max-height: none !important; overflow: visible !important; mso-hide: none !important; }
     }
 
     @media only screen and (max-width: 480px) {
@@ -56,8 +55,7 @@
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="left" valign="middle">
-                    <img class="logo-light" src="cid:logo" width="140" alt="매삼코" style="display:block;width:140px;height:auto;">
-                    <img class="logo-dark" src="cid:logo-dark" width="140" alt="" style="width:140px;height:auto;">
+                    <img src="cid:logo" width="140" alt="매삼코" style="display:block;width:140px;height:auto;">
                   </td>
                   <td align="right" valign="middle" width="84">
                     <img src="cid:mascot" width="72" height="72" alt="" style="display:block;width:72px;height:72px;">
