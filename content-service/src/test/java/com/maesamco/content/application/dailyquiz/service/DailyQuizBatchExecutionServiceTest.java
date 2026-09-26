@@ -1,6 +1,7 @@
 package com.maesamco.content.application.dailyquiz.service;
 
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizQuestionSupplyException;
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserLookupException;
 import com.maesamco.content.application.dailyquiz.facade.DailyQuizSetGenerationFacade;
 import com.maesamco.content.application.dailyquiz.port.ConceptLookupPort;
@@ -150,6 +151,24 @@ class DailyQuizBatchExecutionServiceTest {
 
         assertThatThrownBy(() -> service.execute(attemptDate, 100)).isSameAs(failure);
         verifyNoInteractions(userGenerationService);
+    }
+
+    @Test
+    void 최소_문항_부족_사용자가_있어도_나머지를_처리한_뒤_재시도_대상으로_알린다() {
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        UUID firstUser = UUID.randomUUID();
+        UUID secondUser = UUID.randomUUID();
+        when(targetUserPort.getTargetUsers(null, 100))
+                .thenReturn(new DailyQuizTargetUserPage(List.of(firstUser, secondUser), null, false));
+        when(userGenerationService.generate(firstUser, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.insufficientQuestions(2));
+        when(userGenerationService.generate(secondUser, attemptDate))
+                .thenReturn(DailyQuizSetGenerationResult.created(UUID.randomUUID(), 5));
+
+        assertThatThrownBy(() -> service.execute(attemptDate, 100))
+                .isInstanceOf(DailyQuizQuestionSupplyException.class)
+                .hasMessageContaining("affectedUsers=1");
+        verify(userGenerationService).generate(secondUser, attemptDate);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.dailyquiz.scheduler;
 
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizQuestionSupplyException;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizBatchExecutionService;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -134,6 +135,25 @@ class DailyQuizBatchSchedulerTest {
 
         verify(executionService, times(2)).execute(attemptDate, 100);
         verifyNoMoreInteractions(retryExecutor);
+    }
+
+    @Test
+    void 최소_문항_공급_부족도_같은_날짜로_재시도한다() {
+        DailyQuizBatchExecutionService executionService = mock(DailyQuizBatchExecutionService.class);
+        ScheduledExecutorService retryExecutor = mock(ScheduledExecutorService.class);
+        LocalDate attemptDate = LocalDate.of(2026, 9, 23);
+        DailyQuizBatchScheduler scheduler = new DailyQuizBatchScheduler(
+                executionService,
+                new DailyQuizBatchProperties("0 0 3 * * *", "Asia/Seoul", 100, 2, 300_000),
+                Clock.fixed(Instant.parse("2026-09-22T15:30:00Z"), ZoneId.of("Asia/Seoul")),
+                retryExecutor
+        );
+        doThrow(new DailyQuizQuestionSupplyException(attemptDate, 1))
+                .when(executionService).execute(attemptDate, 100);
+
+        scheduler.run();
+
+        verify(retryExecutor).schedule(any(Runnable.class), eq(300_000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test

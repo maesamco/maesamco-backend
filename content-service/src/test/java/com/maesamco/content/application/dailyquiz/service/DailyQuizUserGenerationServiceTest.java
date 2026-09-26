@@ -73,6 +73,20 @@ class DailyQuizUserGenerationServiceTest {
     }
 
     @Test
+    void 문항_부족_후_추가_관심_개념_조회_오류도_사용자_단위로_분류한다() {
+        UUID userId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 25);
+        DailyQuizUserLookupException cause = new DailyQuizUserLookupException("invalid user response");
+        when(candidateQueryService.get(any()))
+                .thenReturn(DailyQuizConceptCandidates.fromProblemProgress(List.of("반복문"), List.of()));
+        when(setGenerationFacade.generate(any())).thenThrow(cause);
+
+        assertThatThrownBy(() -> service.generate(userId, attemptDate))
+                .isInstanceOf(DailyQuizUserProcessingException.class)
+                .hasCause(cause);
+    }
+
+    @Test
     void 외부_서비스_장애는_사용자_데이터_오류로_바꾸지_않는다() {
         UUID userId = UUID.randomUUID();
         LocalDate attemptDate = LocalDate.of(2026, 9, 25);
