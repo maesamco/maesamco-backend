@@ -70,6 +70,8 @@ spring:
     topic:
       coaching-completed: ${KAFKA_TOPIC_COACHING_COMPLETED:coaching-completed-events}
       submission-judged: ${KAFKA_TOPIC_SUBMISSION_JUDGED:submission-judged-events}
+      # content-service가 발행하는 Daily Quiz 완료 이벤트 (content-service의 KAFKA_TOPIC_DAILY_QUIZ_COMPLETED와 같은 값)
+      daily-quiz-completed: ${KAFKA_TOPIC_DAILY_QUIZ_COMPLETED:daily-quiz-completed-events}
 
     consumer:
       group-id: user-service
@@ -78,6 +80,11 @@ spring:
       group:
         coaching-completed: ${KAFKA_GROUP_COACHING_COMPLETED:user-service-coaching-completed}
         submission-judged: ${KAFKA_GROUP_SUBMISSION_JUDGED:user-service-submission-judged}
+        daily-quiz-completed: ${KAFKA_GROUP_DAILY_QUIZ_COMPLETED:user-service-daily-quiz-completed}
+
+      # DailyQuizCompleted 그룹이 처음 시작될 때(커밋된 오프셋 없음) 과거 이벤트로 XP를 소급 지급하지 않도록 latest로 시작한다.
+      # 소급 지급이 필요하면 earliest로 바꾼다. 오프셋이 커밋된 뒤에는 이 값과 관계없이 이어서 읽는다.
+      daily-quiz-completed-offset-reset: ${KAFKA_DAILY_QUIZ_COMPLETED_OFFSET_RESET:latest}
 
   jackson:
     deserialization:

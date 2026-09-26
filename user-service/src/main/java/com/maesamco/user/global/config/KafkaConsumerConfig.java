@@ -1,6 +1,7 @@
 package com.maesamco.user.global.config;
 
 import com.maesamco.user.infrastructure.messaging.event.CoachingCompletedEvent;
+import com.maesamco.user.infrastructure.messaging.event.DailyQuizCompletedEvent;
 import com.maesamco.user.infrastructure.messaging.event.SubmissionJudgedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -45,6 +46,12 @@ public class KafkaConsumerConfig {
     public ConsumerFactory<String, SubmissionJudgedEvent>
     submissionJudgedConsumerFactory() {
         return eventConsumerFactory(SubmissionJudgedEvent.class);
+    }
+
+    @Bean
+    public ConsumerFactory<String, DailyQuizCompletedEvent>
+    dailyQuizCompletedConsumerFactory() {
+        return eventConsumerFactory(DailyQuizCompletedEvent.class);
     }
 
     private <T> ConsumerFactory<String, T> eventConsumerFactory(
@@ -105,6 +112,8 @@ public class KafkaConsumerConfig {
                         CoachingCompletedEvent.class,
                         new JacksonJsonSerializer<>(),
                         SubmissionJudgedEvent.class,
+                        new JacksonJsonSerializer<>(),
+                        DailyQuizCompletedEvent.class,
                         new JacksonJsonSerializer<>()
                 );
 
@@ -165,6 +174,33 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, SubmissionJudgedEvent>
                 factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(submissionJudgedConsumerFactory);
+
+        DeadLetterPublishingRecoverer recoverer =
+                new DeadLetterPublishingRecoverer(
+                        userEventDltKafkaTemplate
+                );
+
+        factory.setCommonErrorHandler(
+                new DefaultErrorHandler(
+                        recoverer,
+                        new FixedBackOff(1000L, 3L)
+                )
+        );
+
+        return factory;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, DailyQuizCompletedEvent>
+    dailyQuizCompletedKafkaListenerContainerFactory(
+            ConsumerFactory<String, DailyQuizCompletedEvent>
+                    dailyQuizCompletedConsumerFactory,
+            KafkaTemplate<Object, Object>
+                    userEventDltKafkaTemplate
+    ) {
+        ConcurrentKafkaListenerContainerFactory<String, DailyQuizCompletedEvent>
+                factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(dailyQuizCompletedConsumerFactory);
 
         DeadLetterPublishingRecoverer recoverer =
                 new DeadLetterPublishingRecoverer(
