@@ -1,7 +1,9 @@
 package com.maesamco.content.application.dailyquiz.service;
 
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizQuestionSupplyException;
 import com.maesamco.content.application.dailyquiz.exception.DailyQuizUserProcessingException;
 import com.maesamco.content.application.dailyquiz.port.DailyQuizTargetUserPort;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationStatus;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSetGenerationResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizTargetUserPage;
 import com.maesamco.content.global.exception.BusinessException;
@@ -50,6 +52,7 @@ public class DailyQuizBatchExecutionService {
         // 첫 페이지 조회를 위해 cursor를 null로 초기화합니다.
         UUID cursor = null;
         Set<UUID> visitedCursors = new HashSet<>();
+        int insufficientUsers = 0;
 
         // cursor와 chunkSize로 대상 사용자 페이지를 반복 조회합니다.
         while (true) {
@@ -69,6 +72,11 @@ public class DailyQuizBatchExecutionService {
                             result.status(),
                             result.questionCount()
                     );
+                    if (result.status() == DailyQuizSetGenerationStatus.INSUFFICIENT_QUESTIONS) {
+                        insufficientUsers++;
+                        log.error("Daily Quiz 최소 문항 부족. userId={}, attemptDate={}, questionCount={}",
+                                userId, attemptDate, result.questionCount());
+                    }
                 } catch (DailyQuizUserProcessingException exception) {
                     log.error(
                             "Daily Quiz 사용자 데이터 처리 실패. 다음 사용자를 처리합니다. "
@@ -82,6 +90,9 @@ public class DailyQuizBatchExecutionService {
 
             // hasNext=false이면 배치를 정상 종료합니다.
             if (!page.hasNext()) {
+                if (insufficientUsers > 0) {
+                    throw new DailyQuizQuestionSupplyException(attemptDate, insufficientUsers);
+                }
                 log.info(
                         "Daily Quiz 배치 대상 사용자 처리를 완료했습니다. attemptDate={}",
                         attemptDate

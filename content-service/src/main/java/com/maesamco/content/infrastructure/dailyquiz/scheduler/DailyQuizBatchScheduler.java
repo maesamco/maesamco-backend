@@ -1,5 +1,6 @@
 package com.maesamco.content.infrastructure.dailyquiz.scheduler;
 
+import com.maesamco.content.application.dailyquiz.exception.DailyQuizQuestionSupplyException;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizBatchExecutionService;
 import com.maesamco.content.global.exception.BusinessException;
 import com.maesamco.content.global.exception.ErrorCode;
@@ -70,6 +71,9 @@ public class DailyQuizBatchScheduler {
     }
 
     private boolean isRetryable(RuntimeException exception) {
+        if (exception instanceof DailyQuizQuestionSupplyException) {
+            return true;
+        }
         if (exception instanceof BusinessException businessException) {
             return businessException.getErrorCode() == ErrorCode.FEIGN_CLIENT_ERROR;
         }
