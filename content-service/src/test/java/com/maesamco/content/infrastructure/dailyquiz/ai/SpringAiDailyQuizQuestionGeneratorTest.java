@@ -66,7 +66,7 @@ class SpringAiDailyQuizQuestionGeneratorTest {
         assertThat(result.problemType()).isEqualTo(DailyQuizProblemType.FILL_IN_BLANK);
         assertThat(result.questionText()).contains("___");
         assertThat(result.generationMetadata().tokenUsage()).isEqualTo(30);
-        assertThat(result.generationMetadata().promptVersion()).isEqualTo("v3");
+        assertThat(result.generationMetadata().promptVersion()).isEqualTo("v4");
         verify(chatModel).call(any(Prompt.class));
     }
 
