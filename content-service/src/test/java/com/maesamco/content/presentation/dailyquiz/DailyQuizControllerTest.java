@@ -89,6 +89,8 @@ class DailyQuizControllerTest {
                 "올바른 답을 선택하세요.",
                 List.of("A", "B", "C", "D"),
                 false,
+                null,
+                null,
                 null
         );
         DailyQuizGetResult result = new DailyQuizGetResult(
@@ -107,7 +109,44 @@ class DailyQuizControllerTest {
                 .andExpect(jsonPath("$.data.quizAttemptId").value(attemptId.toString()))
                 .andExpect(jsonPath("$.data.questions[0].prompt").value("올바른 답을 선택하세요."))
                 .andExpect(jsonPath("$.data.questions[0].answer").doesNotExist())
-                .andExpect(jsonPath("$.data.questions[0].allowedAnswerVariants").doesNotExist());
+                .andExpect(jsonPath("$.data.questions[0].allowedAnswerVariants").doesNotExist())
+                .andExpect(jsonPath("$.data.questions[0].correctAnswer").doesNotExist())
+                .andExpect(jsonPath("$.data.questions[0].submittedResponse").doesNotExist());
+    }
+
+    @Test
+    void 제출한_문항은_조회_응답에_제출_답안과_정답을_함께_노출한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        DailyQuizQuestionGetResult question = new DailyQuizQuestionGetResult(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                1,
+                DailyQuizProblemType.MULTIPLE_CHOICE,
+                "올바른 답을 선택하세요.",
+                List.of("A", "B", "C", "D"),
+                true,
+                false,
+                "B",
+                "A"
+        );
+        DailyQuizGetResult result = new DailyQuizGetResult(
+                attemptId,
+                DailyQuizAttemptStatus.IN_PROGRESS,
+                3,
+                "QUICK_ANSWER",
+                180,
+                Instant.parse("2026-09-11T03:00:00Z"),
+                List.of(question)
+        );
+        when(queryService.get(any(DailyQuizGetQuery.class))).thenReturn(result);
+
+        mockMvc.perform(get("/api/v1/daily-quiz").with(asUser(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions[0].correct").value(false))
+                .andExpect(jsonPath("$.data.questions[0].submittedResponse").value("B"))
+                .andExpect(jsonPath("$.data.questions[0].correctAnswer").value("A"));
     }
 
     @Test

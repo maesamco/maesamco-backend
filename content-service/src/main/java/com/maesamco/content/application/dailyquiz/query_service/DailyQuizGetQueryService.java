@@ -143,6 +143,10 @@ public class DailyQuizGetQueryService {
             DailyQuizAttemptItem item,
             DailyQuizQuestion question
     ) {
+        // 정답과 제출 답안은 채점이 이미 끝난 제출 완료 문항에서만 함께 내려준다.
+        // 미제출 문항까지 내려주면 이 조회 API로 정답을 미리 확인할 수 있게 된다.
+        boolean answered = item.isAnswered();
+
         return new DailyQuizQuestionGetResult(
                 question.getQuestionGroupId(),
                 question.getId(),
@@ -151,8 +155,10 @@ public class DailyQuizGetQueryService {
                 question.getProblemType(),
                 question.getQuestionText(),
                 question.getChoices(),
-                item.isAnswered(),
-                item.isAnswered() ? item.getCorrect() : null
+                answered,
+                answered ? item.getCorrect() : null,
+                answered ? item.getUserAnswer() : null,
+                answered ? question.getAnswer() : null
         );
     }
 }
