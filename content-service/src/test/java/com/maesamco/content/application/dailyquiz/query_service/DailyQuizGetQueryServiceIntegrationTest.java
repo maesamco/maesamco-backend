@@ -202,6 +202,48 @@ class DailyQuizGetQueryServiceIntegrationTest {
     }
 
     @Test
+    void 제출한_문항만_조회_응답에_제출_답안과_정답을_함께_반환한다() {
+        UUID userId = UUID.randomUUID();
+        DailyQuizAttempt savedAttempt = createReadySet(userId, List.of(1, 2, 3));
+        DailyQuizAttemptItem firstItem = attemptItemRepository
+                .findAllByAttemptIdOrderByQuestionOrder(savedAttempt.getId())
+                .stream()
+                .filter(item -> item.getQuestionOrder() == 1)
+                .findFirst()
+                .orElseThrow();
+
+        // submitIfUnanswered는 @Modifying 벌크 UPDATE라 트랜잭션이 필요하다.
+        // 이 테스트 클래스는 클래스 레벨에서 트랜잭션을 비활성화해두었으므로 직접 감싼다.
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                attemptItemRepository.submitIfUnanswered(
+                        savedAttempt.getId(), firstItem.getQuestionId(), "제출한 답", true, TEST_NOW
+                )
+        );
+
+        DailyQuizGetResult result = queryService.get(DailyQuizGetQuery.from(userId));
+
+        var answeredQuestion = result.questions().stream()
+                .filter(question -> question.questionOrder() == 1)
+                .findFirst()
+                .orElseThrow();
+        var unansweredQuestion = result.questions().stream()
+                .filter(question -> question.questionOrder() == 2)
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(answeredQuestion.answered()).isTrue();
+        assertThat(answeredQuestion.correct()).isTrue();
+        assertThat(answeredQuestion.submittedResponse()).isEqualTo("제출한 답");
+        assertThat(answeredQuestion.correctAnswer()).isEqualTo("정답 1");
+
+        // 아직 안 푼 문항은 정답이 이 조회 응답으로 새어나가면 안 된다.
+        assertThat(unansweredQuestion.answered()).isFalse();
+        assertThat(unansweredQuestion.correct()).isNull();
+        assertThat(unansweredQuestion.submittedResponse()).isNull();
+        assertThat(unansweredQuestion.correctAnswer()).isNull();
+    }
+
+    @Test
     void 두_조회_요청이_동시에_실행되어도_같은_startedAt을_반환한다() throws Exception {
         UUID userId = UUID.randomUUID();
         createReadySet(userId, List.of(1, 2, 3));

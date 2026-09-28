@@ -2,9 +2,12 @@ package com.maesamco.content.application.dailyquiz.query_service;
 
 import com.maesamco.content.application.dailyquiz.query.DailyQuizGetQuery;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizGetResult;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionGetResult;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttempt;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptItem;
 import com.maesamco.content.domain.dailyquiz.entity.DailyQuizAttemptStatus;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizProblemType;
+import com.maesamco.content.domain.dailyquiz.entity.DailyQuizQuestion;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptItemRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizAttemptRepository;
 import com.maesamco.content.domain.dailyquiz.repository.DailyQuizQuestionRepository;
@@ -156,6 +159,80 @@ class DailyQuizGetQueryServiceTest {
                         "배정된 Daily Quiz 문제 버전을 찾을 수 없습니다. questionId="
                                 + questionId
                 );
+    }
+
+    @Test
+    void 제출한_문항은_제출_답안과_정답을_함께_반환한다() {
+        UUID userId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        UUID questionId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 11);
+        DailyQuizAttempt attempt = readableAttempt(attemptId, DailyQuizAttemptStatus.IN_PROGRESS, TEST_NOW);
+        DailyQuizAttemptItem attemptItem = mock(DailyQuizAttemptItem.class);
+        DailyQuizQuestion question = mock(DailyQuizQuestion.class);
+
+        when(attemptRepository.findByUserIdAndAttemptDate(userId, attemptDate))
+                .thenReturn(Optional.of(attempt));
+        when(attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attemptId))
+                .thenReturn(List.of(attemptItem));
+        when(attemptItem.getQuestionId()).thenReturn(questionId);
+        when(attemptItem.getQuestionOrder()).thenReturn(1);
+        when(attemptItem.isAnswered()).thenReturn(true);
+        when(attemptItem.getCorrect()).thenReturn(false);
+        when(attemptItem.getUserAnswer()).thenReturn("B");
+        when(questionRepository.findAllById(List.of(questionId))).thenReturn(List.of(question));
+        when(question.getId()).thenReturn(questionId);
+        when(question.getQuestionGroupId()).thenReturn(UUID.randomUUID());
+        when(question.getVersionNo()).thenReturn(1);
+        when(question.getProblemType()).thenReturn(DailyQuizProblemType.MULTIPLE_CHOICE);
+        when(question.getQuestionText()).thenReturn("올바른 답을 선택하세요.");
+        when(question.getChoices()).thenReturn(List.of("A", "B", "C", "D"));
+        when(question.getAnswer()).thenReturn("A");
+
+        DailyQuizGetResult result = queryService.get(DailyQuizGetQuery.from(userId));
+
+        DailyQuizQuestionGetResult questionResult = result.questions().get(0);
+        assertThat(questionResult.answered()).isTrue();
+        assertThat(questionResult.correct()).isFalse();
+        assertThat(questionResult.submittedResponse()).isEqualTo("B");
+        assertThat(questionResult.correctAnswer()).isEqualTo("A");
+    }
+
+    @Test
+    void 미제출_문항은_제출_답안과_정답을_반환하지_않는다() {
+        UUID userId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        UUID questionId = UUID.randomUUID();
+        LocalDate attemptDate = LocalDate.of(2026, 9, 11);
+        DailyQuizAttempt attempt = readableAttempt(attemptId, DailyQuizAttemptStatus.IN_PROGRESS, TEST_NOW);
+        DailyQuizAttemptItem attemptItem = mock(DailyQuizAttemptItem.class);
+        DailyQuizQuestion question = mock(DailyQuizQuestion.class);
+
+        when(attemptRepository.findByUserIdAndAttemptDate(userId, attemptDate))
+                .thenReturn(Optional.of(attempt));
+        when(attemptItemRepository.findAllByAttemptIdOrderByQuestionOrder(attemptId))
+                .thenReturn(List.of(attemptItem));
+        when(attemptItem.getQuestionId()).thenReturn(questionId);
+        when(attemptItem.getQuestionOrder()).thenReturn(1);
+        when(attemptItem.isAnswered()).thenReturn(false);
+        when(questionRepository.findAllById(List.of(questionId))).thenReturn(List.of(question));
+        when(question.getId()).thenReturn(questionId);
+        when(question.getQuestionGroupId()).thenReturn(UUID.randomUUID());
+        when(question.getVersionNo()).thenReturn(1);
+        when(question.getProblemType()).thenReturn(DailyQuizProblemType.MULTIPLE_CHOICE);
+        when(question.getQuestionText()).thenReturn("올바른 답을 선택하세요.");
+        when(question.getChoices()).thenReturn(List.of("A", "B", "C", "D"));
+
+        DailyQuizGetResult result = queryService.get(DailyQuizGetQuery.from(userId));
+
+        DailyQuizQuestionGetResult questionResult = result.questions().get(0);
+        assertThat(questionResult.answered()).isFalse();
+        assertThat(questionResult.correct()).isNull();
+        assertThat(questionResult.submittedResponse()).isNull();
+        assertThat(questionResult.correctAnswer()).isNull();
+        // 미제출 문항은 정답 자체를 조회하지 않아야 한다 — 값이 null인 것과, 애초에
+        // 노출 경로를 안 타는 것은 다르며 후자가 이 정책의 실제 의도다.
+        verify(question, never()).getAnswer();
     }
 
     private DailyQuizAttempt readableAttempt(

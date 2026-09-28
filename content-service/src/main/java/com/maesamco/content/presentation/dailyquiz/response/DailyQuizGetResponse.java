@@ -77,7 +77,11 @@ public record DailyQuizGetResponse(
             @Schema(description = "문항 제출 여부")
             boolean answered,
             @Schema(description = "제출한 문항에서만 제공되는 정답 여부")
-            Boolean correct
+            Boolean correct,
+            @Schema(description = "제출한 문항에서만 제공되는 사용자의 제출 답안")
+            String submittedResponse,
+            @Schema(description = "제출한 문항에서만 제공되는 정답. 미제출 문항은 정답 노출 방지를 위해 항상 null")
+            String correctAnswer
     ) {
 
         /**
@@ -98,7 +102,9 @@ public record DailyQuizGetResponse(
                     result.prompt(),
                     options,
                     result.answered(),
-                    result.correct()
+                    result.correct(),
+                    result.submittedResponse(),
+                    result.correctAnswer()
             );
         }
     }

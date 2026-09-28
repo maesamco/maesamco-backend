@@ -26,6 +26,10 @@ public record DailyQuizQuestionGetResult(
         // 사용자가 해당 문항을 제출했는지 여부
         boolean answered,
         // 제출한 답안의 정답 여부. 미제출 문항이면 null
-        Boolean correct
+        Boolean correct,
+        // 사용자가 제출한 답안. 미제출 문항이면 null
+        String submittedResponse,
+        // 문항의 정답. 미제출 문항이면 null(제출 전 정답 노출 방지)
+        String correctAnswer
 ) {
 }
