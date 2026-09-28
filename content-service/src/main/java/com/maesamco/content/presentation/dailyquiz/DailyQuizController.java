@@ -3,11 +3,14 @@ package com.maesamco.content.presentation.dailyquiz;
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
 import com.maesamco.content.application.dailyquiz.query.DailyQuizGetQuery;
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizGetQueryService;
+import com.maesamco.content.application.dailyquiz.query_service.DailyQuizProgressQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizGetResult;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizProgressResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizSubmitService;
 import com.maesamco.content.presentation.dailyquiz.request.DailyQuizSubmitRequest;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizGetResponse;
+import com.maesamco.content.presentation.dailyquiz.response.DailyQuizProgressResponse;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizSubmitResponse;
 import com.maesamco.content.global.response.SuccessResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ import java.util.UUID;
 public class DailyQuizController implements DailyQuizApiDocs {
 
     private final DailyQuizGetQueryService queryService;
+    private final DailyQuizProgressQueryService progressQueryService;
     private final DailyQuizSubmitService submitService;
 
     /**
@@ -40,6 +44,21 @@ public class DailyQuizController implements DailyQuizApiDocs {
 
         // Application 결과를 API 응답 DTO와 공통 성공 응답 형식으로 변환합니다.
         return SuccessResponse.success(DailyQuizGetResponse.from(result));
+    }
+
+    /**
+     * 인증된 사용자의 오늘 Daily Quiz 진행도만 조회합니다(시작 처리 없음).
+     */
+    @PreAuthorize("isAuthenticated()")
+    @Override
+    public SuccessResponse<DailyQuizProgressResponse> getDailyQuizProgress(
+            UUID userId
+    ) {
+        DailyQuizGetQuery query = DailyQuizGetQuery.from(userId);
+
+        DailyQuizProgressResult result = progressQueryService.get(query);
+
+        return SuccessResponse.success(DailyQuizProgressResponse.from(result));
     }
 
     /**

@@ -3,6 +3,7 @@ package com.maesamco.content.presentation.dailyquiz;
 import com.maesamco.content.global.response.SuccessResponse;
 import com.maesamco.content.presentation.dailyquiz.request.DailyQuizSubmitRequest;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizGetResponse;
+import com.maesamco.content.presentation.dailyquiz.response.DailyQuizProgressResponse;
 import com.maesamco.content.presentation.dailyquiz.response.DailyQuizSubmitResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -40,6 +41,21 @@ public interface DailyQuizApiDocs {
             @ApiResponse(responseCode = "404", description = "QUIZ_NOT_FOUND — 오늘 생성된 세트가 없음")
     })
     SuccessResponse<DailyQuizGetResponse> getDailyQuiz(
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID userId
+    );
+
+    @GetMapping("/progress")
+    @Operation(
+            summary = "오늘의 일일 퀴즈 진행도 조회",
+            description = "세트를 시작 처리하지 않는 순수 조회입니다. 홈 화면처럼 사용자가 실제로 "
+                    + "퀴즈를 시작할 의도 없이 진행 상황만 확인하는 곳에서 씁니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공 — 세트 상태와 완료 문항 수 반환"),
+            @ApiResponse(responseCode = "401", description = "AUTH_UNAUTHORIZED — 인증되지 않은 요청"),
+            @ApiResponse(responseCode = "404", description = "QUIZ_NOT_FOUND — 오늘 생성된 세트가 없음")
+    })
+    SuccessResponse<DailyQuizProgressResponse> getDailyQuizProgress(
             @Parameter(hidden = true) @AuthenticationPrincipal UUID userId
     );
 

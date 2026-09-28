@@ -3,7 +3,9 @@ package com.maesamco.content.presentation.dailyquiz;
 import com.maesamco.content.application.dailyquiz.command.DailyQuizSubmitCommand;
 import com.maesamco.content.application.dailyquiz.query.DailyQuizGetQuery;
 import com.maesamco.content.application.dailyquiz.query_service.DailyQuizGetQueryService;
+import com.maesamco.content.application.dailyquiz.query_service.DailyQuizProgressQueryService;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizGetResult;
+import com.maesamco.content.application.dailyquiz.result.DailyQuizProgressResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizQuestionGetResult;
 import com.maesamco.content.application.dailyquiz.result.DailyQuizSubmitResult;
 import com.maesamco.content.application.dailyquiz.service.DailyQuizSubmitService;
@@ -60,6 +62,9 @@ class DailyQuizControllerTest {
 
     @MockitoBean
     private DailyQuizGetQueryService queryService;
+
+    @MockitoBean
+    private DailyQuizProgressQueryService progressQueryService;
 
     @MockitoBean
     private DailyQuizSubmitService submitService;
@@ -158,6 +163,38 @@ class DailyQuizControllerTest {
     }
 
     @Test
+    void 진행도_조회는_상태와_완료_문항_수를_반환한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(progressQueryService.get(any(DailyQuizGetQuery.class)))
+                .thenReturn(new DailyQuizProgressResult(DailyQuizAttemptStatus.IN_PROGRESS, 2, 5));
+
+        mockMvc.perform(get("/api/v1/daily-quiz/progress").with(asUser(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.attemptStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.completedCount").value(2))
+                .andExpect(jsonPath("$.data.totalCount").value(5));
+    }
+
+    @Test
+    void 오늘_세트가_없으면_진행도_조회도_404와_QUIZ_NOT_FOUND를_반환한다() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(progressQueryService.get(any(DailyQuizGetQuery.class)))
+                .thenThrow(new BusinessException(ErrorCode.QUIZ_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/daily-quiz/progress").with(asUser(userId)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("QUIZ_NOT_FOUND"));
+    }
+
+    @Test
+    void 미인증_진행도_조회는_차단한다() throws Exception {
+        mockMvc.perform(get("/api/v1/daily-quiz/progress"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(progressQueryService);
+    }
+
+    @Test
     void 문항_제출은_인터페이스의_경로와_본문_매핑을_사용한다() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID attemptId = UUID.randomUUID();
@@ -211,6 +248,8 @@ class DailyQuizControllerTest {
                 .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.responses['404'].description")
                         .value("QUIZ_NOT_FOUND — 오늘 생성된 세트가 없음"))
                 .andExpect(jsonPath("$.paths['/api/v1/daily-quiz'].get.security[0].bearerAuth").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/progress'].get.summary")
+                        .value("오늘의 일일 퀴즈 진행도 조회"))
                 .andExpect(jsonPath("$.paths['/api/v1/daily-quiz/{quizAttemptId}/questions/"
                         + "{questionVersionId}/submit'].post.summary")
                         .value("일일 퀴즈 문항 제출"))
