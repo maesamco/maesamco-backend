@@ -11,11 +11,11 @@ import org.springframework.stereotype.Component;
 /**
  * DailyQuizCompleted 이벤트를 소비하여 XP와 학습 스트릭을 반영합니다.
  *
- * <p>Content Service는 이 Consumer보다 먼저 운영에서 이벤트를 발행하고 있습니다.
- * 이 Consumer 그룹이 처음 시작될 때 토픽에 남은 과거 완료 이벤트로 XP가 소급 지급되지
- * 않도록, 커밋된 오프셋이 없을 때는 {@code latest}부터 읽습니다(다른 Consumer의
- * 기본값 {@code earliest}와 다름). 한 번 오프셋을 커밋한 뒤에는 재시작해도 이어서
- * 읽으므로 이후 이벤트는 유실되지 않습니다.</p>
+ * <p>커밋된 오프셋이 없을 때(최초 기동, 오프셋 만료)는 {@code earliest}부터 읽습니다(#376).
+ * 오프셋은 이벤트를 처리한 뒤에만 커밋되므로, {@code latest}였다면 첫 이벤트 처리 전에
+ * 재시작될 때 시작 위치가 다시 계산되어 그 사이 이벤트를 건너뛸 수 있습니다.
+ * 다시 읽은 이벤트는 {@code quizAttemptId} 기준 중복 확인으로 XP·스트릭이 한 번만
+ * 반영되므로, 처음부터 읽어도 중복 지급은 없습니다.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -29,7 +29,7 @@ public class DailyQuizCompletedConsumer {
             groupId = "${spring.kafka.consumer.group.daily-quiz-completed:user-service-daily-quiz-completed}",
             containerFactory = "dailyQuizCompletedKafkaListenerContainerFactory",
             autoStartup = "${spring.kafka.listener.auto-startup:true}",
-            properties = "auto.offset.reset=${spring.kafka.consumer.daily-quiz-completed-offset-reset:latest}"
+            properties = "auto.offset.reset=${spring.kafka.consumer.daily-quiz-completed-offset-reset:earliest}"
     )
     public void consume(DailyQuizCompletedEvent event) {
         boolean applied = rewardService.apply(
