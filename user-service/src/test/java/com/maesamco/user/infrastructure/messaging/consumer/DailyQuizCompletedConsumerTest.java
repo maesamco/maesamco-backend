@@ -70,12 +70,38 @@ class DailyQuizCompletedConsumerTest {
         );
     }
 
+    @Test
+    @DisplayName("정답이 하나도 없어도 완료 보상 처리를 요청한다")
+    void consume_requestsRewardEvenWhenAllAnswersAreWrong() {
+        DailyQuizCompletedEvent event = event(0);
+        when(rewardService.apply(
+                org.mockito.ArgumentMatchers.any(
+                        ApplyDailyQuizCompletedRewardCommand.class
+                )
+        )).thenReturn(true);
+
+        consumer.consume(event);
+
+        ArgumentCaptor<ApplyDailyQuizCompletedRewardCommand> captor =
+                ArgumentCaptor.forClass(
+                        ApplyDailyQuizCompletedRewardCommand.class
+                );
+        verify(rewardService).apply(captor.capture());
+
+        assertThat(captor.getValue().quizAttemptId())
+                .isEqualTo(event.quizAttemptId());
+    }
+
     private DailyQuizCompletedEvent event() {
+        return event(3);
+    }
+
+    private DailyQuizCompletedEvent event(int correctCount) {
         return new DailyQuizCompletedEvent(
                 UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                 UUID.fromString("11111111-1111-1111-1111-111111111111"),
                 UUID.fromString("22222222-2222-2222-2222-222222222222"),
-                3,
+                correctCount,
                 5,
                 Instant.parse("2026-09-20T15:30:00Z")
         );
