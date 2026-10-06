@@ -30,7 +30,17 @@ import java.time.ZoneId;
 @RequiredArgsConstructor
 public class ApplyDailyQuizCompletedRewardTransaction {
 
-    /** Daily Quiz 완료 시 지급하는 XP입니다. 성적 연동 보상은 후속 과제입니다. */
+    /**
+     * Daily Quiz 완료 시 지급하는 XP입니다(#377 결정).
+     *
+     * <ul>
+     *   <li>정답 수와 관계없이 고정 지급합니다. 전부 오답이어도 완료하면 지급합니다.
+     *       약한 개념을 복습시키는 퀴즈라 정답 수에 연동하면 복습이 필요한 사용자일수록
+     *       보상이 줄어들기 때문입니다.</li>
+     *   <li>완료하면 학습 스트릭도 갱신합니다.</li>
+     *   <li>만점 보너스는 레벨 정책(G2)이 정해질 때 함께 검토합니다.</li>
+     * </ul>
+     */
     static final int DAILY_QUIZ_COMPLETED_XP = 5;
 
     private static final ZoneId ACTIVITY_ZONE_ID =
